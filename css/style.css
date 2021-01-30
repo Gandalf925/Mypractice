@@ -1,0 +1,177 @@
+body {
+  margin: 0;
+  font-size: 16px;
+  font-family: Verdana, Geneva, Tahoma, sans-serif;
+  color: #333;
+}
+
+header {
+  background: #f59a00;
+  color: #fff;
+  text-align: center;
+  padding-top:64px ;
+}
+
+header h1, p {
+  margin: 0;
+
+}
+
+header img {
+  width: 200px;
+  vertical-align: bottom;
+}
+
+.btn {
+  text-decoration: none;
+  background: #fff;
+  color: #f59a00;
+  display: block;
+  width: 140px;
+  line-height: 44px;
+  margin: 40px auto 40px;
+  font-size: 14px;
+  font-weight: bold;
+  border-radius: 20px;
+}
+
+.btn:hover {
+  opacity: 0.7;
+}
+
+/* ここから特徴紹介部分 */
+
+.features > h1 {
+  text-align: center;
+  padding: 64px 0;
+  font-weight: normal;
+}
+
+.features img {
+  width: 100%;
+}
+
+.features .container {
+  margin: 0 32px;
+}
+
+.features p {
+  line-height: 1.8;
+}
+
+.features section {
+  padding-bottom: 64px;
+}
+
+/* ここからメンバー紹介 */
+
+.member {
+  background: #f2f2f2;
+}
+
+.member ul {
+  list-style: none;
+  text-align: center;
+  margin: 0;
+  padding: 0;
+}
+
+.member img {
+  width: 160px;
+  border-radius: 50%;
+}
+
+.member > h1 {
+  text-align: center;
+  padding: 64px 0;
+  font-weight: normal;
+}
+
+.member h2 {
+  font-size: 20px;
+}
+
+.member li {
+  padding-bottom: 64px;
+}
+
+
+/* ここからダウンロード推進 */
+
+.call-to-action {
+  background: #f59a00;
+  color: #fff;
+  text-align: center;
+  padding: 64px 0;
+}
+
+.call-to-action h1 {
+  font-weight: normal;
+}
+
+.call-to-action .btn {
+  margin: 0 auto;
+}
+
+/* ここからフッター */
+footer {
+  padding: 64px 0;
+  background: #323135;
+  color: #98969c;
+  text-align: center;
+}
+
+/* ここからメディアクエリ */
+
+@media (min-width: 900px){
+  header .container {
+    display: flex;
+    width: 800px;
+    margin: 0 auto;
+  }
+
+  header .info {
+    width: 60%;
+    align-self: center;
+  }
+
+  header .pic {
+    width: 40%;
+  }
+
+  .features .container {
+    width: 800px;
+    margin: 0 auto;
+  }
+
+  .features section {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .features section:nth-child(even) {
+    flex-direction: row-reverse;
+  }
+
+  .features .pic {
+    width: 50%;
+
+  }
+
+  .features .info {
+    width: calc(50% - 32px)
+
+  }
+
+  .member ul {
+    width: 800px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .member li {
+    width: 250px;
+  }
+
+}
