@@ -1,6 +1,17 @@
-const CACHE_NAME = 'frontline-roads-pages-v32-icons';
+const CACHE_NAME = 'frontline-roads-pages-v34-neighborhood';
 const PATCH_SCRIPT = './icons-patch.js';
-const APP_SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', PATCH_SCRIPT];
+const APP_SHELL = [
+  './',
+  './index.html',
+  './manifest.webmanifest',
+  './icon-192.png',
+  './icon-512.png',
+  PATCH_SCRIPT,
+  './game-core.js?v=34',
+  './game-world.js?v=34',
+  './game-combat.js?v=34',
+  './game-ui.js?v=34'
+];
 
 function injectPatch(response) {
   return response.text().then(html => {
