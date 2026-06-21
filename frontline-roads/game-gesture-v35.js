@@ -74,7 +74,16 @@ function snapshotOldStructures(oldState){
   const barriers=(oldState.map.edges||[]).filter(edge=>edge.barrier).map(edge=>{
     const point=edgeMid(edge,oldState.map);return{barrier:{...edge.barrier},latLon:xyToLatLon(point.x,point.y,oldState.map.center)};
   });
-  return{scrap:oldState.scrap,cityHp:oldState.city?.hp??100,kills:oldState.kills||0,towers,barriers};
+  return{
+    scrap:oldState.scrap,
+    resources:oldState.resources?{...oldState.resources}:null,
+    resourceSpec:oldState.resourceSpec,
+    civilizationLevel:oldState.civilizationLevel,
+    cityHp:oldState.city?.hp??100,
+    kills:oldState.kills||0,
+    towers,
+    barriers
+  };
 }
 function nearestEdgeToPoint(graph,point,maxDistance=30){
   let best=null,bestDistance=maxDistance;
@@ -89,7 +98,13 @@ async function rebuildRoadNetworkV35(lat,lon,accuracy){
   try{
     const graph=await fetchRoadGraph(lat,lon);
     newGame(graph,{x:0,y:0,lat,lon});
-    state.scrap=snapshot.scrap;state.city.hp=Math.min(state.city.maxHp,snapshot.cityHp);state.kills=snapshot.kills;
+    state.scrap=snapshot.scrap;
+    if(snapshot.resources){
+      state.resources={...snapshot.resources};
+      state.resourceSpec=snapshot.resourceSpec;
+      state.civilizationLevel=snapshot.civilizationLevel;
+    }
+    state.city.hp=Math.min(state.city.maxHp,snapshot.cityHp);state.kills=snapshot.kills;
     const occupied=new Set([state.city.nodeId,...state.bases.filter(base=>base.alive).map(base=>base.nodeId)]),restoredTowers=[];
     for(const item of snapshot.towers){
       const point=latLonToXY(item.latLon.lat,item.latLon.lon,state.map.center),node=nearestNode(state.map,point);
@@ -125,5 +140,13 @@ const helpCard=document.querySelector('#helpOverlay .card');
 const closeHelp=document.getElementById('closeHelp');
 if(helpCard&&closeHelp&&!helpCard.querySelector('[data-map-v35]')){
   const note=document.createElement('p');note.className='note';note.dataset.mapV35='1';note.textContent='地図は現在地から約220mを初期表示します。1本指で移動、2本指のピンチ操作で拡大・縮小できます。';helpCard.insertBefore(note,closeHelp);
+}
+
+if(!document.querySelector('script[data-resource-loader]')){
+  const resourceLoader=document.createElement('script');
+  resourceLoader.src='./game-resources-loader.js';
+  resourceLoader.async=false;
+  resourceLoader.dataset.resourceLoader='1';
+  document.body.appendChild(resourceLoader);
 }
 })();
