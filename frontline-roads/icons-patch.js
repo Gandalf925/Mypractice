@@ -88,6 +88,15 @@ function applyDomIcons(){
     strong.dataset.iconPatched='1';
     strong.replaceChildren(makeIcon(key,28));
   });
+  const helpCard=document.querySelector('#helpOverlay .card');
+  const closeHelp=document.getElementById('closeHelp');
+  if(helpCard && closeHelp && !helpCard.dataset.iconCredits){
+    helpCard.dataset.iconCredits='1';
+    const credits=document.createElement('p');
+    credits.className='note';
+    credits.textContent='Icons: Game-icons.net (CC BY 3.0), Heroicons (MIT), Material Symbols (Apache 2.0), delivered via Iconify.';
+    helpCard.insertBefore(credits,closeHelp);
+  }
 }
 
 if(document.readyState==='loading'){
