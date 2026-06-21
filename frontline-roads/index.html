@@ -114,7 +114,7 @@
   <div id="menuOverlay">
     <div class="card">
       <h2>メニュー</h2>
-<div class="toggleRow"><div><b>検証速度</b><br><span class="note">通常は現実時間。試験時のみ加速できます</span></div><button class="miniBtn" id="timeScaleBtn">1× 現実時間</button></div>
+      <div class="toggleRow"><div><b>検証速度</b><br><span class="note">通常は現実時間。試験時のみ加速できます</span></div><button class="miniBtn" id="timeScaleBtn">1× 現実時間</button></div>
       <button class="bigBtn secondary" id="helpBtn">遊び方</button>
       <button class="bigBtn secondary" id="saveBtn">現在の状態を保存</button>
       <button class="bigBtn danger" id="resetBtn">ゲームを初期化</button>
@@ -125,13 +125,13 @@
   <div id="helpOverlay">
     <div class="card">
       <h2>遊び方</h2>
-      <p class="note">Neighborhood Enemy Spec v3.4</p>
+      <p class="note">Neighborhood Map Spec v3.5</p>
       <div class="legend">
+        <div><b>近距離マップ</b><br>開始時は現在地から約220mを表示。遠方は地図を動かして確認。</div>
+        <div><b>地図操作</b><br>1本指で移動、2本指のピンチで拡大・縮小。</div>
         <div><b>近所の敵拠点</b><br>道路距離160～550mに4種類。35m以内で制圧開始。</div>
         <div><b>現地制圧</b><br>開始後は50m以内に滞在。離れると停止し、2分後から後退。</div>
-        <div><b>防壁</b><br>道路を塞ぎます。迂回させられますが、敵に破壊されます。</div>
-        <div><b>塔</b><br>機関砲・榴弾砲・減速塔が移動中の敵を自動攻撃。</div>
-        <div><b>遠隔運用</b><br>施設の修理や優先目標変更は離れていても可能。</div>
+        <div><b>整理された道路</b><br>並行車線は1本の中心線へ統合し、車線数を道路幅で表現。</div>
         <div><b>敵の成長</b><br>15分・35分でLv上昇。盾兵、工兵、重装兵、工作員が増えます。</div>
       </div>
       <p>最寄りの前哨基地は徒歩2～4分、最遠の装甲工場でも徒歩6～9分を目安に配置されます。拠点を制圧すると、その場所は機関砲・修理中継・減速塔・榴弾砲へ転換されます。</p>
@@ -139,9 +139,11 @@
     </div>
   </div>
 </div>
-<script src="./game-core.js?v=34"></script>
-<script src="./game-world.js?v=34"></script>
-<script src="./game-combat.js?v=34"></script>
-<script src="./game-ui.js?v=34"></script>
+<script src="./game-core.js?v=35"></script>
+<script src="./game-world.js?v=35"></script>
+<script src="./game-combat.js?v=35"></script>
+<script src="./game-map-v35.js?v=35"></script>
+<script src="./game-ui.js?v=35"></script>
+<script src="./game-gesture-v35.js?v=35"></script>
 </body>
 </html>
