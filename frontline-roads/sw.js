@@ -1,4 +1,4 @@
-const CACHE_NAME = 'frontline-roads-pages-v35-map-cleanup';
+const CACHE_NAME = 'frontline-roads-pages-v36-single-centerline';
 const PATCH_SCRIPT = './icons-patch.js';
 const APP_SHELL = [
   './',
@@ -7,12 +7,12 @@ const APP_SHELL = [
   './icon-192.png',
   './icon-512.png',
   PATCH_SCRIPT,
-  './game-core.js?v=35',
-  './game-world.js?v=35',
-  './game-combat.js?v=35',
-  './game-map-v35.js?v=35',
-  './game-ui.js?v=35',
-  './game-gesture-v35.js?v=35'
+  './game-core.js?v=36',
+  './game-world.js?v=36',
+  './game-combat.js?v=36',
+  './game-map-v36.js?v=36',
+  './game-ui.js?v=36',
+  './game-gesture-v35.js?v=36'
 ];
 
 function injectPatch(response) {
