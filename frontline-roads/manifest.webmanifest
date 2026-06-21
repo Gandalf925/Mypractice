@@ -1,0 +1,15 @@
+{
+  "name": "FRONTLINE ROADS",
+  "short_name": "FRONTLINE",
+  "description": "現実の道路を戦場に変える常時進行型位置情報タワーディフェンス",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e1117",
+  "theme_color": "#11141a",
+  "icons": [
+    {"src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}

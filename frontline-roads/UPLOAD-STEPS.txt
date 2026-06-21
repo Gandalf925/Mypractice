@@ -1,0 +1,11 @@
+FRONTLINE ROADS - GitHub Pages 公開手順
+
+1. GitHubでPublicリポジトリ「frontline-roads」を新規作成する。
+2. Add file → Upload files を開く。
+3. このフォルダ内の index.html / manifest.webmanifest / sw.js / icon-192.png / icon-512.png をアップロードし、Commit changes。
+4. Settings → Pages を開く。
+5. Source を「Deploy from a branch」にする。
+6. Branch を「main」、Folderを「/(root)」にして Save。
+7. 数分後、以下をスマホで開く。
+   https://gandalf925.github.io/frontline-roads/
+8. ブラウザの位置情報を「許可」にする。
