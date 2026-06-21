@@ -1,4 +1,4 @@
-const CACHE_NAME='frontline-roads-civilization';
+const CACHE_NAME='frontline-roads-civilization-startup-fix';
 const APP_SHELL=[
   './','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png',
   './game-core.js?v=36','./game-world.js?v=36','./game-combat.js?v=36','./game-map-v36.js?v=36','./game-ui.js?v=36',
