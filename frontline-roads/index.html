@@ -104,17 +104,17 @@
     <div class="card">
       <h1>FRONTLINE ROADS</h1>
       <p class="concept">道を塞ぎ、敵の流れをねじ曲げ、自分で作った殺し場へ大軍を流し込む。</p>
-      <p>現在地周辺の道路を自動取得します。初回のみ、ブラウザの位置情報ダイアログで「許可」を選んでください。</p>
+      <p>初回は現在地から離れた安全な候補地を選び、現地で集落を設営します。位置情報の利用を許可してください。</p>
       <div id="loading" style="display:block">位置情報の許可を待っています…</div>
       <button class="bigBtn secondary" id="retryLocation">位置情報を再取得</button>
-      <p class="note">座標入力は不要です。現在地は端末から自動取得され、現地建設と敵拠点攻略の判定に使用されます。GitHub PagesのHTTPS上で動作します。</p>
+      <p class="note">初回起動地点は拠点として使用せず、候補生成後に保存しません。正確な現在地履歴も保存しません。</p>
     </div>
   </div>
 
   <div id="menuOverlay">
     <div class="card">
       <h2>メニュー</h2>
-      <div class="toggleRow"><div><b>検証速度</b><br><span class="note">通常は現実時間。試験時のみ加速できます</span></div><button class="miniBtn" id="timeScaleBtn">1× 現実時間</button></div>
+<div class="toggleRow"><div><b>検証速度</b><br><span class="note">通常は現実時間。試験時のみ加速できます</span></div><button class="miniBtn" id="timeScaleBtn">1× 現実時間</button></div>
       <button class="bigBtn secondary" id="helpBtn">遊び方</button>
       <button class="bigBtn secondary" id="saveBtn">現在の状態を保存</button>
       <button class="bigBtn danger" id="resetBtn">ゲームを初期化</button>
@@ -126,14 +126,16 @@
     <div class="card">
       <h2>遊び方</h2>
       <div class="legend">
-        <div><b>近距離マップ</b><br>開始時は現在地から約210mを表示。遠方は地図を動かして確認。</div>
-        <div><b>地図操作</b><br>1本指で移動、2本指のピンチで拡大・縮小。</div>
-        <div><b>一本化した道路</b><br>上下線・並行車線を代表線1本へ統合し、車線数は道路幅で表現。</div>
-        <div><b>戦闘用道路</b><br>歩道・自転車道・駐車場内通路・短い進入路は敵経路から除外。</div>
-        <div><b>近所の敵拠点</b><br>道路距離160～550mに4種類。35m以内で制圧開始。</div>
-        <div><b>現地制圧</b><br>開始後は50m以内に滞在。離れると停止し、2分後から後退。</div>
+        <div><b>初回の集落設営</b><br>周辺の候補地から選び、現地50m以内で30秒間設営します。</div>
+        <div><b>地図操作</b><br>1本指で移動、2本指のピンチで拡大・縮小できます。</div>
+        <div><b>資材と制作</b><br>敵から木材・石材・繊維などを得て、防衛設備や集落施設を制作します。</div>
+        <div><b>文明発展</b><br>資材納入、施設建設、戦闘実績を満たして中央施設を改築します。</div>
+        <div><b>道路防衛</b><br>柵・壁・罠・投石設備で敵の経路を変え、迎撃します。</div>
+        <div><b>集落内施設</b><br>倉庫・加工場・炉・鍛冶場は道路設備と別の建設枠で管理します。</div>
+        <div><b>生産</b><br>原料を加工し、切石・青銅・鍛鉄など高度な資材を作ります。</div>
+        <div><b>前哨地</b><br>敵拠点の制圧後は廃墟となり、資材で復旧して保有します。</div>
       </div>
-      <p>敵は一本化された戦闘用道路だけを使用します。最寄りの前哨基地は徒歩2～4分、最遠の装甲工場でも徒歩6～9分を目安に配置されます。</p>
+      <p>文明は原始集落から始まり、定住集落、石工集落、青銅砦を経て鉄器都市へ進みます。敵の世代と資源拠点も文明に合わせて段階的に変化します。</p>
       <button class="bigBtn" id="closeHelp">戻る</button>
     </div>
   </div>
@@ -142,7 +144,8 @@
 <script src="./game-world.js?v=36"></script>
 <script src="./game-combat.js?v=36"></script>
 <script src="./game-map-v36.js?v=36"></script>
-<script src="./game-ui.js?v=36"></script>
-<script src="./game-gesture-v35.js?v=36"></script>
+<script src="./civilization-payload-core.js"></script>
+<script src="./civilization-payload-runtime.js"></script>
+<script src="./civilization-bootstrap.js"></script>
 </body>
 </html>
