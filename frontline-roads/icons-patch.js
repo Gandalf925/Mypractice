@@ -30,6 +30,7 @@ const canvasTextMap={
   'G':['gun',14],
   'M':['mortar',14],
   'S':['slow',14],
+  'R':['engineer',14],
   '⚑':['barracks',15],
   '⚒':['engineer',15],
   '⬢':['factory',15],
