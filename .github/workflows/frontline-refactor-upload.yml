@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   assemble:
-    if: github.actor != 'github-actions[bot]'
+    if: github.actor != 'github-actions[bot]' && hashFiles('.frontline-upload/READY') != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
