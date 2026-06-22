@@ -1,0 +1,30 @@
+name: Build FRONTLINE ROADS single page
+
+on:
+  push:
+    branches: [frontline-single]
+    paths: ['.single-upload/READY']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Join page parts
+        run: cat .single-upload/part-*.txt > frontline-roads/index.html
+      - name: Validate page
+        run: |
+          grep -q '<meta name="frontline-build" content="0.11.0-single-html">' frontline-roads/index.html
+          test "$(grep -o '<script' frontline-roads/index.html | wc -l)" -eq 1
+          test "$(grep -o '<style' frontline-roads/index.html | wc -l)" -eq 1
+          ! grep -q 'src/app/bootstrap.js' frontline-roads/index.html
+      - name: Commit page
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontline-roads/index.html
+          git commit -m 'Publish FRONTLINE ROADS single HTML'
+          git push origin HEAD:frontline-single
