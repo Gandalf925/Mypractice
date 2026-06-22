@@ -1,0 +1,11 @@
+{
+  "name": "frontline-roads-refactor",
+  "version": "0.11.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "syntax": "find src tests -name '*.js' -print0 | xargs -0 -n1 node --check",
+    "verify": "npm run syntax && npm test"
+  }
+}
