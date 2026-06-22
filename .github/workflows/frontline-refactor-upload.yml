@@ -1,0 +1,36 @@
+name: Assemble FRONTLINE ROADS refactor
+
+on:
+  push:
+    branches:
+      - codex/frontline-roads-refactor-v0-11-0
+    paths:
+      - '.frontline-upload/**'
+      - '.github/workflows/frontline-refactor-upload.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  assemble:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Assemble files
+        run: node .frontline-upload/assemble.mjs
+      - name: Verify
+        working-directory: frontline-roads
+        run: npm run verify
+      - name: Commit assembled source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A frontline-roads .frontline-upload .github/workflows/frontline-refactor-upload.yml
+          git commit -m 'Assemble FRONTLINE ROADS refactor' || exit 0
+          git push origin HEAD:${GITHUB_REF_NAME}
