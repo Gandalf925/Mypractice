@@ -1,11 +1,37 @@
 import { clamp } from '../core/utilities.js';
-import { DEFENSE_DEFINITIONS, ENEMY_BASE_DEFINITIONS, ENEMY_DEFINITIONS } from '../combat/definitions.js';
 import { edgeMidpoint } from '../combat/combat-geometry.js';
 import { enemyPosition } from '../combat/enemy-system.js';
+import { sweepIntensity } from './radar-renderer.js';
 
-function circle(context, point, radius, fill, stroke = '#10151d', lineWidth = 2) {
+const TAU = Math.PI * 2;
+
+function glow(context, color, blur = 12) {
+  context.shadowColor = color;
+  context.shadowBlur = blur;
+}
+
+function ring(context, point, radius, color, lineWidth = 1.5, alpha = 1, dashed = false) {
+  context.save();
+  context.globalAlpha = alpha;
+  context.strokeStyle = color;
+  context.lineWidth = lineWidth;
+  if (dashed) context.setLineDash([3, 3]);
   context.beginPath();
-  context.arc(point.x, point.y, radius, 0, Math.PI * 2);
+  context.arc(point.x, point.y, radius, 0, TAU);
+  context.stroke();
+  context.restore();
+}
+
+function polygon(context, point, radius, sides, rotation, fill, stroke, lineWidth = 1.5) {
+  context.beginPath();
+  for (let index = 0; index < sides; index += 1) {
+    const angle = rotation + index * TAU / sides;
+    const x = point.x + Math.cos(angle) * radius;
+    const y = point.y + Math.sin(angle) * radius;
+    if (index === 0) context.moveTo(x, y);
+    else context.lineTo(x, y);
+  }
+  context.closePath();
   context.fillStyle = fill;
   context.fill();
   context.strokeStyle = stroke;
@@ -13,30 +39,159 @@ function circle(context, point, radius, fill, stroke = '#10151d', lineWidth = 2)
   context.stroke();
 }
 
-function drawHealthBar(context, point, value, maximum, width = 24) {
+function drawHealthBar(context, point, value, maximum, width = 24, offset = 12) {
   const ratio = clamp(value / Math.max(1, maximum), 0, 1);
-  context.fillStyle = 'rgba(0,0,0,.58)';
-  context.fillRect(point.x - width / 2, point.y + 11, width, 3);
-  context.fillStyle = ratio < 0.3 ? '#ff6b6b' : '#7ee787';
-  context.fillRect(point.x - width / 2, point.y + 11, width * ratio, 3);
+  context.save();
+  context.fillStyle = 'rgba(0, 10, 10, 0.86)';
+  context.fillRect(point.x - width / 2 - 1, point.y + offset - 1, width + 2, 4);
+  context.fillStyle = ratio < 0.3 ? '#ff5268' : ratio < 0.65 ? '#ffc857' : '#65ffd0';
+  context.shadowColor = context.fillStyle;
+  context.shadowBlur = 5;
+  context.fillRect(point.x - width / 2, point.y + offset, width * ratio, 2);
+  context.restore();
 }
 
-export function drawCombatState(context, state, camera) {
+function drawTicks(context, point, radius, color) {
+  context.save();
+  context.strokeStyle = color;
+  context.lineWidth = 1.2;
+  for (let index = 0; index < 4; index += 1) {
+    const angle = index * Math.PI / 2;
+    const inner = radius + 2;
+    const outer = radius + 6;
+    context.beginPath();
+    context.moveTo(point.x + Math.cos(angle) * inner, point.y + Math.sin(angle) * inner);
+    context.lineTo(point.x + Math.cos(angle) * outer, point.y + Math.sin(angle) * outer);
+    context.stroke();
+  }
+  context.restore();
+}
+
+function drawEnemyBase(context, point, timeMs) {
+  const pulse = 14 + Math.sin(timeMs * 0.004) * 2;
+  context.save();
+  glow(context, '#ff4965', 18);
+  polygon(context, point, 10, 4, Math.PI / 4, 'rgba(255,73,101,0.22)', '#ff4965', 1.7);
+  ring(context, point, pulse, '#ff6b7d', 1, 0.65, true);
+  drawTicks(context, point, 12, '#ff6b7d');
+  context.fillStyle = '#ffb3bd';
+  context.font = '700 7px ui-monospace, monospace';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText('HOST', point.x, point.y + 0.5);
+  context.restore();
+}
+
+function drawOutpost(context, point, active, timeMs) {
+  const color = active ? '#66ffd1' : '#72857e';
+  context.save();
+  glow(context, color, active ? 12 : 3);
+  polygon(context, point, 9, 6, Math.PI / 6, active ? 'rgba(102,255,209,0.16)' : 'rgba(80,100,95,0.2)', color, 1.5);
+  ring(context, point, 12 + Math.sin(timeMs * 0.003) * 1.2, color, 1, active ? 0.5 : 0.25, !active);
+  context.fillStyle = color;
+  context.font = '700 7px ui-monospace, monospace';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(active ? 'OUT' : 'RUI', point.x, point.y + 0.5);
+  context.restore();
+}
+
+function drawBarrier(context, point, angle) {
+  context.save();
+  context.translate(point.x, point.y);
+  context.rotate(angle);
+  glow(context, '#ffc857', 9);
+  context.fillStyle = 'rgba(255,200,87,0.2)';
+  context.strokeStyle = '#ffc857';
+  context.lineWidth = 1.2;
+  context.fillRect(-11, -4, 22, 8);
+  context.strokeRect(-11, -4, 22, 8);
+  context.beginPath();
+  for (let x = -8; x <= 8; x += 4) {
+    context.moveTo(x, -4);
+    context.lineTo(x + 4, 4);
+  }
+  context.stroke();
+  context.restore();
+}
+
+function defenseColor(type) {
+  if (type === 'mortar') return '#ffbc73';
+  if (type === 'relay') return '#68ffd4';
+  if (type === 'slow') return '#bb8cff';
+  return '#65d7ff';
+}
+
+function drawDefense(context, point, type) {
+  const color = defenseColor(type);
+  context.save();
+  glow(context, color, 11);
+  ring(context, point, 9.5, color, 1.3, 0.72);
+  if (type === 'gun') {
+    polygon(context, point, 5.5, 3, -Math.PI / 2, 'rgba(101,215,255,0.2)', color, 1.2);
+  } else if (type === 'mortar') {
+    polygon(context, point, 5.2, 4, Math.PI / 4, 'rgba(255,188,115,0.2)', color, 1.2);
+    ring(context, point, 2, color, 1, 0.9);
+  } else if (type === 'relay') {
+    ring(context, point, 5.5, color, 1.1, 0.95);
+    context.fillStyle = color;
+    context.beginPath();
+    context.arc(point.x, point.y, 1.6, 0, TAU);
+    context.fill();
+  } else {
+    polygon(context, point, 5.5, 4, 0, 'rgba(187,140,255,0.2)', color, 1.2);
+  }
+  context.restore();
+}
+
+function drawEnemyBlip(context, point, radius, slowed, intensity, timeMs) {
+  const color = slowed ? '#bd86ff' : '#ff4e69';
+  const pulse = radius + 2.5 + Math.sin(timeMs * 0.008 + point.x * 0.02) * 1.4;
+  context.save();
+  context.globalAlpha = 0.68 + intensity * 0.32;
+  glow(context, color, 8 + intensity * 12);
+  context.fillStyle = color;
+  context.beginPath();
+  context.arc(point.x, point.y, Math.max(2.4, radius * 0.56), 0, TAU);
+  context.fill();
+  ring(context, point, pulse, color, 1, 0.26 + intensity * 0.54);
+  context.restore();
+}
+
+function drawCity(context, point, timeMs) {
+  const pulse = 17 + Math.sin(timeMs * 0.0035) * 1.5;
+  context.save();
+  glow(context, '#8affdf', 18);
+  ring(context, point, pulse, '#8affdf', 1.4, 0.5, true);
+  ring(context, point, 12.5, '#d5fff4', 2, 0.95);
+  ring(context, point, 7.5, '#65ffd0', 1.2, 0.9);
+  drawTicks(context, point, 13, '#9effe4');
+  context.fillStyle = '#dffff7';
+  context.font = '800 7px ui-monospace, monospace';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText('HQ', point.x, point.y + 0.4);
+  context.restore();
+}
+
+function drawPlayer(context, point) {
+  context.save();
+  glow(context, '#f1fff9', 12);
+  polygon(context, point, 6.5, 3, -Math.PI / 2, 'rgba(241,255,249,0.18)', '#f1fff9', 1.5);
+  ring(context, point, 10, '#65ffd0', 1, 0.5);
+  context.restore();
+}
+
+export function drawCombatState(context, state, camera, radar = {}) {
   if (!state?.world?.city || !state.world.roadGraph?.nodeById) return;
   const graph = state.world.roadGraph;
+  const timeMs = radar.timeMs ?? 0;
 
   for (const base of state.world.enemyBases ?? []) {
     if (!base.alive) continue;
     const node = graph.nodeById.get(base.nodeId);
     if (!node) continue;
-    const point = camera.worldToScreen(node);
-    const definition = ENEMY_BASE_DEFINITIONS[base.type];
-    circle(context, point, 11, '#d95858', '#ffffff66', 2.5);
-    context.fillStyle = '#fff';
-    context.font = 'bold 12px system-ui';
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText(definition?.icon ?? '⚑', point.x, point.y);
+    drawEnemyBase(context, camera.worldToScreen(node), timeMs);
   }
 
   for (const outpost of state.world.outposts ?? []) {
@@ -45,13 +200,8 @@ export function drawCombatState(context, state, camera) {
     if (!node) continue;
     const point = camera.worldToScreen(node);
     const active = outpost.status === 'ACTIVE';
-    circle(context, point, 10, active ? '#7ee787' : '#59616d', active ? '#d8ffe0' : '#242a32', 2.5);
-    context.fillStyle = active ? '#102015' : '#d5d9df';
-    context.font = 'bold 10px system-ui';
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText(active ? '前' : '廃', point.x, point.y);
-    if (active) drawHealthBar(context, point, outpost.hp, outpost.maxHp, 22);
+    drawOutpost(context, point, active, timeMs);
+    if (active) drawHealthBar(context, point, outpost.hp, outpost.maxHp, 22, 14);
   }
 
   for (const defense of state.combat.defenses ?? []) {
@@ -63,30 +213,15 @@ export function drawCombatState(context, state, camera) {
       const edge = graph.edgeById.get(defense.edgeId);
       const a = graph.nodeById.get(edge.a);
       const b = graph.nodeById.get(edge.b);
-      const angle = Math.atan2(b.y - a.y, b.x - a.x);
-      context.save();
-      context.translate(point.x, point.y);
-      context.rotate(angle);
-      context.fillStyle = '#d4a24d';
-      context.strokeStyle = '#492f10';
-      context.lineWidth = 2;
-      context.fillRect(-10, -5, 20, 10);
-      context.strokeRect(-10, -5, 20, 10);
-      context.restore();
-      drawHealthBar(context, point, defense.hp, defense.maxHp, 22);
+      drawBarrier(context, point, Math.atan2(b.y - a.y, b.x - a.x));
+      drawHealthBar(context, point, defense.hp, defense.maxHp, 22, 9);
       continue;
     }
     const node = graph.nodeById.get(defense.nodeId);
     if (!node) continue;
     const point = camera.worldToScreen(node);
-    const fill = defense.type === 'gun' ? '#78b7ff' : defense.type === 'mortar' ? '#ffb86b' : defense.type === 'relay' ? '#7ee787' : '#c08cff';
-    circle(context, point, 8, fill);
-    context.fillStyle = '#111720';
-    context.font = 'bold 9px system-ui';
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText(DEFENSE_DEFINITIONS[defense.type]?.icon ?? '•', point.x, point.y);
-    drawHealthBar(context, point, defense.hp, defense.maxHp, 20);
+    drawDefense(context, point, defense.type);
+    drawHealthBar(context, point, defense.hp, defense.maxHp, 20, 11);
   }
 
   const edgeCounts = new Map();
@@ -95,13 +230,16 @@ export function drawCombatState(context, state, camera) {
   }
   context.save();
   context.lineCap = 'round';
+  context.globalCompositeOperation = 'screen';
   for (const [edgeId, count] of edgeCounts) {
     const edge = graph.edgeById.get(edgeId);
     if (!edge) continue;
     const a = camera.worldToScreen(graph.nodeById.get(edge.a));
     const b = camera.worldToScreen(graph.nodeById.get(edge.b));
-    context.strokeStyle = `rgba(255,80,80,${Math.min(0.5, 0.12 + count * 0.025)})`;
-    context.lineWidth = Math.min(24, 5 + count * 1.3);
+    context.strokeStyle = `rgba(255,67,91,${Math.min(0.46, 0.08 + count * 0.022)})`;
+    context.shadowColor = '#ff435b';
+    context.shadowBlur = Math.min(18, 4 + count * 0.7);
+    context.lineWidth = Math.min(17, 3 + count * 0.8);
     context.beginPath();
     context.moveTo(a.x, a.y);
     context.lineTo(b.x, b.y);
@@ -130,26 +268,17 @@ export function drawCombatState(context, state, camera) {
       }
     }
     const point = camera.worldToScreen(renderPosition);
-    const definition = ENEMY_DEFINITIONS[enemy.type];
-    circle(context, point, definition.radius, enemy.slowTimer > 0 ? '#c08cff' : '#ff6b6b', '#5a1717', 1.5);
-    if (enemy.hp < enemy.maxHp) drawHealthBar(context, point, enemy.hp, enemy.maxHp, 16);
+    const intensity = radar.center ? sweepIntensity(point, radar.center, radar.sweepAngle ?? 0) : 0;
+    drawEnemyBlip(context, point, enemy.radius ?? 5, enemy.slowTimer > 0, intensity, timeMs);
+    if (enemy.hp < enemy.maxHp) drawHealthBar(context, point, enemy.hp, enemy.maxHp, 16, 8);
   }
 
   const cityNode = graph.nodeById.get(state.world.city.nodeId);
   if (cityNode) {
     const point = camera.worldToScreen(cityNode);
-    circle(context, point, 13, '#f4f7fb', '#78b7ff', 3);
-    context.fillStyle = '#11141a';
-    context.font = 'bold 14px system-ui';
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText('城', point.x, point.y + 1);
-    drawHealthBar(context, point, state.world.city.hp, state.world.city.maxHp, 30);
+    drawCity(context, point, timeMs);
+    drawHealthBar(context, point, state.world.city.hp, state.world.city.maxHp, 30, 17);
   }
 
-  const player = state.player.worldPosition;
-  if (player) {
-    const point = camera.worldToScreen(player);
-    circle(context, point, 7, '#7ee787', '#0b3f20', 2.5);
-  }
+  if (state.player.worldPosition) drawPlayer(context, camera.worldToScreen(state.player.worldPosition));
 }

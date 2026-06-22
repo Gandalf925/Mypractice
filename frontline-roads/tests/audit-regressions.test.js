@@ -160,3 +160,10 @@ test('production source only enables dev fixture on local or explicit test origi
   assert.match(source, /localhost/);
   assert.match(source, /__FRONTLINE_TEST_FIXTURE__/);
 });
+
+
+test('development fixture disables browser JSONP and uses injected road data', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const source = await readFile(new URL('../src/app/bootstrap.js', import.meta.url), 'utf8');
+  assert.match(source, /development\.fetchImpl, jsonpImpl: null/);
+});

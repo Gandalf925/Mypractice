@@ -155,7 +155,7 @@ export class EnemySystem {
         if (tower.hp <= 0 && !tower.ruined) {
           tower.hp = 0;
           tower.ruined = true;
-          this.events?.emit('combat:defense-destroyed', { defenseId: tower.id });
+          this.events?.emit('combat:defense-destroyed', { defenseId: tower.id, position: state.world.roadGraph.nodeById.get(tower.nodeId) });
         }
         return false;
       }
@@ -176,6 +176,9 @@ export class EnemySystem {
           barrier.hp = 0;
           barrier.ruined = true;
           this.invalidateAllPaths(state);
+          const a = graph.nodeById.get(edge.a);
+          const b = graph.nodeById.get(edge.b);
+          this.events?.emit('combat:defense-destroyed', { defenseId: barrier.id, position: a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : null });
           this.events?.emit('message', { text: '防壁が破壊され、敵の流れが変わりました。' });
         }
       }

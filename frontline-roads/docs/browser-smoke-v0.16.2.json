@@ -1,0 +1,137 @@
+{
+  "version": "0.16.2-radar-complete",
+  "date": "2026-06-22",
+  "method": "Chromium loaded the exact modular source as dependency-ordered Blob modules because administrator policy blocks local HTTP/file navigation in this environment.",
+  "scope": [
+    "fixed-road startup without GPS or external road network",
+    "road selection and base confirmation",
+    "transition to PLAYING",
+    "menu opening and all three radar preference controls",
+    "civilization panel opening",
+    "portrait and landscape HUD overlap checks",
+    "page-error and console-error capture"
+  ],
+  "limitations": [
+    "Live GPS permission was not exercised in this container.",
+    "Live Overpass network transport was not exercised in this container.",
+    "Service Worker installation over a real HTTPS origin was unit-tested but not browser-integrated here."
+  ],
+  "results": [
+    {
+      "name": "portrait-final",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "playing": true,
+      "menu": true,
+      "qualityBefore": "表示品質：標準",
+      "qualityAfter": "表示品質：省電力",
+      "datasets": {
+        "q": "minimal",
+        "m": "off",
+        "r": "all"
+      },
+      "civilization": true,
+      "layout": {
+        "rects": {
+          "threatStatus": {
+            "l": 200,
+            "t": 112,
+            "r": 380,
+            "b": 184,
+            "w": 180,
+            "h": 72
+          },
+          "resourceSummary": {
+            "l": 10,
+            "t": 81,
+            "r": 302,
+            "b": 108.046875,
+            "w": 292,
+            "h": 27.046875
+          },
+          "baseSummary": {
+            "l": 10,
+            "t": 113,
+            "r": 156,
+            "b": 136,
+            "w": 146,
+            "h": 23
+          },
+          "combatTools": {
+            "l": 0,
+            "t": 744,
+            "r": 390,
+            "b": 844,
+            "w": 390,
+            "h": 100
+          }
+        },
+        "overlaps": []
+      },
+      "version": "0.16.2-radar-complete",
+      "lifecycle": "PLAYING",
+      "errors": [],
+      "console": []
+    },
+    {
+      "name": "landscape-final",
+      "viewport": {
+        "width": 844,
+        "height": 390
+      },
+      "playing": true,
+      "menu": true,
+      "qualityBefore": "表示品質：標準",
+      "qualityAfter": "表示品質：省電力",
+      "datasets": {
+        "q": "minimal",
+        "m": "off",
+        "r": "all"
+      },
+      "civilization": true,
+      "layout": {
+        "rects": {
+          "threatStatus": {
+            "l": 353,
+            "t": 36,
+            "r": 491,
+            "b": 62,
+            "w": 138,
+            "h": 26
+          },
+          "resourceSummary": {
+            "l": 10,
+            "t": 70,
+            "r": 694,
+            "b": 97.046875,
+            "w": 684,
+            "h": 27.046875
+          },
+          "baseSummary": {
+            "l": 10,
+            "t": 100,
+            "r": 156,
+            "b": 123,
+            "w": 146,
+            "h": 23
+          },
+          "combatTools": {
+            "l": 405.109375,
+            "t": 300,
+            "r": 844,
+            "b": 390,
+            "w": 438.890625,
+            "h": 90
+          }
+        },
+        "overlaps": []
+      },
+      "version": "0.16.2-radar-complete",
+      "lifecycle": "PLAYING",
+      "errors": [],
+      "console": []
+    }
+  ]
+}

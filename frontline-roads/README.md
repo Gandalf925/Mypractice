@@ -1,66 +1,59 @@
-# FRONTLINE ROADS — clean refactor
+# FRONTLINE ROADS — radar-complete modular source v0.16.2
 
-機能ごとに分離して再構築したGitHub管理用の開発版です。v0.12.2では道路データ取得経路を更新しています。
+FRONTLINE ROADS is a location-based road-defense strategy game. This directory is the canonical modular development source.
 
-## 現在の構成
+## Architecture
 
-- `src/app`: 起動、ライフサイクル、ゲームループ、PWA登録
-- `src/core`: 正式状態スキーマ、状態ストア、イベント、共通定数
-- `src/location`: 位置情報と座標変換
-- `src/roads`: Overpass取得、道路選別、並行道路統合、交差点統合、グラフ、経路探索
-- `src/base`: 初回拠点選択と道路グラフへの拠点ノード挿入
-- `src/combat`: 敵、敵拠点、ウェーブ、経路、防壁、防衛設備、戦闘
-- `src/civilization`: 資源、集落施設、生産、文明発展、前哨地
-- `src/persistence`: 保存、旧セーブ移行、不在進行、複数タブ制御
-- `src/rendering`: カメラ、道路、戦闘オブジェクト描画
-- `src/ui`: 初回拠点、戦闘、文明、メニュー、入力
-- `tests`: 構文、依存関係、道路、戦闘、文明、保存、不在進行、長時間進行の検査
+- `src/app`: startup, lifecycle, game loop and PWA registration
+- `src/core`: state schema, store, events and shared constants
+- `src/location`: geolocation and coordinate conversion
+- `src/roads`: road acquisition, filtering, geometry, graph construction and routing
+- `src/base`: first-base placement and graph insertion
+- `src/combat`: enemies, bases, waves, defenses and combat
+- `src/civilization`: resources, facilities, production, progression and outposts
+- `src/persistence`: saves, migrations, offline simulation and tab ownership
+- `src/rendering`: radar, roads, combat glyphs, tactical overlays and effects
+- `src/ui`: input, base placement, combat, civilization, menu and radar preferences
+- `tests`: regression, simulation, transport, rendering and shell validation
 
-## 主要な設計条件
+## Radar interface
 
-- 道路取得と道路グラフ生成は `RoadService` の一経路だけです。
-- 初回拠点選択とゲーム本体は同じ道路グラフを使用し、確定時に再取得しません。
-- Canvasのポインター入力所有者は `MapInput` だけです。
-- グローバル関数の後付け上書きは使用しません。
-- 正式な資源状態は `inventory.resources` だけです。
-- オンライン進行と不在進行は同じ `CombatSystem` と `CivilizationSystem` を使用します。
-- 正確な現在地はセーブへ残しません。
-- 単一HTML生成は開発工程に含めず、ブロックチェーン公開直前まで行いません。
+The rectangular road map and all gameplay controls are retained. Radar grid/rings/sweep, luminous road lines, tactical glyphs, threat routes, range/cooldown/targeting overlays, combat pulses and terminal HUD are rendering/UI layers only. Canonical combat, civilization, save and road logic remain separate.
 
-## 起動
+## Road acquisition
 
-ES Modulesを使用するため、HTTPサーバー経由で開きます。
+Browsers try Overpass JSONP first, then minimal POST, across current public endpoints. Queries are filtered to the road classes used by gameplay. Failure diagnostics identify endpoint and transport without exposing the user's coordinates.
+
+## Run locally
+
+Use an HTTP server because the project uses ES modules.
 
 ```bash
 python -m http.server 8080
 ```
 
-通常起動:
+Normal mode:
 
 ```text
 http://localhost:8080/
 ```
 
-GPSとOverpassを使わない固定道路の開発確認:
+Fixed-road development mode without GPS or external road access:
 
 ```text
 http://localhost:8080/?devFixture=1
 ```
 
-`devFixture=1` は開発確認専用です。
+The fixture is accepted only on local/file/test origins.
 
-## 検証
+## Verify
 
 ```bash
 npm run verify
 ```
 
-このコマンドは全JavaScriptの構文検査後に全テストを実行します。
+Final result: 83 tests passed, 0 failed.
 
-## 公開状態
+## Publication policy
 
-このフォルダはGitHubへ配置する分割ソースです。単一HTML化はブロックチェーン公開直前まで行いません。
-
-## 道路データ取得
-
-ブラウザではCORSに依存しないOverpass JSONPを優先し、失敗時に公式例と同じ最小POSTへ切り替えます。失敗時はサーバー名・方式・原因を初回画面へ表示します。
+GitHub and normal web hosting use this modular source. Do not create a single HTML during development. Generate a single HTML only immediately before blockchain publication.

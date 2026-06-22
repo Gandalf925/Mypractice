@@ -24,12 +24,13 @@ import { BuildSystem } from '../combat/build-system.js';
 import { CombatUi } from '../ui/combat-ui.js';
 import { CivilizationUi } from '../ui/civilization-ui.js';
 import { MenuUi } from '../ui/menu-ui.js';
+import { RadarPreferences } from '../ui/radar-preferences.js';
 import { GameLoop } from './game-loop.js';
 import { OfflineSimulator } from '../persistence/offline-simulator.js';
 import { CivilizationSystem, ensureCivilizationState } from '../civilization/civilization-system.js';
 import { RESOURCE_LABELS } from '../civilization/data.js';
 import { TabCoordinator } from '../persistence/tab-coordinator.js';
-import { cleanupLegacyPwa } from './pwa.js';
+import { registerPwa } from './pwa.js';
 
 class FrontlineRoadsApp {
   constructor() {
@@ -42,10 +43,14 @@ class FrontlineRoadsApp {
     const developmentMode = fixtureRequested && localFixtureAllowed;
     const development = developmentMode ? createDevelopmentDependencies() : null;
     this.geolocation = development?.geolocation ?? new GeolocationService();
-    this.roadService = new RoadService(new OverpassClient({ fetchImpl: development?.fetchImpl ?? globalThis.fetch }));
+    this.roadService = new RoadService(new OverpassClient(development
+      ? { fetchImpl: development.fetchImpl, jsonpImpl: null }
+      : { fetchImpl: globalThis.fetch }));
     this.camera = new Camera();
     this.renderer = new Renderer(queryRequired('#mapCanvas'), this.camera);
     this.renderer.setStateProvider(() => this.store.select(state => state));
+    this.renderer.bindEvents(this.events);
+    this.radarPreferences = new RadarPreferences({ onChange: preferences => this.renderer.setPreferences(preferences) });
     this.baseScreen = new BasePlacementScreen();
     this.notifications = new Notifications(queryRequired('#notification'));
     this.combatSystem = new CombatSystem(this.events);
@@ -470,7 +475,7 @@ class FrontlineRoadsApp {
 }
 
 const app = new FrontlineRoadsApp();
-app.start().then(() => cleanupLegacyPwa()).catch(error => app.handleFatal(error));
+app.start().then(() => registerPwa()).catch(error => app.handleFatal(error));
 globalThis.addEventListener('error', event => {
   if (event?.error) app.handleFatal(event.error);
 });

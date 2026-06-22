@@ -48,3 +48,17 @@ test('development tree has no premature single-HTML build output', async () => {
   const packageSource = await readFile(resolve(root, 'package.json'), 'utf8');
   assert.doesNotMatch(packageSource, /single[-_ ]?html|bundle|dist/i);
 });
+
+
+test('service worker only deletes FRONTLINE ROADS caches', async () => {
+  const source = await readFile(resolve(root, 'sw.js'), 'utf8');
+  assert.match(source, /const CACHE_PREFIX = ['"]frontline-roads-/);
+  assert.match(source, /key\.startsWith\(CACHE_PREFIX\)/);
+  assert.doesNotMatch(source, /keys\.filter\(key => key !== CACHE_NAME\)/);
+});
+
+test('service worker falls back to HTML only for navigation requests', async () => {
+  const source = await readFile(resolve(root, 'sw.js'), 'utf8');
+  assert.match(source, /event\.request\.mode === ['"]navigate['"]/);
+  assert.match(source, /return Response\.error\(\)/);
+});

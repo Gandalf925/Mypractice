@@ -1,31 +1,20 @@
-export async function cleanupLegacyPwa() {
-  if (location.protocol !== 'https:') return { registrations: 0, caches: 0 };
-  const gameScope = new URL('./', location.href).href;
-  let registrations = 0;
-  let cachesCleared = 0;
+export async function registerPwa({
+  navigatorRef = globalThis.navigator,
+  locationRef = globalThis.location,
+  globalRef = globalThis
+} = {}) {
+  const hostname = locationRef?.hostname ?? '';
+  const protocol = locationRef?.protocol ?? '';
+  const localHost = ['localhost', '127.0.0.1', '::1'].includes(hostname);
+  const fixtureRequested = new URLSearchParams(locationRef?.search ?? '').get('devFixture') === '1';
+  const fixtureAllowed = localHost || protocol === 'file:' || globalRef.__FRONTLINE_TEST_FIXTURE__ === true;
+  if (fixtureRequested && fixtureAllowed) return null;
+  if (!navigatorRef?.serviceWorker?.register) return null;
+  if (protocol !== 'https:' && !localHost) return null;
   try {
-    if ('serviceWorker' in navigator) {
-      const entries = await navigator.serviceWorker.getRegistrations();
-      for (const registration of entries) {
-        if (registration.scope === gameScope) {
-          if (await registration.unregister()) registrations += 1;
-        }
-      }
-    }
+    return await navigatorRef.serviceWorker.register('./sw.js', { scope: './' });
   } catch (error) {
-    console.warn('Legacy service worker cleanup failed', error);
+    console.warn('Service worker registration failed', error);
+    return null;
   }
-  try {
-    if ('caches' in globalThis) {
-      const keys = await caches.keys();
-      for (const key of keys) {
-        if (key.startsWith('frontline-roads')) {
-          if (await caches.delete(key)) cachesCleared += 1;
-        }
-      }
-    }
-  } catch (error) {
-    console.warn('Legacy cache cleanup failed', error);
-  }
-  return { registrations, caches: cachesCleared };
 }

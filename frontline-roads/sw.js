@@ -1,5 +1,6 @@
 'use strict';
-const CACHE_NAME = 'frontline-roads-refactor-v0-12-2';
+const CACHE_PREFIX = 'frontline-roads-';
+const CACHE_NAME = `${CACHE_PREFIX}v0-16-2-radar-complete`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -46,7 +47,11 @@ const APP_SHELL = [
   './src/persistence/tab-coordinator.js',
   './src/rendering/camera.js',
   './src/rendering/combat-renderer.js',
+  './src/rendering/combat-effects.js',
   './src/rendering/renderer.js',
+  './src/rendering/radar-renderer.js',
+  './src/rendering/threat-analysis.js',
+  './src/rendering/tactical-overlay.js',
   './src/rendering/road-renderer.js',
   './src/roads/geometry.js',
   './src/roads/graph-cleanup.js',
@@ -66,7 +71,8 @@ const APP_SHELL = [
   './src/ui/dom.js',
   './src/ui/map-input.js',
   './src/ui/menu-ui.js',
-  './src/ui/notifications.js'
+  './src/ui/notifications.js',
+  './src/ui/radar-preferences.js'
 ];
 
 self.addEventListener('install', event => {
@@ -74,7 +80,7 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key)))).then(() => self.clients.claim()));
+  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME).map(key => caches.delete(key)))).then(() => self.clients.claim()));
 });
 
 self.addEventListener('fetch', event => {
@@ -85,5 +91,9 @@ self.addEventListener('fetch', event => {
       caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
     }
     return response;
-  }).catch(() => caches.match(event.request).then(cached => cached || caches.match('./index.html'))));
+  }).catch(() => caches.match(event.request).then(cached => {
+    if (cached) return cached;
+    if (event.request.mode === 'navigate') return caches.match('./index.html');
+    return Response.error();
+  })));
 });

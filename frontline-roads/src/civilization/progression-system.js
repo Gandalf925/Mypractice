@@ -170,6 +170,7 @@ export class ProgressionSystem {
     defense.hp = defense.maxHp;
     defense.ruined = false;
     state.civilization.progress.totalRepairHpPaid += missingHp;
+    this.events?.emit('combat:defense-repaired', { defenseId: defense.id, repairHp: missingHp, cost, automatic: false });
     return { ok: true, defense, cost };
   }
 
@@ -190,6 +191,7 @@ export class ProgressionSystem {
     defense.defenseKey = definition.key;
     defense.maxHp = definition.hp;
     defense.hp = definition.hp;
+    this.events?.emit('combat:defense-upgraded', { defenseId: defense.id, tier: defense.tier, gate: true });
     return { ok: true, defense, cost };
   }
 
@@ -208,6 +210,7 @@ export class ProgressionSystem {
     if (definition.hp) defense.maxHp = definition.hp;
     else defense.maxHp = Math.round(defense.maxHp * (1 + nextTier * 0.18));
     defense.hp = defense.maxHp;
+    this.events?.emit('combat:defense-upgraded', { defenseId: defense.id, tier: defense.tier, gate: false });
     return { ok: true, defense, cost };
   }
 }

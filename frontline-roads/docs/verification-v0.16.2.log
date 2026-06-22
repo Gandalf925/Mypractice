@@ -1,0 +1,520 @@
+
+> frontline-roads-refactor@0.16.2 verify
+> npm run syntax && npm test
+
+
+> frontline-roads-refactor@0.16.2 syntax
+> find src tests -name '*.js' -print0 | xargs -0 -n1 node --check && node --check sw.js
+
+
+> frontline-roads-refactor@0.16.2 test
+> node --test
+
+TAP version 13
+# Subtest: HTML references only existing local app resources and required controls exist
+ok 1 - HTML references only existing local app resources and required controls exist
+  ---
+  duration_ms: 64.902542
+  type: 'test'
+  ...
+# Subtest: every required DOM id used by bootstrap exists in HTML
+ok 2 - every required DOM id used by bootstrap exists in HTML
+  ---
+  duration_ms: 6.831721
+  type: 'test'
+  ...
+# Subtest: service worker app shell contains every runtime source file and all paths exist
+ok 3 - service worker app shell contains every runtime source file and all paths exist
+  ---
+  duration_ms: 104.30375
+  type: 'test'
+  ...
+# Subtest: development tree has no premature single-HTML build output
+ok 4 - development tree has no premature single-HTML build output
+  ---
+  duration_ms: 4.195896
+  type: 'test'
+  ...
+# Subtest: service worker only deletes FRONTLINE ROADS caches
+ok 5 - service worker only deletes FRONTLINE ROADS caches
+  ---
+  duration_ms: 1.617424
+  type: 'test'
+  ...
+# Subtest: service worker falls back to HTML only for navigation requests
+ok 6 - service worker falls back to HTML only for navigation requests
+  ---
+  duration_ms: 70.441683
+  type: 'test'
+  ...
+# Subtest: storage denial is detected without crashing construction
+ok 7 - storage denial is detected without crashing construction
+  ---
+  duration_ms: 1.923988
+  type: 'test'
+  ...
+# Subtest: invalid shallow save is quarantined instead of bricking startup
+ok 8 - invalid shallow save is quarantined instead of bricking startup
+  ---
+  duration_ms: 1.695981
+  type: 'test'
+  ...
+# Subtest: saved game removes exact position history and rounds map origin
+ok 9 - saved game removes exact position history and rounds map origin
+  ---
+  duration_ms: 2.305952
+  type: 'test'
+  ...
+# Subtest: state validation rejects malformed saved road graph
+ok 10 - state validation rejects malformed saved road graph
+  ---
+  duration_ms: 0.310952
+  type: 'test'
+  ...
+# Subtest: stone gate conversion cannot be used before civilization level 2
+ok 11 - stone gate conversion cannot be used before civilization level 2
+  ---
+  duration_ms: 1.031967
+  type: 'test'
+  ...
+# Subtest: path invalidation waits for the current edge instead of teleporting backward
+ok 12 - path invalidation waits for the current edge instead of teleporting backward
+  ---
+  duration_ms: 1.177451
+  type: 'test'
+  ...
+# Subtest: grade-separated endpoints are not merged into one intersection
+ok 13 - grade-separated endpoints are not merged into one intersection
+  ---
+  duration_ms: 2.002836
+  type: 'test'
+  ...
+# Subtest: long OSM geometry is subdivided rather than discarded
+ok 14 - long OSM geometry is subdivided rather than discarded
+  ---
+  duration_ms: 2.769517
+  type: 'test'
+  ...
+# Subtest: complete reset clears current, legacy, and backup save keys
+ok 15 - complete reset clears current, legacy, and backup save keys
+  ---
+  duration_ms: 1.034273
+  type: 'test'
+  ...
+# Subtest: production source only enables dev fixture on local or explicit test origins
+ok 16 - production source only enables dev fixture on local or explicit test origins
+  ---
+  duration_ms: 95.633102
+  type: 'test'
+  ...
+# Subtest: development fixture disables browser JSONP and uses injected road data
+ok 17 - development fixture disables browser JSONP and uses injected road data
+  ---
+  duration_ms: 79.001097
+  type: 'test'
+  ...
+# Subtest: selection snaps to the existing graph and creates a base without refetching
+ok 18 - selection snaps to the existing graph and creates a base without refetching
+  ---
+  duration_ms: 4.125224
+  type: 'test'
+  ...
+# Subtest: a tap outside the road tolerance is rejected
+ok 19 - a tap outside the road tolerance is rejected
+  ---
+  duration_ms: 0.38057
+  type: 'test'
+  ...
+# Subtest: inventory has one canonical resource store and preserves overflow
+ok 20 - inventory has one canonical resource store and preserves overflow
+  ---
+  duration_ms: 3.939286
+  type: 'test'
+  ...
+# Subtest: production reserves inputs once and completes through the civilization update
+ok 21 - production reserves inputs once and completes through the civilization update
+  ---
+  duration_ms: 3.180821
+  type: 'test'
+  ...
+# Subtest: enemy base capture requires the player to be on site and progresses over time
+ok 22 - enemy base capture requires the player to be on site and progresses over time
+  ---
+  duration_ms: 1.624002
+  type: 'test'
+  ...
+# Subtest: a captured outpost must be restored before it becomes active
+ok 23 - a captured outpost must be restored before it becomes active
+  ---
+  duration_ms: 1.617057
+  type: 'test'
+  ...
+# Subtest: settlement damage ruins a building and disables its production
+ok 24 - settlement damage ruins a building and disables its production
+  ---
+  duration_ms: 1.082192
+  type: 'test'
+  ...
+# Subtest: production overflow stays in the building buffer until collection
+ok 25 - production overflow stays in the building buffer until collection
+  ---
+  duration_ms: 1.091577
+  type: 'test'
+  ...
+# Subtest: combat effect buffer is capped and prunes expired effects
+ok 26 - combat effect buffer is capped and prunes expired effects
+  ---
+  duration_ms: 1.541923
+  type: 'test'
+  ...
+# Subtest: event bus creates transient shot and city warning effects
+ok 27 - event bus creates transient shot and city warning effects
+  ---
+  duration_ms: 6.973917
+  type: 'test'
+  ...
+# Subtest: manual defense upgrade events create a visible pulse
+ok 28 - manual defense upgrade events create a visible pulse
+  ---
+  duration_ms: 0.658729
+  type: 'test'
+  ...
+# Subtest: barrier changes weighted enemy route without creating another graph
+ok 29 - barrier changes weighted enemy route without creating another graph
+  ---
+  duration_ms: 3.438041
+  type: 'test'
+  ...
+# Subtest: enemy position follows path direction rather than edge storage direction
+ok 30 - enemy position follows path direction rather than edge storage direction
+  ---
+  duration_ms: 1.720635
+  type: 'test'
+  ...
+# Subtest: build range is measured from established home base
+ok 31 - build range is measured from established home base
+  ---
+  duration_ms: 1.521717
+  type: 'test'
+  ...
+# Subtest: gun tower damages an enemy in range
+ok 32 - gun tower damages an enemy in range
+  ---
+  duration_ms: 1.446683
+  type: 'test'
+  ...
+# Subtest: enemy reaching the city deals damage and is removed
+ok 33 - enemy reaching the city deals damage and is removed
+  ---
+  duration_ms: 1.204335
+  type: 'test'
+  ...
+# Subtest: repair relay consumes resources and repairs only the most damaged target
+ok 34 - repair relay consumes resources and repairs only the most damaged target
+  ---
+  duration_ms: 1.897583
+  type: 'test'
+  ...
+# Subtest: city defeat never creates negative resources and reports unpaid emergency recovery honestly
+ok 35 - city defeat never creates negative resources and reports unpaid emergency recovery honestly
+  ---
+  duration_ms: 104.127634
+  type: 'test'
+  ...
+# Subtest: source module graph has no circular dependencies
+ok 36 - source module graph has no circular dependencies
+  ---
+  duration_ms: 501.26371
+  type: 'test'
+  ...
+# Subtest: twelve-hour simulation remains bounded, serializable and within enemy cap
+ok 37 - twelve-hour simulation remains bounded, serializable and within enemy cap
+  ---
+  duration_ms: 1040.585732
+  type: 'test'
+  ...
+# Subtest: same state and elapsed time produce the same offline game result
+ok 38 - same state and elapsed time produce the same offline game result
+  ---
+  duration_ms: 283.272085
+  type: 'test'
+  ...
+# Subtest: legacy save is converted once into the clean schema
+ok 39 - legacy save is converted once into the clean schema
+  ---
+  duration_ms: 4.597662
+  type: 'test'
+  ...
+# Subtest: offline simulation is bounded and reports the applied duration
+ok 40 - offline simulation is bounded and reports the applied duration
+  ---
+  duration_ms: 2.135686
+  type: 'test'
+  ...
+# Subtest: offline simulation advances the canonical world clock
+ok 41 - offline simulation advances the canonical world clock
+  ---
+  duration_ms: 0.608665
+  type: 'test'
+  ...
+# Subtest: default endpoints use current public global instances
+ok 42 - default endpoints use current public global instances
+  ---
+  duration_ms: 2.922458
+  type: 'test'
+  ...
+# Subtest: query filters road classes before download
+ok 43 - query filters road classes before download
+  ---
+  duration_ms: 0.582709
+  type: 'test'
+  ...
+# Subtest: JSONP URL contains encoded query and callback
+ok 44 - JSONP URL contains encoded query and callback
+  ---
+  duration_ms: 0.544905
+  type: 'test'
+  ...
+# Subtest: browser JSONP resolves payload and cleans callback
+ok 45 - browser JSONP resolves payload and cleans callback
+  ---
+  duration_ms: 1.026588
+  type: 'test'
+  ...
+# Subtest: browser mode prefers JSONP and does not call fetch after success
+ok 46 - browser mode prefers JSONP and does not call fetch after success
+  ---
+  duration_ms: 77.286602
+  type: 'test'
+  ...
+# Subtest: JSONP failure falls back to official minimal POST request
+ok 47 - JSONP failure falls back to official minimal POST request
+  ---
+  duration_ms: 1.302208
+  type: 'test'
+  ...
+# Subtest: failed endpoint falls back to the next endpoint
+ok 48 - failed endpoint falls back to the next endpoint
+  ---
+  duration_ms: 0.731042
+  type: 'test'
+  ...
+# Subtest: all failures include endpoint and transport diagnostics
+ok 49 - all failures include endpoint and transport diagnostics
+  ---
+  duration_ms: 1.319985
+  type: 'test'
+  ...
+# Subtest: caller abort stops attempts immediately
+ok 50 - caller abort stops attempts immediately
+  ---
+  duration_ms: 1.454082
+  type: 'test'
+  ...
+# Subtest: development client can disable JSONP and use the injected fetch directly
+ok 51 - development client can disable JSONP and use the injected fetch directly
+  ---
+  duration_ms: 3.722092
+  type: 'test'
+  ...
+# Subtest: PWA registers the current service worker on HTTPS
+ok 52 - PWA registers the current service worker on HTTPS
+  ---
+  duration_ms: 2.505073
+  type: 'test'
+  ...
+# Subtest: PWA is skipped for an allowed development fixture
+ok 53 - PWA is skipped for an allowed development fixture
+  ---
+  duration_ms: 0.665147
+  type: 'test'
+  ...
+# Subtest: public devFixture query does not disable production PWA registration
+ok 54 - public devFixture query does not disable production PWA registration
+  ---
+  duration_ms: 3.785635
+  type: 'test'
+  ...
+# Subtest: PWA registration failure does not stop the game
+ok 55 - PWA registration failure does not stop the game
+  ---
+  duration_ms: 0.604926
+  type: 'test'
+  ...
+# Subtest: radar renderer is integrated without changing the map input owner
+ok 56 - radar renderer is integrated without changing the map input owner
+  ---
+  duration_ms: 91.307122
+  type: 'test'
+  ...
+# Subtest: radar theme exposes tactical palette and mobile layout rules
+ok 57 - radar theme exposes tactical palette and mobile layout rules
+  ---
+  duration_ms: 4.000319
+  type: 'test'
+  ...
+# Subtest: combat and road renderers use radar glyphs and glow rather than emoji labels
+ok 58 - combat and road renderers use radar glyphs and glow rather than emoji labels
+  ---
+  duration_ms: 8.782035
+  type: 'test'
+  ...
+# Subtest: radar canvas layers render with a minimal canvas context
+ok 59 - radar canvas layers render with a minimal canvas context
+  ---
+  duration_ms: 82.64292
+  type: 'test'
+  ...
+# Subtest: playing footer stays clear of the combat toolbar
+ok 60 - playing footer stays clear of the combat toolbar
+  ---
+  duration_ms: 2.366529
+  type: 'test'
+  ...
+# Subtest: radar preferences apply defaults and cycle without game state
+ok 61 - radar preferences apply defaults and cycle without game state
+  ---
+  duration_ms: 1.75032
+  type: 'test'
+  ...
+# Subtest: bootstrap imports RadarPreferences before constructing it
+ok 62 - bootstrap imports RadarPreferences before constructing it
+  ---
+  duration_ms: 14.112865
+  type: 'test'
+  ...
+# Subtest: refactor schema 1 scrap is migrated into canonical resources
+ok 63 - refactor schema 1 scrap is migrated into canonical resources
+  ---
+  duration_ms: 4.866117
+  type: 'test'
+  ...
+# Subtest: parallel carriageways with the same identity collapse into one gameplay road
+ok 64 - parallel carriageways with the same identity collapse into one gameplay road
+  ---
+  duration_ms: 4.078916
+  type: 'test'
+  ...
+# Subtest: nearby roads with different names remain separate
+ok 65 - nearby roads with different names remain separate
+  ---
+  duration_ms: 0.436244
+  type: 'test'
+  ...
+# Subtest: clustered intersections build a connected graph and path
+ok 66 - clustered intersections build a connected graph and path
+  ---
+  duration_ms: 4.987028
+  type: 'test'
+  ...
+# Subtest: one RoadService load performs one acquisition and produces indexed graph data
+ok 67 - one RoadService load performs one acquisition and produces indexed graph data
+  ---
+  duration_ms: 101.950132
+  type: 'test'
+  ...
+# Subtest: save data remains JSON and graph indexes are reconstructed after load
+ok 68 - save data remains JSON and graph indexes are reconstructed after load
+  ---
+  duration_ms: 5.238801
+  type: 'test'
+  ...
+# Subtest: lifecycle follows the new startup sequence
+ok 69 - lifecycle follows the new startup sequence
+  ---
+  duration_ms: 4.508261
+  type: 'test'
+  ...
+# Subtest: invalid transition is rejected
+ok 70 - invalid transition is rejected
+  ---
+  duration_ms: 1.141669
+  type: 'test'
+  ...
+# Subtest: state snapshots cannot mutate the store
+ok 71 - state snapshots cannot mutate the store
+  ---
+  duration_ms: 0.482569
+  type: 'test'
+  ...
+# Subtest: source contains no legacy function override pattern or duplicate fetchRoadGraph
+ok 72 - source contains no legacy function override pattern or duplicate fetchRoadGraph
+  ---
+  duration_ms: 291.573479
+  type: 'test'
+  ...
+# Subtest: repair relay remains available as a build tool
+ok 73 - repair relay remains available as a build tool
+  ---
+  duration_ms: 3.781777
+  type: 'test'
+  ...
+# Subtest: only one tab owns the synchronous storage lease
+ok 74 - only one tab owns the synchronous storage lease
+  ---
+  duration_ms: 1.519156
+  type: 'test'
+  ...
+# Subtest: broadcast fallback elects one primary tab when storage is unavailable
+ok 75 - broadcast fallback elects one primary tab when storage is unavailable
+  ---
+  duration_ms: 1.335294
+  type: 'test'
+  ...
+# Subtest: remaining route distance accounts for current edge progress
+ok 76 - remaining route distance accounts for current edge progress
+  ---
+  duration_ms: 1.703464
+  type: 'test'
+  ...
+# Subtest: threat level escalates from contact to critical
+ok 77 - threat level escalates from contact to critical
+  ---
+  duration_ms: 0.762195
+  type: 'test'
+  ...
+# Subtest: clear threat reports stable defense line
+ok 78 - clear threat reports stable defense line
+  ---
+  duration_ms: 0.494494
+  type: 'test'
+  ...
+# Subtest: tactical routes and focus render with a minimal canvas context
+ok 79 - tactical routes and focus render with a minimal canvas context
+  ---
+  duration_ms: 13.070168
+  type: 'test'
+  ...
+# Subtest: a fully destroyed wave increments perfect defense streak exactly once
+ok 80 - a fully destroyed wave increments perfect defense streak exactly once
+  ---
+  duration_ms: 7.458897
+  type: 'test'
+  ...
+# Subtest: civilization level creates resource bases without duplicating them
+ok 81 - civilization level creates resource bases without duplicating them
+  ---
+  duration_ms: 2.335642
+  type: 'test'
+  ...
+# Subtest: initial base placement excludes civilization resource bases
+ok 82 - initial base placement excludes civilization resource bases
+  ---
+  duration_ms: 12.786649
+  type: 'test'
+  ...
+# Subtest: captured base waits for its respawn timer and then reappears elsewhere
+ok 83 - captured base waits for its respawn timer and then reappears elsewhere
+  ---
+  duration_ms: 1.268796
+  type: 'test'
+  ...
+1..83
+# tests 83
+# suites 0
+# pass 83
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2288.117188

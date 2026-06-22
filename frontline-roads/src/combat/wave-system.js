@@ -118,7 +118,10 @@ export class WaveSystem {
     const waveId = stableId('wave', base.id, base.wavesSent, state.runtime?.worldTimeMs ?? Date.now());
     let spawned = 0;
     wave.forEach((type, index) => { if (spawnEnemy(state, base, type, index * (guard ? 3 : 8), waveId)) spawned += 1; });
-    if (spawned > 0) state.combat.waves.active[waveId] = { id: waveId, baseId: base.id, remaining: spawned, breached: false, startedAt: state.runtime?.worldTimeMs ?? Date.now() };
+    if (spawned > 0) {
+      state.combat.waves.active[waveId] = { id: waveId, baseId: base.id, remaining: spawned, breached: false, startedAt: state.runtime?.worldTimeMs ?? Date.now() };
+      this.events?.emit('combat:wave-launched', { baseId: base.id, waveId, count: spawned, guard });
+    }
     if (!guard) {
       base.wavesSent += 1;
       this.events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[base.type].name}から敵部隊が出撃しました。` });

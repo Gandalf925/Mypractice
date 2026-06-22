@@ -144,3 +144,19 @@ test('caller abort stops attempts immediately', async () => {
   await assert.rejects(client.fetchRoads(35, 139, { signal: controller.signal }), error => error.name === 'AbortError');
   assert.equal(calls, 1);
 });
+
+
+test('development client can disable JSONP and use the injected fetch directly', async () => {
+  let calls = 0;
+  const client = new OverpassClient({
+    endpoints: ['https://fixture.invalid/api'],
+    jsonpImpl: null,
+    fetchImpl: async () => {
+      calls += 1;
+      return { ok: true, async json() { return { elements: [] }; } };
+    }
+  });
+  const result = await client.fetchRoads(35, 139);
+  assert.deepEqual(result, { elements: [] });
+  assert.equal(calls, 1);
+});
