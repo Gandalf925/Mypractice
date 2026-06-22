@@ -1,0 +1,71 @@
+name: Publish FRONTLINE ROADS upload
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .frontline-upload/READY
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-frontline-roads
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Reconstruct and validate single HTML
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat \
+            .frontline-upload/part00 \
+            .frontline-upload/part01 \
+            .frontline-upload/part02 \
+            .frontline-upload/part03 \
+            .frontline-upload/part04 \
+            .frontline-upload/part05 \
+            .frontline-upload/part06 \
+            .frontline-upload/part07 \
+            .frontline-upload/part08 \
+            .frontline-upload/part09 \
+            > /tmp/frontline.b64
+
+          echo '6b32709810f35a81909b6a4e2fd1d9c433eac5d1eeb92f197a010b1459590d2a  /tmp/frontline.b64' | sha256sum -c -
+          base64 --decode /tmp/frontline.b64 | gzip --decompress > /tmp/index.html
+          echo '2b45819982b6ec3f30de0abb0605bc1c8866da86067732c634b22316a4958752  /tmp/index.html' | sha256sum -c -
+
+          python3 - <<'PY'
+          from pathlib import Path
+          html = Path('/tmp/index.html').read_text(encoding='utf-8')
+          assert html.startswith('<!doctype html>')
+          assert html.rstrip().endswith('</html>')
+          assert '<meta name="frontline-build" content="0.12.0-audited-single-html">' in html
+          assert html.count('<script>') == 1
+          assert html.count('</script>') == 1
+          script = html.split('<script>', 1)[1].rsplit('</script>', 1)[0]
+          Path('/tmp/frontline.js').write_text(script, encoding='utf-8')
+          PY
+          node --check /tmp/frontline.js
+
+      - name: Publish both GitHub Pages routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp /tmp/index.html index.html
+          mkdir -p frontline-roads
+          cp /tmp/index.html frontline-roads/index.html
+          rm -rf .frontline-upload
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Publish FRONTLINE ROADS v0.12.0'
+          git push
