@@ -62,3 +62,12 @@ test('service worker falls back to HTML only for navigation requests', async () 
   assert.match(source, /event\.request\.mode === ['"]navigate['"]/);
   assert.match(source, /return Response\.error\(\)/);
 });
+
+test('release version is synchronized across package, runtime label and service-worker cache', async () => {
+  const packageData = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
+  const constants = await readFile(resolve(root, 'src/core/constants.js'), 'utf8');
+  const serviceWorker = await readFile(resolve(root, 'sw.js'), 'utf8');
+  assert.equal(packageData.version, '0.19.0');
+  assert.match(constants, /APP_VERSION = ['"]0\.19\.0-adaptive-fronts['"]/);
+  assert.match(serviceWorker, /v0-19-0-adaptive-fronts/);
+});

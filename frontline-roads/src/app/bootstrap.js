@@ -469,6 +469,7 @@ class FrontlineRoadsApp {
     this.tabCoordinator.release();
     this.startupGeneration += 1;
     this.roadLoadController?.abort();
+    this.baseScreen.destroy();
     this.mapInput.destroy();
     this.renderer.destroy();
     this.events.clear();

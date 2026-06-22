@@ -28,7 +28,7 @@ export function enemyThreatScore(state, enemy, remainingOverride = null) {
   const proximity = Number.isFinite(remaining) ? Math.max(0, 260 - remaining) * 0.55 : 0;
   const damage = (definition.cityDamage ?? 0) * 4;
   const durability = Math.min(50, (enemy.hp / Math.max(1, enemy.maxHp)) * (definition.hp ?? enemy.maxHp ?? 0) * 0.15);
-  const special = (definition.settlementDamage ?? 0) * 1.2 + (definition.attackTowers ? 18 : 0);
+  const special = (definition.settlementDamage ?? 0) * 1.2 + ((definition.targetPriorities?.length ?? 0) > 0 ? 18 : 0);
   return proximity + damage + durability + special;
 }
 

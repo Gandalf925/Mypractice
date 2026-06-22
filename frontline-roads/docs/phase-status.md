@@ -20,5 +20,7 @@
 | 15 Terminal polish | Complete | Structured HUD and independent visual preferences |
 | 16 Radar final audit | Complete | Portrait/landscape flows, no runtime errors or HUD overlaps |
 | 17 Performance optimization | Complete | 88 tests, static layer caching, fixed update rates, spatial indexing and mobile stress validation |
+| 18 Build planning UX | Complete | Non-destructive candidate preview, valid-site/range overlays, facility effects and capture awareness |
+| 19 Adaptive fronts | Complete | Enemy-specific barrier decisions, facility-targeting specialists, dual home/player build zones |
 | Single HTML | Deferred | Generate only immediately before blockchain publication |
 | GitHub upload | Prepared | Complete modular replacement package generated for manual upload |

@@ -110,3 +110,16 @@ test('production overflow stays in the building buffer until collection', () => 
   assert.equal(system.production.collectOutput(state, building.id).ok, true);
   assert.equal(building.outputBuffer.timber ?? 0, 0);
 });
+
+test('enemy base capture boundary uses the shared capture-range constant', async () => {
+  const { ENEMY_BASE_CAPTURE_RANGE_METERS } = await import('../src/combat/definitions.js');
+  const state = stateWithWorld();
+  state.world.enemyBases = [{ id: 'boundary-camp', type: 'barracks', nodeId: 'base', alive: true, captured: false, captureProgress: 0 }];
+  const system = new CivilizationSystem();
+  const baseNode = state.world.roadGraph.nodeById.get('base');
+  state.player.worldPosition = { x: baseNode.x - ENEMY_BASE_CAPTURE_RANGE_METERS, y: baseNode.y };
+  assert.equal(system.outposts.beginCapture(state, 'boundary-camp').ok, true);
+  state.world.enemyBases[0].captureActive = false;
+  state.player.worldPosition = { x: baseNode.x - ENEMY_BASE_CAPTURE_RANGE_METERS - 0.01, y: baseNode.y };
+  assert.equal(system.outposts.beginCapture(state, 'boundary-camp').ok, false);
+});

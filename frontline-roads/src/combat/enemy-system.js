@@ -1,7 +1,19 @@
 import { distance, stableId } from '../core/utilities.js';
 import { addBundle } from '../civilization/inventory-system.js';
 import { ENEMY_DEFINITIONS, MAX_ENEMIES } from './definitions.js';
-import { findCombatPath } from './routing-system.js';
+import { findCombatPath, findCombatPathToTargets } from './routing-system.js';
+
+const FACILITY_ATTACK_RANGE_METERS = 20;
+const FACILITY_PRIORITY_PENALTY_SECONDS = 18;
+
+function stableRouteBias(text) {
+  let hash = 2166136261;
+  for (const character of String(text)) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return 0.86 + ((hash >>> 0) % 29) / 100;
+}
 
 export function enemyPosition(state, enemy) {
   const graph = state.world.roadGraph;
@@ -20,42 +32,71 @@ export function spawnEnemy(state, base, type, departDelay = 0, waveId = null) {
   if (state.combat.enemies.length >= MAX_ENEMIES) return null;
   const definition = ENEMY_DEFINITIONS[type];
   if (!definition) return null;
+  const id = stableId('enemy', base.id, type, base.wavesSent, state.combat.enemies.length, state.runtime?.worldTimeMs ?? Date.now());
   const enemy = {
-    id: stableId('enemy', base.id, type, base.wavesSent, state.combat.enemies.length, state.runtime?.worldTimeMs ?? Date.now()),
+    id,
     type, hp: definition.hp, maxHp: definition.hp, nodeId: base.nodeId,
     path: null, pathIndex: 0, edgeId: null, edgeProgress: 0,
     slowTimer: 0, slowMultiplier: 0.52, attackClock: 0, departDelay,
-    sourceBaseId: base.id, waveId, waveResolved: false, stunnedTowerIds: [], rewardGranted: false, reroutePending: false
+    sourceBaseId: base.id, waveId, waveResolved: false, rewardGranted: false,
+    reroutePending: false, routeBias: stableRouteBias(id), targetDefenseId: null, notifiedDefenseIds: []
   };
   state.combat.enemies.push(enemy);
   return enemy;
 }
 
-function targetNodeForEnemy(state, enemy) {
-  const definition = ENEMY_DEFINITIONS[enemy.type];
-  if (definition.attackTowers) {
-    const position = enemyPosition(state, enemy);
-    const towers = state.combat.defenses.filter(defense => defense.kind === 'tower' && defense.hp > 0 && !defense.ruined);
-    if (towers.length > 0) {
-      return towers.reduce((best, tower) => {
-        const node = state.world.roadGraph.nodeById.get(tower.nodeId);
-        const bestNode = state.world.roadGraph.nodeById.get(best.nodeId);
-        return distance(position, node) < distance(position, bestNode) ? tower : best;
-      }, towers[0]).nodeId;
+function activeTowerById(state, defenseId) {
+  if (!defenseId) return null;
+  return state.combat.defenses.find(defense =>
+    defense.id === defenseId && defense.kind === 'tower' && defense.hp > 0 && !defense.ruined
+  ) ?? null;
+}
+
+function facilityTargetCandidates(state, definition) {
+  const priorities = definition.targetPriorities ?? [];
+  if (!priorities.length) return [];
+  const rankByType = new Map(priorities.map((type, index) => [type, index]));
+  return state.combat.defenses
+    .filter(defense => defense.kind === 'tower' && defense.hp > 0 && !defense.ruined && rankByType.has(defense.type))
+    .map(defense => ({
+      nodeId: defense.nodeId,
+      targetObjectId: defense.id,
+      priorityPenalty: rankByType.get(defense.type) * FACILITY_PRIORITY_PENALTY_SECONDS
+    }));
+}
+
+function planPath(state, enemy) {
+  const definition = ENEMY_DEFINITIONS[enemy.type] ?? ENEMY_DEFINITIONS.infantry;
+  const targets = facilityTargetCandidates(state, definition);
+  if (targets.length) {
+    const facilityPath = findCombatPathToTargets(state, enemy.nodeId, targets, enemy.type, enemy.routeBias ?? 1);
+    if (facilityPath) {
+      enemy.targetDefenseId = facilityPath.targetObjectId;
+      return facilityPath;
     }
   }
-  return state.world.city.nodeId;
+  enemy.targetDefenseId = null;
+  return findCombatPath(state, enemy.nodeId, state.world.city.nodeId, enemy.type, null, enemy.routeBias ?? 1);
 }
 
 function ensurePath(state, enemy) {
-  const targetId = targetNodeForEnemy(state, enemy);
-  const currentPathValid = enemy.path?.targetId === targetId && enemy.pathIndex < enemy.path.edgeIds.length;
+  if (enemy.targetDefenseId && !activeTowerById(state, enemy.targetDefenseId)) {
+    enemy.targetDefenseId = null;
+    enemy.reroutePending = true;
+  }
+  const expectedTargetId = enemy.targetDefenseId
+    ? activeTowerById(state, enemy.targetDefenseId)?.nodeId
+    : state.world.city.nodeId;
+  const currentPathValid = expectedTargetId && enemy.path?.targetId === expectedTargetId && enemy.pathIndex < enemy.path.edgeIds.length;
   if (currentPathValid && !enemy.reroutePending) return true;
-  if (enemy.path && enemy.edgeId && enemy.edgeProgress > 0 && enemy.edgeProgress < (state.world.roadGraph.edgeById.get(enemy.edgeId)?.length ?? 0)) {
+
+  const currentEdgeLength = enemy.edgeId ? state.world.roadGraph.edgeById.get(enemy.edgeId)?.length ?? 0 : 0;
+  if (enemy.path && enemy.edgeId && enemy.edgeProgress > 0 && enemy.edgeProgress < currentEdgeLength) {
     enemy.reroutePending = true;
     return true;
   }
-  const path = findCombatPath(state, enemy.nodeId, targetId, enemy.type);
+
+  const path = planPath(state, enemy);
   enemy.path = path;
   enemy.pathIndex = 0;
   enemy.edgeId = path?.edgeIds[0] ?? null;
@@ -64,24 +105,38 @@ function ensurePath(state, enemy) {
   return Boolean(path);
 }
 
-function activeBarrierOnEdge(state, edgeId) {
-  return state.combat.defenses.find(defense =>
-    defense.kind === 'barrier' && defense.edgeId === edgeId && defense.hp > 0 && !defense.ruined
-  ) ?? null;
+function invalidateDefenseTargetPaths(state, defenseId) {
+  for (const enemy of state.combat.enemies) {
+    if (enemy.targetDefenseId !== defenseId) continue;
+    enemy.targetDefenseId = null;
+    enemy.reroutePending = true;
+  }
 }
 
-function nearestTower(state, enemy, maxDistance = 18) {
-  const position = enemyPosition(state, enemy);
-  let best = null;
-  let bestDistance = maxDistance;
-  for (const defense of state.combat.defenses) {
-    if (defense.kind !== 'tower' || defense.hp <= 0 || defense.ruined) continue;
-    const node = state.world.roadGraph.nodeById.get(defense.nodeId);
-    if (!node) continue;
-    const gap = distance(position, node);
-    if (gap < bestDistance) { best = defense; bestDistance = gap; }
+function attackTargetFacility(state, enemy, definition, deltaSeconds, events) {
+  const target = activeTowerById(state, enemy.targetDefenseId);
+  if (!target) return false;
+  const node = state.world.roadGraph.nodeById.get(target.nodeId);
+  if (!node || distance(enemyPosition(state, enemy), node) > FACILITY_ATTACK_RANGE_METERS) return false;
+
+  enemy.notifiedDefenseIds ??= [];
+  if (!enemy.notifiedDefenseIds.includes(target.id)) {
+    enemy.notifiedDefenseIds.push(target.id);
+    if ((definition.stunSeconds ?? 0) > 0) {
+      target.disabledTimer = Math.max(target.disabledTimer ?? 0, definition.stunSeconds);
+    }
+    events?.emit('message', { text: definition.attackMessage ?? `${definition.name}が防衛施設を攻撃しています。` });
   }
-  return best;
+
+  target.hp -= Math.max(0.1, definition.facilityDps ?? definition.barrierDps ?? 1) * deltaSeconds;
+  if (target.hp > 0) return true;
+
+  target.hp = 0;
+  target.ruined = true;
+  invalidateDefenseTargetPaths(state, target.id);
+  events?.emit('combat:defense-destroyed', { defenseId: target.id, position: node });
+  events?.emit('message', { text: `${target.type === 'relay' ? '修復中継所' : '防衛施設'}が敵の集中攻撃で破壊されました。` });
+  return true;
 }
 
 function resolveWaveEnemy(state, enemy, breached) {
@@ -143,25 +198,9 @@ export class EnemySystem {
     }
     enemy.slowTimer = Math.max(0, enemy.slowTimer - deltaSeconds);
     const definition = ENEMY_DEFINITIONS[enemy.type] ?? ENEMY_DEFINITIONS.infantry;
-    if (!ensurePath(state, enemy) || !enemy.edgeId) return false;
 
-    if (definition.attackTowers) {
-      const tower = nearestTower(state, enemy, 20);
-      if (tower) {
-        if (!enemy.stunnedTowerIds.includes(tower.id)) {
-          enemy.stunnedTowerIds.push(tower.id);
-          tower.disabledTimer = Math.max(tower.disabledTimer ?? 0, definition.stunSeconds ?? 8);
-          this.events?.emit('message', { text: '破壊工作員が防衛施設を停止させました。' });
-        }
-        tower.hp -= definition.towerDps * deltaSeconds;
-        if (tower.hp <= 0 && !tower.ruined) {
-          tower.hp = 0;
-          tower.ruined = true;
-          this.events?.emit('combat:defense-destroyed', { defenseId: tower.id, position: state.world.roadGraph.nodeById.get(tower.nodeId) });
-        }
-        return false;
-      }
-    }
+    if (attackTargetFacility(state, enemy, definition, deltaSeconds, this.events)) return false;
+    if (!ensurePath(state, enemy) || !enemy.edgeId) return false;
 
     const graph = state.world.roadGraph;
     const edge = graph.edgeById.get(enemy.edgeId);
@@ -212,29 +251,21 @@ export class EnemySystem {
       return false;
     }
 
-    if (enemy.nodeId === enemy.path.targetId) {
-      if (enemy.path.targetId === state.world.city.nodeId) {
-        state.world.city.hp = Math.max(0, state.world.city.hp - definition.cityDamage);
-        if ((definition.settlementDamage ?? 0) > 0) {
-          state.combat.pendingSettlementDamage ??= [];
-          state.combat.pendingSettlementDamage.push({ enemyId: enemy.id, enemyType: enemy.type, damage: definition.settlementDamage });
-        }
-        resolveWaveEnemy(state, enemy, true);
-        this.events?.emit('combat:city-hit', { damage: definition.cityDamage, enemyId: enemy.id });
-        return true;
+    if (enemy.nodeId === enemy.path.targetId && enemy.path.targetId === state.world.city.nodeId) {
+      state.world.city.hp = Math.max(0, state.world.city.hp - definition.cityDamage);
+      if ((definition.settlementDamage ?? 0) > 0) {
+        state.combat.pendingSettlementDamage ??= [];
+        state.combat.pendingSettlementDamage.push({ enemyId: enemy.id, enemyType: enemy.type, damage: definition.settlementDamage });
       }
-      const tower = state.combat.defenses.find(defense =>
-        defense.kind === 'tower' && defense.nodeId === enemy.path.targetId && defense.hp > 0 && !defense.ruined
-      );
-      if (tower) {
-        tower.hp -= definition.barrierDps * 1.5;
-        if (tower.hp <= 0) { tower.hp = 0; tower.ruined = true; }
-        enemy.path = null;
-        return false;
-      }
+      resolveWaveEnemy(state, enemy, true);
+      this.events?.emit('combat:city-hit', { damage: definition.cityDamage, enemyId: enemy.id });
+      return true;
     }
 
-    if (enemy.pathIndex >= enemy.path.edgeIds.length) { enemy.path = null; return false; }
+    if (enemy.pathIndex >= enemy.path.edgeIds.length) {
+      enemy.edgeId = null;
+      return false;
+    }
     enemy.edgeId = enemy.path.edgeIds[enemy.pathIndex];
     return false;
   }

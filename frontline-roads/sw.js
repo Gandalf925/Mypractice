@@ -1,6 +1,6 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const CACHE_NAME = `${CACHE_PREFIX}v0-17-0-performance`;
+const CACHE_NAME = `${CACHE_PREFIX}v0-19-0-adaptive-fronts`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -30,6 +30,7 @@ const APP_SHELL = [
   './src/combat/combat-system.js',
   './src/combat/combat-spatial-index.js',
   './src/combat/defense-system.js',
+  './src/combat/defense-presentation.js',
   './src/combat/definitions.js',
   './src/combat/enemy-system.js',
   './src/combat/routing-system.js',
@@ -48,6 +49,7 @@ const APP_SHELL = [
   './src/persistence/storage-access.js',
   './src/persistence/tab-coordinator.js',
   './src/rendering/camera.js',
+  './src/rendering/build-placement-overlay.js',
   './src/rendering/combat-renderer.js',
   './src/rendering/combat-effects.js',
   './src/rendering/renderer.js',

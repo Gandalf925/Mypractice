@@ -6,6 +6,7 @@ import {
   drawRadarBackdrop, drawRadarOverlay, radarCenter, radarSweepAngle
 } from './radar-renderer.js';
 import { drawThreatRoutes, drawTacticalFocus } from './tactical-overlay.js';
+import { drawBuildPlacement } from './build-placement-overlay.js';
 import { CombatEffects } from './combat-effects.js';
 
 const ACTIVE_GAME_STATES = new Set(['PLAYING', 'PAUSED']);
@@ -36,6 +37,7 @@ export class Renderer {
     this.homeBase = null;
     this.stateProvider = null;
     this.focus = null;
+    this.buildPlacement = null;
     this.effects = new CombatEffects();
     this.preferences = { quality: 'balanced', motion: true, routes: 'priority' };
     this.cssWidth = 1;
@@ -107,6 +109,7 @@ export class Renderer {
 
   bindEvents(events) { this.effects.bind(events, () => this.stateProvider?.()); }
   setFocus(focus) { this.focus = focus; this.render(); }
+  setBuildPlacement(placement) { this.buildPlacement = placement; this.render(); }
 
   fitGraph() {
     if (!this.graph?.nodes?.length) return;
@@ -177,6 +180,7 @@ export class Renderer {
       drawCombatState(this.context, state, this.camera, { center, sweepAngle, timeMs: visualTime, preferences: this.preferences });
       drawTacticalFocus(this.context, state, this.camera, this.focus, visualTime, this.preferences);
       this.effects.draw(this.context, this.camera, state, timeMs, this.cssWidth, this.cssHeight, this.preferences);
+      drawBuildPlacement(this.context, this.camera, this.buildPlacement, visualTime, this.preferences);
     }
 
     const marker = this.selection?.point ?? this.homeBase;

@@ -26,10 +26,14 @@
           <h1>1km以内の道路を直接選択</h1>
           <p>現在地から1km以内の道路を地図上で直接選び、移動せずすぐに開始します。道路取得時には現在地周辺を外部道路データサービスへ送信します。</p>
         </div>
-        <div class="mapControls" aria-label="地図操作">
-          <button id="zoomIn" type="button">＋</button>
-          <button id="zoomOut" type="button">−</button>
-          <button id="recenter" type="button">◎</button>
+        <div id="baseMapViewport" class="baseMapViewport" aria-label="拠点候補道路の選択地図">
+          <div class="baseMapViewportLabel"><span>MAP // ROAD SELECTION</span><small>道路をタップして拠点候補を指定</small></div>
+          <div class="baseMapViewportReticle" aria-hidden="true"></div>
+          <div class="mapControls" aria-label="地図操作">
+            <button id="zoomIn" type="button" aria-label="拡大">＋</button>
+            <button id="zoomOut" type="button" aria-label="縮小">−</button>
+            <button id="recenter" type="button" aria-label="地図を中央へ戻す">◎</button>
+          </div>
         </div>
         <div class="panelFooter">
           <p id="basePlacementStatus" role="status">初期化しています…</p>

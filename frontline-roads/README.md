@@ -1,6 +1,6 @@
-# FRONTLINE ROADS — radar-complete modular source v0.17.0 performance-optimized
+# FRONTLINE ROADS — modular source v0.19.0 adaptive fronts
 
-FRONTLINE ROADS is a location-based road-defense strategy game. This directory is the canonical modular development source.
+FRONTLINE ROADS is a location-based, continuously progressing road-defense strategy game. This directory is the canonical modular development source.
 
 ## Architecture
 
@@ -9,12 +9,39 @@ FRONTLINE ROADS is a location-based road-defense strategy game. This directory i
 - `src/location`: geolocation and coordinate conversion
 - `src/roads`: road acquisition, filtering, geometry, graph construction and routing
 - `src/base`: first-base placement and graph insertion
-- `src/combat`: enemies, bases, waves, defenses and combat
+- `src/combat`: enemies, objectives, bases, waves, construction, defenses and combat
 - `src/civilization`: resources, facilities, production, progression and outposts
 - `src/persistence`: saves, migrations, offline simulation and tab ownership
-- `src/rendering`: radar, roads, combat glyphs, tactical overlays and effects
+- `src/rendering`: radar, roads, combat glyphs, tactical overlays, build guidance and effects
 - `src/ui`: input, base placement, combat, civilization, menu and radar preferences
 - `tests`: regression, simulation, transport, rendering and shell validation
+
+## Adaptive fronts v0.19.0
+
+Enemy routing now evaluates movement time and estimated barrier-breaking time instead of treating most barriers as impassable.
+
+- scouts, archers and carriers strongly prefer detours;
+- engineers and siege units prefer breaching;
+- infantry and shield units compare the wall condition with the available detour;
+- a weakened wall may be attacked even by an ordinary unit;
+- a small deterministic per-enemy route bias prevents perfectly identical decisions near a route threshold.
+
+Facility specialists now have explicit objectives:
+
+- raiders prioritize repair relays, then mortar, gun and slowing facilities;
+- rope cutters prioritize slowing facilities, then repair relays;
+- siege captains prioritize mortar and gun facilities.
+
+A specialist performs one multi-target road search when it needs a new objective. Destroyed targets invalidate all enemies assigned to that target. New defenses request safe rerouting after enemies complete their current road segment, preventing teleportation.
+
+## Dual construction zones
+
+Construction remains a two-stage operation. Valid sites are now the union of:
+
+- the 85 m radius around the established home base; and
+- the 85 m radius around the player's latest tracked position.
+
+The map renders both zones separately. The selected candidate records whether the home base or current position authorizes construction. Confirmation revalidates the latest player position, so walking away cannot confirm a stale current-location candidate. Current-location construction is limited to the road graph already loaded around the original map area.
 
 ## Radar interface
 
@@ -44,7 +71,7 @@ Fixed-road development mode without GPS or external road access:
 http://localhost:8080/?devFixture=1
 ```
 
-The fixture is accepted only on local/file/test origins.
+The fixture is accepted only on local, file or explicit test origins.
 
 ## Verify
 
@@ -52,7 +79,7 @@ The fixture is accepted only on local/file/test origins.
 npm run verify
 ```
 
-Final result: 88 tests passed, 0 failed.
+Final result: 124 tests passed, 0 failed.
 
 ## Performance profiles
 
@@ -60,7 +87,7 @@ Final result: 88 tests passed, 0 failed.
 - Standard: 24 render Hz, 20 combat Hz, DPR 1
 - High detail: 40 render Hz, 30 combat Hz, DPR 1.35
 
-The menu can change visual quality, motion and route overlays without changing saved game rules.
+Facility targeting uses one multi-target graph search per objective decision instead of one search per defense. Build-site scans remain signature-cached and are not repeated on every rendered frame.
 
 ## Publication policy
 

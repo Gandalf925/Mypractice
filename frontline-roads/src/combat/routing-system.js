@@ -1,5 +1,5 @@
 import { distance } from '../core/utilities.js';
-import { ENEMY_DEFINITIONS } from './definitions.js';
+import { DEFENSE_DEFINITIONS, ENEMY_DEFINITIONS } from './definitions.js';
 import { edgeMidpoint } from './combat-geometry.js';
 
 class MinHeap {
@@ -75,42 +75,18 @@ function edgeTowerThreat(state, edgeId, towers, cache) {
   return threat;
 }
 
-export function findCombatPath(state, startId, targetId, enemyType = 'infantry', previewBarrierEdgeId = null) {
-  const graph = state.world.roadGraph;
-  const enemyDefinition = ENEMY_DEFINITIONS[enemyType] ?? ENEMY_DEFINITIONS.infantry;
-  const { barriers, towers } = defenseMaps(state);
-  const edgeCounts = enemyDefinition.avoidCongestion ? enemyCountMap(state) : null;
-  const threatCache = new Map();
-  const distances = new Map([[startId, 0]]);
-  const previous = new Map();
-  const visited = new Set();
-  const queue = new MinHeap();
-  queue.push({ id: startId, distance: 0 });
+function barrierDelaySeconds(enemyDefinition, barrier, routeBias) {
+  const dps = Math.max(0.1, Number(enemyDefinition.barrierDps) || 0.1);
+  const breakSeconds = Math.max(0, Number(barrier.hp) || 0) / dps;
+  const strategy = enemyDefinition.barrierStrategy ?? 'balanced';
+  const factor = Math.max(0.05, Number(enemyDefinition.barrierCostFactor) || 1);
+  const bias = Math.max(0.75, Math.min(1.25, Number(routeBias) || 1));
+  if (strategy === 'avoid') return 900 + breakSeconds * factor * bias;
+  if (strategy === 'breach') return breakSeconds * factor * bias;
+  return breakSeconds * factor * bias;
+}
 
-  while (queue.length > 0) {
-    const current = queue.pop();
-    if (visited.has(current.id)) continue;
-    visited.add(current.id);
-    if (current.id === targetId) break;
-
-    for (const connection of graph.adjacency.get(current.id) ?? []) {
-      const edge = graph.edgeById.get(connection.edgeId);
-      let weight = edge.length;
-      const barrier = connection.edgeId === previewBarrierEdgeId
-        ? { hp: ENEMY_DEFINITIONS.engineer.hp + 160 }
-        : barriers.get(connection.edgeId);
-      if (barrier?.hp > 0) weight += enemyDefinition.engineer ? 8 + barrier.hp * 0.04 : 12000;
-      if (enemyDefinition.avoidTowers) weight *= 1 + edgeTowerThreat(state, edge.id, towers, threatCache) * 0.9;
-      if (enemyDefinition.avoidCongestion) weight *= 1 + (edgeCounts.get(edge.id) ?? 0) / 12;
-      const nextDistance = current.distance + weight;
-      if (nextDistance >= (distances.get(connection.to) ?? Infinity)) continue;
-      distances.set(connection.to, nextDistance);
-      previous.set(connection.to, { from: current.id, edgeId: connection.edgeId });
-      queue.push({ id: connection.to, distance: nextDistance });
-    }
-  }
-
-  if (!distances.has(targetId)) return null;
+function reconstructPath(previous, startId, targetId, cost, extra = {}) {
   const nodeIds = [targetId];
   const edgeIds = [];
   let cursor = targetId;
@@ -123,5 +99,69 @@ export function findCombatPath(state, startId, targetId, enemyType = 'infantry',
   }
   nodeIds.reverse();
   edgeIds.reverse();
-  return { nodeIds, edgeIds, cost: distances.get(targetId), targetId };
+  return { nodeIds, edgeIds, cost, targetId, ...extra };
+}
+
+function searchCombatPath(state, startId, targetCandidates, enemyType, previewBarrierEdgeId, routeBias) {
+  const graph = state.world.roadGraph;
+  if (!graph?.nodeById?.has(startId) || !targetCandidates.length) return null;
+  const enemyDefinition = ENEMY_DEFINITIONS[enemyType] ?? ENEMY_DEFINITIONS.infantry;
+  const { barriers, towers } = defenseMaps(state);
+  const edgeCounts = enemyDefinition.avoidCongestion ? enemyCountMap(state) : null;
+  const threatCache = new Map();
+  const targetsByNode = new Map();
+  for (const candidate of targetCandidates) {
+    if (!graph.nodeById.has(candidate.nodeId)) continue;
+    const entries = targetsByNode.get(candidate.nodeId) ?? [];
+    entries.push(candidate);
+    targetsByNode.set(candidate.nodeId, entries);
+  }
+  if (!targetsByNode.size) return null;
+
+  const distances = new Map([[startId, 0]]);
+  const previous = new Map();
+  const visited = new Set();
+  const queue = new MinHeap();
+  queue.push({ id: startId, distance: 0 });
+  let best = null;
+
+  while (queue.length > 0) {
+    const current = queue.pop();
+    if (visited.has(current.id)) continue;
+    if (best && current.distance > best.totalCost) break;
+    visited.add(current.id);
+
+    for (const target of targetsByNode.get(current.id) ?? []) {
+      const totalCost = current.distance + Math.max(0, Number(target.priorityPenalty) || 0);
+      if (!best || totalCost < best.totalCost) best = { ...target, routeCost: current.distance, totalCost };
+    }
+
+    for (const connection of graph.adjacency.get(current.id) ?? []) {
+      const edge = graph.edgeById.get(connection.edgeId);
+      if (!edge) continue;
+      let weight = edge.length / Math.max(0.1, enemyDefinition.speed ?? 1);
+      const barrier = connection.edgeId === previewBarrierEdgeId
+        ? { hp: DEFENSE_DEFINITIONS.barrier.hp }
+        : barriers.get(connection.edgeId);
+      if (barrier?.hp > 0) weight += barrierDelaySeconds(enemyDefinition, barrier, routeBias);
+      if (enemyDefinition.avoidTowers) weight *= 1 + edgeTowerThreat(state, edge.id, towers, threatCache) * 0.9;
+      if (enemyDefinition.avoidCongestion) weight *= 1 + (edgeCounts.get(edge.id) ?? 0) / 12;
+      const nextDistance = current.distance + weight;
+      if (nextDistance >= (distances.get(connection.to) ?? Infinity)) continue;
+      distances.set(connection.to, nextDistance);
+      previous.set(connection.to, { from: current.id, edgeId: connection.edgeId });
+      queue.push({ id: connection.to, distance: nextDistance });
+    }
+  }
+
+  if (!best) return null;
+  return reconstructPath(previous, startId, best.nodeId, best.routeCost, { targetObjectId: best.targetObjectId ?? null });
+}
+
+export function findCombatPath(state, startId, targetId, enemyType = 'infantry', previewBarrierEdgeId = null, routeBias = 1) {
+  return searchCombatPath(state, startId, [{ nodeId: targetId }], enemyType, previewBarrierEdgeId, routeBias);
+}
+
+export function findCombatPathToTargets(state, startId, targets, enemyType = 'infantry', routeBias = 1) {
+  return searchCombatPath(state, startId, targets, enemyType, null, routeBias);
 }

@@ -1,0 +1,21 @@
+{
+  "version": "0.17.1-base-map-viewport",
+  "method": "Chromium layout execution with the production HTML and CSS inlined for local policy-safe inspection",
+  "portrait": {
+    "viewport": "390x844",
+    "mapViewport": { "x": 15, "y": 268.5, "width": 360, "height": 273.90625 },
+    "canvasClipPath": "inset(269px 15px 302px)",
+    "headerOverlap": false,
+    "footerOverlap": false,
+    "insideViewportHitTarget": "mapCanvas",
+    "outsideViewportHitTarget": "app"
+  },
+  "landscape": {
+    "viewport": "844x390",
+    "mapViewport": { "x": 289.828125, "y": 41, "width": 223.046875, "height": 340 },
+    "canvasClipPath": "inset(41px 331px 9px 290px)",
+    "headerOverlap": false,
+    "footerOverlap": false
+  },
+  "result": "The map is visible and interactive only inside the dedicated selection viewport. It no longer renders behind the explanation or confirmation controls."
+}

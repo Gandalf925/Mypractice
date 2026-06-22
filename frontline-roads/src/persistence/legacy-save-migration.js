@@ -24,6 +24,7 @@ function normalizeEnemy(enemy) {
     nodeIds: enemy.path.nodeIds ?? enemy.path.nodes ?? [],
     edgeIds: enemy.path.edgeIds ?? enemy.path.edges ?? [],
     targetId: enemy.path.targetId ?? enemy.path.target ?? null,
+    targetObjectId: enemy.path.targetObjectId ?? null,
     cost: enemy.path.cost ?? 0
   } : null;
   return {
@@ -34,7 +35,12 @@ function normalizeEnemy(enemy) {
     slowTimer: Math.max(0, Number(enemy.slowTimer) || 0), slowMultiplier: Number(enemy.slowMultiplier) || 0.52,
     attackClock: Math.max(0, Number(enemy.attackClock) || 0), departDelay: Math.max(0, Number(enemy.departDelay) || 0),
     sourceBaseId: enemy.sourceBaseId ?? null, waveId: enemy.waveId ?? null, waveResolved: Boolean(enemy.waveResolved),
-    stunnedTowerIds: Array.isArray(enemy.stunnedTowerIds) ? enemy.stunnedTowerIds : [],
+    routeBias: Number.isFinite(Number(enemy.routeBias)) ? Number(enemy.routeBias) : 1,
+    targetDefenseId: enemy.targetDefenseId ?? null,
+    notifiedDefenseIds: Array.isArray(enemy.notifiedDefenseIds)
+      ? enemy.notifiedDefenseIds
+      : Array.isArray(enemy.stunnedTowerIds) ? enemy.stunnedTowerIds : [],
+    reroutePending: Boolean(enemy.reroutePending),
     rewardGranted: Boolean(enemy.rewardGranted)
   };
 }

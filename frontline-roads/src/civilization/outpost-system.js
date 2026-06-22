@@ -1,5 +1,5 @@
 import { distance, stableId } from '../core/utilities.js';
-import { ENEMY_BASE_DEFINITIONS } from '../combat/definitions.js';
+import { ENEMY_BASE_CAPTURE_RANGE_METERS, ENEMY_BASE_DEFINITIONS } from '../combat/definitions.js';
 import { DEFENSE_LINES, RESOURCE_OUTPOSTS, defenseLineForType } from './data.js';
 import { addBundle, consumeBundle, missingBundle } from './inventory-system.js';
 
@@ -41,7 +41,7 @@ export class OutpostSystem {
     if (!base) return { ok: false, reason: '敵拠点が見つかりません。' };
     const node = state.world.roadGraph.nodeById.get(base.nodeId);
     const player = state.player.worldPosition;
-    if (!player || !node || distance(player, node) > 50) return { ok: false, reason: '敵拠点の50m以内へ移動してください。' };
+    if (!player || !node || distance(player, node) > ENEMY_BASE_CAPTURE_RANGE_METERS) return { ok: false, reason: `敵拠点の${ENEMY_BASE_CAPTURE_RANGE_METERS}m以内へ移動してください。` };
     if (state.combat.enemies.some(enemy => enemy.hp > 0 && enemy.sourceBaseId === base.id)) {
       return { ok: false, reason: 'この拠点から出撃した敵を先に排除してください。' };
     }
@@ -122,7 +122,7 @@ export class OutpostSystem {
       if (!base.alive || !base.captureActive) continue;
       const node = state.world.roadGraph.nodeById.get(base.nodeId);
       const player = state.player.worldPosition;
-      if (!player || !node || distance(player, node) > 50) {
+      if (!player || !node || distance(player, node) > ENEMY_BASE_CAPTURE_RANGE_METERS) {
         base.captureActive = false;
         this.events?.emit('message', { text: '制圧範囲から離れたため、制圧を一時停止しました。' });
         continue;

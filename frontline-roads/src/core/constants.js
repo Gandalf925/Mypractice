@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.17.0-performance';
+export const APP_VERSION = '0.19.0-adaptive-fronts';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 

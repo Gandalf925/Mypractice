@@ -60,7 +60,8 @@ test('enemy position follows path direction rather than edge storage direction',
 test('build range is measured from established home base', () => {
   const state = makeState();
   const build = new BuildSystem();
-  const result = build.buildAt(state, 'gun', { x: 2, y: 1 }, 10);
+  const preview = build.previewAt(state, 'gun', { x: 2, y: 1 }, 10);
+  const result = build.buildCandidate(state, preview.candidate);
   assert.equal(result.ok, true);
   assert.equal(state.inventory.resources.wood, 472);
   assert.equal(state.inventory.resources.stone, 478);
