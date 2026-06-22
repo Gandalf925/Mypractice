@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.12.1-road-fetch-fix';
+export const APP_VERSION = '0.12.2-jsonp-road-fetch';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 
@@ -33,8 +33,8 @@ export const ALLOWED_TRANSITIONS = Object.freeze({
 export const ROAD_CONFIG = Object.freeze({
   selectionRadiusMeters: 1000,
   fetchRadiusMeters: 1150,
-  overpassTimeoutMs: 15000,
-  overpassTotalTimeoutMs: 45000,
+  overpassTimeoutMs: 18000,
+  overpassTotalTimeoutMs: 90000,
   minimumRawSegments: 18,
   minimumNodes: 14,
   minimumEdges: 16,

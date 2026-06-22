@@ -78,6 +78,7 @@ export class StateStore {
       draft.runtime.lastError = {
         code: error?.code ?? 'UNKNOWN',
         message: error?.message ?? String(error),
+        details: error?.details ?? null,
         at: now()
       };
     }, 'error:set');

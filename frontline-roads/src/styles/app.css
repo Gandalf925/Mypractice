@@ -145,3 +145,5 @@ footer { position: absolute; right: 9px; bottom: 5px; color: #6f7b89; font-size:
   .combatTools { left: 48%; padding-top: 8px; }
   .contextPanel { left: 48%; bottom: calc(var(--safe-bottom) + 82px); }
 }
+
+#basePlacementStatus{white-space:pre-line;overflow-wrap:anywhere}

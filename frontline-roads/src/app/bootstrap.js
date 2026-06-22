@@ -218,7 +218,7 @@ class FrontlineRoadsApp {
 
       const graph = await this.roadService.loadAround(currentLocation, {
         signal: this.roadLoadController.signal,
-        onAttempt: ({ index, total }) => this.baseScreen.showLoading(`道路サーバーへ接続しています… (${index}/${total})`)
+        onAttempt: ({ index, total, transport, attempt, totalAttempts }) => this.baseScreen.showLoading(`道路サーバーへ接続しています… ${transport} (${index}/${total}, 試行 ${attempt}/${totalAttempts})`)
       });
       if (generation !== this.startupGeneration) return;
       this.store.update(draft => { draft.world.roadGraph = graph; }, 'roads:loaded');
@@ -231,7 +231,7 @@ class FrontlineRoadsApp {
     } catch (error) {
       if (generation !== this.startupGeneration || error?.name === 'AbortError') return;
       this.store.setError(error);
-      this.baseScreen.showError(error?.message ?? '初期化に失敗しました。');
+      this.baseScreen.showError([error?.message ?? '初期化に失敗しました。', error?.details ? `診断: ${error.details}` : null].filter(Boolean).join('\n'));
     }
   }
 
