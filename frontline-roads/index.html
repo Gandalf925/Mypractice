@@ -24,7 +24,7 @@
         <div class="panelHeader">
           <p class="eyebrow">RADAR INITIALIZATION // 初回拠点設置</p>
           <h1>1km以内の道路を直接選択</h1>
-          <p>現在地から1km以内の道路を地図上で直接選び、移動せずすぐに開始します。道路取得時には現在地周辺を外部道路データサービスへ送信します。</p>
+          <p>最初に現在地から1km以内の道路を選び、移動せず開始できます。開始後は実際の移動に合わせて周辺道路を順次取得し、未確認地域をMAPへ追加します。</p>
         </div>
         <div id="baseMapViewport" class="baseMapViewport" aria-label="拠点候補道路の選択地図">
           <div class="baseMapViewportLabel"><span>MAP // ROAD SELECTION</span><small>道路をタップして拠点候補を指定</small></div>
@@ -39,7 +39,7 @@
           <p id="basePlacementStatus" role="status">初期化しています…</p>
           <button id="confirmBase" class="primary" type="button" disabled>この道路に拠点を設置</button>
           <button id="retryLocation" class="secondary" type="button">位置情報と道路を再取得</button>
-          <small>正確な移動履歴は保存しません。保存時は道路地図の基準地点を約10m単位へ丸めます。拠点確定後は同じ道路グラフを使用します。</small>
+          <small>正確な移動履歴は保存しません。保存時は道路地図の基準地点を約10m単位へ丸めます。移動先の道路取得時には、その周辺位置を外部道路データサービスへ送信します。</small>
         </div>
       </div>
     </section>
@@ -94,11 +94,13 @@
             <h2>遊び方</h2>
             <div class="helpGrid">
               <div><strong>初回拠点</strong><p>現在地から1km以内の道路を直接選び、移動せず即時設置します。</p></div>
-              <div><strong>道路防衛</strong><p>拠点から85m以内へ防壁と設備を置き、敵の経路を殺し場へ誘導します。</p></div>
+              <div><strong>道路防衛</strong><p>本拠地または現在地から85m以内の取得済み道路へ設備を置き、敵の経路を誘導します。</p></div>
+              <div><strong>未確認前線</strong><p>MAP端の敵性反応から部隊が侵入します。反応方向へ実際に移動すると道路と情報が追加されます。</p></div>
+              <div><strong>発生源の無力化</strong><p>現地へ到達し、周辺部隊を排除して調査を完了すると、その方向からの新規侵攻が止まります。</p></div>
               <div><strong>敵拠点制圧</strong><p>敵拠点の50m以内へ実際に移動し、出撃部隊を排除してから範囲内に留まります。</p></div>
               <div><strong>文明発展</strong><p>敵の戦利品を加工し、施設・防衛実績・資源納入を満たして発展します。</p></div>
               <div><strong>不在中</strong><p>戦闘・生産・文明建設は同じ規則で最大12時間まで計算されます。</p></div>
-              <div><strong>位置情報</strong><p>正確な移動履歴は保存しません。道路取得時には現在地周辺を外部道路データサービスへ送信し、保存時の地図基準点は約10m単位へ丸めます。</p></div>
+              <div><strong>位置情報</strong><p>正確な移動履歴は保存しません。初期取得と移動先の道路追加時に周辺位置を外部道路データサービスへ送信し、保存時の地図基準点は約10m単位へ丸めます。</p></div>
             </div>
           </section>
           <section class="radarSettings">

@@ -53,7 +53,7 @@ export function removeShortDeadEnds(graph) {
   return graph;
 }
 
-export function keepCenterComponent(graph) {
+export function keepCenterComponent(graph, centerPoint = { x: 0, y: 0 }) {
   if (graph.nodes.length === 0) return graph;
   const adjacency = new Map(graph.nodes.map(node => [node.id, []]));
   for (const edge of graph.edges) {
@@ -61,7 +61,7 @@ export function keepCenterComponent(graph) {
     adjacency.get(edge.b)?.push(edge.a);
   }
   const centerNode = graph.nodes.reduce((best, node) =>
-    Math.hypot(node.x, node.y) < Math.hypot(best.x, best.y) ? node : best
+    Math.hypot(node.x - centerPoint.x, node.y - centerPoint.y) < Math.hypot(best.x - centerPoint.x, best.y - centerPoint.y) ? node : best
   , graph.nodes[0]);
   const keep = new Set([centerNode.id]);
   const queue = [centerNode.id];
@@ -78,11 +78,16 @@ export function keepCenterComponent(graph) {
   return graph;
 }
 
-export function finalizeRoadGraph(graph) {
+export function finalizeRoadGraph(graph, {
+  centerPoint = { x: 0, y: 0 },
+  keepSingleComponent = true,
+  minimumNodes = ROAD_CONFIG.minimumNodes,
+  minimumEdges = ROAD_CONFIG.minimumEdges
+} = {}) {
   removeParallelGraphEdges(graph);
   removeShortDeadEnds(graph);
-  keepCenterComponent(graph);
-  if (graph.nodes.length < ROAD_CONFIG.minimumNodes || graph.edges.length < ROAD_CONFIG.minimumEdges) {
+  if (keepSingleComponent) keepCenterComponent(graph, centerPoint);
+  if (graph.nodes.length < minimumNodes || graph.edges.length < minimumEdges) {
     throw new AppError(ErrorCode.ROAD_NETWORK_DISCONNECTED, '周辺の道路網が小さいか分断されています。別の場所で再試行してください。');
   }
   return attachGraphIndexes(graph);

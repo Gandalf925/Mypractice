@@ -2,6 +2,8 @@ import { stableId } from '../core/utilities.js';
 import { ensureCivilizationState } from '../civilization/civilization-system.js';
 import { ENEMY_BASE_DEFINITIONS } from './definitions.js';
 import { INITIAL_BASE_TYPES } from './wave-system.js';
+import { reconcileFrontiers, ensureFrontierState } from '../exploration/frontier-system.js';
+import { ensureExplorationState, reconcileExplorationSites } from '../exploration/exploration-system.js';
 
 function distancesFrom(graph, startId) {
   const distances = new Map([[startId, 0]]);
@@ -62,6 +64,9 @@ export function initializeCombatState(state) {
   state.combat.waves = { elapsed: 0, nextSpawnAt: null, active: {}, resourceBaseCheckClock: 30 };
   state.combat.pendingSettlementDamage = [];
   state.world.baseRespawns = [];
+  state.world.frontierSources = [];
+  state.world.explorationSites = [];
+  state.world.exploredSiteChunks = [];
   state.world.enemyBases = selectEnemyBasePlacements(graph, cityNodeId).map(placement => {
     const definition = ENEMY_BASE_DEFINITIONS[placement.type];
     return {
@@ -71,12 +76,16 @@ export function initializeCombatState(state) {
       wavesSent: 0, routeDistance: placement.routeDistance
     };
   });
+  reconcileFrontiers(state);
+  reconcileExplorationSites(state);
   state.runtime.combatInitialized = true;
   return state;
 }
 
 export function ensureCombatInitialized(state) {
   state.combat.pendingSettlementDamage ??= [];
+  ensureFrontierState(state);
+  ensureExplorationState(state);
   ensureCivilizationState(state, { initializeInventory: !state.runtime.combatInitialized });
   if (!state.runtime.combatInitialized || !state.world.city) initializeCombatState(state);
   return state;

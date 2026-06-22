@@ -39,3 +39,18 @@ test('save data remains JSON and graph indexes are reconstructed after load', ()
   assert.equal(graph.nodeById.get('a').x, 0);
   assert.equal(graph.adjacency.get('a')[0].to, 'b');
 });
+
+
+test('v0.19 object-form road graphs remain loadable after compact saves are introduced', () => {
+  const storage = new MemoryStorage();
+  const state = stateWithGraph();
+  state.world.city = { nodeId: 'a', hp: 100, maxHp: 100 };
+  const plain = structuredClone(state);
+  storage.setItem('legacy-object', JSON.stringify(plain));
+  const repository = new SaveRepository(storage, 'legacy-object');
+  const loaded = repository.load();
+  assert.ok(loaded);
+  assert.equal(loaded.world.roadGraph.nodes[1].id, 'b');
+  assert.equal(loaded.world.roadGraph.edges[0].a, 'a');
+  assert.equal(loaded.world.roadGraph.format, undefined);
+});

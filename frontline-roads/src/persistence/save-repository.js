@@ -5,6 +5,7 @@ import { validateState } from '../core/state-schema.js';
 import { roundPublicLocation } from '../location/location-privacy.js';
 import { isLegacySave, migrateLegacySave } from './legacy-save-migration.js';
 import { resolveStorage } from './storage-access.js';
+import { decodeRoadGraph, encodeRoadGraph } from './road-graph-codec.js';
 
 const MAX_SAVE_BYTES = 4_500_000;
 
@@ -16,13 +17,7 @@ function sanitizeGraph(graph) {
     delete node.lat;
     delete node.lon;
   }
-  for (const edge of graph.edges ?? []) {
-    delete edge.points;
-    delete edge.mid;
-    delete edge.angle;
-    delete edge.mergedSegmentIds;
-  }
-  return graph;
+  return encodeRoadGraph(graph);
 }
 
 function sanitizeState(state) {
@@ -33,8 +28,13 @@ function sanitizeState(state) {
   copy.player.locationAccuracy = null;
   copy.player.worldPosition = copy.world.homeBase ? { x: copy.world.homeBase.x, y: copy.world.homeBase.y } : null;
   if (copy.world.homeBase) delete copy.world.homeBase.location;
-  sanitizeGraph(copy.world.roadGraph);
+  copy.world.roadGraph = sanitizeGraph(copy.world.roadGraph);
   return { copy, timestamp };
+}
+
+function restoreEncodedGraph(state) {
+  if (state?.world?.roadGraph) state.world.roadGraph = decodeRoadGraph(state.world.roadGraph);
+  return state;
 }
 
 export class SaveRepository {
@@ -69,7 +69,7 @@ export class SaveRepository {
       this.storage.removeItem(this.corruptBackupKey);
       if (raw) {
         try {
-          const parsed = JSON.parse(raw);
+          const parsed = restoreEncodedGraph(JSON.parse(raw));
           if (parsed?.world?.roadGraph) {
             const { copy } = sanitizeState(parsed);
             this.storage.setItem(this.corruptBackupKey, JSON.stringify(copy));
@@ -108,7 +108,7 @@ export class SaveRepository {
         }
       }
       if (!raw) return null;
-      let state = JSON.parse(raw);
+      let state = restoreEncodedGraph(JSON.parse(raw));
       if (isLegacySave(state)) {
         state = migrateLegacySave(state);
         const { copy: sanitizedLegacy } = sanitizeState(state);
@@ -119,7 +119,8 @@ export class SaveRepository {
           this.warning = '保存データを復元できなかったため、新しいゲームとして開始します。破損データは無効化しました。';
           return null;
         }
-        this.storage.setItem(this.key, JSON.stringify(state));
+        const { copy } = sanitizeState(state);
+        this.storage.setItem(this.key, JSON.stringify(copy));
       }
       const validation = validateState(state);
       if (!validation.valid) {

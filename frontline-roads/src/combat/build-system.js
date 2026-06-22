@@ -1,5 +1,6 @@
 import { distance, stableId } from '../core/utilities.js';
 import { pointToSegmentProjection } from '../roads/geometry.js';
+import { graphElementsNearPoint } from '../roads/road-graph.js';
 import { bundleText, consumeBundle, missingBundle } from '../civilization/inventory-system.js';
 import { BUILD_RANGE_METERS, DEFENSE_DEFINITIONS } from './definitions.js';
 import { findCombatPath } from './routing-system.js';
@@ -39,7 +40,7 @@ function activeDefense(defense) {
 
 function nearbyEdges(graph, point, maxDistance) {
   const matches = [];
-  for (const edge of graph.edges) {
+  for (const edge of graphElementsNearPoint(graph, point, maxDistance).edges) {
     const a = graph.nodeById.get(edge.a);
     const b = graph.nodeById.get(edge.b);
     if (!a || !b) continue;
@@ -50,7 +51,7 @@ function nearbyEdges(graph, point, maxDistance) {
 }
 
 function nearbyNodes(graph, point, maxDistance) {
-  return graph.nodes
+  return graphElementsNearPoint(graph, point, maxDistance).nodes
     .map(node => ({ node, distance: distance(point, node) }))
     .filter(match => match.distance <= maxDistance)
     .sort((left, right) => left.distance - right.distance);
@@ -118,8 +119,12 @@ export class BuildSystem {
           .filter(defense => defense.kind === 'barrier' && activeDefense(defense))
           .map(defense => defense.edgeId)
       );
+      const candidateEdges = new Set();
+      for (const anchor of anchors) {
+        for (const edge of graphElementsNearPoint(graph, anchor.point, BUILD_RANGE_METERS).edges) candidateEdges.add(edge);
+      }
       const sites = [];
-      for (const edge of graph.edges) {
+      for (const edge of candidateEdges) {
         if (occupied.has(edge.id)) continue;
         const a = graph.nodeById.get(edge.a);
         const b = graph.nodeById.get(edge.b);
@@ -144,7 +149,11 @@ export class BuildSystem {
         .filter(defense => defense.kind === 'tower' && activeDefense(defense))
         .map(defense => defense.nodeId)
     );
-    return graph.nodes
+    const candidateNodes = new Set();
+    for (const anchor of anchors) {
+      for (const node of graphElementsNearPoint(graph, anchor.point, BUILD_RANGE_METERS).nodes) candidateNodes.add(node);
+    }
+    return [...candidateNodes]
       .filter(node => !occupied.has(node.id))
       .map(node => ({ node, anchor: nearestAnchor(anchors, node) }))
       .filter(entry => entry.anchor?.distance <= BUILD_RANGE_METERS)

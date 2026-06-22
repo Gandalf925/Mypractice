@@ -8,6 +8,8 @@ import {
 import { drawThreatRoutes, drawTacticalFocus } from './tactical-overlay.js';
 import { drawBuildPlacement } from './build-placement-overlay.js';
 import { CombatEffects } from './combat-effects.js';
+import { drawFrontierSignals } from './frontier-renderer.js';
+import { drawExplorationSites } from './exploration-renderer.js';
 
 const ACTIVE_GAME_STATES = new Set(['PLAYING', 'PAUSED']);
 
@@ -111,6 +113,15 @@ export class Renderer {
   setFocus(focus) { this.focus = focus; this.render(); }
   setBuildPlacement(placement) { this.buildPlacement = placement; this.render(); }
 
+  centerOn(point, minimumScale = 0.75) {
+    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
+    this.camera.x = point.x;
+    this.camera.y = point.y;
+    this.camera.scale = Math.max(this.camera.scale, minimumScale);
+    this.invalidateStatic();
+    this.render();
+  }
+
   fitGraph() {
     if (!this.graph?.nodes?.length) return;
     const xs = this.graph.nodes.map(node => node.x);
@@ -176,6 +187,8 @@ export class Renderer {
     drawRadarSweep(this.context, this.cssWidth, this.cssHeight, center, visualTime, this.preferences);
 
     if (this.graph && ACTIVE_GAME_STATES.has(state?.lifecycle)) {
+      drawFrontierSignals(this.context, state, this.camera, visualTime, this.preferences);
+      drawExplorationSites(this.context, state, this.camera, visualTime, this.preferences);
       drawThreatRoutes(this.context, state, this.camera, this.focus, this.preferences);
       drawCombatState(this.context, state, this.camera, { center, sweepAngle, timeMs: visualTime, preferences: this.preferences });
       drawTacticalFocus(this.context, state, this.camera, this.focus, visualTime, this.preferences);

@@ -1,3 +1,5 @@
+import { graphElementsInBounds } from '../roads/road-graph.js';
+
 function drawEdge(context, a, b, width, style, shadow = null, blur = 0) {
   context.strokeStyle = style;
   context.lineWidth = width;
@@ -14,13 +16,29 @@ function lineVisible(a, b, width, height, margin = 16) {
   return true;
 }
 
+function visibleWorldBounds(camera, marginPixels = 24) {
+  const margin = marginPixels / Math.max(0.001, camera.scale);
+  const halfWidth = camera.viewportWidth / (2 * camera.scale);
+  const halfHeight = camera.viewportHeight / (2 * camera.scale);
+  return {
+    minX: camera.x - halfWidth - margin,
+    minY: camera.y - halfHeight - margin,
+    maxX: camera.x + halfWidth + margin,
+    maxY: camera.y + halfHeight + margin
+  };
+}
+
 export function drawRoadGraph(context, graph, camera, { selectedEdgeId = null, timeMs = 0, preferences = {} } = {}) {
   const quality = preferences.quality ?? 'balanced';
+  const visible = graphElementsInBounds(graph, visibleWorldBounds(camera));
   context.save();
   context.lineCap = 'round'; context.lineJoin = 'round'; context.globalCompositeOperation = 'screen';
-  for (const edge of graph.edges) {
-    const a = camera.worldToScreen(graph.nodeById.get(edge.a));
-    const b = camera.worldToScreen(graph.nodeById.get(edge.b));
+  for (const edge of visible.edges) {
+    const nodeA = graph.nodeById.get(edge.a);
+    const nodeB = graph.nodeById.get(edge.b);
+    if (!nodeA || !nodeB) continue;
+    const a = camera.worldToScreen(nodeA);
+    const b = camera.worldToScreen(nodeB);
     if (!lineVisible(a, b, camera.viewportWidth, camera.viewportHeight)) continue;
     const baseWidth = Math.max(1, Math.min(quality === 'minimal' ? 5 : 8, edge.roadWidth * camera.scale * 0.25));
     const selected = edge.id === selectedEdgeId;
@@ -31,7 +49,7 @@ export function drawRoadGraph(context, graph, camera, { selectedEdgeId = null, t
   }
   if (quality === 'full' && camera.scale >= 0.85) {
     context.fillStyle = 'rgba(112,255,223,0.28)';
-    for (const node of graph.nodes) {
+    for (const node of visible.nodes) {
       const point = camera.worldToScreen(node);
       if (point.x < -4 || point.y < -4 || point.x > camera.viewportWidth + 4 || point.y > camera.viewportHeight + 4) continue;
       context.beginPath(); context.arc(point.x, point.y, 1, 0, Math.PI * 2); context.fill();

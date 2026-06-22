@@ -94,9 +94,12 @@ export class DefenseSystem {
     }
   }
 
-  update(state, deltaSeconds, spatial = null) {
+  update(state, deltaSeconds, spatial = null, shouldUpdate = null) {
     spatial ??= buildCombatSpatialIndex(state);
-    for (const defense of state.combat.defenses) if (defense.kind === 'tower') this.updateTower(state, defense, deltaSeconds, spatial);
+    for (const defense of state.combat.defenses) {
+      if (defense.kind !== 'tower' || (shouldUpdate && !shouldUpdate(defense))) continue;
+      this.updateTower(state, defense, deltaSeconds, spatial);
+    }
     state.combat.enemies = state.combat.enemies.filter(enemy => enemy.hp > 0);
   }
 }

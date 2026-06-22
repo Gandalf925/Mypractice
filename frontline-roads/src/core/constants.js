@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.19.0-adaptive-fronts';
+export const APP_VERSION = '0.20.0-world-frontiers';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 
@@ -33,6 +33,11 @@ export const ALLOWED_TRANSITIONS = Object.freeze({
 export const ROAD_CONFIG = Object.freeze({
   selectionRadiusMeters: 1000,
   fetchRadiusMeters: 1150,
+  chunkSizeMeters: 600,
+  chunkFetchRadiusMeters: 520,
+  chunkPrefetchRadius: 1,
+  chunkPrefetchDistanceMeters: 180,
+  chunkRetryCooldownMs: 5 * 60 * 1000,
   overpassTimeoutMs: 18000,
   overpassTotalTimeoutMs: 90000,
   minimumRawSegments: 18,

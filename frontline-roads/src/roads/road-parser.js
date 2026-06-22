@@ -9,11 +9,16 @@ function interpolateLocation(a, b, t) {
   return { lat: a.lat + (b.lat - a.lat) * t, lon: a.lon + (b.lon - a.lon) * t };
 }
 
-export function parseOverpassSegments(data, center) {
+export function parseOverpassSegments(data, center, {
+  clipCenter = center,
+  maxDistanceMeters = ROAD_CONFIG.maxDistanceFromCenterMeters,
+  minimumRawSegments = ROAD_CONFIG.minimumRawSegments
+} = {}) {
   if (!Array.isArray(data?.elements)) {
     throw new AppError(ErrorCode.ROAD_DATA_INVALID, '道路データの形式が不正です。');
   }
 
+  const clipPoint = latLonToXY(clipCenter.lat, clipCenter.lon, center);
   const segments = [];
   for (const way of data.elements) {
     const tags = way.tags ?? {};
@@ -45,7 +50,7 @@ export function parseOverpassSegments(data, center) {
         const b = latLonToXY(locationB.lat, locationB.lon, center);
         const length = distance(a, b);
         if (length < ROAD_CONFIG.minSegmentLengthMeters) continue;
-        if (pointToSegmentProjection({ x: 0, y: 0 }, a, b).distance > ROAD_CONFIG.maxDistanceFromCenterMeters) continue;
+        if (pointToSegmentProjection(clipPoint, a, b).distance > maxDistanceMeters) continue;
         const sourceNodeA = part === 0 ? way.nodes?.[index] ?? null : `${way.id}:${index}:${part}`;
         const sourceNodeB = part === partCount - 1 ? way.nodes?.[index + 1] ?? null : `${way.id}:${index}:${part + 1}`;
         const segment = {
@@ -71,7 +76,7 @@ export function parseOverpassSegments(data, center) {
     }
   }
 
-  if (segments.length < ROAD_CONFIG.minimumRawSegments) {
+  if (segments.length < minimumRawSegments) {
     throw new AppError(ErrorCode.ROAD_NETWORK_TOO_SMALL, '周辺の利用可能な道路が少なすぎます。別の場所で再試行してください。');
   }
 

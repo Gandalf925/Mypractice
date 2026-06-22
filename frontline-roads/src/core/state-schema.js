@@ -12,7 +12,11 @@ export function createInitialState() {
       city: null,
       enemyBases: [],
       outposts: [],
-      baseRespawns: []
+      baseRespawns: [],
+      roadChunks: null,
+      frontierSources: [],
+      explorationSites: [],
+      exploredSiteChunks: []
     },
     player: {
       currentPosition: null,
@@ -51,7 +55,8 @@ export function createInitialState() {
       worldTimeMs: Date.now(),
       lastError: null,
       combatInitialized: false,
-      performance: { frames: 0, slowFrames: 0, lastFrameMs: 0 }
+      performance: { frames: 0, slowFrames: 0, lastFrameMs: 0 },
+      regionalSimulation: { peripheralAccumulator: 0, dormantAccumulator: 0 }
     }
   };
 }

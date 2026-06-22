@@ -270,7 +270,7 @@ export class EnemySystem {
     return false;
   }
 
-  update(state, deltaSeconds, spatial = null) {
+  update(state, deltaSeconds, spatial = null, shouldUpdate = null) {
     if (!spatial) {
       const positions = new Map();
       const commanders = [];
@@ -303,7 +303,9 @@ export class EnemySystem {
     const frame = { spatial, barriers };
     const remove = new Set();
     for (const enemy of state.combat.enemies) {
-      if (enemy.hp <= 0 || this.updateEnemy(state, enemy, deltaSeconds, frame)) remove.add(enemy.id);
+      if (enemy.hp <= 0) { remove.add(enemy.id); continue; }
+      if (shouldUpdate && !shouldUpdate(enemy)) continue;
+      if (this.updateEnemy(state, enemy, deltaSeconds, frame)) remove.add(enemy.id);
     }
     if (remove.size > 0) state.combat.enemies = state.combat.enemies.filter(enemy => !remove.has(enemy.id) && enemy.hp > 0);
   }

@@ -22,5 +22,6 @@
 | 17 Performance optimization | Complete | 88 tests, static layer caching, fixed update rates, spatial indexing and mobile stress validation |
 | 18 Build planning UX | Complete | Non-destructive candidate preview, valid-site/range overlays, facility effects and capture awareness |
 | 19 Adaptive fronts | Complete | Enemy-specific barrier decisions, facility-targeting specialists, dual home/player build zones |
+| 20 World frontiers | Complete | Dynamic road chunks, unknown frontiers, fixed exploration sources, regional simulation and compact saves |
 | Single HTML | Deferred | Generate only immediately before blockchain publication |
 | GitHub upload | Prepared | Complete modular replacement package generated for manual upload |

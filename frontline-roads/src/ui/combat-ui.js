@@ -5,14 +5,17 @@ import { edgeMidpoint } from '../combat/combat-geometry.js';
 import { enemyPosition } from '../combat/enemy-system.js';
 import { analyzeThreatCached, remainingRouteDistance } from '../rendering/threat-analysis.js';
 import { bundleText } from '../civilization/inventory-system.js';
+import { frontierPresentation } from '../exploration/frontier-system.js';
+import { EXPLORATION_INTERACTION_RANGE_METERS, explorationSitePresentation } from '../exploration/exploration-system.js';
 import { RESOURCE_LABELS } from '../civilization/data.js';
 import { queryRequired, setVisible } from './dom.js';
 
 export class CombatUi {
-  constructor({ store, buildSystem, civilizationSystem, camera, renderer, notifications }) {
+  constructor({ store, buildSystem, civilizationSystem, explorationSystem, camera, renderer, notifications }) {
     this.store = store;
     this.buildSystem = buildSystem;
     this.civilizationSystem = civilizationSystem;
+    this.explorationSystem = explorationSystem;
     this.camera = camera;
     this.renderer = renderer;
     this.notifications = notifications;
@@ -143,6 +146,16 @@ export class CombatUi {
   nearestObject(state, point, tolerance) {
     const graph = state.world.roadGraph;
     const candidates = [];
+    for (const site of state.world.explorationSites ?? []) {
+      if (site.status === 'CLEARED') continue;
+      const node = graph.nodeById.get(site.nodeId);
+      if (node) candidates.push({ kind: 'explorationSite', id: site.id, point: node, distance: distance(point, node) });
+    }
+    for (const source of state.world.frontierSources ?? []) {
+      if (source.status === 'CLEARED' || (state.world.explorationSites ?? []).some(site => site.sourceId === source.id && site.status !== 'CLEARED')) continue;
+      const node = graph.nodeById.get(source.entryNodeId);
+      if (node) candidates.push({ kind: 'frontier', id: source.id, point: node, distance: distance(point, node) });
+    }
     for (const base of state.world.enemyBases) {
       if (!base.alive) continue;
       const node = graph.nodeById.get(base.nodeId);
@@ -304,7 +317,7 @@ export class CombatUi {
       presentation.summary,
       presentation.effect,
       presentation.placement,
-      `建設可能範囲は本拠地と現在地を中心とする各85mです。現在地側は読み込み済み道路網の範囲内で利用できます。`
+      `建設可能範囲は本拠地と現在地を中心とする各85mです。移動先の道路は周辺区域の取得完了後に建設へ利用できます。`
     ]);
     if (this.buildCandidate) {
       const confirm = this.action(affordable ? '建設を確定' : '資源不足', () => this.confirmBuildCandidate(), 'primary');
@@ -349,6 +362,48 @@ export class CombatUi {
         ['ROUTE', definition.routeLabel ?? '状況判断'],
         ['OBJECTIVE', targetName]
       ], [`基本目標：${definition.objectiveLabel ?? '都市'}`]);
+    } else if (selected.kind === 'explorationSite') {
+      const site = (state.world.explorationSites ?? []).find(item => item.id === selected.id);
+      if (!site || site.status === 'CLEARED') { this.clearObjectSelection(); return; }
+      const presentation = explorationSitePresentation(site);
+      const node = state.world.roadGraph.nodeById.get(site.nodeId);
+      const gap = state.player.worldPosition && node ? distance(state.player.worldPosition, node) : Infinity;
+      this.contextTitle.textContent = `EXPLORE // ${presentation.name}`;
+      this.setContextContent(
+        presentation.description,
+        [
+          ['DIST', Number.isFinite(gap) ? `${Math.round(gap)}m` : 'NO GPS'],
+          ['ENTRY', `${EXPLORATION_INTERACTION_RANGE_METERS}m`],
+          ['STATUS', site.interactionActive ? 'SCANNING' : 'READY'],
+          ['PROGRESS', `${Math.floor(site.progress ?? 0)}/${site.requiredSeconds}s`],
+          ['REWARD', bundleText(site.reward ?? {})]
+        ],
+        [site.type === 'enemySource' ? '周辺にこの発生源から出撃した敵がいる場合、無力化を開始できません。' : '調査中に範囲外へ離れても進捗は保持されます。']
+      );
+      const action = this.action(site.interactionActive ? '調査進行中' : '現地調査を開始', () => this.mutateAction(draft => this.explorationSystem.beginInteraction(draft, site.id), 'exploration:begin'), 'primary');
+      action.disabled = site.interactionActive || gap > EXPLORATION_INTERACTION_RANGE_METERS;
+    } else if (selected.kind === 'frontier') {
+      const source = (state.world.frontierSources ?? []).find(item => item.id === selected.id);
+      if (!source || source.status === 'CLEARED') { this.clearObjectSelection(); return; }
+      const presentation = frontierPresentation(source);
+      const entry = state.world.roadGraph.nodeById.get(source.entryNodeId);
+      const sourceDistance = entry ? distance(entry, source.point) : Infinity;
+      const playerDistance = state.player.worldPosition ? distance(state.player.worldPosition, source.point) : Infinity;
+      this.contextTitle.textContent = `FRONTIER // ${presentation.title}`;
+      this.setContextContent(
+        presentation.stage === 'DISTANT'
+          ? '道路網の外側から断続的な敵性反応を検出しています。実際にこの方向へ移動すると情報精度が上がります。'
+          : '敵性反応の方向と規模が絞り込まれています。道路を探索して発生源を特定してください。',
+        [
+          ['SIGNAL', presentation.stage],
+          ['THREAT', `T${presentation.threat}`],
+          ['TYPE', presentation.profileLabel],
+          ['SOURCE', Number.isFinite(sourceDistance) ? `約${Math.round(sourceDistance)}m先` : '不明'],
+          ['YOU', Number.isFinite(playerDistance) ? `${Math.round(playerDistance)}m` : 'NO GPS'],
+          ['WAVES', String(source.wavesSent ?? 0)]
+        ],
+        ['未確認地域から敵部隊が侵入します。発生源は同じ世界座標に固定され、道路を探索して近づいても遠ざかりません。']
+      );
     } else if (selected.kind === 'enemyBase') {
       const base = state.world.enemyBases.find(item => item.id === selected.id);
       if (!base?.alive) { this.clearObjectSelection(); return; }
