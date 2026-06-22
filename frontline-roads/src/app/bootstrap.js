@@ -90,7 +90,8 @@ class FrontlineRoadsApp {
         this.civilizationUi.update();
       },
       onError: error => this.notifications.show(error?.message ?? '保存に失敗しました。'),
-      onSaveDisabled: () => this.updateStorageUi()
+      onSaveDisabled: () => this.updateStorageUi(),
+      getPerformanceProfile: () => this.renderer.getPerformanceProfile()
     });
     this.selection = null;
     this.basePlacement = null;
@@ -100,7 +101,7 @@ class FrontlineRoadsApp {
     this.tabCoordinator = new TabCoordinator();
     this.tabCoordinator.start(primary => this.handlePrimaryChange(primary));
     this.mapInput = new MapInput(queryRequired('#mapCanvas'), this.camera, {
-      onViewChanged: () => this.renderer.render(),
+      onViewChanged: () => { this.renderer.invalidateStatic(); this.renderer.render(); },
       onTap: worldPoint => this.handleMapTap(worldPoint)
     });
     this.bindControls();

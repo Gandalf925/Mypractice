@@ -1,10 +1,10 @@
-const STORAGE_KEY = 'frontline_roads_radar_preferences_v1';
+const STORAGE_KEY = 'frontline_roads_radar_preferences_v2';
 const QUALITY_VALUES = ['full', 'balanced', 'minimal'];
 const ROUTE_VALUES = ['priority', 'all', 'off'];
 
-function safeStorage() {
+function safeStorage(environment = globalThis) {
   try {
-    const storage = globalThis.localStorage;
+    const storage = environment.localStorage;
     const key = `${STORAGE_KEY}_probe`;
     storage?.setItem(key, '1');
     storage?.removeItem(key);
@@ -14,13 +14,28 @@ function safeStorage() {
   }
 }
 
-function defaultPreferences() {
-  const reduced = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
-  return { quality: 'balanced', motion: !reduced, routes: 'priority' };
+export function suggestedRadarQuality(environment = globalThis) {
+  const navigatorValue = environment.navigator ?? {};
+  const coarsePointer = environment.matchMedia?.('(pointer: coarse)')?.matches ?? false;
+  const touchDevice = Number(navigatorValue.maxTouchPoints ?? 0) > 0;
+  const memory = Number(navigatorValue.deviceMemory ?? 0);
+  const cores = Number(navigatorValue.hardwareConcurrency ?? 0);
+  if (coarsePointer || touchDevice || (memory > 0 && memory <= 4) || (cores > 0 && cores <= 4)) return 'minimal';
+  return 'balanced';
 }
 
-function normalize(value) {
-  const defaults = defaultPreferences();
+function defaultPreferences(environment = globalThis) {
+  const reduced = environment.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
+  const quality = suggestedRadarQuality(environment);
+  return {
+    quality,
+    motion: !reduced,
+    routes: quality === 'minimal' ? 'off' : 'priority'
+  };
+}
+
+function normalize(value, environment = globalThis) {
+  const defaults = defaultPreferences(environment);
   return {
     quality: QUALITY_VALUES.includes(value?.quality) ? value.quality : defaults.quality,
     motion: typeof value?.motion === 'boolean' ? value.motion : defaults.motion,
@@ -37,9 +52,10 @@ const QUALITY_LABELS = Object.freeze({ full: '高精細', balanced: '標準', mi
 const ROUTE_LABELS = Object.freeze({ priority: '脅威のみ', all: 'すべて', off: '非表示' });
 
 export class RadarPreferences {
-  constructor({ onChange = null, storage = safeStorage(), documentRef = globalThis.document } = {}) {
+  constructor({ onChange = null, storage = undefined, documentRef = globalThis.document, environment = globalThis } = {}) {
     this.onChange = onChange;
-    this.storage = storage;
+    this.environment = environment;
+    this.storage = storage === undefined ? safeStorage(environment) : storage;
     this.document = documentRef;
     this.value = this.load();
     this.qualityButton = this.document?.querySelector('#radarQualityButton') ?? null;
@@ -54,9 +70,9 @@ export class RadarPreferences {
   load() {
     try {
       const raw = this.storage?.getItem(STORAGE_KEY);
-      return normalize(raw ? JSON.parse(raw) : null);
+      return normalize(raw ? JSON.parse(raw) : null, this.environment);
     } catch {
-      return defaultPreferences();
+      return defaultPreferences(this.environment);
     }
   }
 
@@ -65,7 +81,7 @@ export class RadarPreferences {
   }
 
   update(patch) {
-    this.value = normalize({ ...this.value, ...patch });
+    this.value = normalize({ ...this.value, ...patch }, this.environment);
     this.save();
     this.apply();
   }

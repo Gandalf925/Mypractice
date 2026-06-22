@@ -18,6 +18,7 @@
 | 13 Tactical awareness | Complete | Threat analysis, routes, range/cooldown/targeting overlays |
 | 14 Combat feedback | Complete | Shot, impact, kill, wave, city and defense transient effects |
 | 15 Terminal polish | Complete | Structured HUD and independent visual preferences |
-| 16 Final audit | Complete | 83 tests, browser portrait/landscape flows, no runtime errors or HUD overlaps |
+| 16 Radar final audit | Complete | Portrait/landscape flows, no runtime errors or HUD overlaps |
+| 17 Performance optimization | Complete | 88 tests, static layer caching, fixed update rates, spatial indexing and mobile stress validation |
 | Single HTML | Deferred | Generate only immediately before blockchain publication |
 | GitHub upload | Prepared | Complete modular replacement package generated for manual upload |

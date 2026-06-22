@@ -682,3 +682,38 @@ html[data-lifecycle="PLAYING"] footer {
 @media (orientation: landscape) and (max-height: 520px) {
   html[data-lifecycle="PLAYING"] footer { display: none; }
 }
+
+/* v0.17.0 performance profile */
+html[data-radar-quality="minimal"] .modalOverlay { backdrop-filter: none; }
+html[data-radar-quality="minimal"] .panel,
+html[data-radar-quality="minimal"] .modalCard,
+html[data-radar-quality="minimal"] .contextPanel,
+html[data-radar-quality="minimal"] .toolButton,
+html[data-radar-quality="minimal"] .threatStatus { box-shadow: none; }
+html[data-radar-quality="minimal"] #statusBar,
+html[data-radar-quality="minimal"] .combatStats strong,
+html[data-radar-quality="minimal"] .toolButton strong,
+html[data-radar-quality="minimal"] .threatStatus > strong { text-shadow: none; }
+html[data-radar-quality="balanced"] .modalOverlay { backdrop-filter: blur(3px); }
+
+/* v0.17.0 mobile performance safeguards */
+html:not([data-radar-quality="full"]) #app::before {
+  mix-blend-mode: normal;
+  opacity: .08;
+}
+html:not([data-radar-quality="full"]) #app::after {
+  box-shadow: inset 0 0 54px rgba(0, 0, 0, 0.68);
+}
+html:not([data-radar-quality="full"]) .modalOverlay {
+  backdrop-filter: none;
+}
+html:not([data-radar-quality="full"]) .threatStatus[data-level="critical"] {
+  animation: none;
+}
+html[data-radar-quality="balanced"] .panel,
+html[data-radar-quality="balanced"] .modalCard,
+html[data-radar-quality="balanced"] .contextPanel,
+html[data-radar-quality="balanced"] .toolButton,
+html[data-radar-quality="balanced"] .threatStatus {
+  box-shadow: 0 5px 18px rgba(0,0,0,.42);
+}

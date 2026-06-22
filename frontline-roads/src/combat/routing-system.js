@@ -2,6 +2,43 @@ import { distance } from '../core/utilities.js';
 import { ENEMY_DEFINITIONS } from './definitions.js';
 import { edgeMidpoint } from './combat-geometry.js';
 
+class MinHeap {
+  constructor() { this.items = []; }
+  push(value) {
+    const items = this.items;
+    items.push(value);
+    let index = items.length - 1;
+    while (index > 0) {
+      const parent = Math.floor((index - 1) / 2);
+      if (items[parent].distance <= value.distance) break;
+      items[index] = items[parent];
+      index = parent;
+    }
+    items[index] = value;
+  }
+  pop() {
+    const items = this.items;
+    if (items.length === 0) return null;
+    const root = items[0];
+    const tail = items.pop();
+    if (items.length === 0) return root;
+    let index = 0;
+    while (true) {
+      const left = index * 2 + 1;
+      const right = left + 1;
+      if (left >= items.length) break;
+      let child = left;
+      if (right < items.length && items[right].distance < items[left].distance) child = right;
+      if (items[child].distance >= tail.distance) break;
+      items[index] = items[child];
+      index = child;
+    }
+    items[index] = tail;
+    return root;
+  }
+  get length() { return this.items.length; }
+}
+
 function defenseMaps(state) {
   const barriers = new Map();
   const towers = [];
@@ -13,13 +50,17 @@ function defenseMaps(state) {
   return { barriers, towers };
 }
 
-function edgeEnemyCount(state, edgeId) {
-  let count = 0;
-  for (const enemy of state.combat.enemies) if (enemy.edgeId === edgeId && enemy.hp > 0) count += 1;
-  return count;
+function enemyCountMap(state) {
+  const counts = new Map();
+  for (const enemy of state.combat.enemies) {
+    if (!enemy.edgeId || enemy.hp <= 0) continue;
+    counts.set(enemy.edgeId, (counts.get(enemy.edgeId) ?? 0) + 1);
+  }
+  return counts;
 }
 
-function edgeTowerThreat(state, edgeId, towers) {
+function edgeTowerThreat(state, edgeId, towers, cache) {
+  if (cache.has(edgeId)) return cache.get(edgeId);
   const graph = state.world.roadGraph;
   const middle = edgeMidpoint(graph, edgeId);
   if (!middle) return 0;
@@ -30,6 +71,7 @@ function edgeTowerThreat(state, edgeId, towers) {
     const range = tower.range ?? 80;
     if (node && distance(middle, node) <= range) threat += 1;
   }
+  cache.set(edgeId, threat);
   return threat;
 }
 
@@ -37,14 +79,16 @@ export function findCombatPath(state, startId, targetId, enemyType = 'infantry',
   const graph = state.world.roadGraph;
   const enemyDefinition = ENEMY_DEFINITIONS[enemyType] ?? ENEMY_DEFINITIONS.infantry;
   const { barriers, towers } = defenseMaps(state);
+  const edgeCounts = enemyDefinition.avoidCongestion ? enemyCountMap(state) : null;
+  const threatCache = new Map();
   const distances = new Map([[startId, 0]]);
   const previous = new Map();
   const visited = new Set();
-  const queue = [{ id: startId, distance: 0 }];
+  const queue = new MinHeap();
+  queue.push({ id: startId, distance: 0 });
 
   while (queue.length > 0) {
-    queue.sort((a, b) => a.distance - b.distance);
-    const current = queue.shift();
+    const current = queue.pop();
     if (visited.has(current.id)) continue;
     visited.add(current.id);
     if (current.id === targetId) break;
@@ -56,8 +100,8 @@ export function findCombatPath(state, startId, targetId, enemyType = 'infantry',
         ? { hp: ENEMY_DEFINITIONS.engineer.hp + 160 }
         : barriers.get(connection.edgeId);
       if (barrier?.hp > 0) weight += enemyDefinition.engineer ? 8 + barrier.hp * 0.04 : 12000;
-      if (enemyDefinition.avoidTowers) weight *= 1 + edgeTowerThreat(state, edge.id, towers) * 0.9;
-      if (enemyDefinition.avoidCongestion) weight *= 1 + edgeEnemyCount(state, edge.id) / 12;
+      if (enemyDefinition.avoidTowers) weight *= 1 + edgeTowerThreat(state, edge.id, towers, threatCache) * 0.9;
+      if (enemyDefinition.avoidCongestion) weight *= 1 + (edgeCounts.get(edge.id) ?? 0) / 12;
       const nextDistance = current.distance + weight;
       if (nextDistance >= (distances.get(connection.to) ?? Infinity)) continue;
       distances.set(connection.to, nextDistance);

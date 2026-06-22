@@ -1,0 +1,126 @@
+{
+  "date": "2026-06-23",
+  "scenario": {
+    "synthetic": {
+      "edges": 840,
+      "enemies": 220,
+      "defenses": 35,
+      "frames": 60,
+      "logicUpdates": 120
+    },
+    "browser": {
+      "viewport": "390x844",
+      "deviceScaleFactor": 2,
+      "enemies": 180,
+      "defenses": 30,
+      "durationSeconds": 5
+    }
+  },
+  "baseline": {
+    "render60Ms": 69.4,
+    "renderAvgMs": 1.157,
+    "canvasOpsPerFrame": 26892,
+    "logic120Ms": 105.52,
+    "logicAvgMs": 0.879,
+    "simulationHz": 60,
+    "source": "v0.16.2 pre-optimization synthetic stress run"
+  },
+  "optimized": {
+    "render60Ms": 25.14,
+    "renderAvgMs": 0.419,
+    "canvasOpsPerFrame": 3833,
+    "logic120Ms": 55.57,
+    "logicAvgMs": 0.463,
+    "balancedSimulationHz": 20,
+    "mobileSimulationHz": 12,
+    "source": "v0.17.0 final synthetic stress run with static-layer cache"
+  },
+  "comparison": {
+    "renderTimeReductionPercent": 63.8,
+    "canvasOperationReductionPercent": 85.7,
+    "logicPerUpdateReductionPercent": 47.3,
+    "balancedRealtimeLogicReductionPercent": 82.4
+  },
+  "browserBalanced": {
+    "prefs": {
+      "quality": "balanced",
+      "motion": true,
+      "routes": "priority"
+    },
+    "profile": {
+      "renderHz": 24,
+      "simulationHz": 20,
+      "civilizationHz": 4,
+      "uiHz": 2,
+      "maxDpr": 1,
+      "maxCatchUpSteps": 4
+    },
+    "combat": {
+      "count": 100,
+      "total": 49.700000000651926,
+      "avg": 0.4970000000065193,
+      "max": 4.699999999953434,
+      "p95": 0.9000000001396984
+    },
+    "civ": {
+      "count": 20,
+      "total": 3.5000000004656613,
+      "avg": 0.17500000002328306,
+      "max": 0.8000000000465661,
+      "p95": 0.8000000000465661
+    },
+    "render": {
+      "count": 121,
+      "total": 120.10000000009313,
+      "avg": 0.9925619834718441,
+      "max": 4.699999999953434,
+      "p95": 2.0999999998603016
+    },
+    "ui": {
+      "count": 10,
+      "total": 1.8000000002793968,
+      "avg": 0.18000000002793967,
+      "max": 0.5,
+      "p95": 0.5
+    },
+    "runtime": {
+      "frames": 101,
+      "slowFrames": 0,
+      "lastFrameMs": 16.599999999999454
+    },
+    "enemies": 178,
+    "errors": []
+  },
+  "browserMobileDefault": {
+    "lifecycle": "PLAYING",
+    "version": "0.17.0-performance",
+    "prefs": {
+      "quality": "minimal",
+      "motion": true,
+      "routes": "off"
+    },
+    "profile": {
+      "renderHz": 18,
+      "simulationHz": 12,
+      "civilizationHz": 2,
+      "uiHz": 2,
+      "maxDpr": 0.75,
+      "maxCatchUpSteps": 3
+    },
+    "runtime": {
+      "frames": 60,
+      "slowFrames": 0,
+      "lastFrameMs": 16.599999999999454
+    },
+    "enemies": 178,
+    "defenses": 30,
+    "longTasks": [],
+    "heap": {
+      "used": 3594661,
+      "total": 9167189
+    },
+    "simulationUpdatesIn5s": 60,
+    "pageErrors": [],
+    "consoleErrors": []
+  }
+}

@@ -97,13 +97,15 @@ function resolveWaveEnemy(state, enemy, breached) {
   delete state.combat.waves.active[enemy.waveId];
 }
 
-export function damageEnemy(state, enemy, amount, events = null) {
+export function damageEnemy(state, enemy, amount, events = null, spatial = null) {
   if (enemy.hp <= 0 || enemy.rewardGranted) return false;
   if (!(ENEMY_DEFINITIONS[enemy.type]?.shieldAura > 0)) {
-    const position = enemyPosition(state, enemy);
-    const protectedByShield = state.combat.enemies.some(other =>
-      other !== enemy && other.hp > 0 && (ENEMY_DEFINITIONS[other.type]?.shieldAura > 0) && distance(enemyPosition(state, other), position) <= 14
-    );
+    const position = spatial?.positions?.get(enemy.id) ?? enemyPosition(state, enemy);
+    const shieldCandidates = spatial ? spatial.query(position, 14) : state.combat.enemies.map(other => ({ enemy: other, position: enemyPosition(state, other) }));
+    const protectedByShield = shieldCandidates.some(entry => {
+      const other = entry.enemy;
+      return other !== enemy && other.hp > 0 && (ENEMY_DEFINITIONS[other.type]?.shieldAura > 0) && distance(entry.position, position) <= 14;
+    });
     if (protectedByShield) amount *= 0.7;
   }
   enemy.hp -= amount;
@@ -134,7 +136,7 @@ export class EnemySystem {
     for (const enemy of state.combat.enemies) enemy.reroutePending = true;
   }
 
-  updateEnemy(state, enemy, deltaSeconds) {
+  updateEnemy(state, enemy, deltaSeconds, frame) {
     if (enemy.departDelay > 0) {
       enemy.departDelay = Math.max(0, enemy.departDelay - deltaSeconds);
       return false;
@@ -165,7 +167,7 @@ export class EnemySystem {
     const edge = graph.edgeById.get(enemy.edgeId);
     if (!edge) { enemy.path = null; return false; }
 
-    const barrier = activeBarrierOnEdge(state, edge.id);
+    const barrier = frame.barriers.get(edge.id) ?? null;
     const barrierPosition = edge.length * 0.5;
     if (barrier && enemy.edgeProgress >= barrierPosition - 1 && enemy.edgeProgress <= barrierPosition + 2) {
       enemy.attackClock += deltaSeconds;
@@ -187,8 +189,8 @@ export class EnemySystem {
 
     let commanderMultiplier = 1;
     if (enemy.type !== 'commander') {
-      const position = enemyPosition(state, enemy);
-      const commanded = state.combat.enemies.some(other => other.hp > 0 && other.type === 'commander' && distance(enemyPosition(state, other), position) <= 35);
+      const position = frame.spatial.positions.get(enemy.id) ?? enemyPosition(state, enemy);
+      const commanded = frame.spatial.commanders.some(entry => entry.enemy.hp > 0 && distance(entry.position, position) <= 35);
       if (commanded) commanderMultiplier = 1 + (ENEMY_DEFINITIONS.commander.commanderAura ?? 0);
     }
     const slowBase = enemy.slowMultiplier ?? 0.52;
@@ -237,10 +239,40 @@ export class EnemySystem {
     return false;
   }
 
-  update(state, deltaSeconds) {
+  update(state, deltaSeconds, spatial = null) {
+    if (!spatial) {
+      const positions = new Map();
+      const commanders = [];
+      const entries = [];
+      for (const enemy of state.combat.enemies) {
+        if (enemy.hp <= 0 || enemy.departDelay > 0) continue;
+        const position = enemyPosition(state, enemy);
+        const entry = { enemy, position };
+        positions.set(enemy.id, position);
+        entries.push(entry);
+        if (enemy.type === 'commander') commanders.push(entry);
+      }
+      spatial = {
+        positions,
+        commanders,
+        query(point, range) {
+          const limit = range * range;
+          return entries.filter(entry => {
+            const dx = entry.position.x - point.x;
+            const dy = entry.position.y - point.y;
+            return dx * dx + dy * dy <= limit;
+          });
+        }
+      };
+    }
+    const barriers = new Map();
+    for (const defense of state.combat.defenses) {
+      if (defense.kind === 'barrier' && defense.hp > 0 && !defense.ruined) barriers.set(defense.edgeId, defense);
+    }
+    const frame = { spatial, barriers };
     const remove = new Set();
     for (const enemy of state.combat.enemies) {
-      if (enemy.hp <= 0 || this.updateEnemy(state, enemy, deltaSeconds)) remove.add(enemy.id);
+      if (enemy.hp <= 0 || this.updateEnemy(state, enemy, deltaSeconds, frame)) remove.add(enemy.id);
     }
     if (remove.size > 0) state.combat.enemies = state.combat.enemies.filter(enemy => !remove.has(enemy.id) && enemy.hp > 0);
   }

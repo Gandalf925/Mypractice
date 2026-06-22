@@ -1,10 +1,30 @@
+import { performanceProfile } from '../app/performance-profile.js';
 import { drawRoadGraph } from './road-renderer.js';
 import { drawCombatState } from './combat-renderer.js';
-import { drawRadarBackdrop, drawRadarOverlay, radarCenter, radarSweepAngle } from './radar-renderer.js';
+import {
+  drawRadarStaticBackdrop, drawRadarSweep, drawRadarStaticOverlay,
+  drawRadarBackdrop, drawRadarOverlay, radarCenter, radarSweepAngle
+} from './radar-renderer.js';
 import { drawThreatRoutes, drawTacticalFocus } from './tactical-overlay.js';
 import { CombatEffects } from './combat-effects.js';
 
 const ACTIVE_GAME_STATES = new Set(['PLAYING', 'PAUSED']);
+
+function createLayer(canvas) {
+  const documentRef = canvas.ownerDocument ?? globalThis.document;
+  if (documentRef?.createElement) return documentRef.createElement('canvas');
+  if (typeof OffscreenCanvas === 'function') return new OffscreenCanvas(1, 1);
+  return null;
+}
+
+function configureLayer(layer, width, height, dpr) {
+  if (!layer) return null;
+  layer.width = Math.max(1, Math.round(width * dpr));
+  layer.height = Math.max(1, Math.round(height * dpr));
+  const context = layer.getContext?.('2d');
+  context?.setTransform?.(dpr, 0, 0, dpr, 0, 0);
+  return context;
+}
 
 export class Renderer {
   constructor(canvas, camera) {
@@ -18,6 +38,15 @@ export class Renderer {
     this.focus = null;
     this.effects = new CombatEffects();
     this.preferences = { quality: 'balanced', motion: true, routes: 'priority' };
+    this.cssWidth = 1;
+    this.cssHeight = 1;
+    this.dpr = 1;
+    this.staticDirty = true;
+    this.staticSignature = '';
+    this.backgroundLayer = createLayer(canvas);
+    this.overlayLayer = createLayer(canvas);
+    this.backgroundContext = null;
+    this.overlayContext = null;
     this.lastAmbientFrame = 0;
     this.ambientFrameId = null;
     this.resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(() => this.resize()) : null;
@@ -29,65 +58,104 @@ export class Renderer {
     this.ambientFrameId = globalThis.requestAnimationFrame?.(this.boundAmbientFrame) ?? null;
   }
 
+  getPerformanceProfile() {
+    return performanceProfile(this.preferences.quality);
+  }
+
   resize() {
     const rect = this.canvas.getBoundingClientRect();
-    const dpr = Math.min(globalThis.devicePixelRatio || 1, 2);
-    this.canvas.width = Math.max(1, Math.round(rect.width * dpr));
-    this.canvas.height = Math.max(1, Math.round(rect.height * dpr));
-    this.context.setTransform(dpr, 0, 0, dpr, 0, 0);
-    this.camera.setViewport(rect.width, rect.height);
+    this.cssWidth = Math.max(1, rect.width);
+    this.cssHeight = Math.max(1, rect.height);
+    const profile = this.getPerformanceProfile();
+    this.dpr = Math.min(globalThis.devicePixelRatio || 1, profile.maxDpr);
+    this.canvas.width = Math.max(1, Math.round(this.cssWidth * this.dpr));
+    this.canvas.height = Math.max(1, Math.round(this.cssHeight * this.dpr));
+    this.context.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    this.backgroundContext = configureLayer(this.backgroundLayer, this.cssWidth, this.cssHeight, this.dpr);
+    this.overlayContext = configureLayer(this.overlayLayer, this.cssWidth, this.cssHeight, this.dpr);
+    this.camera.setViewport(this.cssWidth, this.cssHeight);
+    this.invalidateStatic();
     this.render();
+  }
+
+  invalidateStatic() {
+    this.staticDirty = true;
   }
 
   animateAmbient(timestamp) {
     const lifecycle = this.stateProvider?.()?.lifecycle;
-    if (!ACTIVE_GAME_STATES.has(lifecycle) && timestamp - this.lastAmbientFrame >= 32) {
+    const profile = this.getPerformanceProfile();
+    const interval = 1000 / Math.min(profile.renderHz, 30);
+    if (!ACTIVE_GAME_STATES.has(lifecycle) && this.preferences.motion && timestamp - this.lastAmbientFrame >= interval) {
       this.lastAmbientFrame = timestamp;
       this.render(timestamp);
     }
     this.ambientFrameId = globalThis.requestAnimationFrame?.(this.boundAmbientFrame) ?? null;
   }
 
-  setGraph(graph) {
-    this.graph = graph;
-  }
-
-  setSelection(selection) {
-    this.selection = selection;
-  }
-
-  setHomeBase(homeBase) {
-    this.homeBase = homeBase;
-  }
-
-  setStateProvider(provider) {
-    this.stateProvider = provider;
-  }
+  setGraph(graph) { this.graph = graph; this.invalidateStatic(); }
+  setSelection(selection) { this.selection = selection; this.invalidateStatic(); }
+  setHomeBase(homeBase) { this.homeBase = homeBase; this.invalidateStatic(); }
+  setStateProvider(provider) { this.stateProvider = provider; }
 
   setPreferences(preferences) {
+    const previousQuality = this.preferences.quality;
     this.preferences = { ...this.preferences, ...preferences };
-    this.render();
+    if (previousQuality !== this.preferences.quality) this.resize();
+    else { this.invalidateStatic(); this.render(); }
   }
 
-  bindEvents(events) {
-    this.effects.bind(events, () => this.stateProvider?.());
-  }
-
-  setFocus(focus) {
-    this.focus = focus;
-    this.render();
-  }
+  bindEvents(events) { this.effects.bind(events, () => this.stateProvider?.()); }
+  setFocus(focus) { this.focus = focus; this.render(); }
 
   fitGraph() {
     if (!this.graph?.nodes?.length) return;
     const xs = this.graph.nodes.map(node => node.x);
     const ys = this.graph.nodes.map(node => node.y);
     this.camera.fitBounds({ minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) }, 36);
+    this.invalidateStatic();
     this.render();
   }
 
+  staticLayerSignature(center) {
+    return [
+      this.cssWidth, this.cssHeight, this.dpr, this.preferences.quality,
+      this.camera.x.toFixed(3), this.camera.y.toFixed(3), this.camera.scale.toFixed(5),
+      center.x.toFixed(2), center.y.toFixed(2), this.selection?.edgeId ?? '',
+      this.graph?.nodes?.length ?? 0, this.graph?.edges?.length ?? 0
+    ].join('|');
+  }
+
+  rebuildStaticLayers(center, timeMs) {
+    const signature = this.staticLayerSignature(center);
+    if (!this.staticDirty && signature === this.staticSignature) return;
+    this.staticSignature = signature;
+    this.staticDirty = false;
+
+    if (this.backgroundContext) {
+      this.backgroundContext.clearRect(0, 0, this.cssWidth, this.cssHeight);
+      drawRadarStaticBackdrop(this.backgroundContext, this.cssWidth, this.cssHeight, center, this.preferences);
+      if (this.graph) {
+        drawRoadGraph(this.backgroundContext, this.graph, this.camera, {
+          selectedEdgeId: this.selection?.edgeId ?? null,
+          timeMs,
+          preferences: this.preferences
+        });
+      }
+    }
+    if (this.overlayContext) {
+      this.overlayContext.clearRect(0, 0, this.cssWidth, this.cssHeight);
+      drawRadarStaticOverlay(this.overlayContext, this.cssWidth, this.cssHeight, this.preferences);
+    }
+  }
+
+  drawCachedLayer(layer) {
+    if (!layer) return false;
+    this.context.drawImage(layer, 0, 0, layer.width, layer.height, 0, 0, this.cssWidth, this.cssHeight);
+    return true;
+  }
+
   render(timeMs = globalThis.performance?.now?.() ?? Date.now()) {
-    const rect = this.canvas.getBoundingClientRect();
     const state = this.stateProvider?.();
     const anchor = state?.world?.city
       ? state.world.roadGraph?.nodeById?.get(state.world.city.nodeId)
@@ -95,26 +163,25 @@ export class Renderer {
     const center = radarCenter(this.camera, anchor);
     const visualTime = this.preferences.motion ? timeMs : 0;
     const sweepAngle = radarSweepAngle(visualTime, this.preferences);
+    this.rebuildStaticLayers(center, timeMs);
 
-    this.context.clearRect(0, 0, rect.width, rect.height);
-    drawRadarBackdrop(this.context, rect.width, rect.height, center, visualTime, this.preferences);
+    this.context.clearRect(0, 0, this.cssWidth, this.cssHeight);
+    if (!this.drawCachedLayer(this.backgroundLayer)) {
+      drawRadarStaticBackdrop(this.context, this.cssWidth, this.cssHeight, center, this.preferences);
+      if (this.graph) drawRoadGraph(this.context, this.graph, this.camera, { selectedEdgeId: this.selection?.edgeId ?? null, timeMs, preferences: this.preferences });
+    }
+    drawRadarSweep(this.context, this.cssWidth, this.cssHeight, center, visualTime, this.preferences);
 
-    if (this.graph) {
-      drawRoadGraph(this.context, this.graph, this.camera, {
-        selectedEdgeId: this.selection?.edgeId ?? null,
-        timeMs
-      });
-      if (ACTIVE_GAME_STATES.has(state?.lifecycle)) {
-        drawThreatRoutes(this.context, state, this.camera, this.focus, this.preferences);
-        drawCombatState(this.context, state, this.camera, { center, sweepAngle, timeMs: visualTime });
-        drawTacticalFocus(this.context, state, this.camera, this.focus, visualTime);
-        this.effects.draw(this.context, this.camera, state, timeMs, rect.width, rect.height, this.preferences);
-      }
+    if (this.graph && ACTIVE_GAME_STATES.has(state?.lifecycle)) {
+      drawThreatRoutes(this.context, state, this.camera, this.focus, this.preferences);
+      drawCombatState(this.context, state, this.camera, { center, sweepAngle, timeMs: visualTime, preferences: this.preferences });
+      drawTacticalFocus(this.context, state, this.camera, this.focus, visualTime, this.preferences);
+      this.effects.draw(this.context, this.camera, state, timeMs, this.cssWidth, this.cssHeight, this.preferences);
     }
 
     const marker = this.selection?.point ?? this.homeBase;
     if (marker) this.drawMarker(marker, visualTime);
-    drawRadarOverlay(this.context, rect.width, rect.height, visualTime, this.preferences);
+    if (!this.drawCachedLayer(this.overlayLayer)) drawRadarStaticOverlay(this.context, this.cssWidth, this.cssHeight, this.preferences);
   }
 
   drawMarker(marker, timeMs) {
@@ -125,24 +192,15 @@ export class Renderer {
     this.context.save();
     this.context.strokeStyle = accent;
     this.context.fillStyle = valid ? 'rgba(101,255,208,0.2)' : 'rgba(255,89,110,0.2)';
-    this.context.shadowColor = accent;
-    this.context.shadowBlur = 16;
+    if (this.preferences.quality === 'full') { this.context.shadowColor = accent; this.context.shadowBlur = 12; }
     this.context.lineWidth = 1.5;
-    this.context.beginPath();
-    this.context.arc(point.x, point.y, pulse, 0, Math.PI * 2);
-    this.context.fill();
-    this.context.stroke();
+    this.context.beginPath(); this.context.arc(point.x, point.y, pulse, 0, Math.PI * 2); this.context.fill(); this.context.stroke();
     this.context.setLineDash([3, 3]);
-    this.context.beginPath();
-    this.context.arc(point.x, point.y, pulse + 6, 0, Math.PI * 2);
-    this.context.stroke();
+    this.context.beginPath(); this.context.arc(point.x, point.y, pulse + 6, 0, Math.PI * 2); this.context.stroke();
     this.context.setLineDash([]);
     this.context.beginPath();
-    this.context.moveTo(point.x - 5, point.y);
-    this.context.lineTo(point.x + 5, point.y);
-    this.context.moveTo(point.x, point.y - 5);
-    this.context.lineTo(point.x, point.y + 5);
-    this.context.stroke();
+    this.context.moveTo(point.x - 5, point.y); this.context.lineTo(point.x + 5, point.y);
+    this.context.moveTo(point.x, point.y - 5); this.context.lineTo(point.x, point.y + 5); this.context.stroke();
     this.context.restore();
   }
 

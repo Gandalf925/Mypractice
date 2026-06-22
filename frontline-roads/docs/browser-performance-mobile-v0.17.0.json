@@ -1,0 +1,32 @@
+{
+  "lifecycle": "PLAYING",
+  "version": "0.17.0-performance",
+  "prefs": {
+    "quality": "minimal",
+    "motion": true,
+    "routes": "off"
+  },
+  "profile": {
+    "renderHz": 18,
+    "simulationHz": 12,
+    "civilizationHz": 2,
+    "uiHz": 2,
+    "maxDpr": 0.75,
+    "maxCatchUpSteps": 3
+  },
+  "runtime": {
+    "frames": 60,
+    "slowFrames": 0,
+    "lastFrameMs": 16.599999999999454
+  },
+  "enemies": 178,
+  "defenses": 30,
+  "longTasks": [],
+  "heap": {
+    "used": 3594661,
+    "total": 9167189
+  },
+  "simulationUpdatesIn5s": 60,
+  "pageErrors": [],
+  "consoleErrors": []
+}

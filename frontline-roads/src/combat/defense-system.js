@@ -3,18 +3,24 @@ import { consumeBundle } from '../civilization/inventory-system.js';
 import { repairCostForDefense } from '../civilization/repair-cost.js';
 import { defenseRuntimeDefinition } from './definitions.js';
 import { edgeMidpoint } from './combat-geometry.js';
-import { damageEnemy, enemyPosition } from './enemy-system.js';
+import { damageEnemy } from './enemy-system.js';
+import { buildCombatSpatialIndex } from './combat-spatial-index.js';
 
-function enemiesInRange(state, point, range) {
-  return state.combat.enemies.filter(enemy => enemy.hp > 0 && distance(enemyPosition(state, enemy), point) <= range);
+function nearestEntry(entries, point) {
+  let best = null;
+  let bestDistance = Infinity;
+  for (const entry of entries) {
+    if (entry.enemy.hp <= 0) continue;
+    const gap = distance(entry.position, point);
+    if (gap < bestDistance) { best = entry; bestDistance = gap; }
+  }
+  return best;
 }
 
 export class DefenseSystem {
-  constructor(events) {
-    this.events = events;
-  }
+  constructor(events) { this.events = events; }
 
-  updateTower(state, tower, deltaSeconds) {
+  updateTower(state, tower, deltaSeconds, spatial) {
     if (tower.ruined || tower.hp <= 0) return;
     tower.disabledTimer = Math.max(0, (tower.disabledTimer ?? 0) - deltaSeconds);
     if (tower.disabledTimer > 0) return;
@@ -27,15 +33,15 @@ export class DefenseSystem {
     if (!definition || !position) return;
 
     if (tower.type === 'relay') {
-      const candidates = [];
+      let target = null;
+      let mostMissing = 0;
       for (const defense of state.combat.defenses) {
         if (defense === tower || defense.ruined || defense.hp <= 0 || defense.hp >= defense.maxHp) continue;
         const targetPosition = defense.kind === 'barrier' ? edgeMidpoint(graph, defense.edgeId) : graph.nodeById.get(defense.nodeId);
         if (!targetPosition || distance(position, targetPosition) > definition.range) continue;
-        candidates.push({ defense, missingHp: defense.maxHp - defense.hp });
+        const missing = defense.maxHp - defense.hp;
+        if (missing > mostMissing) { target = defense; mostMissing = missing; }
       }
-      candidates.sort((a, b) => b.missingHp - a.missingHp);
-      const target = candidates[0]?.defense;
       if (!target) return;
       const repairLimit = target.kind === 'barrier' ? definition.repairBarrier : definition.repairTower;
       const repairHp = Math.min(repairLimit, target.maxHp - target.hp);
@@ -48,29 +54,29 @@ export class DefenseSystem {
       return;
     }
 
-    const targets = enemiesInRange(state, position, definition.range);
+    const targets = spatial.query(position, definition.range).filter(entry => entry.enemy.hp > 0);
     if (targets.length === 0) return;
 
     if (tower.type === 'gun') {
-      const target = targets.sort((a, b) => distance(enemyPosition(state, a), position) - distance(enemyPosition(state, b), position))[0];
+      const target = nearestEntry(targets, position);
+      if (!target) return;
       tower.cooldown = definition.cooldown;
-      damageEnemy(state, target, definition.damage, this.events);
-      this.events?.emit('combat:shot', { type: tower.type, from: position, to: enemyPosition(state, target) });
+      damageEnemy(state, target.enemy, definition.damage, this.events, spatial);
+      this.events?.emit('combat:shot', { type: tower.type, from: position, to: target.position });
       return;
     }
 
     if (tower.type === 'mortar') {
       let best = targets[0];
-      let bestCount = 0;
+      let bestCount = -1;
       for (const candidate of targets) {
-        const candidatePosition = enemyPosition(state, candidate);
-        const count = targets.filter(other => distance(enemyPosition(state, other), candidatePosition) < 28).length;
+        const count = spatial.query(candidate.position, Math.min(32, definition.blastRadius ?? 28)).filter(entry => entry.enemy.hp > 0).length;
         if (count > bestCount) { best = candidate; bestCount = count; }
       }
       tower.cooldown = definition.cooldown;
-      const hit = enemyPosition(state, best);
-      for (const enemy of state.combat.enemies) {
-        if (enemy.hp > 0 && distance(enemyPosition(state, enemy), hit) < definition.blastRadius) damageEnemy(state, enemy, definition.damage, this.events);
+      const hit = best.position;
+      for (const entry of spatial.query(hit, definition.blastRadius)) {
+        if (entry.enemy.hp > 0) damageEnemy(state, entry.enemy, definition.damage, this.events, spatial);
       }
       this.events?.emit('combat:explosion', { position: hit, radius: definition.blastRadius });
       return;
@@ -78,17 +84,19 @@ export class DefenseSystem {
 
     if (tower.type === 'slow') {
       tower.cooldown = definition.cooldown;
-      for (const enemy of targets.slice(0, definition.maxTargets)) {
+      for (const entry of targets.slice(0, definition.maxTargets)) {
+        const enemy = entry.enemy;
         enemy.slowTimer = Math.max(enemy.slowTimer, definition.slowSeconds);
         enemy.slowMultiplier = 1 - definition.slow;
-        damageEnemy(state, enemy, definition.damage, this.events);
+        damageEnemy(state, enemy, definition.damage, this.events, spatial);
       }
-      this.events?.emit('combat:shot', { type: tower.type, from: position, to: enemyPosition(state, targets[0]) });
+      this.events?.emit('combat:shot', { type: tower.type, from: position, to: targets[0].position });
     }
   }
 
-  update(state, deltaSeconds) {
-    for (const defense of state.combat.defenses) if (defense.kind === 'tower') this.updateTower(state, defense, deltaSeconds);
+  update(state, deltaSeconds, spatial = null) {
+    spatial ??= buildCombatSpatialIndex(state);
+    for (const defense of state.combat.defenses) if (defense.kind === 'tower') this.updateTower(state, defense, deltaSeconds, spatial);
     state.combat.enemies = state.combat.enemies.filter(enemy => enemy.hp > 0);
   }
 }

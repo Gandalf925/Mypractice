@@ -1,4 +1,4 @@
-# FRONTLINE ROADS — radar-complete modular source v0.16.2
+# FRONTLINE ROADS — radar-complete modular source v0.17.0 performance-optimized
 
 FRONTLINE ROADS is a location-based road-defense strategy game. This directory is the canonical modular development source.
 
@@ -52,7 +52,15 @@ The fixture is accepted only on local/file/test origins.
 npm run verify
 ```
 
-Final result: 83 tests passed, 0 failed.
+Final result: 88 tests passed, 0 failed.
+
+## Performance profiles
+
+- Touch/mobile default: power-saving (18 render Hz, 12 combat Hz, DPR 0.75)
+- Standard: 24 render Hz, 20 combat Hz, DPR 1
+- High detail: 40 render Hz, 30 combat Hz, DPR 1.35
+
+The menu can change visual quality, motion and route overlays without changing saved game rules.
 
 ## Publication policy
 

@@ -22,9 +22,9 @@ export function remainingRouteDistance(state, enemy) {
   return remaining;
 }
 
-export function enemyThreatScore(state, enemy) {
+export function enemyThreatScore(state, enemy, remainingOverride = null) {
   const definition = ENEMY_DEFINITIONS[enemy.type] ?? ENEMY_DEFINITIONS.infantry;
-  const remaining = remainingRouteDistance(state, enemy);
+  const remaining = remainingOverride ?? remainingRouteDistance(state, enemy);
   const proximity = Number.isFinite(remaining) ? Math.max(0, 260 - remaining) * 0.55 : 0;
   const damage = (definition.cityDamage ?? 0) * 4;
   const durability = Math.min(50, (enemy.hp / Math.max(1, enemy.maxHp)) * (definition.hp ?? enemy.maxHp ?? 0) * 0.15);
@@ -37,7 +37,13 @@ export function analyzeThreat(state) {
   const cityHp = state?.world?.city?.hp ?? 100;
   const cityMaxHp = Math.max(1, state?.world?.city?.maxHp ?? 100);
   const cityRatio = cityHp / cityMaxHp;
-  const distances = enemies.map(enemy => remainingRouteDistance(state, enemy)).filter(Number.isFinite);
+  const distanceByEnemyId = new Map();
+  const distances = [];
+  for (const enemy of enemies) {
+    const remaining = remainingRouteDistance(state, enemy);
+    distanceByEnemyId.set(enemy.id, remaining);
+    if (Number.isFinite(remaining)) distances.push(remaining);
+  }
   const nearestDistance = distances.length ? Math.min(...distances) : Infinity;
   const breachPotential = enemies.reduce((sum, enemy) => {
     const definition = ENEMY_DEFINITIONS[enemy.type] ?? ENEMY_DEFINITIONS.infantry;
@@ -67,8 +73,9 @@ export function analyzeThreat(state) {
     cityRatio,
     detail,
     priorityEnemies: [...enemies]
-      .sort((a, b) => enemyThreatScore(state, b) - enemyThreatScore(state, a))
-      .slice(0, 8)
+      .sort((a, b) => enemyThreatScore(state, b, distanceByEnemyId.get(b.id)) - enemyThreatScore(state, a, distanceByEnemyId.get(a.id)))
+      .slice(0, 8),
+    distanceByEnemyId
   };
 }
 
@@ -83,4 +90,20 @@ export function enemyRouteWorldPoints(state, enemy, maximumEdges = 5) {
     if (node) points.push(node);
   }
   return points;
+}
+
+
+const analysisCache = new WeakMap();
+
+export function analyzeThreatCached(state, intervalMs = 250) {
+  if (!state || typeof state !== 'object') return analyzeThreat(state);
+  const worldTime = Number(state.runtime?.worldTimeMs) || 0;
+  const bucket = Math.floor(worldTime / Math.max(1, intervalMs));
+  const enemyCount = state.combat?.enemies?.length ?? 0;
+  const cityHp = state.world?.city?.hp ?? 0;
+  const cached = analysisCache.get(state);
+  if (cached && cached.bucket === bucket && cached.enemyCount === enemyCount && cached.cityHp === cityHp) return cached.value;
+  const value = analyzeThreat(state);
+  analysisCache.set(state, { bucket, enemyCount, cityHp, value });
+  return value;
 }

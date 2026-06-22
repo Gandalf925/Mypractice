@@ -1,0 +1,50 @@
+{
+  "prefs": {
+    "quality": "balanced",
+    "motion": true,
+    "routes": "priority"
+  },
+  "profile": {
+    "renderHz": 24,
+    "simulationHz": 20,
+    "civilizationHz": 4,
+    "uiHz": 2,
+    "maxDpr": 1,
+    "maxCatchUpSteps": 4
+  },
+  "combat": {
+    "count": 100,
+    "total": 49.700000000651926,
+    "avg": 0.4970000000065193,
+    "max": 4.699999999953434,
+    "p95": 0.9000000001396984
+  },
+  "civ": {
+    "count": 20,
+    "total": 3.5000000004656613,
+    "avg": 0.17500000002328306,
+    "max": 0.8000000000465661,
+    "p95": 0.8000000000465661
+  },
+  "render": {
+    "count": 121,
+    "total": 120.10000000009313,
+    "avg": 0.9925619834718441,
+    "max": 4.699999999953434,
+    "p95": 2.0999999998603016
+  },
+  "ui": {
+    "count": 10,
+    "total": 1.8000000002793968,
+    "avg": 0.18000000002793967,
+    "max": 0.5,
+    "p95": 0.5
+  },
+  "runtime": {
+    "frames": 101,
+    "slowFrames": 0,
+    "lastFrameMs": 16.599999999999454
+  },
+  "enemies": 178,
+  "errors": []
+}

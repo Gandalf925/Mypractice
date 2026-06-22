@@ -2,6 +2,7 @@ import { consumeBundle } from '../civilization/inventory-system.js';
 import { DefenseSystem } from './defense-system.js';
 import { EnemySystem } from './enemy-system.js';
 import { WaveSystem } from './wave-system.js';
+import { buildCombatSpatialIndex } from './combat-spatial-index.js';
 
 export class CombatSystem {
   constructor(events) {
@@ -13,8 +14,9 @@ export class CombatSystem {
 
   update(state, deltaSeconds) {
     this.waveSystem.update(state, deltaSeconds);
-    this.defenseSystem.update(state, deltaSeconds);
-    this.enemySystem.update(state, deltaSeconds);
+    const spatial = buildCombatSpatialIndex(state);
+    this.defenseSystem.update(state, deltaSeconds, spatial);
+    this.enemySystem.update(state, deltaSeconds, spatial);
     if (state.world.city.hp <= 0) {
       state.world.city.hp = 35;
       state.combat.enemies = [];

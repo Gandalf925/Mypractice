@@ -2,7 +2,7 @@ import { distance } from '../core/utilities.js';
 import { DEFENSE_DEFINITIONS, ENEMY_BASE_DEFINITIONS, ENEMY_DEFINITIONS, defenseRuntimeDefinition } from '../combat/definitions.js';
 import { edgeMidpoint } from '../combat/combat-geometry.js';
 import { enemyPosition } from '../combat/enemy-system.js';
-import { analyzeThreat, remainingRouteDistance } from '../rendering/threat-analysis.js';
+import { analyzeThreatCached, remainingRouteDistance } from '../rendering/threat-analysis.js';
 import { bundleText } from '../civilization/inventory-system.js';
 import { RESOURCE_LABELS } from '../civilization/data.js';
 import { queryRequired, setVisible } from './dom.js';
@@ -208,7 +208,7 @@ export class CombatUi {
     this.cityHp.textContent = Math.ceil(state.world.city?.hp ?? 0);
     this.enemyCount.textContent = state.combat.enemies.length;
     this.civilizationLevel.textContent = state.civilization.level;
-    const threat = analyzeThreat(state);
+    const threat = analyzeThreatCached(state);
     this.threatStatus.dataset.level = threat.key;
     this.threatLevel.textContent = threat.label;
     this.threatDetail.textContent = threat.detail;

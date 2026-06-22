@@ -2,7 +2,7 @@ import { distance } from '../core/utilities.js';
 import { DEFENSE_DEFINITIONS, ENEMY_DEFINITIONS, defenseRuntimeDefinition } from '../combat/definitions.js';
 import { edgeMidpoint } from '../combat/combat-geometry.js';
 import { enemyPosition } from '../combat/enemy-system.js';
-import { analyzeThreat, enemyRouteWorldPoints, remainingRouteDistance } from './threat-analysis.js';
+import { analyzeThreatCached, enemyRouteWorldPoints, remainingRouteDistance } from './threat-analysis.js';
 
 const TAU = Math.PI * 2;
 
@@ -30,15 +30,17 @@ function drawArrow(context, a, b, color, alpha = 1) {
   context.restore();
 }
 
-function drawWorldRoute(context, camera, worldPoints, color, alpha, selected = false) {
+function drawWorldRoute(context, camera, worldPoints, color, alpha, selected = false, quality = 'balanced') {
   if (worldPoints.length < 2) return;
   const points = worldPoints.map(point => camera.worldToScreen(point));
   context.save();
-  context.globalCompositeOperation = 'screen';
+  context.globalCompositeOperation = quality === 'full' ? 'screen' : 'source-over';
   context.globalAlpha = alpha;
   context.strokeStyle = color;
-  context.shadowColor = color;
-  context.shadowBlur = selected ? 12 : 5;
+  if (quality === 'full') {
+    context.shadowColor = color;
+    context.shadowBlur = selected ? 12 : 5;
+  }
   context.lineWidth = selected ? 2.1 : 1.1;
   context.setLineDash(selected ? [7, 4] : [3, 7]);
   context.beginPath();
@@ -52,15 +54,17 @@ function drawWorldRoute(context, camera, worldPoints, color, alpha, selected = f
 
 export function drawThreatRoutes(context, state, camera, focus = null, preferences = {}) {
   if (preferences.routes === 'off') return;
-  const analysis = analyzeThreat(state);
+  const analysis = analyzeThreatCached(state);
+  const quality = preferences.quality ?? 'balanced';
+  const maximumRoutes = quality === 'full' ? 24 : quality === 'balanced' ? 6 : 2;
   const enemies = preferences.routes === 'all'
-    ? (state.combat.enemies ?? []).filter(enemy => enemy.hp > 0 && (enemy.departDelay ?? 0) <= 0).slice(0, 24)
-    : analysis.priorityEnemies;
+    ? (state.combat.enemies ?? []).filter(enemy => enemy.hp > 0 && (enemy.departDelay ?? 0) <= 0).slice(0, maximumRoutes)
+    : analysis.priorityEnemies.slice(0, maximumRoutes);
   for (const enemy of enemies) {
     const selected = focus?.kind === 'enemy' && focus.id === enemy.id;
-    const remaining = remainingRouteDistance(state, enemy);
+    const remaining = analysis.distanceByEnemyId?.get(enemy.id) ?? remainingRouteDistance(state, enemy);
     const points = enemyRouteWorldPoints(state, enemy, selected ? 9 : 4);
-    drawWorldRoute(context, camera, points, routeColor(remaining), selected ? 0.95 : 0.28, selected);
+    drawWorldRoute(context, camera, points, routeColor(remaining), selected ? 0.95 : quality === 'full' ? 0.28 : 0.2, selected, quality);
   }
 }
 

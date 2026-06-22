@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.16.2-radar-complete';
+export const APP_VERSION = '0.17.0-performance';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 

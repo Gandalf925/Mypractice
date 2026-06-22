@@ -1,6 +1,6 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const CACHE_NAME = `${CACHE_PREFIX}v0-16-2-radar-complete`;
+const CACHE_NAME = `${CACHE_PREFIX}v0-17-0-performance`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -10,6 +10,7 @@ const APP_SHELL = [
   './src/app/bootstrap.js',
   './src/app/development-fixture.js',
   './src/app/game-loop.js',
+  './src/app/performance-profile.js',
   './src/app/lifecycle.js',
   './src/app/pwa.js',
   './src/base/base-graph.js',
@@ -27,6 +28,7 @@ const APP_SHELL = [
   './src/combat/combat-geometry.js',
   './src/combat/combat-initializer.js',
   './src/combat/combat-system.js',
+  './src/combat/combat-spatial-index.js',
   './src/combat/defense-system.js',
   './src/combat/definitions.js',
   './src/combat/enemy-system.js',
