@@ -12,7 +12,7 @@ export async function registerPwa({
   if (!navigatorRef?.serviceWorker?.register) return null;
   if (protocol !== 'https:' && !localHost) return null;
   try {
-    return await navigatorRef.serviceWorker.register('./sw.js', { scope: './' });
+    return await navigatorRef.serviceWorker.register('./sw.js', { scope: './', updateViaCache: 'none' });
   } catch (error) {
     console.warn('Service worker registration failed', error);
     return null;

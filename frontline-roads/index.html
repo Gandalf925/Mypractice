@@ -53,14 +53,6 @@
       <div id="resourceSummary" class="resourceSummary">木材 0・石材 0・繊維 0</div>
       <div id="baseSummary" class="baseSummary">拠点設置済み</div>
       <div id="storageWarning" class="storageWarning" hidden></div>
-      <div id="threatStatus" class="threatStatus" data-level="clear" aria-live="polite" hidden aria-hidden="true">
-        <span>ALERT</span><strong id="threatLevel">CLEAR</strong><small id="threatDetail">接触なし / 防衛線安定</small>
-        <div class="threatMetrics">
-          <span>RNG <b id="nearestThreat">--</b></span>
-          <span>DEF <b id="activeDefenses">0</b></span>
-          <span>WAVE <b id="activeWaves">0</b></span>
-        </div>
-      </div>
       <div class="topActions">
         <button id="baseCommandButton" type="button">BASES // 拠点</button>
         <button id="civilizationButton" type="button">CIV // 文明</button>
@@ -137,6 +129,6 @@
     <div id="notification" class="notification" role="status"></div>
     <footer>開発版 <span id="versionText"></span></footer>
   </main>
-  <script type="module" src="./src/app/bootstrap.js"></script>
+  <script type="module" src="./src/app/release-loader.js"></script>
 </body>
 </html>

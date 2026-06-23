@@ -1,6 +1,6 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const CACHE_NAME = `${CACHE_PREFIX}v0-28-3-ui-range-refinement`;
+const CACHE_NAME = `${CACHE_PREFIX}v0-28-4-ui-cache-correction`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -8,6 +8,7 @@ const APP_SHELL = [
   './icon-192.png',
   './icon-512.png',
   './src/app/bootstrap.js',
+  './src/app/release-loader.js',
   './src/app/development-fixture.js',
   './src/app/game-loop.js',
   './src/app/performance-profile.js',

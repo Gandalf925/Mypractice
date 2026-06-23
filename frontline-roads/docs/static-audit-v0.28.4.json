@@ -1,0 +1,9 @@
+{
+  "release": "0.28.4-ui-cache-correction",
+  "alertDomReferences": 0,
+  "alertProductionReferences": 0,
+  "contextDisclosureDefaultOpen": false,
+  "saveSchema": 2,
+  "testCount": 299,
+  "failures": 0
+}

@@ -1,10 +1,10 @@
-# FRONTLINE ROADS — modular source v0.28.3 UI and build-range refinement
+# FRONTLINE ROADS — modular source v0.28.4 UI and cache correction
 
 FRONTLINE ROADS is a location-based, continuously progressing road-defense strategy game. This directory is the canonical modular development source.
 
 
 
-## UI and build-range refinement v0.28.3
+## UI and cache correction v0.28.4
 
 This release uses repeated deterministic playthroughs to correct progression blockers and strategy dominance without adding a parallel rules layer.
 
