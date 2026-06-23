@@ -53,7 +53,7 @@
       <div id="resourceSummary" class="resourceSummary">木材 0・石材 0・繊維 0</div>
       <div id="baseSummary" class="baseSummary">拠点設置済み</div>
       <div id="storageWarning" class="storageWarning" hidden></div>
-      <div id="threatStatus" class="threatStatus" data-level="clear" aria-live="polite">
+      <div id="threatStatus" class="threatStatus" data-level="clear" aria-live="polite" hidden aria-hidden="true">
         <span>ALERT</span><strong id="threatLevel">CLEAR</strong><small id="threatDetail">接触なし / 防衛線安定</small>
         <div class="threatMetrics">
           <span>RNG <b id="nearestThreat">--</b></span>
@@ -110,7 +110,7 @@
             <h2>遊び方</h2>
             <div class="helpGrid">
               <div><strong>初回拠点</strong><p>現在地から1km以内の道路を直接選び、移動せず即時設置します。</p></div>
-              <div><strong>道路防衛</strong><p>各拠点または現在地から85m以内の取得済み道路へ設備を置き、敵の経路を誘導します。</p></div>
+              <div><strong>道路防衛</strong><p>各拠点・現在地・既設施設の周辺に設備を置き、敵の経路を誘導します。既設施設を起点にした建設範囲は従来の2倍です。</p></div>
               <div><strong>未確認前線</strong><p>MAP端の敵性反応から部隊が侵入します。反応方向へ実際に移動すると道路と情報が追加されます。</p></div>
               <div><strong>発生源の無力化</strong><p>現地へ到達し、周辺部隊を排除して調査を完了すると、その方向からの新規侵攻が止まります。</p></div>
               <div><strong>敵拠点攻撃</strong><p>MAP上の敵拠点を直接選択し、表示された「この敵拠点へ派兵」から攻撃部隊を送ります。残された特殊アイテムは現地40m以内で手動回収するか、回収物を選択して回収部隊を送れます。</p></div>

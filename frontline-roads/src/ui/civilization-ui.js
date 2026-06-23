@@ -55,7 +55,7 @@ function checkLabel(check) {
   const labels = {
     totalKills: '敵撃破', totalCampsCaptured: '敵拠点破壊', totalRepairHpPaid: '資源を使った修理',
     totalProduced: '加工資材の生産', selfProducedBronze: '自作青銅塊', selfProducedWroughtIron: '自作鍛鉄',
-    perfectWaveStreak: '完全防衛連続数', simultaneousOutposts: '同時保有前哨地',
+    perfectWaveStreak: '完全防衛連続数', activeFieldBases: '稼働中の簡易拠点',
     copperCampsCaptured: '銅鉱野営地制圧', tinCampsCaptured: '錫鉱野営地制圧',
     ironCampsCaptured: '鉄鉱野営地制圧', siegeCaptainsDefeated: '攻城隊長撃破',
     cityHpStreak: '都市耐久の連続維持', recoveredArtifacts: '現地回収した特殊アイテム', barrier0: '丸太柵', single0: '投石台',

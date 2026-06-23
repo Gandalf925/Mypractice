@@ -7,6 +7,7 @@ import { FrontierSystem } from '../exploration/frontier-system.js';
 import { ExplorationSystem } from '../exploration/exploration-system.js';
 import { FriendlyForceSystem, friendlySquadPosition } from './friendly-force-system.js';
 import { RecoverySystem } from '../exploration/recovery-system.js';
+import { CITY_RECOVERY_DELAY_SECONDS, CITY_RECOVERY_HP_PER_SECOND } from './definitions.js';
 import {
   REGION_ACTIVITY,
   REGION_ACTIVITY_CONFIG,
@@ -21,6 +22,17 @@ function defensePoint(state, defense) {
   const a = edge && graph.nodeById.get(edge.a);
   const b = edge && graph.nodeById.get(edge.b);
   return a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : null;
+}
+
+function updateCityRecovery(state, deltaSeconds) {
+  const city = state.world.city;
+  if (!city || city.hp <= 0 || city.hp >= city.maxHp) return;
+  const elapsed = Math.max(0, Number(deltaSeconds) || 0);
+  const cooldown = Math.max(0, Number(state.combat.cityRecoveryCooldown) || 0);
+  state.combat.cityRecoveryCooldown = Math.max(0, cooldown - elapsed);
+  const recoverySeconds = Math.max(0, elapsed - cooldown);
+  if (recoverySeconds <= 0) return;
+  city.hp = Math.min(city.maxHp, city.hp + CITY_RECOVERY_HP_PER_SECOND * recoverySeconds);
 }
 
 function assignmentsForState(state, spatial) {
@@ -81,6 +93,7 @@ export class CombatSystem {
   }
 
   update(state, deltaSeconds) {
+    updateCityRecovery(state, deltaSeconds);
     this.recoverySystem.update(state, deltaSeconds);
     this.explorationSystem.update(state, deltaSeconds);
     this.frontierSystem.update(state, deltaSeconds);
@@ -95,8 +108,12 @@ export class CombatSystem {
 
     if (state.world.city.hp <= 0) {
       state.world.city.hp = 35;
+      state.combat.cityRecoveryCooldown = CITY_RECOVERY_DELAY_SECONDS;
       state.combat.enemies = [];
       state.combat.waves.active = {};
+      for (const base of state.world.enemyBases ?? []) {
+        if (base.alive) base.spawnClock = 0;
+      }
       const recoveryCost = { wood: 30, stone: 20 };
       const paid = consumeBundle(state, recoveryCost);
       state.civilization.progress.perfectWaveStreak = 0;

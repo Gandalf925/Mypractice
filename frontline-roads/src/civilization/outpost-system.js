@@ -35,10 +35,6 @@ export class OutpostSystem {
     outpost.defenseKey = defenseKey;
     outpost.hp = outpost.maxHp;
     outpost.restoredAt = state.runtime?.worldTimeMs ?? Date.now();
-    state.civilization.progress.simultaneousOutposts = Math.max(
-      state.civilization.progress.simultaneousOutposts ?? 0,
-      state.world.outposts.filter(item => item.status === 'ACTIVE').length
-    );
     this.events?.emit('civilization:outpost-restored', { outpost, cost });
     this.events?.emit('message', { text: '前哨地を修復し、稼働を開始しました。' });
     return { ok: true, outpost, cost };

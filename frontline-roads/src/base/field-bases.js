@@ -6,6 +6,18 @@ export const FIELD_BASE_MAX_HP = 40;
 export const FIELD_BASE_MINIMUM_SEPARATION_METERS = 140;
 export const FIELD_BASE_ENEMY_EXCLUSION_METERS = 120;
 export const FIELD_BASE_ALLOWED_SQUAD_TYPES = Object.freeze(['assault', 'skirmisher', 'retrieval']);
+export const FIELD_BASE_PLACEMENT_COSTS = Object.freeze({
+  1: Object.freeze({ timber: 4, rope: 2 }),
+  2: Object.freeze({ timber: 6, rope: 3, cutStone: 4 }),
+  3: Object.freeze({ timber: 8, rope: 4, cutStone: 6, bronzeIngot: 2 }),
+  4: Object.freeze({ timber: 10, rope: 5, cutStone: 8, wroughtIron: 2 })
+});
+export const FIELD_BASE_REBUILD_COST = Object.freeze({ timber: 2, rope: 1 });
+
+export function fieldBasePlacementCost(state) {
+  const targetSlot = fieldBaseSlotsUsed(state) + 1;
+  return { ...(FIELD_BASE_PLACEMENT_COSTS[targetSlot] ?? FIELD_BASE_PLACEMENT_COSTS[4]) };
+}
 
 function finite(value) {
   return Number.isFinite(Number(value));

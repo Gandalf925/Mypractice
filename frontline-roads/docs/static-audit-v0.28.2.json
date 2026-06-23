@@ -1,0 +1,14 @@
+{
+  "production_js_modules": 96,
+  "reachable_from_bootstrap": 96,
+  "unreachable": [],
+  "missing_relative_imports": [],
+  "import_cycles": [],
+  "html_ids": 55,
+  "duplicate_html_ids": [],
+  "css_brace_delta": 0,
+  "empty_source_or_test_files": [],
+  "pwa_runtime_entries": 97,
+  "pwa_missing_runtime_files": [],
+  "pwa_stale_runtime_entries": []
+}

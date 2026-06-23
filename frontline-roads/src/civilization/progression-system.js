@@ -3,6 +3,7 @@ import { CIVILIZATIONS, CIVILIZATION_PROJECTS, DEFENSE_LINES, SETTLEMENT_BUILDIN
 import { addBundle, consumeBundle } from './inventory-system.js';
 import { applyDefenseTier, defenseUpgradeStatus } from './defense-upgrade.js';
 import { defenseLine, repairCostForDefense } from './repair-cost.js';
+import { activeFieldBases } from '../base/field-bases.js';
 
 export function createProgressState() {
   return {
@@ -68,7 +69,7 @@ function progressCheckValue(state, key, requirement) {
   if (key === 'selfProducedWroughtIron') return progress.selfProducedWroughtIron;
   if (key === 'perfectWaveStreak') return progress.perfectWaveStreak;
   if (key === 'siegeCaptainsDefeated') return progress.bossesDefeated.siegeCaptain ?? 0;
-  if (key === 'simultaneousOutposts') return state.world.outposts.filter(outpost => outpost.status === 'ACTIVE').length;
+  if (key === 'activeFieldBases') return activeFieldBases(state).length;
   if (key === 'copperCampsCaptured') return progress.campsCapturedByType.copperCamp ?? 0;
   if (key === 'tinCampsCaptured') return progress.campsCapturedByType.tinCamp ?? 0;
   if (key === 'ironCampsCaptured') return progress.campsCapturedByType.ironCamp ?? 0;

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createInitialState } from '../src/core/state-schema.js';
 import { attachGraphIndexes } from '../src/roads/road-graph.js';
 import { ensureCivilizationState } from '../src/civilization/civilization-system.js';
-import { WaveSystem } from '../src/combat/wave-system.js';
+import { WaveSystem, spawnEnemyBaseGuard } from '../src/combat/wave-system.js';
 import { damageEnemy } from '../src/combat/enemy-system.js';
 
 function longRoadState() {
@@ -27,6 +27,23 @@ test('a fully destroyed wave increments perfect defense streak exactly once', ()
   assert.equal(state.civilization.progress.perfectWaveStreak, 1);
   for (const enemy of enemies) damageEnemy(state, enemy, 9999);
   assert.equal(state.civilization.progress.perfectWaveStreak, 1);
+});
+
+
+test('enemy-base guard launches once and does not count as a perfect defense wave', () => {
+  const state = longRoadState();
+  const base = state.world.enemyBases[0];
+  const first = spawnEnemyBaseGuard(state, base);
+  const second = spawnEnemyBaseGuard(state, base);
+  assert.equal(first, 3);
+  assert.equal(second, 0);
+  assert.equal(base.wavesSent, 0);
+  assert.equal(state.combat.enemies.length, 3);
+  const record = Object.values(state.combat.waves.active)[0];
+  assert.equal(record.guard, true);
+  for (const enemy of [...state.combat.enemies]) damageEnemy(state, enemy, 9999);
+  assert.equal(state.civilization.progress.perfectWaveStreak, 0);
+  assert.deepEqual(state.combat.waves.active, {});
 });
 
 test('civilization level creates resource bases without duplicating them', () => {
@@ -60,4 +77,42 @@ test('destroyed base waits for its respawn timer and then reappears elsewhere', 
   const replacement = state.world.enemyBases.find(base => base.alive && base.type === 'barracks');
   assert.ok(replacement);
   assert.notEqual(replacement.nodeId, 'n2');
+});
+
+test('initial enemy bases spread across independent road fronts when the graph permits it', async () => {
+  const { selectEnemyBasePlacements } = await import('../src/combat/combat-initializer.js');
+  const nodes = [{ id: 'home', x: 0, y: 0 }];
+  const edges = [];
+  for (const [prefix, dx, dy] of [['east', 1, 0], ['west', -1, 0], ['north', 0, -1], ['south', 0, 1]]) {
+    let previous = 'home';
+    for (let index = 1; index <= 12; index += 1) {
+      const id = `${prefix}-${index}`;
+      nodes.push({ id, x: dx * index * 50, y: dy * index * 50 });
+      edges.push({ id: `${prefix}-road-${index}`, a: previous, b: id, length: 50 });
+      previous = id;
+    }
+  }
+  const graph = attachGraphIndexes({ center: { lat: 35, lon: 139 }, source: 'test', roadSpecVersion: 1, nodes, edges });
+  const placements = selectEnemyBasePlacements(graph, 'home');
+  assert.equal(placements.length, 4);
+  assert.equal(new Set(placements.map(item => item.sector)).size, 4);
+  assert.deepEqual(placements.map(item => item.initialDelayBonusSec), [0, 0, 0, 0]);
+});
+
+test('stacked initial enemy bases receive progressively longer opening delays on a one-front road', async () => {
+  const { selectEnemyBasePlacements, initializeCombatState } = await import('../src/combat/combat-initializer.js');
+  const state = longRoadState();
+  state.world.homeBase = { id: 'home-base', status: 'ESTABLISHED', nodeId: 'n0', x: 0, y: 0 };
+  const placements = selectEnemyBasePlacements(state.world.roadGraph, 'n0');
+  assert.deepEqual(placements.map(item => item.frontIndex), [0, 1, 2, 3]);
+  assert.deepEqual(placements.map(item => item.initialDelayBonusSec), [0, 120, 240, 360]);
+  assert.deepEqual(placements.map(item => item.frontPressureMultiplier), [1, 1.5, 2, 2.5]);
+  initializeCombatState(state);
+  const firstWaveDelays = state.world.enemyBases.map(base => {
+    const definition = {
+      barracks: { interval: 180 }, engineer: { interval: 300 }, raider: { interval: 360 }, motor: { interval: 420 }
+    }[base.type];
+    return definition.interval - base.spawnClock;
+  });
+  assert.deepEqual(firstWaveDelays, [90, 270, 420, 600]);
 });

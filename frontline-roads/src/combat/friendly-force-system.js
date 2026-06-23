@@ -5,6 +5,7 @@ import { distance, stableId } from '../core/utilities.js';
 import { findRoadPath } from './routing-system.js';
 import { damageEnemy, enemyPosition } from './enemy-system.js';
 import { destroyEnemyBase } from './enemy-base-system.js';
+import { spawnEnemyBaseGuard } from './wave-system.js';
 import { roadUnitPosition } from './road-unit-position.js';
 import {
   FRIENDLY_RECOVERY_STATUS,
@@ -564,6 +565,7 @@ function attackEnemyBase(state, squad, definition, deltaSeconds, events) {
   }
   squad.status = FRIENDLY_SQUAD_STATUS.ATTACKING_BASE;
   squad.combatCooldown = Math.max(squad.combatCooldown ?? 0, definition.recoveryDelaySeconds ?? 0);
+  spawnEnemyBaseGuard(state, target, events);
   target.hp = Math.max(0, target.hp - definition.baseDps * deltaSeconds);
   if (target.hp > 0) return;
   destroyEnemyBase(state, target, events, { squadId: squad.id });

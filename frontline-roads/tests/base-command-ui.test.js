@@ -36,6 +36,8 @@ function fixture() {
   state.combat.enemies = [{ id: 'enemy-1', type: 'infantry', hp: 10, maxHp: 10, nodeId: 'enemy', edgeId: null, edgeProgress: 0, departDelay: 0 }];
   state.combat.defenses = [{ id: 'tower', kind: 'tower', type: 'gun', nodeId: 'remote', hp: 100, maxHp: 100, ruined: false }];
   state.world.recoveryItems = [{ id: 'item', nodeId: 'enemy', x: 430, y: 0, status: 'AVAILABLE', artifactType: 'commandSeal' }];
+  Object.assign(state.inventory.resources, { timber: 100, rope: 100, cutStone: 100, bronzeIngot: 100, wroughtIron: 100 });
+  state.inventory.capacity = { base: 1000, processed: 1000, ore: 1000, metal: 1000 };
   return state;
 }
 

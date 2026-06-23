@@ -497,12 +497,24 @@ export class CombatUi {
     description.className = 'contextSummary';
     description.textContent = summary;
     this.contextText.appendChild(description);
-    for (const detailText of details) {
-      const detail = document.createElement('p');
-      detail.className = 'contextDetail';
-      detail.textContent = detailText;
-      this.contextText.appendChild(detail);
+
+    const visibleDetails = details.filter(detailText => typeof detailText === 'string' && detailText.trim().length);
+    if (visibleDetails.length) {
+      const disclosure = document.createElement('details');
+      disclosure.className = 'contextDisclosure';
+      disclosure.open = false;
+      const toggle = document.createElement('summary');
+      toggle.textContent = '説明を表示';
+      disclosure.appendChild(toggle);
+      for (const detailText of visibleDetails) {
+        const detail = document.createElement('p');
+        detail.className = 'contextDetail';
+        detail.textContent = detailText;
+        disclosure.appendChild(detail);
+      }
+      this.contextText.appendChild(disclosure);
     }
+
     if (!metrics.length) return;
     const grid = document.createElement('div');
     grid.className = 'contextMetricGrid';
@@ -650,7 +662,7 @@ export class CombatUi {
       `新設時はTier ${definition.initialTier ?? 0}です。文明レベル上昇後、既設設備を選択して資源を支払い個別に強化できます。`,
       this.selectedTool === 'survey'
         ? '測量施設は主要拠点・簡易拠点ごとに1基までです。遠隔取得で見えるのは道路と未確認前線だけで、現地情報は実際の移動後に表示されます。'
-        : `建設可能範囲は主要拠点と現在地が各85m、簡易拠点が50mです。移動先の道路は周辺区域の取得完了後に建設へ利用できます。`
+        : `建設可能範囲は主要拠点と現在地が各85m、簡易拠点が50mです。さらに既設施設の周辺は、その設置元に応じて170mまたは100mまで拡張されます。移動先の道路は周辺区域の取得完了後に建設へ利用できます。`
     ]);
     if (this.buildCandidate) {
       const confirm = this.action(affordable ? '建設を確定' : buildStatus.requiredCivilizationLevel ? '文明未解禁' : '資源不足', () => this.confirmBuildCandidate(), 'primary');

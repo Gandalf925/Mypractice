@@ -115,10 +115,26 @@ test('repair relay consumes resources and repairs only the most damaged target',
   assert.ok(state.inventory.resources.wood < before.wood || state.inventory.resources.stone < before.stone || state.inventory.resources.fiber < before.fiber);
 });
 
-test('city defeat never creates negative resources and reports unpaid emergency recovery honestly', async () => {
+
+test('city recovers after a quiet period and a large update only heals post-cooldown time', async () => {
   const { CombatSystem } = await import('../src/combat/combat-system.js');
   const state = makeState();
   state.world.enemyBases = [];
+  state.combat.waves.resourceBaseCheckClock = -1000;
+  state.world.city.hp = 40;
+  state.combat.cityRecoveryCooldown = 120;
+  const system = new CombatSystem();
+  system.update(state, 180);
+  assert.ok(Math.abs(state.world.city.hp - 44.8) < 0.0001);
+  assert.equal(state.combat.cityRecoveryCooldown, 0);
+  system.update(state, 690);
+  assert.equal(state.world.city.hp, 100);
+});
+
+test('city defeat never creates negative resources and reports unpaid emergency recovery honestly', async () => {
+  const { CombatSystem } = await import('../src/combat/combat-system.js');
+  const state = makeState();
+  state.world.enemyBases[0].spawnClock = 40;
   state.world.city.hp = 0;
   state.inventory.resources.wood = 0;
   state.inventory.resources.stone = 0;
@@ -128,5 +144,7 @@ test('city defeat never creates negative resources and reports unpaid emergency 
   assert.equal(state.world.city.hp, 35);
   assert.equal(state.inventory.resources.wood, 0);
   assert.equal(state.inventory.resources.stone, 0);
+  assert.equal(state.combat.cityRecoveryCooldown, 120);
+  assert.equal(state.world.enemyBases[0].spawnClock, 0);
   assert.match(messages.at(-1), /備蓄不足/);
 });

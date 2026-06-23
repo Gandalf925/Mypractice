@@ -1,6 +1,6 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const CACHE_NAME = `${CACHE_PREFIX}v0-28-1-contextual-deployment`;
+const CACHE_NAME = `${CACHE_PREFIX}v0-28-3-ui-range-refinement`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -40,6 +40,7 @@ const APP_SHELL = [
   './src/combat/enemy-system.js',
   './src/combat/enemy-scaling.js',
   './src/combat/enemy-base-system.js',
+  './src/combat/enemy-base-placement.js',
   './src/combat/friendly-force-definitions.js',
   './src/combat/friendly-recovery-system.js',
   './src/combat/friendly-force-system.js',

@@ -30,12 +30,15 @@ function makeState() {
   return state;
 }
 
-test('build sites expose only unoccupied placements inside the home-base range', () => {
+test('existing facilities expand build sites beyond the original home-base range', () => {
   const state = makeState();
   state.combat.defenses.push({ id: 'occupied', kind: 'tower', type: 'gun', nodeId: 'near', hp: 100, maxHp: 100, ruined: false });
   const build = new BuildSystem();
 
-  assert.deepEqual(build.listBuildSites(state, 'gun').map(site => site.nodeId), ['home']);
+  const gunSites = build.listBuildSites(state, 'gun');
+  assert.ok(gunSites.some(site => site.nodeId === 'home'));
+  assert.ok(gunSites.some(site => site.nodeId === 'far'));
+  assert.ok(gunSites.some(site => site.anchorKind === 'DEFENSE'));
   assert.deepEqual(build.listBuildSites(state, 'barrier').map(site => site.edgeId).sort(), ['cross', 'home-near', 'near-far']);
 });
 
@@ -202,7 +205,7 @@ test('a current-location candidate is rejected if the player leaves its build zo
   const result = build.buildCandidate(state, preview.candidate);
 
   assert.equal(result.ok, false);
-  assert.match(result.reason, /拠点または現在地/);
+  assert.match(result.reason, /建設可能範囲内/);
   assert.deepEqual(state.inventory.resources, before);
 });
 
@@ -213,4 +216,31 @@ test('overlapping home-base and player positions are represented as one build zo
   const anchors = new BuildSystem().getBuildAnchors(state);
 
   assert.deepEqual(anchors.map(anchor => anchor.id), ['base']);
+});
+
+
+test('existing facilities create expanded construction anchors for additional defenses', () => {
+  const state = makeState();
+  const build = new BuildSystem();
+  const first = build.previewAt(state, 'gun', { x: 60, y: 0 }, 5);
+  assert.equal(build.buildCandidate(state, first.candidate).ok, true);
+
+  state.world.roadGraph = attachGraphIndexes({
+    center: { lat: 35, lon: 139 }, source: 'test', roadSpecVersion: 1,
+    nodes: [
+      { id: 'home', x: 0, y: 0 },
+      { id: 'near', x: 60, y: 0 },
+      { id: 'outer', x: 170, y: 0 },
+      { id: 'beyond', x: 240, y: 0 }
+    ],
+    edges: [
+      { id: 'home-near', a: 'home', b: 'near', length: 60, roadWidth: 5 },
+      { id: 'near-outer', a: 'near', b: 'outer', length: 110, roadWidth: 5 },
+      { id: 'outer-beyond', a: 'outer', b: 'beyond', length: 70, roadWidth: 5 }
+    ]
+  });
+
+  const sites = build.listBuildSites(state, 'gun');
+  assert.ok(sites.some(site => site.nodeId === 'outer' && site.anchorKind === 'DEFENSE'));
+  assert.ok(!sites.some(site => site.nodeId === 'beyond'));
 });

@@ -1,6 +1,6 @@
 import { distance, stableId } from '../core/utilities.js';
 import { addBundle } from '../civilization/inventory-system.js';
-import { ENEMY_DEFINITIONS, MAX_ENEMIES } from './definitions.js';
+import { CITY_RECOVERY_DELAY_SECONDS, ENEMY_DEFINITIONS, MAX_ENEMIES } from './definitions.js';
 import { normalizeEnemyLevel, scaleEnemyDefinition } from './enemy-scaling.js';
 import { findCombatPath, findCombatPathToTargets } from './routing-system.js';
 import { roadUnitPosition } from './road-unit-position.js';
@@ -167,8 +167,10 @@ function resolveWaveEnemy(state, enemy, breached) {
   record.remaining = Math.max(0, record.remaining - 1);
   if (breached) record.breached = true;
   if (record.remaining > 0) return;
-  if (record.breached) state.civilization.progress.perfectWaveStreak = 0;
-  else state.civilization.progress.perfectWaveStreak = (state.civilization.progress.perfectWaveStreak ?? 0) + 1;
+  if (!record.guard) {
+    if (record.breached) state.civilization.progress.perfectWaveStreak = 0;
+    else state.civilization.progress.perfectWaveStreak = (state.civilization.progress.perfectWaveStreak ?? 0) + 1;
+  }
   delete state.combat.waves.active[enemy.waveId];
 }
 
@@ -349,6 +351,7 @@ export class EnemySystem {
 
     if (enemy.nodeId === enemy.path.targetId && enemy.path.targetId === state.world.city.nodeId) {
       state.world.city.hp = Math.max(0, state.world.city.hp - definition.cityDamage);
+      state.combat.cityRecoveryCooldown = CITY_RECOVERY_DELAY_SECONDS;
       if ((definition.settlementDamage ?? 0) > 0) {
         state.combat.pendingSettlementDamage ??= [];
         state.combat.pendingSettlementDamage.push({ enemyId: enemy.id, enemyType: enemy.type, damage: definition.settlementDamage });

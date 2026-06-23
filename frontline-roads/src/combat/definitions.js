@@ -1,3 +1,6 @@
+export const CITY_RECOVERY_DELAY_SECONDS = 120;
+export const CITY_RECOVERY_HP_PER_SECOND = 0.08;
+
 import { DEFENSE_LINES, ENEMY_DROPS, defenseLineForType, defenseTierDefinition } from '../civilization/data.js';
 
 export const BUILD_RANGE_METERS = 85;

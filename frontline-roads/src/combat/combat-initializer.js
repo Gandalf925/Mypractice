@@ -1,59 +1,13 @@
 import { stableId } from '../core/utilities.js';
 import { ensureCivilizationState } from '../civilization/civilization-system.js';
 import { ENEMY_BASE_DEFINITIONS } from './definitions.js';
-import { INITIAL_BASE_TYPES } from './wave-system.js';
+import { selectInitialEnemyBasePlacements } from './enemy-base-placement.js';
 import { reconcileFrontiers, ensureFrontierState } from '../exploration/frontier-system.js';
 import { ensureExplorationState, reconcileExplorationSites } from '../exploration/exploration-system.js';
 import { ensurePlayerBaseState } from '../base/player-bases.js';
 import { ensureFriendlyForceState } from './friendly-force-system.js';
 
-function distancesFrom(graph, startId) {
-  const distances = new Map([[startId, 0]]);
-  const queue = [{ id: startId, distance: 0 }];
-  const visited = new Set();
-  while (queue.length > 0) {
-    queue.sort((a, b) => a.distance - b.distance);
-    const current = queue.shift();
-    if (visited.has(current.id)) continue;
-    visited.add(current.id);
-    for (const connection of graph.adjacency.get(current.id) ?? []) {
-      const next = current.distance + connection.length;
-      if (next >= (distances.get(connection.to) ?? Infinity)) continue;
-      distances.set(connection.to, next);
-      queue.push({ id: connection.to, distance: next });
-    }
-  }
-  return distances;
-}
-
-export function selectEnemyBasePlacements(graph, cityNodeId) {
-  const distances = distancesFrom(graph, cityNodeId);
-  const degree = nodeId => graph.adjacency.get(nodeId)?.length ?? 0;
-  const available = graph.nodes
-    .filter(node => node.id !== cityNodeId && degree(node.id) >= 2 && distances.has(node.id))
-    .sort((a, b) => distances.get(a.id) - distances.get(b.id));
-  const used = new Set();
-  const placements = [];
-
-  for (const type of INITIAL_BASE_TYPES) {
-    const definition = ENEMY_BASE_DEFINITIONS[type];
-    const [minimum, maximum] = definition.range;
-    const target = (minimum + maximum) / 2;
-    const candidates = available.filter(node => !used.has(node.id));
-    const inRange = candidates.filter(node => {
-      const route = distances.get(node.id);
-      return route >= minimum && route <= maximum;
-    });
-    const pool = inRange.length > 0 ? inRange : candidates.filter(node => distances.get(node.id) >= 120);
-    if (pool.length === 0) break;
-    const chosen = pool.reduce((best, node) =>
-      Math.abs(distances.get(node.id) - target) < Math.abs(distances.get(best.id) - target) ? node : best
-    , pool[0]);
-    used.add(chosen.id);
-    placements.push({ type, nodeId: chosen.id, routeDistance: distances.get(chosen.id) });
-  }
-  return placements;
-}
+export const selectEnemyBasePlacements = selectInitialEnemyBasePlacements;
 
 export function initializeCombatState(state) {
   const graph = state.world.roadGraph;
@@ -68,6 +22,7 @@ export function initializeCombatState(state) {
   state.combat.defenses = [];
   state.combat.waves = { elapsed: 0, nextSpawnAt: null, active: {}, resourceBaseCheckClock: 30 };
   state.combat.pendingSettlementDamage = [];
+  state.combat.cityRecoveryCooldown = 0;
   state.world.baseRespawns = [];
   state.world.frontierSources = [];
   state.world.explorationSites = [];
@@ -79,7 +34,10 @@ export function initializeCombatState(state) {
     return {
       id: stableId('enemy_base', placement.type, placement.nodeId), type: placement.type,
       nodeId: placement.nodeId, hp: 100, maxHp: 100, alive: true,
-      level: 1, ageSeconds: 0, spawnClock: Math.max(0, definition.interval - definition.firstDelay),
+      level: 1, ageSeconds: 0,
+      spawnClock: definition.interval - definition.firstDelay - placement.initialDelayBonusSec,
+      initialDelayBonusSec: placement.initialDelayBonusSec,
+      frontPressureMultiplier: placement.frontPressureMultiplier,
       wavesSent: 0, routeDistance: placement.routeDistance
     };
   });
@@ -91,6 +49,7 @@ export function initializeCombatState(state) {
 
 export function ensureCombatInitialized(state) {
   state.combat.pendingSettlementDamage ??= [];
+  state.combat.cityRecoveryCooldown = Math.max(0, Number(state.combat.cityRecoveryCooldown) || 0);
   ensureFrontierState(state);
   ensureExplorationState(state);
   ensurePlayerBaseState(state);

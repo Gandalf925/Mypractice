@@ -9,6 +9,7 @@ import {
 import { enemyPosition } from '../combat/enemy-system.js';
 import { edgeMidpoint } from '../combat/combat-geometry.js';
 import { queryRequired, setVisible } from './dom.js';
+import { bundleText } from '../civilization/inventory-system.js';
 
 const BASE_STATUS_RADIUS_METERS = 300;
 const FACILITY_RADIUS_METERS = 120;
@@ -58,7 +59,7 @@ function baseCard(state, base, { selected, label, field = false, rebuild = null 
     ${status.recoveringSquads || status.readySquads ? `<p class="baseSquadNotice">回復中 ${status.recoveringSquads}・再出撃待機 ${status.readySquads}</p>` : ''}
     ${status.recoveryItems ? `<p class="baseRecoveryNotice">周辺に未回収アイテム ${status.recoveryItems}</p>` : ''}
     <button class="primary wideButton" data-action="focus-base" data-base-id="${base.id}" data-base-kind="${field ? 'field' : 'major'}">この拠点をMAP表示</button>
-    ${destroyed ? `<button class="secondary wideButton" data-action="rebuild-field-base" data-base-id="${base.id}" ${rebuild?.ok ? '' : 'disabled'}>現地で簡易拠点を再建</button><p class="sectionNote">${rebuild?.ok ? '現在地から再建できます。' : rebuild?.reason ?? '現地へ移動してください。'}</p>` : ''}
+    ${destroyed ? `<button class="secondary wideButton" data-action="rebuild-field-base" data-base-id="${base.id}" ${rebuild?.ok ? '' : 'disabled'}>現地で簡易拠点を再建</button><p class="sectionNote">費用 ${bundleText(rebuild?.cost)}・${rebuild?.ok ? '現在地から再建できます。' : rebuild?.reason ?? '現地へ移動してください。'}</p>` : ''}
   </article>`;
 }
 
@@ -199,8 +200,8 @@ export class BaseCommandUi {
     this.body.innerHTML = `<section class="baseCommandOverview"><div><span>主要拠点</span><strong>${majorBases.length}/${majorLimit}</strong></div><div><span>簡易拠点</span><strong>${fieldBaseSlotsUsed(state)}/${fieldLimit}</strong></div><div><span>文明レベル</span><strong>Lv.${state.civilization.level}</strong></div></section>
       <section><h2>主要拠点</h2><div class="baseCommandGrid">${majorCards}</div></section>
       <section><h2>簡易拠点</h2><div class="baseCommandGrid">${fieldCards}</div></section>
-      <section class="baseEstablishSection"><h2>現在地に主要拠点</h2><p class="sectionNote">主要拠点は建設範囲85mで、すべての部隊を派兵できます。</p><button class="primary wideButton" data-action="establish-base" ${majorPlacement.ok ? '' : 'disabled'}>現在地に主要拠点を設置</button><p class="sectionNote">${majorPlacement.ok ? `設置可能・道路まで約${Math.round(majorPlacement.distanceToRoad)}m` : majorPlacement.reason}</p></section>
-      <section class="baseEstablishSection"><h2>現在地に簡易拠点</h2><p class="sectionNote">文明Lv.1で解禁。HP40、建設範囲50m、突撃／遊撃部隊を派兵できます。破壊後は現地で再建が必要です。</p><button class="primary wideButton" data-action="establish-field-base" ${fieldPlacement.ok ? '' : 'disabled'}>現在地に簡易拠点を設置</button><p class="sectionNote">${fieldPlacement.ok ? `設置可能・道路まで約${Math.round(fieldPlacement.distanceToRoad)}m` : fieldPlacement.reason}</p></section>`;
+      <section class="baseEstablishSection"><h2>現在地に主要拠点</h2><p class="sectionNote">主要拠点は建設範囲85mで、すべての部隊を派兵できます。</p><button class="primary wideButton" data-action="establish-base" ${majorPlacement.ok ? '' : 'disabled'}>現在地に主要拠点を設置</button><p class="sectionNote">費用 ${bundleText(majorPlacement.cost)}・${majorPlacement.ok ? `設置可能・道路まで約${Math.round(majorPlacement.distanceToRoad)}m` : majorPlacement.reason}</p></section>
+      <section class="baseEstablishSection"><h2>現在地に簡易拠点</h2><p class="sectionNote">文明Lv.1で解禁。HP40、建設範囲50m、突撃／遊撃部隊を派兵できます。破壊後は現地で再建が必要です。</p><button class="primary wideButton" data-action="establish-field-base" ${fieldPlacement.ok ? '' : 'disabled'}>現在地に簡易拠点を設置</button><p class="sectionNote">費用 ${bundleText(fieldPlacement.cost)}・${fieldPlacement.ok ? `設置可能・道路まで約${Math.round(fieldPlacement.distanceToRoad)}m` : fieldPlacement.reason}</p></section>`;
     this.updateSummary();
   }
 }

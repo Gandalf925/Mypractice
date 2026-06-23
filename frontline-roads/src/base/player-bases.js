@@ -2,6 +2,17 @@ import { distance, stableId } from '../core/utilities.js';
 
 export const PLAYER_BASE_MINIMUM_SEPARATION_METERS = 220;
 export const PLAYER_BASE_PLACEMENT_RANGE_METERS = 50;
+export const PLAYER_BASE_PLACEMENT_COSTS = Object.freeze({
+  2: Object.freeze({ timber: 8, rope: 4, cutStone: 8 }),
+  3: Object.freeze({ timber: 14, rope: 6, cutStone: 14 }),
+  4: Object.freeze({ timber: 20, rope: 8, cutStone: 20, bronzeIngot: 4 }),
+  5: Object.freeze({ timber: 26, rope: 10, cutStone: 28, wroughtIron: 4 })
+});
+
+export function playerBasePlacementCost(state) {
+  const targetCount = activePlayerBases(state).length + 1;
+  return { ...(PLAYER_BASE_PLACEMENT_COSTS[targetCount] ?? PLAYER_BASE_PLACEMENT_COSTS[5]) };
+}
 
 function finite(value) {
   return Number.isFinite(Number(value));

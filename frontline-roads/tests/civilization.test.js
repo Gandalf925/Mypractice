@@ -4,6 +4,7 @@ import { createInitialState } from '../src/core/state-schema.js';
 import { ensureCivilizationState, CivilizationSystem } from '../src/civilization/civilization-system.js';
 import { addBundle, consumeBundle, recalculateCapacity } from '../src/civilization/inventory-system.js';
 import { attachGraphIndexes } from '../src/roads/road-graph.js';
+import { CIVILIZATIONS, CIVILIZATION_PROJECTS, SETTLEMENT_BUILDINGS } from '../src/civilization/data.js';
 
 function stateWithWorld() {
   const state = createInitialState();
@@ -100,4 +101,28 @@ test('production overflow stays in the building buffer until collection', () => 
   state.inventory.resources.timber -= 1;
   assert.equal(system.production.collectOutput(state, building.id).ok, true);
   assert.equal(building.outputBuffer.timber ?? 0, 0);
+});
+
+
+test('every civilization project uses implemented requirements and fits the unlocked settlement slots', () => {
+  const supportedBuildings = new Set([
+    ...Object.keys(SETTLEMENT_BUILDINGS), 'barrier0', 'single0', 'otherDefense0',
+    'upgradedDefenses', 'upgradedDefenseKinds', 'barrier2', 'gate2', 'gate3',
+    'bronzeDefenses', 'bronzeDefenseKinds', 'wallAtLeast2'
+  ]);
+  const supportedProgress = new Set([
+    'totalKills', 'totalCampsCaptured', 'totalRepairHpPaid', 'totalProduced',
+    'selfProducedBronze', 'selfProducedWroughtIron', 'perfectWaveStreak',
+    'siegeCaptainsDefeated', 'activeFieldBases', 'copperCampsCaptured',
+    'tinCampsCaptured', 'ironCampsCaptured', 'cityHpStreak'
+  ]);
+  for (const [target, project] of Object.entries(CIVILIZATION_PROJECTS)) {
+    assert.equal(project.target, Number(target));
+    for (const key of Object.keys(project.buildings)) assert.equal(supportedBuildings.has(key), true, `unsupported building requirement: ${key}`);
+    for (const key of Object.keys(project.progress)) assert.equal(supportedProgress.has(key), true, `unsupported progress requirement: ${key}`);
+    const cumulativeSettlementBuildings = Object.entries(CIVILIZATION_PROJECTS)
+      .filter(([level]) => Number(level) <= Number(target))
+      .flatMap(([, definition]) => Object.keys(definition.buildings).filter(key => SETTLEMENT_BUILDINGS[key]));
+    assert.ok(new Set(cumulativeSettlementBuildings).size <= CIVILIZATIONS[Number(target) - 1].slots);
+  }
 });

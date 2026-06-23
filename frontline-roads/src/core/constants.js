@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.28.1-contextual-deployment';
+export const APP_VERSION = '0.28.3-ui-range-refinement';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 

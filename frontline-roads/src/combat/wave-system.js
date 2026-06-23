@@ -2,9 +2,9 @@ import { stableId } from '../core/utilities.js';
 import { ENEMY_BASE_DEFINITIONS, ENEMY_GENERATIONS } from './definitions.js';
 import { spawnEnemy } from './enemy-system.js';
 import { enemyBaseLevelForState, waveIntervalForBase } from './enemy-scaling.js';
-import { chunkForWorldPoint } from '../roads/world-chunk-grid.js';
+import { INITIAL_BASE_TYPES, selectEnemyBaseNode } from './enemy-base-placement.js';
 
-export const INITIAL_BASE_TYPES = Object.freeze(['barracks', 'engineer', 'raider', 'motor']);
+export { INITIAL_BASE_TYPES } from './enemy-base-placement.js';
 
 function deterministicIndex(text, length) {
   let hash = 2166136261;
@@ -68,25 +68,6 @@ export function waveForBase(state, base) {
   return wave;
 }
 
-function distancesFrom(graph, startId) {
-  const distances = new Map([[startId, 0]]);
-  const queue = [{ id: startId, distance: 0 }];
-  const visited = new Set();
-  while (queue.length) {
-    queue.sort((a, b) => a.distance - b.distance);
-    const current = queue.shift();
-    if (visited.has(current.id)) continue;
-    visited.add(current.id);
-    for (const connection of graph.adjacency.get(current.id) ?? []) {
-      const candidate = current.distance + connection.length;
-      if (candidate >= (distances.get(connection.to) ?? Infinity)) continue;
-      distances.set(connection.to, candidate);
-      queue.push({ id: connection.to, distance: candidate });
-    }
-  }
-  return distances;
-}
-
 function resourceBaseTypes(level) {
   if (level >= 3) return ['copperCamp', 'tinCamp', 'ironCamp', 'bronzeCamp', 'siegeWorks'];
   if (level >= 2) return ['copperCamp', 'tinCamp'];
@@ -97,31 +78,6 @@ export function unlockedBaseTypes(state) {
   return [...INITIAL_BASE_TYPES, ...resourceBaseTypes(state.civilization.level ?? 0)];
 }
 
-function chooseBaseNode(state, type, sourceNodeId = null) {
-  const graph = state.world.roadGraph;
-  const definition = ENEMY_BASE_DEFINITIONS[type];
-  const distances = distancesFrom(graph, state.world.city.nodeId);
-  const sourceNode = sourceNodeId ? graph.nodeById.get(sourceNodeId) : null;
-  const occupiedNodes = new Set([
-    state.world.city.nodeId,
-    ...state.world.enemyBases.filter(base => base.alive).map(base => base.nodeId),
-    ...state.world.outposts.filter(outpost => outpost.status === 'ACTIVE').map(outpost => outpost.nodeId)
-  ]);
-  const occupiedPoints = [...occupiedNodes].map(id => graph.nodeById.get(id)).filter(Boolean);
-  const target = (definition.range[0] + definition.range[1]) / 2;
-  const physicallyObservedChunks = new Set(state.world.roadChunks?.playerObserved ?? state.world.roadChunks?.loaded ?? []);
-  const candidates = graph.nodes
-    .filter(node => physicallyObservedChunks.size === 0 || physicallyObservedChunks.has(chunkForWorldPoint(node, state.world.roadChunks?.sizeMeters).id))
-    .filter(node => !occupiedNodes.has(node.id) && (graph.adjacency.get(node.id)?.length ?? 0) >= 2)
-    .filter(node => !sourceNode || Math.hypot(node.x - sourceNode.x, node.y - sourceNode.y) >= 150)
-    .filter(node => occupiedPoints.every(point => Math.hypot(node.x - point.x, node.y - point.y) >= 100))
-    .map(node => ({ node, route: distances.get(node.id) ?? Infinity }))
-    .filter(item => Number.isFinite(item.route));
-  const inRange = candidates.filter(item => item.route >= definition.range[0] && item.route <= definition.range[1]);
-  const pool = inRange.length ? inRange : candidates.filter(item => item.route >= 120);
-  return pool.sort((a, b) => Math.abs(a.route - target) - Math.abs(b.route - target))[0] ?? null;
-}
-
 function createBase(type, placement, idSeed = placement.node.id) {
   const definition = ENEMY_BASE_DEFINITIONS[type];
   return {
@@ -130,9 +86,21 @@ function createBase(type, placement, idSeed = placement.node.id) {
     maxHp: definition.isResourceBase ? 120 : 100,
     alive: true,
     level: 1, ageSeconds: 0,
-    spawnClock: Math.max(0, definition.interval - definition.firstDelay),
+    spawnClock: definition.interval - definition.firstDelay - (placement.initialDelayBonusSec ?? 0),
+    initialDelayBonusSec: placement.initialDelayBonusSec ?? 0,
+    frontPressureMultiplier: placement.frontPressureMultiplier ?? 1,
     wavesSent: 0, routeDistance: placement.route
   };
+}
+
+export function spawnEnemyBaseGuard(state, base, events = null) {
+  if (!base?.alive || base.guardWaveTriggered) return 0;
+  base.guardWaveTriggered = true;
+  const spawned = new WaveSystem(events).spawnWave(state, base, true);
+  if (spawned > 0) {
+    events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[base.type].name}の守備隊が迎撃を開始しました。` });
+  }
+  return spawned;
 }
 
 export class WaveSystem {
@@ -145,13 +113,14 @@ export class WaveSystem {
     let spawned = 0;
     wave.forEach((type, index) => { if (spawnEnemy(state, base, type, index * (guard ? 3 : 8), waveId)) spawned += 1; });
     if (spawned > 0) {
-      state.combat.waves.active[waveId] = { id: waveId, baseId: base.id, remaining: spawned, breached: false, startedAt: state.runtime?.worldTimeMs ?? Date.now() };
+      state.combat.waves.active[waveId] = { id: waveId, baseId: base.id, remaining: spawned, breached: false, guard, startedAt: state.runtime?.worldTimeMs ?? Date.now() };
       this.events?.emit('combat:wave-launched', { baseId: base.id, waveId, count: spawned, guard, level: base.level ?? 1 });
     }
     if (!guard) {
       base.wavesSent += 1;
       this.events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[base.type].name} Lv.${base.level ?? 1}から敵部隊が出撃しました。` });
     }
+    return spawned;
   }
 
   ensureUnlockedBases(state) {
@@ -160,7 +129,7 @@ export class WaveSystem {
     for (const type of unlockedBaseTypes(state)) {
       const exists = state.world.enemyBases.some(base => base.type === type && base.alive);
       if (exists || pendingTypes.has(type)) continue;
-      const placement = chooseBaseNode(state, type);
+      const placement = selectEnemyBaseNode(state, type);
       if (!placement) continue;
       const base = createBase(type, placement);
       state.world.enemyBases.push(base);
@@ -177,7 +146,7 @@ export class WaveSystem {
         remaining.push(respawn);
         continue;
       }
-      const placement = chooseBaseNode(state, respawn.baseType, respawn.sourceNodeId);
+      const placement = selectEnemyBaseNode(state, respawn.baseType, respawn.sourceNodeId);
       if (!placement) {
         respawn.remainingSec = 60 * 60;
         respawn.attempts = (respawn.attempts ?? 0) + 1;
@@ -210,7 +179,8 @@ export class WaveSystem {
         this.events?.emit('combat:enemy-base-level-up', { baseId: base.id, level: base.level });
       }
       base.spawnClock = (base.spawnClock ?? 0) + deltaSeconds;
-      const interval = waveIntervalForBase(definition, base.level, state.world.city.hp);
+      const interval = waveIntervalForBase(definition, base.level, state.world.city.hp)
+        * Math.max(1, Number(base.frontPressureMultiplier) || 1);
       while (base.spawnClock >= interval) {
         base.spawnClock -= interval;
         this.spawnWave(state, base);

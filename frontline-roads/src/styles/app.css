@@ -667,6 +667,13 @@ footer::before { content: "RADAR BUILD // "; }
 .threatMetrics b { display: block; color: #dffff7; font-size: 10px; }
 .contextMetrics { margin: 5px 0 9px; }
 .contextSummary { margin: 0 0 7px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.contextDisclosure { margin: 0 0 8px; border: 1px solid rgba(101,255,208,.14); background: rgba(1,15,13,.58); }
+.contextDisclosure summary { padding: 7px 9px; color: #9fd8cb; font-size: 10px; font-weight: 800; letter-spacing: .05em; list-style: none; cursor: pointer; user-select: none; }
+.contextDisclosure summary::-webkit-details-marker { display: none; }
+.contextDisclosure summary::after { content: "＋"; float: right; color: var(--accent); }
+.contextDisclosure[open] summary::after { content: "－"; }
+.contextDisclosure[open] summary { border-bottom: 1px solid rgba(101,255,208,.12); }
+.contextDisclosure .contextDetail:last-child { margin-bottom: 7px !important; }
 .contextMetricGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
 .contextMetricGrid > span { min-width: 0; padding: 5px 6px; border: 1px solid rgba(101,255,208,.12); background: rgba(1,14,12,.72); }
 .contextMetricGrid small, .contextMetricGrid b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1030,7 +1037,7 @@ button, input, select, textarea { font-size: inherit; }
 .activeSquadRow span{font-weight:800;color:var(--accent)}
 .deploymentOrder strong{overflow-wrap:anywhere}
 
-/* v0.28.1 contextual deployment and unobstructed target actions */
+/* Contextual deployment and unobstructed target actions */
 .contextPanel.is-target-mode {
   right: auto;
   width: min(520px, calc(100vw - 20px));
@@ -1121,3 +1128,7 @@ button, input, select, textarea { font-size: inherit; }
   }
   .deploymentModalCard { max-height: calc(100vh - var(--safe-top) - var(--safe-bottom) - 16px); }
 }
+
+
+/* v0.28.3 UI declutter */
+#threatStatus[hidden] { display: none !important; }

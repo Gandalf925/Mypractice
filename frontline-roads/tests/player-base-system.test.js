@@ -5,7 +5,8 @@ import { attachGraphIndexes } from '../src/roads/road-graph.js';
 import {
   PLAYER_BASE_MINIMUM_SEPARATION_METERS,
   activePlayerBases,
-  baseLimitForCivilization
+  baseLimitForCivilization,
+  playerBasePlacementCost
 } from '../src/base/player-bases.js';
 import { PlayerBaseSystem, previewPlayerBasePlacement } from '../src/base/player-base-system.js';
 import { BuildSystem } from '../src/combat/build-system.js';
@@ -41,6 +42,8 @@ function fixture() {
   state.world.city = { nodeId: 'home', hp: 100, maxHp: 100 };
   state.runtime.combatInitialized = true;
   state.player.locationAccuracy = 10;
+  Object.assign(state.inventory.resources, { timber: 100, rope: 100, cutStone: 100, bronzeIngot: 100, wroughtIron: 100 });
+  state.inventory.capacity = { base: 1000, processed: 1000, ore: 1000, metal: 1000 };
   return state;
 }
 
@@ -66,6 +69,29 @@ test('base placement requires an unlocked slot, fresh position, nearby road and 
   assert.match(previewPlayerBasePlacement(state, now).reason, /220m以上/);
   state.player.worldPosition = { x: 400, y: 0 };
   assert.equal(previewPlayerBasePlacement(state, now).ok, true);
+});
+
+
+test('additional major bases require and consume escalating processed-resource costs', () => {
+  const state = fixture();
+  const now = 100_000;
+  state.civilization.level = 1;
+  state.player.worldPosition = { x: 400, y: 0 };
+  state.player.locationUpdatedAt = now;
+  const cost = playerBasePlacementCost(state);
+  assert.deepEqual(cost, { timber: 8, rope: 4, cutStone: 8 });
+  Object.assign(state.inventory.resources, { timber: 0, rope: 0, cutStone: 0 });
+  const blocked = previewPlayerBasePlacement(state, now);
+  assert.equal(blocked.ok, false);
+  assert.deepEqual(blocked.missing, cost);
+  Object.assign(state.inventory.resources, cost);
+  const result = new PlayerBaseSystem().establishAtCurrentLocation(state, now);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.cost, cost);
+  assert.deepEqual(
+    { timber: state.inventory.resources.timber, rope: state.inventory.resources.rope, cutStone: state.inventory.resources.cutStone },
+    { timber: 0, rope: 0, cutStone: 0 }
+  );
 });
 
 test('establishing a base adds a remote construction and simulation anchor', () => {

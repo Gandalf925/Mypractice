@@ -7,7 +7,8 @@ import {
   FIELD_BASE_MAX_HP,
   activeFieldBases,
   ensureFieldBaseState,
-  fieldBaseLimitForCivilization
+  fieldBaseLimitForCivilization,
+  fieldBasePlacementCost
 } from '../src/base/field-bases.js';
 import { FieldBaseSystem, previewFieldBasePlacement } from '../src/base/field-base-system.js';
 import { previewPlayerBasePlacement } from '../src/base/player-base-system.js';
@@ -15,6 +16,7 @@ import { BuildSystem } from '../src/combat/build-system.js';
 import { previewAssaultDeployment } from '../src/combat/friendly-force-system.js';
 import { EnemySystem, spawnEnemy } from '../src/combat/enemy-system.js';
 import { SaveRepository } from '../src/persistence/save-repository.js';
+import { evaluateProject } from '../src/civilization/progression-system.js';
 
 class MemoryStorage {
   constructor() { this.values = new Map(); }
@@ -52,7 +54,7 @@ function fixture() {
   state.runtime.worldTimeMs = 100_000;
   state.civilization.level = 1;
   state.player.locationAccuracy = 8;
-  Object.assign(state.inventory.resources, { wood: 500, stone: 500, fiber: 500 });
+  Object.assign(state.inventory.resources, { wood: 500, stone: 500, fiber: 500, timber: 100, rope: 100, cutStone: 100, bronzeIngot: 100, wroughtIron: 100 });
   state.inventory.capacity = { base: 1000, processed: 1000, ore: 1000, metal: 1000 };
   return state;
 }
@@ -84,6 +86,26 @@ test('simple-base placement requires civilization unlock, fresh GPS, road access
   assert.match(previewFieldBasePlacement(state, now).reason, /140m以上/);
   state.player.worldPosition = { x: 300, y: 0 };
   assert.equal(previewFieldBasePlacement(state, now).ok, true);
+});
+
+
+test('simple bases require and consume the processed-resource cost for their slot', () => {
+  const state = fixture();
+  const now = 100_000;
+  state.player.worldPosition = { x: 300, y: 0 };
+  state.player.locationUpdatedAt = now;
+  const cost = fieldBasePlacementCost(state);
+  assert.deepEqual(cost, { timber: 4, rope: 2 });
+  Object.assign(state.inventory.resources, { timber: 0, rope: 0 });
+  const blocked = previewFieldBasePlacement(state, now);
+  assert.equal(blocked.ok, false);
+  assert.deepEqual(blocked.missing, cost);
+  Object.assign(state.inventory.resources, cost);
+  const result = new FieldBaseSystem().establishAtCurrentLocation(state, now);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.cost, cost);
+  assert.equal(state.inventory.resources.timber, 0);
+  assert.equal(state.inventory.resources.rope, 0);
 });
 
 test('simple base has 40 HP and creates only a 50m construction anchor', () => {
@@ -154,6 +176,18 @@ test('simple-base state survives save and restore without precise location metad
   assert.equal(restored.world.fieldBases.length, 1);
   assert.equal(restored.world.fieldBases[0].nodeId, 'field');
   assert.equal(validateState(restored).valid, true);
+});
+
+
+test('level-four civilization progress counts active simple bases instead of obsolete outposts', () => {
+  const state = fixture();
+  state.civilization.level = 3;
+  state.world.fieldBases = [0, 1, 2].map(index => ({
+    id: `field-${index}`, kind: 'FIELD', name: `簡易拠点 ${index + 1}`, status: 'ESTABLISHED',
+    nodeId: 'field', x: 300 + index, y: 0, hp: 40, maxHp: 40, establishedAt: index + 1
+  }));
+  const check = evaluateProject(state).checks.find(item => item.key === 'activeFieldBases');
+  assert.deepEqual({ current: check.current, required: check.required, complete: check.complete }, { current: 3, required: 3, complete: true });
 });
 
 test('a distant simple base does not pull attackers away from a much nearer city', () => {

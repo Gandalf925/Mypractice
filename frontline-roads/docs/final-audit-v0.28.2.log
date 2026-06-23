@@ -1,0 +1,62 @@
+FRONTLINE ROADS v0.28.2 BALANCE STABILIZATION AUDIT
+=====================================================
+
+Release: 0.28.2-balance-stabilization
+Baseline: 0.28.1-contextual-deployment
+Scope: repeated deterministic playthroughs, progression reachability, economy, defense pressure, assault risk, recovery, expansion, long-duration simulation and full-system regression.
+
+FULL VERIFICATION
+# tests 296
+# pass 296
+# fail 0
+
+SERIAL TEST EXECUTION
+# tests 296
+# pass 296
+# fail 0
+
+STATIC STRUCTURE
+production_js_modules=96
+reachable_from_bootstrap=96
+unreachable=0
+missing_relative_imports=0
+import_cycles=0
+html_ids=55
+duplicate_html_ids=0
+css_brace_delta=0
+empty_source_or_test_files=0
+pwa_runtime_entries=97
+pwa_missing_runtime_files=0
+pwa_stale_runtime_entries=0
+
+REPEATED PLAYTHROUGH RESULTS
+- Balanced one-front road: Lv.1 project ready at 23.2 min and complete at 33.1 min; city defeats 0; squad losses 0.
+- Balanced four-front cross: ready at 12.0 min and complete at 22.0 min; city defeats 0; squad losses 0.
+- Balanced urban grid: ready at 12.0 min and complete at 22.0 min; city defeats 0; squad losses 0.
+- Defense-free assault before correction: one assault squad could remove all four initial hostile bases.
+- Defense-free assault after correction: three hostile bases destroyed, two assault squads lost, two city defeats, one hostile base remained.
+- Extended civilization-level pressure and existing bounded/offline simulations completed without numerical divergence, stalled state or save failure.
+
+BALANCE DEFECTS FOUND AND CORRECTED
+1. Civilization Lv.1 consumed more opening resources than the required facilities and assault loop could sustain. The project now requires a compact contribution, two basic towers, one barrier, 20 kills, one base destruction, one artifact and a five-minute healthy-city streak.
+2. City HP could fall below a civilization threshold with no recovery path. The city now starts passive reconstruction 120 seconds after damage at 0.08 HP/s.
+3. Several initial hostile bases could stack their first waves on one road front. Placement now prefers unused angular sectors and progressively delays/throttles bases forced onto the same front.
+4. Hostile bases had no immediate defense against direct assault. Each hostile base now launches one saved, non-duplicating guard force on first direct attack.
+5. Civilization Lv.4 required obsolete captured outposts that new games do not generate. The requirement now uses three active simple bases.
+6. Major and simple bases could be established without resource cost. Expansion and rebuilding now consume tier-appropriate processed resources.
+
+DESIGN BOUNDARIES PRESERVED
+- Destroying a hostile base still creates a physical recovery item rather than granting resources remotely.
+- Retrieval squads, manual GPS recovery, squad recovery/reorganization and remote regional progression remain unchanged in purpose.
+- Combat squads still travel the road graph and can be intercepted or destroyed.
+- The save key and schema version remain unchanged; missing recovery state is normalized for older saves.
+- No obsolete parallel balance system or compatibility-only project requirement remains active.
+
+BROWSER ATTEMPT
+Result: INCONCLUSIVE DUE TO BUILD-CONTAINER RESTRICTIONS
+The local HTTP endpoint returned HTTP 200. Chromium could not produce DOM output or a screenshot because netlink access was denied, DBus was unavailable and inotify configuration was inaccessible. No application JavaScript exception, missing module or failed local asset request was reported before timeout.
+See docs/browser-test-v0.28.2.md.
+
+FILE INTEGRITY
+manifest_entries=262
+manifest_self_excluded=1

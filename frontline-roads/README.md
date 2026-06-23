@@ -1,7 +1,22 @@
-# FRONTLINE ROADS — modular source v0.28.1 contextual deployment
+# FRONTLINE ROADS — modular source v0.28.3 UI and build-range refinement
 
 FRONTLINE ROADS is a location-based, continuously progressing road-defense strategy game. This directory is the canonical modular development source.
 
+
+
+## UI and build-range refinement v0.28.3
+
+This release uses repeated deterministic playthroughs to correct progression blockers and strategy dominance without adding a parallel rules layer.
+
+- Civilization Lv.1 now asks for one barrier, two basic attack towers, 20 enemy kills, one hostile-base destruction, one recovered artifact and a smaller contribution bundle. Balanced openings complete in roughly 22–33 minutes across line, cross and grid road networks.
+- Initial hostile bases spread across independent road fronts where the road graph permits it. When several bases must share one front, their first launches are staggered and their sustained intervals are widened instead of stacking all pressure at the opening.
+- A hostile base launches its own composition as a one-time guard force when first attacked. Guard encounters do not count toward the perfect-defense streak.
+- The city begins passive reconstruction after 120 seconds without damage at 0.08 HP per second. A city defeat also resets live enemy-base launch clocks, preventing immediate defeat loops.
+- The Lv.4 project now requires three active simple bases instead of the obsolete captured-outpost counter.
+- Additional major and simple bases now consume escalating processed-resource costs. Simple-base rebuilding also consumes a small fixed cost.
+- The release includes deterministic balanced-opening and attack-only regression playthroughs in `tests/game-balance-regression.test.js`.
+
+Full findings, values and test-play results are documented in `docs/ui-range-refinement-v0.28.3.md`.
 
 ## Contextual deployment UI v0.28.1
 
@@ -275,4 +290,4 @@ Run:
 npm run verify
 ```
 
-The release archive contains the complete modular source and tests. Browser-launch results for this release are documented under `docs/browser-test-v0.28.1.md`; final GPS, Overpass and mobile-layout checks must be performed on the deployed HTTPS page.
+The release archive contains the complete modular source and tests. Browser-launch results for this release are documented under `docs/browser-test-v0.28.3.md`; final GPS, Overpass and mobile-layout checks must be performed on the deployed HTTPS page.

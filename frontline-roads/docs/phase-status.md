@@ -35,5 +35,6 @@
 | 27 Squad recovery | Complete | Persistent returning formations, major-base recovery, treatment facilities, simple-base aid and free same-type redeployment |
 | 28 Retrieval corps | Complete | Weak road-bound remote recovery, item reservation, eight-second pickup, return-only award, death drops and regional persistence |
 | 28.1 Contextual deployment UI | Complete | Global deploy button removed, map-selected target locking, compact target panel and preserved recovery dispatch |
+| 28.2 Balance stabilization | Complete | Repeated strategy playthroughs, reachable civilization projects, passive city reconstruction, front-aware hostile-base pressure, guarded assaults and paid base expansion |
 | Single HTML | Deferred | Generate only immediately before blockchain publication |
 | GitHub upload | Prepared | Complete modular replacement package generated for manual upload |
