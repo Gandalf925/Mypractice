@@ -5,6 +5,7 @@ import { bundleText, consumeBundle, missingBundle } from '../civilization/invent
 import { BUILD_RANGE_METERS, DEFENSE_DEFINITIONS } from './definitions.js';
 import { findCombatPath } from './routing-system.js';
 import { activePlayerBases } from '../base/player-bases.js';
+import { FIELD_BASE_BUILD_RANGE_METERS, activeFieldBases } from '../base/field-bases.js';
 
 const CANDIDATE_POINT_TOLERANCE_METERS = 1;
 const ANCHOR_DUPLICATE_TOLERANCE_METERS = 0.5;
@@ -18,22 +19,36 @@ function buildAnchors(state) {
     .filter(finitePoint)
     .map((base, index) => ({
       id: index === 0 ? 'base' : `base:${base.id}`,
-      label: base.name || (index === 0 ? '本拠地' : `前線拠点 ${index + 1}`),
+      label: base.name || (index === 0 ? '本拠地' : `主要拠点 ${index + 1}`),
       point: { x: base.x, y: base.y },
+      range: BUILD_RANGE_METERS,
+      kind: 'MAJOR',
       baseId: base.id
     }));
+  for (const base of activeFieldBases(state).filter(finitePoint)) {
+    anchors.push({
+      id: `field:${base.id}`,
+      label: base.name || '簡易拠点',
+      point: { x: base.x, y: base.y },
+      range: FIELD_BASE_BUILD_RANGE_METERS,
+      kind: 'FIELD',
+      baseId: base.id
+    });
+  }
   if (finitePoint(state.player.worldPosition)) {
     const point = { x: state.player.worldPosition.x, y: state.player.worldPosition.y };
-    const overlapsBase = anchors.some(anchor => distance(anchor.point, point) <= ANCHOR_DUPLICATE_TOLERANCE_METERS);
-    if (!overlapsBase) anchors.push({ id: 'player', label: '現在地', point });
+    const overlapsBase = anchors.some(anchor => (anchor.range ?? BUILD_RANGE_METERS) >= BUILD_RANGE_METERS && distance(anchor.point, point) <= ANCHOR_DUPLICATE_TOLERANCE_METERS);
+    if (!overlapsBase) anchors.push({ id: 'player', label: '現在地', point, range: BUILD_RANGE_METERS, kind: 'PLAYER' });
   }
   return anchors;
 }
 
-function nearestAnchor(anchors, point) {
+function coveringAnchor(anchors, point) {
   let best = null;
   for (const anchor of anchors) {
     const gap = distance(anchor.point, point);
+    const range = Math.max(0, Number(anchor.range) || BUILD_RANGE_METERS);
+    if (gap > range) continue;
     if (!best || gap < best.distance) best = { ...anchor, distance: gap };
   }
   return best;
@@ -69,7 +84,9 @@ function towerCandidate(type, node, anchor = null) {
     nodeId: node.id,
     point: { x: node.x, y: node.y },
     anchorId: anchor?.id ?? null,
-    anchorLabel: anchor?.label ?? null
+    anchorLabel: anchor?.label ?? null,
+    anchorKind: anchor?.kind ?? null,
+    baseId: anchor?.baseId ?? null
   };
 }
 
@@ -80,7 +97,9 @@ function barrierCandidate(type, edge, point, anchor = null) {
     edgeId: edge.id,
     point: { x: point.x, y: point.y },
     anchorId: anchor?.id ?? null,
-    anchorLabel: anchor?.label ?? null
+    anchorLabel: anchor?.label ?? null,
+    anchorKind: anchor?.kind ?? null,
+    baseId: anchor?.baseId ?? null
   };
 }
 
@@ -91,9 +110,28 @@ function resourceFailure(state, definition) {
     : null;
 }
 
+function civilizationFailure(state, definition) {
+  const required = Math.max(0, Number(definition.requiredCivilizationLevel) || 0);
+  return (state.civilization?.level ?? 0) < required
+    ? { ok: false, reason: `文明Lv.${required}で解禁されます。`, requiredCivilizationLevel: required }
+    : null;
+}
+
+function allowedAnchorsForDefinition(anchors, definition) {
+  const allowed = Array.isArray(definition.allowedAnchorKinds) ? new Set(definition.allowedAnchorKinds) : null;
+  return allowed ? anchors.filter(anchor => allowed.has(anchor.kind)) : anchors;
+}
+
+function anchorHasFacility(state, definition, anchor) {
+  if (!definition.limitPerAnchor) return false;
+  return state.combat.defenses.some(defense =>
+    defense.type === definition.type && defense.buildAnchorId === anchor.id
+  );
+}
+
 function activeAnchorIdsForSegment(anchors, a, b) {
   return anchors
-    .filter(anchor => pointToSegmentProjection(anchor.point, a, b).distance <= BUILD_RANGE_METERS)
+    .filter(anchor => pointToSegmentProjection(anchor.point, a, b).distance <= (anchor.range ?? BUILD_RANGE_METERS))
     .map(anchor => anchor.id);
 }
 
@@ -106,9 +144,14 @@ export class BuildSystem {
     return buildAnchors(state);
   }
 
-  canAfford(state, type) {
+  getBuildStatus(state, type) {
     const definition = DEFENSE_DEFINITIONS[type];
-    return Boolean(definition) && !resourceFailure(state, definition);
+    if (!definition) return { ok: false, reason: '不明な設備です。' };
+    return civilizationFailure(state, definition) ?? resourceFailure(state, definition) ?? { ok: true, definition };
+  }
+
+  canAfford(state, type) {
+    return this.getBuildStatus(state, type).ok;
   }
 
   listBuildSites(state, type) {
@@ -116,8 +159,9 @@ export class BuildSystem {
     const graph = state.world.roadGraph;
     if (!definition || !graph?.nodeById) return [];
 
-    const anchors = buildAnchors(state);
-    if (!anchors.length) return [];
+    let anchors = allowedAnchorsForDefinition(buildAnchors(state), definition);
+    anchors = anchors.filter(anchor => !anchorHasFacility(state, definition, anchor));
+    if (!anchors.length || civilizationFailure(state, definition)) return [];
     if (definition.kind === 'barrier') {
       const occupied = new Set(
         state.combat.defenses
@@ -126,7 +170,7 @@ export class BuildSystem {
       );
       const candidateEdges = new Set();
       for (const anchor of anchors) {
-        for (const edge of graphElementsNearPoint(graph, anchor.point, BUILD_RANGE_METERS).edges) candidateEdges.add(edge);
+        for (const edge of graphElementsNearPoint(graph, anchor.point, anchor.range ?? BUILD_RANGE_METERS).edges) candidateEdges.add(edge);
       }
       const sites = [];
       for (const edge of candidateEdges) {
@@ -156,12 +200,12 @@ export class BuildSystem {
     );
     const candidateNodes = new Set();
     for (const anchor of anchors) {
-      for (const node of graphElementsNearPoint(graph, anchor.point, BUILD_RANGE_METERS).nodes) candidateNodes.add(node);
+      for (const node of graphElementsNearPoint(graph, anchor.point, anchor.range ?? BUILD_RANGE_METERS).nodes) candidateNodes.add(node);
     }
     return [...candidateNodes]
       .filter(node => !occupied.has(node.id))
-      .map(node => ({ node, anchor: nearestAnchor(anchors, node) }))
-      .filter(entry => entry.anchor?.distance <= BUILD_RANGE_METERS)
+      .map(node => ({ node, anchor: coveringAnchor(anchors, node) }))
+      .filter(entry => Boolean(entry.anchor))
       .map(entry => towerCandidate(type, entry.node, entry.anchor));
   }
 
@@ -197,7 +241,9 @@ export class BuildSystem {
 
     const graph = state.world.roadGraph;
     if (!graph?.nodeById) return { ok: false, reason: '道路データを利用できません。' };
-    const anchors = buildAnchors(state);
+    const locked = civilizationFailure(state, definition);
+    if (locked) return locked;
+    const anchors = allowedAnchorsForDefinition(buildAnchors(state), definition);
     if (!anchors.length) return { ok: false, reason: '建設基準となる拠点または現在地を取得できません。' };
     let normalized;
 
@@ -210,8 +256,9 @@ export class BuildSystem {
       const requestedPoint = finitePoint(candidate.point) ? candidate.point : { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
       const projection = pointToSegmentProjection(requestedPoint, a, b);
       if (projection.distance > CANDIDATE_POINT_TOLERANCE_METERS) return { ok: false, reason: '設置候補が道路上にありません。' };
-      const anchor = nearestAnchor(anchors, projection.point);
-      if (!anchor || anchor.distance > BUILD_RANGE_METERS) return { ok: false, reason: `拠点または現在地から${BUILD_RANGE_METERS}m以内へ設置してください。` };
+      const anchor = coveringAnchor(anchors, projection.point);
+      if (!anchor) return { ok: false, reason: '拠点または現在地の建設可能範囲内へ設置してください（主要拠点・現在地は85m以内、簡易拠点は50m以内）。' };
+      if (anchorHasFacility(state, definition, anchor)) return { ok: false, reason: `${anchor.label}には同種設備をこれ以上設置できません。` };
       if (state.combat.defenses.some(defense => defense.kind === 'barrier' && defense.edgeId === edge.id && activeDefense(defense))) {
         return { ok: false, reason: 'この道路にはすでに防壁があります。' };
       }
@@ -219,8 +266,9 @@ export class BuildSystem {
     } else {
       const node = graph.nodeById.get(candidate.nodeId);
       if (!node) return { ok: false, reason: '対象交差点が見つかりません。' };
-      const anchor = nearestAnchor(anchors, node);
-      if (!anchor || anchor.distance > BUILD_RANGE_METERS) return { ok: false, reason: `拠点または現在地から${BUILD_RANGE_METERS}m以内へ設置してください。` };
+      const anchor = coveringAnchor(anchors, node);
+      if (!anchor) return { ok: false, reason: definition.allowedAnchorKinds ? '測量施設は主要拠点または簡易拠点の建設範囲内へ設置してください。' : '拠点または現在地の建設可能範囲内へ設置してください（主要拠点・現在地は85m以内、簡易拠点は50m以内）。' };
+      if (anchorHasFacility(state, definition, anchor)) return { ok: false, reason: `${anchor.label}には測量施設を1基だけ設置できます。` };
       if (state.combat.defenses.some(defense => defense.kind === 'tower' && defense.nodeId === node.id && activeDefense(defense))) {
         return { ok: false, reason: 'この交差点にはすでに設備があります。' };
       }
@@ -259,10 +307,18 @@ export class BuildSystem {
 
     const defense = {
       id: stableId('tower', normalized.type, normalized.nodeId, state.runtime?.worldTimeMs ?? Date.now(), state.combat.defenses.length),
-      kind: 'tower', type: normalized.type, line: definition.line, tier: 0, defenseKey: `${definition.line}0`,
+      kind: 'tower', type: normalized.type, line: definition.line, tier: definition.initialTier ?? 0, defenseKey: definition.defenseKey ?? `${definition.line}${definition.initialTier ?? 0}`,
       nodeId: normalized.nodeId, hp: definition.hp, maxHp: definition.hp,
+      buildAnchorId: normalized.anchorId, buildAnchorKind: normalized.anchorKind, baseId: normalized.baseId,
       cooldown: 0, disabledTimer: 0, ruined: false
     };
+    if (normalized.type === 'survey') {
+      const interval = Math.max(30, Number(definition.scanInterval) || 180);
+      defense.surveyNextAt = (state.runtime?.worldTimeMs ?? Date.now()) + Math.min(60, interval / 6) * 1000;
+      defense.surveyStatus = 'WAITING';
+      defense.surveyLastChunkId = null;
+      defense.surveyCompletedCount = 0;
+    }
     state.combat.defenses.push(defense);
     for (const enemy of state.combat.enemies) enemy.reroutePending = true;
     this.events?.emit('combat:defense-built', { defense });

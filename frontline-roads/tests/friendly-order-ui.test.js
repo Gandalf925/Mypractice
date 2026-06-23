@@ -56,6 +56,7 @@ test('combat UI exposes stop, retreat, withdraw, resume and two-waypoint route p
   assert.match(source, /'移動再開'/);
   assert.match(source, /waypointNodeIds\.length >= 2/);
   assert.match(source, /confirmOrderPlanning/);
+  assert.match(source, /friendlyRouteIndexAtPoint/);
 });
 
 test('renderer places squad order guidance above combat and construction layers', async () => {

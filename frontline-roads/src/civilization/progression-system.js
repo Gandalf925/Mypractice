@@ -1,6 +1,7 @@
 import { deepClone } from '../core/utilities.js';
 import { CIVILIZATIONS, CIVILIZATION_PROJECTS, DEFENSE_LINES, SETTLEMENT_BUILDINGS, defenseLineForType } from './data.js';
 import { addBundle, consumeBundle } from './inventory-system.js';
+import { applyDefenseTier, defenseUpgradeStatus } from './defense-upgrade.js';
 import { defenseLine, repairCostForDefense } from './repair-cost.js';
 
 export function createProgressState() {
@@ -179,42 +180,42 @@ export class ProgressionSystem {
   }
 
   convertBarrierToGate(state, defenseId) {
-    const defense = state.combat.defenses.find(item => item.id === defenseId && item.kind === 'barrier' && !item.isGate && item.hp > 0);
+    const defense = state.combat.defenses.find(item => item.id === defenseId && item.kind === 'barrier' && !item.isGate && item.hp > 0 && !item.ruined);
     if (!defense) return { ok: false, reason: '変換できる防壁がありません。' };
     const civilizationLevel = state.civilization.level ?? 0;
-    if (civilizationLevel < 2) return { ok: false, reason: '石工集落以上で利用できます。' };
-    const tier = Math.min(civilizationLevel, Math.max(2, defense.tier ?? 0));
+    if (civilizationLevel < 2) return { ok: false, reason: '文明Lv.2で石門が解禁されます。' };
+    const tier = Math.max(2, Math.min(civilizationLevel, defense.tier ?? 0));
     const definition = DEFENSE_LINES.gate[tier];
     if (!definition) return { ok: false, reason: '門へ変換できません。' };
     const source = definition.cost ?? definition.upgrade ?? {};
     const cost = Object.fromEntries(Object.entries(source).map(([key, value]) => [key, Math.max(1, Math.ceil(value * 0.5))]));
     if (!consumeBundle(state, cost)) return { ok: false, reason: '門への変換資源が不足しています。' };
+    const priorMaximum = Math.max(1, defense.maxHp);
+    const priorRatio = Math.max(0, Math.min(1, defense.hp / priorMaximum));
     defense.isGate = true;
     defense.line = 'gate';
     defense.tier = tier;
     defense.defenseKey = definition.key;
     defense.maxHp = definition.hp;
-    defense.hp = definition.hp;
+    defense.hp = Math.max(1, Math.round(definition.hp * priorRatio));
     this.events?.emit('combat:defense-upgraded', { defenseId: defense.id, tier: defense.tier, gate: true });
-    return { ok: true, defense, cost };
+    return { ok: true, defense, cost, message: `${definition.name}へ変換しました。` };
   }
 
   upgradeDefense(state, defenseId) {
-    const defense = state.combat.defenses.find(item => item.id === defenseId && item.hp > 0 && !item.ruined);
+    const defense = state.combat.defenses.find(item => item.id === defenseId);
     if (!defense) return { ok: false, reason: '設備が見つかりません。' };
-    const line = defense.isGate ? 'gate' : defense.kind === 'barrier' ? 'barrier' : defenseLineForType(defense.type);
-    const nextTier = (defense.tier ?? 0) + 1;
-    if (nextTier > (state.civilization.level ?? 0)) return { ok: false, reason: '文明レベルが不足しています。' };
-    const definition = DEFENSE_LINES[line]?.[nextTier];
-    if (!definition) return { ok: false, reason: 'これ以上強化できません。' };
-    const cost = definition.upgrade ?? definition.cost ?? {};
-    if (!consumeBundle(state, cost)) return { ok: false, reason: '強化資源が不足しています。' };
-    defense.tier = nextTier;
-    defense.defenseKey = definition.key;
-    if (definition.hp) defense.maxHp = definition.hp;
-    else defense.maxHp = Math.round(defense.maxHp * (1 + nextTier * 0.18));
-    defense.hp = defense.maxHp;
-    this.events?.emit('combat:defense-upgraded', { defenseId: defense.id, tier: defense.tier, gate: false });
-    return { ok: true, defense, cost };
+    const status = defenseUpgradeStatus(state, defense);
+    if (!status.ok) return { ok: false, reason: status.reason };
+    if (!consumeBundle(state, status.cost)) return { ok: false, reason: '強化直前に資源が不足しました。' };
+    const definition = applyDefenseTier(defense, status.nextTier, { preserveHealthRatio: true });
+    if (!definition) return { ok: false, reason: '強化先の設備定義が見つかりません。' };
+    this.events?.emit('combat:defense-upgraded', { defenseId: defense.id, tier: defense.tier, gate: defense.isGate });
+    return {
+      ok: true,
+      defense,
+      cost: status.cost,
+      message: `${definition.name}（Tier ${defense.tier}）へ強化しました。`
+    };
   }
 }

@@ -1,6 +1,7 @@
 import { distance, stableId } from '../core/utilities.js';
 import { graphElementsNearPoint } from '../roads/road-graph.js';
 import {
+  PLAYER_BASE_MINIMUM_SEPARATION_METERS,
   PLAYER_BASE_PLACEMENT_RANGE_METERS,
   activePlayerBases,
   baseLimitForCivilization,
@@ -45,6 +46,12 @@ export function previewPlayerBasePlacement(state, now = Date.now()) {
   }
   const separation = canPlaceAdditionalBase(state, road.node);
   if (!separation.ok) return { ...separation, current: bases.length, limit };
+  const nearestFieldBase = (state.world.fieldBases ?? [])
+    .map(base => ({ base, gap: distance(base, road.node) }))
+    .sort((left, right) => left.gap - right.gap)[0] ?? null;
+  if (nearestFieldBase && nearestFieldBase.gap < PLAYER_BASE_MINIMUM_SEPARATION_METERS) {
+    return { ok: false, reason: `簡易拠点から${PLAYER_BASE_MINIMUM_SEPARATION_METERS}m以上離れてください。`, nearest: nearestFieldBase, current: bases.length, limit };
+  }
   return {
     ok: true,
     current: bases.length,
@@ -72,7 +79,7 @@ export class PlayerBaseSystem {
     const sequence = activePlayerBases(state).length + 1;
     const base = {
       id: stableId('player_base', preview.node.id, establishedAt, sequence),
-      name: `前線拠点 ${sequence}`,
+      name: `主要拠点 ${sequence}`,
       status: 'ESTABLISHED',
       primary: false,
       nodeId: preview.node.id,

@@ -98,8 +98,10 @@ test('squad destroys an enemy base, schedules respawn and returns to its origin'
   assert.equal(state.world.baseRespawns.length, 1);
   assert.equal(state.statistics.campsCaptured, 1);
   assert.equal(squad.status, FRIENDLY_SQUAD_STATUS.RETURNING);
-  for (let index = 0; index < 200; index += 1) system.update(state, 1, emptySpatial);
-  assert.equal(state.combat.friendlySquads.length, 0);
+  for (let index = 0; index < 280; index += 1) system.update(state, 1, emptySpatial);
+  assert.equal(state.combat.friendlySquads.length, 1);
+  assert.equal(squad.status, FRIENDLY_SQUAD_STATUS.READY);
+  assert.equal(squad.hp, squad.maxHp);
 });
 
 test('friendly squads survive JSON save and restore without exact base coordinates', () => {

@@ -31,6 +31,7 @@ function sanitizeState(state) {
   copy.world.recoveryCollection = null;
   if (copy.world.homeBase) delete copy.world.homeBase.location;
   for (const base of copy.world.playerBases ?? []) delete base.location;
+  for (const base of copy.world.fieldBases ?? []) delete base.location;
   copy.world.roadGraph = sanitizeGraph(copy.world.roadGraph);
   return { copy, timestamp };
 }

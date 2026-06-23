@@ -1,6 +1,118 @@
-# FRONTLINE ROADS — modular source v0.22.1 tactical orders
+# FRONTLINE ROADS — modular source v0.28.0 retrieval corps
 
 FRONTLINE ROADS is a location-based, continuously progressing road-defense strategy game. This directory is the canonical modular development source.
+
+## Retrieval corps v0.28.0
+
+This release completes phase 7 by adding a deliberately vulnerable remote-recovery option while preserving direct player collection.
+
+- The retrieval squad is available from civilization Lv.0 at major and simple bases. It has 55 HP, 1.2 enemy DPS, no hostile-base damage and a low-cost three-member formation.
+- Dispatching reserves one available recovery item. A player cannot collect the same item while the squad is assigned, and an active player collection blocks squad deployment before any resource or garrison mutation.
+- The squad travels on the road graph, remains vulnerable to normal enemy combat, waits eight seconds at the recovery point, then physically returns to its origin or a surviving major base.
+- Artifacts are credited only after the carrying squad reaches a base. Pickup alone does not increase civilization inventory.
+- Destruction before pickup releases the item at its original point. Destruction while carrying drops it at the squad's exact road position for later player or squad recovery.
+- Withdrawal before pickup abandons the assignment and releases the item. Orphaned reservations are automatically recovered if squad data is lost.
+- Recovery missions support stop, route-selected retreat, resume and withdrawal rules, save/restore, simple-base reorganization and active/peripheral/dormant simulation.
+- Manual five-second GPS collection remains the faster and safer option when the player can physically reach the site.
+
+Full behavior and regression boundaries are documented in `docs/retrieval-corps-v0.28.0.md`.
+
+## Squad recovery and reorganization v0.27.0
+
+This release completes phase 6 of the agreed progression roadmap without adding medical supplies, ammunition, weight or logistics micromanagement.
+
+- Surviving squads now remain at their return base as persistent formations instead of disappearing.
+- Major bases naturally recover every squad to full HP; treatment facilities accelerate healing and reorganization.
+- Treatment facilities unlock at civilization Lv.1, have Tier 1–4 progression and are limited to one per major base.
+- Simple bases reorganize assault, skirmisher and retrieval squads without natural healing. A simple aid station heals those light formations up to 70% HP.
+- Recovery and ready squads cannot receive tactical movement orders. A ready squad of the same type redeploys without formation cost; replacing it with another type costs the new formation normally.
+- If a simple base is destroyed during recovery, the squad evacuates by road to the nearest reachable major base.
+- Deployment, squad details, base command and civilization panels expose recovery state, treatment source, ceiling and remaining time.
+- Recovery state and progress survive save/restore and use the existing world simulation.
+
+Full behavior and values are documented in `docs/squad-recovery-v0.27.0.md`.
+
+
+
+## Combined-arms squads retained from v0.26.0
+
+This section documents phase 5 of the agreed progression roadmap. It adds civilization-gated friendly squad roles without adding logistics, ammunition, weight or supply-item micromanagement.
+
+- Civilization Lv.0 retains the general-purpose assault squad.
+- Civilization Lv.1 unlocks the skirmisher squad: fast movement, priority targeting and high damage against light specialists, but weak performance against armored enemies and hostile bases.
+- Civilization Lv.2 unlocks the siege squad: slow and vulnerable on the road, but highly effective against hostile bases.
+- Civilization Lv.3 unlocks the heavy squad: high durability and a 24 m guard zone that absorbs 45% of damage aimed at nearby friendly squads.
+- Civilization Lv.4 unlocks the expedition squad: strong general combat values and slow self-recovery after ten seconds outside combat.
+- Major bases can deploy every unlocked squad. Simple field bases can deploy assault, skirmisher and retrieval squads; siege, heavy and expedition squads remain major-base only.
+- Deployment previews show the selected squad, route and exact resource cost before confirmation. Locked squads remain visible with their civilization requirement.
+- All squad types use the existing stop, selectable retreat, route-selected resume and withdrawal commands.
+- Squad type, role-specific combat state and expedition recovery cooldown survive save/restore and remote regional simulation.
+- Map glyphs, squad details and the civilization panel identify the active role and unlock level.
+
+Full values and verification boundaries are documented in `docs/combined-arms-v0.26.0.md`.
+
+## Survey network v0.25.0
+
+This release completes phase 4 of the agreed progression roadmap. It adds civilization-gated survey towers that expand the visible road map from owned bases without revealing exact local discoveries remotely.
+
+- Survey towers unlock at civilization Lv.1 and begin at Tier 1.
+- One active survey tower may be assigned to each major or simple base. The player-only construction radius cannot authorize one.
+- Tier 1–4 survey radii are 600, 900, 1,200 and 1,600 m; scan intervals are 180, 150, 120 and 90 seconds per road chunk.
+- Requests are serialized globally and new network acquisitions begin no more often than once every 30 real seconds. Duplicate and recently failed chunk requests are suppressed.
+- Remotely surveyed chunks expose roads, connectivity and unidentified frontier signals. Exact hostile-base placement, recovery items and local exploration sites require physical entry into the chunk.
+- Entering a surveyed chunk promotes it to physically observed state and materializes eligible local content.
+- A survey tower attached to a destroyed simple base stops until that base is rebuilt.
+- Survey progress, remote/physical observation boundaries and tower scheduling state survive save and restore.
+
+Full behavior and verification boundaries are documented in `docs/survey-network-v0.25.0.md`.
+
+## Simple field bases v0.24.0
+
+This section documents phase 3 retained from v0.24.0. Surveying was added in v0.25.0, squad roles in v0.26.0 and recovery facilities in v0.27.0.
+
+- Civilization Lv.1–4 allows one to four simple bases in a separate slot pool from major bases.
+- A simple base has 40 HP, creates a 50 m construction zone and can deploy assault, skirmisher and retrieval squads only.
+- Placement requires fresh GPS, road access within 50 m, at least 140 m from every owned base and at least 120 m from an active hostile base.
+- Major bases retain their 85 m construction zone, full deployment role and separate `civilization level + 1` limit.
+- Enemies may attack a simple base when it is a meaningfully closer settlement target, but do not abandon a much nearer city to do so.
+- Destruction removes construction, deployment and regional-activity benefits. The destroyed site keeps its slot and must be rebuilt in person within 50 m.
+- Major-base placement cannot overwrite an active or destroyed simple-base site.
+- Base command and radar views distinguish `FIELD` bases and `RUIN` sites and can move the camera to either without moving the player.
+- Standing on a simple base still preserves the player's independent 85 m current-location construction zone.
+- Existing saves keep all previously established secondary bases as major bases; none are silently converted.
+
+Full behavior and verification boundaries are documented in `docs/field-bases-v0.24.0.md`.
+
+## Defense tier progression v0.23.0
+
+This section documents phase 2 retained from v0.23.0. Simple bases were added in v0.24.0, surveying in v0.25.0, squad roles in v0.26.0 and recovery in v0.27.0.
+
+- Every new defense starts at Tier 0 and upgrades one tier at a time.
+- The civilization level is the maximum upgrade tier: civilization Lv.1 unlocks Tier 1, through Lv.4 unlocking Tier 4.
+- Every defense line now has deterministic Tier 0–4 durability and operating values.
+- Upgrades consume the displayed resource bundle only after final validation.
+- Upgrades preserve the current HP percentage and cannot be used as free repairs.
+- Ruined defenses must be repaired before upgrading.
+- The selected-defense panel shows the actual tier name, current values, next-tier changes, exact cost and lock reason.
+- The civilization panel summarizes the current tier ceiling and next unlock for every defense line.
+- Existing upgraded defenses are normalized to the new durability table without changing their damage percentage.
+- Gate conversion starts at Tier 2, preserves damage percentage and no longer skips directly from a basic wall to the highest available gate.
+
+Full values and behavior are documented in `docs/defense-tiers-v0.23.0.md`.
+
+
+## System-wide regression audit v0.22.2
+
+This maintenance release audits the v0.22.1 tactical-order implementation against construction, combat, road expansion, frontiers, field recovery, civilization progression, multiple player bases, persistence, offline simulation and PWA delivery. Facility-tier phase 2 remains intentionally unstarted.
+
+- No cross-system state corruption or gameplay regression was found in the existing systems.
+- Friendly-route evaluation now uses combat and friendly-support spatial indexes instead of scanning every enemy and defense for every road edge. A 6,400-node benchmark fell from roughly 0.60 seconds to roughly 0.07 seconds in the build environment.
+- Route distance and ETA now include the squad's remaining distance on its current road segment.
+- Tapping a displayed route line selects that route instead of accidentally adding a waypoint.
+- Route confirmation still revalidates node/edge connectivity and leaves the squad unchanged when a stale or invalid route is rejected.
+- Full serial, parallel, long-simulation, save/restore and mixed-system stress verification passed.
+
+Detailed scope and findings are documented in `docs/system-audit-v0.22.2.md`.
 
 
 ## Tactical squad orders v0.22.1
@@ -59,7 +171,7 @@ Automated straight-road scenarios verify that a level-two mixed wave can now pen
 
 ### Attack squads
 
-Player bases can deploy one aggregate assault squad at a time.
+Each player base can maintain one active deployed aggregate squad and one returning, recovering or ready garrison formation. The original assault squad remains available, and v0.26.0 adds civilization-gated specialist roles.
 
 - The deployment panel selects an origin base and a discovered living enemy base.
 - The preview shows route distance and resource cost without changing state.
@@ -92,7 +204,7 @@ The player-base limit is `civilization level + 1`.
 
 `BASES // 拠点` opens the base command panel.
 
-- Every established base displays HP, nearby enemies, nearby defenses, deployed squads and nearby uncollected items.
+- Every established base displays HP, nearby enemies, nearby defenses, active/recovering/ready squads and nearby uncollected items.
 - `この拠点をMAP表示` moves only the map camera; it never changes the player's physical position.
 - When a base slot is available, the same panel can establish a new base at the player's verified current location.
 
@@ -148,4 +260,4 @@ Run:
 npm run verify
 ```
 
-The release archive contains the complete modular source and tests. Browser-launch attempts in the build container are documented under `docs/browser-test-limit-v0.22.1.md`; final GPS, Overpass and mobile-layout checks must be performed on the deployed HTTPS page.
+The release archive contains the complete modular source and tests. Browser-launch attempts in the build container are documented under `docs/browser-test-limit-v0.28.0.md`; final GPS, Overpass and mobile-layout checks must be performed on the deployed HTTPS page.

@@ -49,7 +49,7 @@ test('base command panel summarizes remote threats, facilities, squads and recov
   const state = fixture();
   state.combat.friendlySquads = [{ id: 'squad', originBaseId: 'remote-base', hp: 100 }];
   const summary = summarizePlayerBase(state, state.world.playerBases[1]);
-  assert.deepEqual(summary, { nearbyEnemies: 1, facilities: 1, squads: 1, recoveryItems: 1, alert: '交戦警戒' });
+  assert.deepEqual(summary, { nearbyEnemies: 1, facilities: 1, squads: 1, activeSquads: 1, recoveringSquads: 0, readySquads: 0, recoveryItems: 1, alert: '交戦警戒' });
 });
 
 test('base command UI lists all bases and switches the map camera without moving the player', () => {
@@ -70,12 +70,12 @@ test('base command UI lists all bases and switches the map camera without moving
     ui.open();
     const html = elements.get('#baseCommandBody').innerHTML;
     assert.match(html, /本拠地/);
-    assert.match(html, /前線拠点 2/);
+    assert.match(html, /主要拠点 2/);
     assert.match(html, /この拠点をMAP表示/);
     ui.handleAction({ target: { closest() { return { dataset: { action: 'focus-base', baseId: 'remote-base' } }; } } });
     assert.equal(centered.id, 'remote-base');
     assert.deepEqual(state.player.worldPosition, originalPlayer);
-    assert.match(elements.get('#baseSummary').textContent, /表示 前線拠点 2/);
+    assert.match(elements.get('#baseSummary').textContent, /表示 主要拠点 2/);
   } finally { globalThis.document = prior; }
 });
 
@@ -106,4 +106,41 @@ test('combat renderer includes a distinct marker for secondary player bases', as
   const source = await (await import('node:fs/promises')).readFile(new URL('../src/rendering/combat-renderer.js', import.meta.url), 'utf8');
   assert.match(source, /drawPlayerBase/);
   assert.match(source, /BASE/);
+});
+
+test('base command UI lists simple bases separately and can focus or rebuild a destroyed one', async () => {
+  const prior = globalThis.document;
+  const { elements, document } = setupDocument();
+  globalThis.document = document;
+  try {
+    const { FieldBaseSystem } = await import('../src/base/field-base-system.js');
+    const state = fixture();
+    state.world.fieldBases = [{ id: 'field-1', kind: 'FIELD', name: '簡易拠点 1', status: 'DESTROYED', nodeId: 'remote', x: 400, y: 0, hp: 0, maxHp: 40, establishedAt: 3, destroyedAt: 4 }];
+    state.player.worldPosition = { x: 400, y: 0 };
+    state.player.locationUpdatedAt = Date.now();
+    state.player.locationAccuracy = 8;
+    let centered = null;
+    const ui = new BaseCommandUi({
+      store: { select(selector) { return selector(state); }, mutate(mutator) { mutator(state); } },
+      playerBaseSystem: new PlayerBaseSystem(),
+      fieldBaseSystem: new FieldBaseSystem(),
+      renderer: { centerOn(point) { centered = point; }, invalidateStatic() {}, render() {} },
+      notifications: { show() {} }, persist() {}
+    });
+    ui.open();
+    assert.match(elements.get('#baseCommandBody').innerHTML, /簡易拠点 1/);
+    assert.match(elements.get('#baseCommandBody').innerHTML, /現地で簡易拠点を再建/);
+    ui.handleAction({ target: { closest() { return { dataset: { action: 'focus-base', baseId: 'field-1', baseKind: 'field' } }; } } });
+    assert.equal(centered.id, 'field-1');
+    ui.handleAction({ target: { closest() { return { dataset: { action: 'rebuild-field-base', baseId: 'field-1' } }; } } });
+    assert.equal(state.world.fieldBases[0].status, 'ESTABLISHED');
+    assert.equal(state.world.fieldBases[0].hp, 40);
+  } finally { globalThis.document = prior; }
+});
+
+test('combat renderer includes a distinct marker for simple bases and ruins', async () => {
+  const source = await (await import('node:fs/promises')).readFile(new URL('../src/rendering/combat-renderer.js', import.meta.url), 'utf8');
+  assert.match(source, /drawFieldBase/);
+  assert.match(source, /FIELD/);
+  assert.match(source, /RUIN/);
 });

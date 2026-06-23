@@ -2,6 +2,8 @@ import { clamp } from '../core/utilities.js';
 import { edgeMidpoint } from '../combat/combat-geometry.js';
 import { enemyPosition } from '../combat/enemy-system.js';
 import { friendlySquadPosition } from '../combat/friendly-force-system.js';
+import { friendlySquadDefinition } from '../combat/friendly-force-definitions.js';
+import { recoveryItemPoint } from '../exploration/recovery-system.js';
 import { sweepIntensity } from './radar-renderer.js';
 
 const TAU = Math.PI * 2;
@@ -122,6 +124,9 @@ function drawBarrier(context, point, angle, quality) {
 function defenseColor(type) {
   if (type === 'mortar') return '#ffbc73';
   if (type === 'relay') return '#68ffd4';
+  if (type === 'survey') return '#ffd166';
+  if (type === 'medical') return '#ff8fb3';
+  if (type === 'fieldAid') return '#91f0b5';
   if (type === 'slow') return '#bb8cff';
   return '#65d7ff';
 }
@@ -142,6 +147,25 @@ function drawDefense(context, point, type, quality) {
     context.beginPath();
     context.arc(point.x, point.y, 1.6, 0, TAU);
     context.fill();
+  } else if (type === 'survey') {
+    context.strokeStyle = color;
+    context.lineWidth = 1.2;
+    context.beginPath();
+    context.moveTo(point.x, point.y - 6);
+    context.lineTo(point.x, point.y + 6);
+    context.moveTo(point.x - 5, point.y - 2);
+    context.lineTo(point.x + 5, point.y - 2);
+    context.stroke();
+    ring(context, { x: point.x, y: point.y - 6 }, 2.2, color, 1, 0.9);
+  } else if (type === 'medical' || type === 'fieldAid') {
+    context.strokeStyle = color;
+    context.lineWidth = 2;
+    context.beginPath();
+    context.moveTo(point.x - 5, point.y);
+    context.lineTo(point.x + 5, point.y);
+    context.moveTo(point.x, point.y - 5);
+    context.lineTo(point.x, point.y + 5);
+    context.stroke();
   } else {
     polygon(context, point, 5.5, 4, 0, 'rgba(187,140,255,0.2)', color, 1.2);
   }
@@ -163,18 +187,22 @@ function drawEnemyBlip(context, point, radius, slowed, intensity, timeMs, qualit
 }
 
 
-function drawFriendlySquad(context, point, status, timeMs, quality) {
-  const color = status === 'ENGAGED' || status === 'ATTACKING_BASE' ? '#fff3a1' : '#65d7ff';
+function drawFriendlySquad(context, point, status, type, timeMs, quality) {
+  const definition = friendlySquadDefinition(type);
+  const baseColors = { assault: '#65d7ff', skirmisher: '#62ffd2', siege: '#ffbd70', heavy: '#b9a4ff', expedition: '#f4f59a', retrieval: '#ffffff' };
+  const baseColor = baseColors[definition.type] ?? '#65d7ff';
+  const color = status === 'ENGAGED' || status === 'ATTACKING_BASE' ? '#fff3a1' : baseColor;
+  const sides = definition.type === 'skirmisher' ? 3 : definition.type === 'heavy' ? 6 : definition.type === 'siege' ? 5 : definition.type === 'retrieval' ? 8 : 4;
   const pulse = 10 + Math.sin(timeMs * 0.006) * 1.2;
   context.save();
   glow(context, color, 13, quality);
-  polygon(context, point, 6.5, 4, Math.PI / 4, 'rgba(101,215,255,0.2)', color, 1.5);
+  polygon(context, point, 6.5, sides, Math.PI / 4, 'rgba(101,215,255,0.2)', color, 1.5);
   ring(context, point, pulse, color, 1, 0.52, true);
   context.fillStyle = color;
   context.font = '800 7px ui-monospace, monospace';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
-  context.fillText('ALLY', point.x, point.y + 0.5);
+  context.fillText(definition.shortLabel, point.x, point.y + 0.5);
   context.restore();
 }
 
@@ -191,6 +219,22 @@ function drawCity(context, point, timeMs, quality) {
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   context.fillText('HQ', point.x, point.y + 0.4);
+  context.restore();
+}
+
+
+function drawFieldBase(context, point, active, timeMs, quality) {
+  const color = active ? '#65d7ff' : '#7c8b91';
+  const pulse = 11 + Math.sin(timeMs * 0.0038) * 1.1;
+  context.save();
+  glow(context, color, active ? 10 : 2, quality);
+  polygon(context, point, 7, 4, Math.PI / 4, active ? 'rgba(101,215,255,0.14)' : 'rgba(100,112,118,0.16)', color, 1.3);
+  ring(context, point, pulse, color, 1, active ? 0.42 : 0.24, true);
+  context.fillStyle = color;
+  context.font = '800 7px ui-monospace, monospace';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(active ? 'FIELD' : 'RUIN', point.x, point.y + 0.4);
   context.restore();
 }
 
@@ -319,8 +363,8 @@ export function drawCombatState(context, state, camera, radar = {}) {
 
   for (const item of state.world.recoveryItems ?? []) {
     if (item.status !== 'AVAILABLE') continue;
-    const node = graph.nodeById.get(item.nodeId) ?? item;
-    const point = camera.worldToScreen(node);
+    const itemPosition = recoveryItemPoint(state, item);
+    const point = camera.worldToScreen(itemPosition);
     if (visiblePoint(point, camera, 24)) drawRecoveryItem(context, point, timeMs, quality);
   }
 
@@ -328,7 +372,7 @@ export function drawCombatState(context, state, camera, radar = {}) {
     if (squad.hp <= 0) continue;
     const point = camera.worldToScreen(friendlySquadPosition(state, squad));
     if (!visiblePoint(point, camera, 24)) continue;
-    drawFriendlySquad(context, point, squad.status, timeMs, quality);
+    drawFriendlySquad(context, point, squad.status, squad.type, timeMs, quality);
     if (shouldDrawHealth(squad.hp, squad.maxHp, quality)) drawHealthBar(context, point, squad.hp, squad.maxHp, 22, 10, quality);
   }
 
@@ -366,6 +410,15 @@ export function drawCombatState(context, state, camera, radar = {}) {
     if (!visiblePoint(point, camera, 32)) continue;
     drawPlayerBase(context, point, timeMs, quality);
     if (shouldDrawHealth(base.hp, base.maxHp, quality)) drawHealthBar(context, point, base.hp, base.maxHp, 24, 14, quality);
+  }
+
+  for (const base of state.world.fieldBases ?? []) {
+    const node = graph.nodeById.get(base.nodeId) ?? base;
+    const point = camera.worldToScreen(node);
+    if (!visiblePoint(point, camera, 28)) continue;
+    const active = base.status === 'ESTABLISHED' && base.hp > 0;
+    drawFieldBase(context, point, active, timeMs, quality);
+    if (active && shouldDrawHealth(base.hp, base.maxHp, quality)) drawHealthBar(context, point, base.hp, base.maxHp, 20, 12, quality);
   }
 
   const cityNode = graph.nodeById.get(state.world.city.nodeId);

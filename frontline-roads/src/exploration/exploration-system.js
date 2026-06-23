@@ -80,12 +80,12 @@ export function ensureExplorationState(state) {
 }
 
 function materializeFrontierSources(state) {
-  const loaded = new Set(state.world.roadChunks?.loaded ?? []);
+  const observed = new Set(state.world.roadChunks?.playerObserved ?? state.world.roadChunks?.loaded ?? []);
   const sites = state.world.explorationSites;
   for (const source of state.world.frontierSources ?? []) {
     if (source.status === 'CLEARED' || sites.some(site => site.sourceId === source.id)) continue;
     const sourceChunkId = chunkForWorldPoint(source.point, state.world.roadChunks.sizeMeters).id;
-    if (!loaded.has(sourceChunkId)) continue;
+    if (!observed.has(sourceChunkId)) continue;
     const nearest = nearestNodeInChunk(state, sourceChunkId, source.point, 260);
     if (!nearest) continue;
     const site = createSite({
@@ -107,7 +107,7 @@ function materializeFrontierSources(state) {
 function createAmbientSites(state) {
   const processed = new Set(state.world.exploredSiteChunks);
   const cityNode = state.world.roadGraph.nodeById.get(state.world.city?.nodeId);
-  for (const chunkIdValue of state.world.roadChunks?.loaded ?? []) {
+  for (const chunkIdValue of state.world.roadChunks?.playerObserved ?? state.world.roadChunks?.loaded ?? []) {
     if (processed.has(chunkIdValue)) continue;
     processed.add(chunkIdValue);
     state.world.exploredSiteChunks.push(chunkIdValue);

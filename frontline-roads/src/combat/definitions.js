@@ -27,7 +27,7 @@ export const ENEMY_DEFINITIONS = Object.freeze({
   raider: {
     name: '破壊工作員', hp: 55, speed: 1.3, cityDamage: 6, barrierDps: 3, radius: 4.9, drops: ENEMY_DROPS.raider,
     barrierStrategy: 'avoid', barrierCostFactor: 2.0, routeLabel: '潜入迂回', objectiveLabel: '支援・火力施設',
-    targetPriorities: ['relay', 'mortar', 'gun', 'slow'], facilityDps: 12, stunSeconds: 8,
+    targetPriorities: ['medical', 'fieldAid', 'relay', 'mortar', 'gun', 'slow'], facilityDps: 12, stunSeconds: 8,
     attackMessage: '破壊工作員が防衛施設を停止させました。'
   },
   archer: {
@@ -127,18 +127,24 @@ export const ENEMY_BASE_DEFINITIONS = Object.freeze({
   }
 });
 
-const ICONS = Object.freeze({ barrier: '▰', gun: '⌁', mortar: '◉', slow: '◌', relay: '⚒' });
-const KINDS = Object.freeze({ barrier: 'barrier', gun: 'tower', mortar: 'tower', slow: 'tower', relay: 'tower' });
+const ICONS = Object.freeze({ barrier: '▰', gun: '⌁', mortar: '◉', slow: '◌', relay: '⚒', survey: '⌖', medical: '✚', fieldAid: '＋' });
+const KINDS = Object.freeze({ barrier: 'barrier', gun: 'tower', mortar: 'tower', slow: 'tower', relay: 'tower', survey: 'tower', medical: 'tower', fieldAid: 'tower' });
+const INITIAL_TIERS = Object.freeze({ survey: 1, medical: 1, fieldAid: 1 });
 
 export const DEFENSE_DEFINITIONS = Object.freeze(Object.fromEntries(
-  ['barrier', 'gun', 'mortar', 'slow', 'relay'].map(type => {
-    const tier = defenseTierDefinition(type, 0);
+  ['barrier', 'gun', 'mortar', 'slow', 'relay', 'survey', 'medical', 'fieldAid'].map(type => {
+    const initialTier = INITIAL_TIERS[type] ?? 0;
+    const tier = defenseTierDefinition(type, initialTier);
     return [type, Object.freeze({
       type,
       line: defenseLineForType(type),
       name: tier.name,
       icon: ICONS[type],
       kind: KINDS[type],
+      initialTier,
+      requiredCivilizationLevel: initialTier,
+      allowedAnchorKinds: type === 'survey' ? ['MAJOR', 'FIELD'] : type === 'medical' ? ['MAJOR'] : type === 'fieldAid' ? ['FIELD'] : null,
+      limitPerAnchor: ['survey', 'medical', 'fieldAid'].includes(type) ? 1 : null,
       cost: tier.cost,
       hp: tier.hp,
       range: tier.range,
@@ -150,20 +156,34 @@ export const DEFENSE_DEFINITIONS = Object.freeze(Object.fromEntries(
       slowSeconds: tier.duration,
       slow: tier.slow,
       repairTower: tier.repairTower,
-      repairBarrier: tier.repairBarrier
+      repairBarrier: tier.repairBarrier,
+      surveyRadius: tier.surveyRadius,
+      scanInterval: tier.scanInterval,
+      recoveryRate: tier.recoveryRate,
+      recoveryCap: tier.recoveryCap,
+      reorganizationSeconds: tier.reorganizationSeconds,
+      recoveryCapacity: tier.recoveryCapacity
     })];
   })
 ));
 
 export function defenseRuntimeDefinition(defense) {
   const line = defense.isGate ? 'gate' : defense.line ?? defenseLineForType(defense.type);
-  const base = DEFENSE_LINES[line]?.[defense.tier ?? 0] ?? DEFENSE_DEFINITIONS[defense.type];
+  const fallback = DEFENSE_DEFINITIONS[defense.type];
+  const base = DEFENSE_LINES[line]?.[defense.tier ?? 0] ?? fallback;
   return {
-    ...DEFENSE_DEFINITIONS[defense.type],
+    ...fallback,
     ...base,
-    slowSeconds: base.duration ?? DEFENSE_DEFINITIONS[defense.type]?.slowSeconds,
-    blastRadius: base.blastRadius ?? DEFENSE_DEFINITIONS[defense.type]?.blastRadius,
-    maxTargets: base.maxTargets ?? DEFENSE_DEFINITIONS[defense.type]?.maxTargets,
-    splashMultiplier: base.splashMultiplier ?? DEFENSE_DEFINITIONS[defense.type]?.splashMultiplier
+    hp: Math.max(1, Number(defense.maxHp) || Number(base?.hp) || Number(fallback?.hp) || 1),
+    slowSeconds: base?.duration ?? fallback?.slowSeconds,
+    blastRadius: base?.blastRadius ?? fallback?.blastRadius,
+    maxTargets: base?.maxTargets ?? fallback?.maxTargets,
+    splashMultiplier: base?.splashMultiplier ?? fallback?.splashMultiplier,
+    surveyRadius: base?.surveyRadius ?? fallback?.surveyRadius,
+    scanInterval: base?.scanInterval ?? fallback?.scanInterval,
+    recoveryRate: base?.recoveryRate ?? fallback?.recoveryRate,
+    recoveryCap: base?.recoveryCap ?? fallback?.recoveryCap,
+    reorganizationSeconds: base?.reorganizationSeconds ?? fallback?.reorganizationSeconds,
+    recoveryCapacity: base?.recoveryCapacity ?? fallback?.recoveryCapacity
   };
 }

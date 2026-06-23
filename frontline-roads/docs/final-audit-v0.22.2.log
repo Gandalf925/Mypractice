@@ -1,0 +1,56 @@
+FRONTLINE ROADS v0.22.2 SYSTEM AUDIT
+=======================================
+
+Release: 0.22.2-system-audit
+Phase 2 facility tiers: NOT STARTED
+
+FULL VERIFICATION
+# tests 207
+# pass 207
+# fail 0
+# duration_ms 3648.38505
+
+SERIAL TEST EXECUTION
+# tests 207
+# pass 207
+# fail 0
+# duration_ms 6303.116755
+
+PARALLEL TEST EXECUTION
+# tests 207
+# pass 207
+# fail 0
+# duration_ms 3295.447927
+
+STATIC STRUCTURE
+production_js_modules=89
+reachable_from_bootstrap=89
+unreachable=0
+missing_relative_imports=0
+import_cycles=0
+html_ids=55
+duplicate_html_ids=0
+css_brace_delta=0
+empty_files=0
+
+ROUTE-PLANNER REFERENCE BENCHMARK
+400 nodes: 8.52 ms (12.73, 6.21, 6.61)
+1600 nodes: 12.63 ms (15.01, 12.30, 10.57)
+3600 nodes: 28.50 ms (32.26, 27.13, 26.12)
+6400 nodes: 56.31 ms (57.32, 53.46, 58.14)
+
+MIXED-SYSTEM STRESS
+Result: PASS
+Scope: multiple player bases, hostile bases, friendly squads, enemy sorties, stop/retreat/withdraw, save/restore, and remote simulation.
+Checked: route validity, edge progress, engagement references, resource bounds, serialization, and non-teleporting orders.
+
+ISSUES FOUND AND CORRECTED
+1. Route scoring rescanned global enemy/defense collections per edge; replaced with spatial indexes and per-plan edge caches.
+2. Route distance/ETA omitted the remaining current-edge distance; corrected.
+3. Tapping a displayed route line added a waypoint; route hit-testing now selects the route first.
+4. An obsolete direct enemy-position import left by the optimization was removed.
+
+BROWSER ATTEMPT
+Result: INCONCLUSIVE DUE TO BUILD-CONTAINER RESTRICTIONS
+Chromium timed out before DOM output and reported DBus, netlink, and inotify restrictions.
+See docs/browser-test-limit-v0.22.2.md.

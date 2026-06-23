@@ -18,10 +18,10 @@ export const INITIAL_RESOURCES = Object.freeze({ wood: 150, stone: 100, fiber: 7
 
 export const CIVILIZATIONS = Object.freeze([
   { level: 0, name: '原始集落', central: '中央焚火', slots: 2, graceMinutes: 0, capacity: { base: 300, processed: 0, ore: 0, metal: 0 }, unlocks: ['barrier0', 'single0', 'area0', 'slow0', 'repair0'] },
-  { level: 1, name: '定住集落', central: '集会小屋', slots: 5, graceMinutes: 15, capacity: { base: 800, processed: 200, ore: 0, metal: 0 }, unlocks: ['storehouse1', 'carpentry', 'ropeworks', 'stonecutter', 'barrier1', 'single1', 'area1', 'slow1', 'repair1'] },
-  { level: 2, name: '石工集落', central: '石造集会所', slots: 10, graceMinutes: 15, capacity: { base: 1500, processed: 500, ore: 300, metal: 300 }, unlocks: ['storehouse2', 'charcoalKiln', 'copperFurnace', 'tinFurnace', 'trialBronzeFurnace', 'barrier2', 'gate2', 'single2', 'area2', 'slow2', 'repair2'] },
-  { level: 3, name: '青銅砦', central: '青銅の砦', slots: 14, graceMinutes: 15, capacity: { base: 3000, processed: 1000, ore: 500, metal: 500 }, unlocks: ['storehouse3', 'bronzeWorkshop', 'bloomery', 'forge', 'barrier3', 'gate3', 'single3', 'area3', 'slow3', 'repair3'] },
-  { level: 4, name: '鉄器都市', central: '鉄の城館', slots: 16, graceMinutes: 0, capacity: { base: 6000, processed: 2000, ore: 1000, metal: 1000 }, unlocks: ['storehouse4', 'barrier4', 'gate4', 'single4', 'area4', 'slow4', 'repair4'] }
+  { level: 1, name: '定住集落', central: '集会小屋', slots: 5, graceMinutes: 15, capacity: { base: 800, processed: 200, ore: 0, metal: 0 }, unlocks: ['storehouse1', 'carpentry', 'ropeworks', 'stonecutter', 'barrier1', 'single1', 'area1', 'slow1', 'repair1', 'survey1', 'medical1', 'fieldAid1'] },
+  { level: 2, name: '石工集落', central: '石造集会所', slots: 10, graceMinutes: 15, capacity: { base: 1500, processed: 500, ore: 300, metal: 300 }, unlocks: ['storehouse2', 'charcoalKiln', 'copperFurnace', 'tinFurnace', 'trialBronzeFurnace', 'barrier2', 'gate2', 'single2', 'area2', 'slow2', 'repair2', 'survey2', 'medical2'] },
+  { level: 3, name: '青銅砦', central: '青銅の砦', slots: 14, graceMinutes: 15, capacity: { base: 3000, processed: 1000, ore: 500, metal: 500 }, unlocks: ['storehouse3', 'bronzeWorkshop', 'bloomery', 'forge', 'barrier3', 'gate3', 'single3', 'area3', 'slow3', 'repair3', 'survey3', 'medical3'] },
+  { level: 4, name: '鉄器都市', central: '鉄の城館', slots: 16, graceMinutes: 0, capacity: { base: 6000, processed: 2000, ore: 1000, metal: 1000 }, unlocks: ['storehouse4', 'barrier4', 'gate4', 'single4', 'area4', 'slow4', 'repair4', 'survey4', 'medical4'] }
 ]);
 
 export const CIVILIZATION_PROJECTS = Object.freeze({
@@ -71,31 +71,49 @@ export const DEFENSE_LINES = Object.freeze({
   ],
   single: [
     { key: 'single0', name: '投石台', type: 'gun', hp: 150, range: 78, damage: 5, cooldown: 2.2, cost: { wood: 28, stone: 22, fiber: 8 } },
-    { key: 'single1', name: '見張り投石台', range: 85, damage: 7, cooldown: 2, upgrade: { timber: 5, rope: 2, stone: 12 } },
-    { key: 'single2', name: '石造監視塔', range: 92, damage: 10, cooldown: 1.9, upgrade: { cutStone: 8, timber: 5, rope: 2 } },
-    { key: 'single3', name: '青銅投槍台', range: 100, damage: 17, cooldown: 1.8, upgrade: { timber: 8, rope: 3, bronzeIngot: 6 } },
-    { key: 'single4', name: '鉄弩砲', range: 115, damage: 30, cooldown: 2, upgrade: { timber: 10, rope: 4, wroughtIron: 10 } }
+    { key: 'single1', name: '強化投石台', hp: 180, range: 85, damage: 7, cooldown: 2, upgrade: { timber: 5, rope: 2, stone: 12 } },
+    { key: 'single2', name: '石造投石塔', hp: 225, range: 92, damage: 10, cooldown: 1.9, upgrade: { cutStone: 8, timber: 5, rope: 2 } },
+    { key: 'single3', name: '青銅投槍台', hp: 280, range: 100, damage: 17, cooldown: 1.8, upgrade: { timber: 8, rope: 3, bronzeIngot: 6 } },
+    { key: 'single4', name: '鉄弩砲', hp: 350, range: 115, damage: 30, cooldown: 2, upgrade: { timber: 10, rope: 4, wroughtIron: 10 } }
   ],
   area: [
     { key: 'area0', name: '岩落とし台', type: 'mortar', hp: 150, range: 90, damage: 18, cooldown: 16, blastRadius: 18, maxTargets: 3, splashMultiplier: 0.60, cost: { wood: 50, stone: 60, fiber: 18 } },
-    { key: 'area1', name: '大型岩落とし台', range: 100, damage: 24, cooldown: 15, blastRadius: 20, maxTargets: 3, splashMultiplier: 0.60, upgrade: { timber: 4, cutStone: 4 } },
-    { key: 'area2', name: '牽引式投石機', range: 115, damage: 34, cooldown: 14, blastRadius: 22, maxTargets: 4, splashMultiplier: 0.60, upgrade: { cutStone: 10, timber: 8, rope: 5 } },
-    { key: 'area3', name: '青銅破砕機', range: 132, damage: 48, cooldown: 13, blastRadius: 25, maxTargets: 5, splashMultiplier: 0.65, upgrade: { cutStone: 16, timber: 10, bronzeIngot: 8 } },
-    { key: 'area4', name: '重投石機', range: 150, damage: 68, cooldown: 12, blastRadius: 28, maxTargets: 6, splashMultiplier: 0.65, upgrade: { cutStone: 20, timber: 16, rope: 8, wroughtIron: 8 } }
+    { key: 'area1', name: '大型岩落とし台', hp: 185, range: 100, damage: 24, cooldown: 15, blastRadius: 20, maxTargets: 3, splashMultiplier: 0.60, upgrade: { timber: 4, cutStone: 4 } },
+    { key: 'area2', name: '牽引式投石機', hp: 235, range: 115, damage: 34, cooldown: 14, blastRadius: 22, maxTargets: 4, splashMultiplier: 0.60, upgrade: { cutStone: 10, timber: 8, rope: 5 } },
+    { key: 'area3', name: '青銅破砕機', hp: 300, range: 132, damage: 48, cooldown: 13, blastRadius: 25, maxTargets: 5, splashMultiplier: 0.65, upgrade: { cutStone: 16, timber: 10, bronzeIngot: 8 } },
+    { key: 'area4', name: '重投石機', hp: 380, range: 150, damage: 68, cooldown: 12, blastRadius: 28, maxTargets: 6, splashMultiplier: 0.65, upgrade: { cutStone: 20, timber: 16, rope: 8, wroughtIron: 8 } }
   ],
   slow: [
     { key: 'slow0', name: '蔓縄罠', type: 'slow', hp: 150, range: 72, slow: 0.25, duration: 6, damage: 1, maxTargets: 3, cooldown: 8, cost: { wood: 14, stone: 8, fiber: 28 } },
-    { key: 'slow1', name: '杭と縄の罠', range: 78, slow: 0.30, duration: 7, damage: 1, maxTargets: 3, cooldown: 7.5, upgrade: { timber: 2, rope: 4 } },
-    { key: 'slow2', name: '重石罠', range: 86, slow: 0.36, duration: 8, damage: 2, maxTargets: 4, cooldown: 7, upgrade: { cutStone: 5, rope: 4 } },
-    { key: 'slow3', name: '青銅拘束具', range: 94, slow: 0.42, duration: 9, damage: 3, maxTargets: 5, cooldown: 6.5, upgrade: { cutStone: 8, rope: 4, bronzeIngot: 5 } },
-    { key: 'slow4', name: '鉄杭罠', range: 102, slow: 0.48, duration: 10, damage: 4, maxTargets: 6, cooldown: 6, upgrade: { timber: 4, rope: 3, wroughtIron: 5 } }
+    { key: 'slow1', name: '杭と縄の罠', hp: 175, range: 78, slow: 0.30, duration: 7, damage: 1, maxTargets: 3, cooldown: 7.5, upgrade: { timber: 2, rope: 4 } },
+    { key: 'slow2', name: '重石罠', hp: 215, range: 86, slow: 0.36, duration: 8, damage: 2, maxTargets: 4, cooldown: 7, upgrade: { cutStone: 5, rope: 4 } },
+    { key: 'slow3', name: '青銅拘束具', hp: 260, range: 94, slow: 0.42, duration: 9, damage: 3, maxTargets: 5, cooldown: 6.5, upgrade: { cutStone: 8, rope: 4, bronzeIngot: 5 } },
+    { key: 'slow4', name: '鉄杭罠', hp: 320, range: 102, slow: 0.48, duration: 10, damage: 4, maxTargets: 6, cooldown: 6, upgrade: { timber: 4, rope: 3, wroughtIron: 5 } }
   ],
   repair: [
     { key: 'repair0', name: '修繕小屋', type: 'relay', hp: 180, range: 105, repairTower: 5, repairBarrier: 6, cooldown: 3, cost: { wood: 34, stone: 14, fiber: 18 } },
-    { key: 'repair1', name: '木工修繕所', range: 110, repairTower: 7, repairBarrier: 8, cooldown: 3, upgrade: { timber: 6, rope: 2 } },
-    { key: 'repair2', name: '石工修繕所', range: 115, repairTower: 9, repairBarrier: 10, cooldown: 2.8, upgrade: { cutStone: 8, timber: 6 } },
-    { key: 'repair3', name: '青銅修繕所', range: 120, repairTower: 12, repairBarrier: 14, cooldown: 2.7, upgrade: { cutStone: 10, timber: 8, bronzeIngot: 5 } },
-    { key: 'repair4', name: '鉄器修繕所', range: 128, repairTower: 16, repairBarrier: 18, cooldown: 2.5, upgrade: { cutStone: 12, timber: 8, wroughtIron: 8 } }
+    { key: 'repair1', name: '木工修繕所', hp: 220, range: 110, repairTower: 7, repairBarrier: 8, cooldown: 3, upgrade: { timber: 6, rope: 2 } },
+    { key: 'repair2', name: '石工修繕所', hp: 270, range: 115, repairTower: 9, repairBarrier: 10, cooldown: 2.8, upgrade: { cutStone: 8, timber: 6 } },
+    { key: 'repair3', name: '青銅修繕所', hp: 330, range: 120, repairTower: 12, repairBarrier: 14, cooldown: 2.7, upgrade: { cutStone: 10, timber: 8, bronzeIngot: 5 } },
+    { key: 'repair4', name: '鉄器修繕所', hp: 410, range: 128, repairTower: 16, repairBarrier: 18, cooldown: 2.5, upgrade: { cutStone: 12, timber: 8, wroughtIron: 8 } }
+  ],
+  medical: [
+    null,
+    { key: 'medical1', name: '応急治療所', type: 'medical', hp: 170, recoveryRate: 0.012, reorganizationSeconds: 30, recoveryCapacity: 1, cost: { timber: 8, rope: 3, cutStone: 4 } },
+    { key: 'medical2', name: '石造治療所', hp: 220, recoveryRate: 0.016, reorganizationSeconds: 24, recoveryCapacity: 1, upgrade: { cutStone: 8, timber: 5, rope: 2 } },
+    { key: 'medical3', name: '軍医所', hp: 285, recoveryRate: 0.021, reorganizationSeconds: 18, recoveryCapacity: 2, upgrade: { cutStone: 12, timber: 7, bronzeIngot: 5 } },
+    { key: 'medical4', name: '総合治療所', hp: 360, recoveryRate: 0.027, reorganizationSeconds: 12, recoveryCapacity: 2, upgrade: { cutStone: 16, timber: 10, wroughtIron: 7 } }
+  ],
+  fieldAid: [
+    null,
+    { key: 'fieldAid1', name: '簡易救護所', type: 'fieldAid', hp: 115, recoveryRate: 0.008, recoveryCap: 0.70, reorganizationSeconds: 45, recoveryCapacity: 1, cost: { timber: 4, rope: 2, fiber: 20 } }
+  ],
+  survey: [
+    null,
+    { key: 'survey1', name: '木製測量塔', type: 'survey', hp: 160, surveyRadius: 600, scanInterval: 180, cost: { timber: 6, rope: 3, stone: 20 } },
+    { key: 'survey2', name: '石造測量塔', hp: 210, surveyRadius: 900, scanInterval: 150, upgrade: { cutStone: 8, timber: 4, rope: 2 } },
+    { key: 'survey3', name: '青銅測量塔', hp: 270, surveyRadius: 1200, scanInterval: 120, upgrade: { cutStone: 10, timber: 6, bronzeIngot: 5 } },
+    { key: 'survey4', name: '鉄製測量塔', hp: 340, surveyRadius: 1600, scanInterval: 90, upgrade: { cutStone: 14, timber: 8, wroughtIron: 7 } }
   ],
   gate: [
     null,
@@ -126,7 +144,7 @@ export function emptyResourceBundle() {
 }
 
 export function defenseLineForType(type) {
-  return type === 'barrier' ? 'barrier' : type === 'gun' ? 'single' : type === 'mortar' ? 'area' : type === 'slow' ? 'slow' : 'repair';
+  return type === 'barrier' ? 'barrier' : type === 'gun' ? 'single' : type === 'mortar' ? 'area' : type === 'slow' ? 'slow' : type === 'survey' ? 'survey' : type === 'medical' ? 'medical' : type === 'fieldAid' ? 'fieldAid' : 'repair';
 }
 
 export function defenseTierDefinition(type, tier = 0, isGate = false) {

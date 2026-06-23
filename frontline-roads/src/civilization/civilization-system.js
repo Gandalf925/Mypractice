@@ -6,8 +6,11 @@ import { OutpostSystem } from './outpost-system.js';
 import { RESOURCE_OUTPOSTS } from './data.js';
 import { ensurePlayerBaseState } from '../base/player-bases.js';
 import { PlayerBaseSystem } from '../base/player-base-system.js';
+import { ensureFieldBaseState } from '../base/field-bases.js';
+import { FieldBaseSystem } from '../base/field-base-system.js';
 import { ensureFriendlyForceState } from '../combat/friendly-force-system.js';
 import { ensureRecoveryState } from '../exploration/recovery-system.js';
+import { synchronizeDefenseTier } from './defense-upgrade.js';
 
 export function ensureCivilizationState(state, { initializeInventory = false } = {}) {
   state.runtime ??= {};
@@ -33,8 +36,12 @@ export function ensureCivilizationState(state, { initializeInventory = false } =
   ensureInventoryState(state, { initialize: initializeInventory });
   ensureProject(state);
   ensurePlayerBaseState(state);
+  ensureFieldBaseState(state);
   ensureFriendlyForceState(state);
   ensureRecoveryState(state);
+  state.combat ??= {};
+  state.combat.defenses ??= [];
+  for (const defense of state.combat.defenses) synchronizeDefenseTier(defense);
   state.world.outposts ??= [];
   state.world.baseRespawns ??= [];
   for (const outpost of state.world.outposts) {
@@ -62,6 +69,7 @@ export class CivilizationSystem {
     this.settlement = new SettlementSystem(events);
     this.outposts = new OutpostSystem(events);
     this.playerBases = new PlayerBaseSystem(events);
+    this.fieldBases = new FieldBaseSystem(events);
   }
 
   update(state, deltaSeconds) {

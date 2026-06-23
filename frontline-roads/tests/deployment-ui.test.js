@@ -46,11 +46,46 @@ test('deployment UI shows origin, target, route and dispatch action', async () =
     assert.match(html, /前哨基地/);
     assert.match(html, /200m/);
     assert.match(html, /突撃部隊を派兵/);
+    assert.match(html, /遊撃部隊/);
+    assert.match(html, /攻城部隊/);
+    assert.match(html, /重装部隊/);
+    assert.match(html, /遠征部隊/);
+    assert.match(html, /文明Lv\.4で解禁/);
+  } finally { globalThis.document = prior; }
+});
+
+
+test('deployment UI switches to recovery targets for the retrieval squad', async () => {
+  const prior = globalThis.document;
+  const elements = new Map(['deploymentPanel','deploymentBody','deploymentButton','closeDeployment'].map(id => [`#${id}`, new FakeElement()]));
+  globalThis.document = { querySelector(selector) { return elements.get(selector) ?? null; } };
+  try {
+    const { DeploymentUi } = await import('../src/ui/deployment-ui.js');
+    const state = fixture();
+    state.world.recoveryItems = [{
+      id: 'artifact', sourceBaseId: 'destroyed-base', sourceBaseType: 'barracks', nodeId: 'enemy',
+      x: 200, y: 0, artifactType: 'commandSeal', amount: 1, status: 'AVAILABLE', assignedSquadId: null
+    }];
+    const ui = new DeploymentUi({
+      store: { select(selector) { return selector(state); }, mutate(mutator) { mutator(state); } },
+      friendlyForceSystem: new FriendlyForceSystem(),
+      notifications: { show() {} },
+      persist() {}
+    });
+    ui.squadType = 'retrieval';
+    ui.open();
+    const html = elements.get('#deploymentBody').innerHTML;
+    assert.match(html, /回収部隊/);
+    assert.match(html, /回収目標/);
+    assert.match(html, /敵指揮認証鍵/);
+    assert.match(html, /現地回収後、拠点への帰還が必要/);
+    assert.match(html, /回収部隊を派遣/);
+    assert.doesNotMatch(html, /前哨基地<\/strong><span>HP/);
   } finally { globalThis.document = prior; }
 });
 
 test('combat renderer includes visible friendly squad markers', async () => {
   const source = await (await import('node:fs/promises')).readFile(new URL('../src/rendering/combat-renderer.js', import.meta.url), 'utf8');
   assert.match(source, /friendlySquadPosition/);
-  assert.match(source, /ALLY/);
+  assert.match(source, /shortLabel/);
 });

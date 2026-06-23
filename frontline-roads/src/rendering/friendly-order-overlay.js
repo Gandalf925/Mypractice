@@ -6,10 +6,15 @@ function visible(point, camera, margin = 20) {
   return point.x >= -margin && point.y >= -margin && point.x <= camera.viewportWidth + margin && point.y <= camera.viewportHeight + margin;
 }
 
-function routePoints(state, route) {
-  return (route?.path?.nodeIds ?? [])
-    .map(nodeId => state.world.roadGraph.nodeById.get(nodeId))
-    .filter(Boolean);
+function routePoints(state, route, squad) {
+  const points = [friendlySquadPosition(state, squad)];
+  for (const nodeId of route?.path?.nodeIds ?? []) {
+    const node = state.world.roadGraph.nodeById.get(nodeId);
+    if (!node) continue;
+    const previous = points[points.length - 1];
+    if (!previous || previous.x !== node.x || previous.y !== node.y) points.push(node);
+  }
+  return points;
 }
 
 function drawRoute(context, camera, points, selected, index) {
@@ -83,7 +88,7 @@ export function drawFriendlyOrderPlanning(context, state, camera, planning, time
     context.fill();
   }
 
-  (planning.routes ?? []).forEach((route, index) => drawRoute(context, camera, routePoints(state, route), index === planning.selectedRouteIndex, index));
+  (planning.routes ?? []).forEach((route, index) => drawRoute(context, camera, routePoints(state, route, squad), index === planning.selectedRouteIndex, index));
 
   const pulse = 8 + Math.sin(timeMs * 0.006) * 1.5;
   const squadPoint = camera.worldToScreen(friendlySquadPosition(state, squad));

@@ -4,11 +4,12 @@ import { attachGraphIndexes } from './road-graph.js';
 import { mergeRoadGraphs } from './graph-merge.js';
 import {
   chunkCenterLocation,
-  chunkForLocation,
+  chunkForWorldPoint,
   chunksNearWorldPoint,
-  ensureRoadChunkState,
-  parseChunkId
+  ensureRoadChunkState
 } from './world-chunk-grid.js';
+import { activeSurveyFacilities, surveyChunkCandidates, synchronizeSurveyFacility } from '../exploration/survey-system.js';
+import { defenseRuntimeDefinition } from '../combat/definitions.js';
 
 function compactChunkGraph(graph) {
   return {
@@ -40,6 +41,7 @@ export class RoadWorldManager {
     this.pending = new Set();
     this.running = false;
     this.abortController = null;
+    this.lastSurveyEnqueueAt = 0;
   }
 
   ensureState() {
@@ -80,20 +82,70 @@ export class RoadWorldManager {
     const chunks = state.world.roadChunks;
     const worldPoint = state.player.worldPosition;
     if (!worldPoint) return [];
+
+    const observedChunkId = chunkForWorldPoint(worldPoint, chunks.sizeMeters).id;
+    let observationChanged = false;
+    this.store.mutate(draft => {
+      const chunkState = ensureRoadChunkState(draft.world);
+      if ((chunkState.loaded.includes(observedChunkId) || chunkState.empty.includes(observedChunkId)) && !chunkState.playerObserved.includes(observedChunkId)) {
+        chunkState.playerObserved.push(observedChunkId);
+        observationChanged = true;
+      }
+    }, 'roads:player-observed');
+    if (observationChanged) this.graphChanged({ reason: 'player-observed', chunkId: observedChunkId });
+
     const candidates = chunksNearWorldPoint(worldPoint, chunks.sizeMeters)
       .filter(chunk => !chunks.loaded.includes(chunk.id) && !chunks.empty.includes(chunk.id) && !this.pending.has(chunk.id))
       .filter(chunk => {
-        const failedAt = Number(chunks.failed?.[chunk.id]?.at ?? 0);
-        return this.now() - failedAt >= ROAD_CONFIG.chunkRetryCooldownMs;
+        const failure = chunks.failed?.[chunk.id];
+        if (!failure) return true;
+        const failedAt = Number(failure.at);
+        return !Number.isFinite(failedAt) || this.now() - failedAt >= ROAD_CONFIG.chunkRetryCooldownMs;
       });
-    for (const chunk of candidates) this.enqueue(chunk, graph.center);
+    for (const chunk of candidates) this.enqueue(chunk, graph.center, { mode: 'movement' });
     return candidates.map(chunk => chunk.id);
   }
 
-  enqueue(chunk, worldCenter) {
+  considerSurveyFacilities() {
+    this.ensureState();
+    const realNow = this.now();
+    if (realNow - this.lastSurveyEnqueueAt < 30000) return [];
+    let plan = null;
+    this.store.mutate(state => {
+      const worldTimeMs = Number(state.runtime?.worldTimeMs) || realNow;
+      const facilities = activeSurveyFacilities(state);
+      for (const defense of facilities) {
+        synchronizeSurveyFacility(defense, worldTimeMs);
+        if (defense.disabledTimer > 0 || worldTimeMs < defense.surveyNextAt) continue;
+        const candidates = surveyChunkCandidates(state, defense, {
+          pendingIds: this.pending,
+          now: realNow,
+          retryCooldownMs: ROAD_CONFIG.chunkRetryCooldownMs
+        });
+        const definition = defenseRuntimeDefinition(defense);
+        const intervalSeconds = Math.max(30, Number(definition?.scanInterval) || 180);
+        defense.surveyNextAt = worldTimeMs + intervalSeconds * 1000;
+        if (!candidates.length) {
+          defense.surveyStatus = 'COMPLETE';
+          continue;
+        }
+        const chunk = candidates[0];
+        defense.surveyStatus = 'QUEUED';
+        defense.surveyLastChunkId = chunk.id;
+        plan = { chunk, worldCenter: state.world.roadGraph.center, defenseId: defense.id };
+        break;
+      }
+    }, 'survey:schedule');
+    if (!plan) return [];
+    this.lastSurveyEnqueueAt = realNow;
+    this.enqueue(plan.chunk, plan.worldCenter, { mode: 'survey', defenseId: plan.defenseId });
+    return [plan.chunk.id];
+  }
+
+  enqueue(chunk, worldCenter, options = {}) {
     if (this.pending.has(chunk.id)) return;
     this.pending.add(chunk.id);
-    this.queue.push({ chunk, worldCenter });
+    this.queue.push({ chunk, worldCenter, options });
     this.processQueue();
   }
 
@@ -104,7 +156,7 @@ export class RoadWorldManager {
       while (this.queue.length > 0) {
         const next = this.queue.shift();
         try {
-          await this.loadChunk(next.chunk, next.worldCenter);
+          await this.loadChunk(next.chunk, next.worldCenter, next.options);
         } catch (error) {
           this.onStatus?.({ type: 'error', chunkId: next.chunk.id, text: '道路区域の統合に失敗しました。' });
         } finally {
@@ -116,13 +168,24 @@ export class RoadWorldManager {
     }
   }
 
-  async loadChunk(chunk, worldCenter) {
+  async loadChunk(chunk, worldCenter, { mode = 'movement', defenseId = null } = {}) {
     this.ensureState();
     const state = this.store.select(value => value);
     const currentChunks = state.world.roadChunks;
-    if (currentChunks.loaded.includes(chunk.id) || currentChunks.empty.includes(chunk.id)) return;
+    if (currentChunks.loaded.includes(chunk.id) || currentChunks.empty.includes(chunk.id)) {
+      this.store.mutate(draft => {
+        const chunkState = ensureRoadChunkState(draft.world);
+        const observationList = mode === 'survey' ? chunkState.surveyed : chunkState.playerObserved;
+        if (!observationList.includes(chunk.id)) observationList.push(chunk.id);
+        if (defenseId) {
+          const defense = draft.combat.defenses.find(item => item.id === defenseId);
+          if (defense) defense.surveyStatus = 'WAITING';
+        }
+      }, 'roads:chunk-already-loaded');
+      return;
+    }
     const worldId = roadWorldId(state.world.roadGraph);
-    this.onStatus?.({ type: 'loading', chunkId: chunk.id, text: '周辺道路を偵察しています…' });
+    this.onStatus?.({ type: 'loading', chunkId: chunk.id, text: mode === 'survey' ? '測量施設が周辺道路を解析しています…' : '周辺道路を偵察しています…' });
 
     let graph = await this.cache?.get?.(worldId, chunk.id).catch(() => null);
     let source = 'cache';
@@ -145,8 +208,12 @@ export class RoadWorldManager {
           const chunkState = ensureRoadChunkState(draft.world);
           chunkState.failed[chunk.id] = { at: this.now(), message: String(error?.message ?? error).slice(0, 160) };
           chunkState.updatedAt = this.now();
+          if (defenseId) {
+            const defense = draft.combat.defenses.find(item => item.id === defenseId);
+            if (defense) defense.surveyStatus = 'ERROR';
+          }
         }, 'roads:chunk-failed');
-        this.onStatus?.({ type: 'error', chunkId: chunk.id, text: '周辺道路を取得できませんでした。移動後に再試行します。' });
+        this.onStatus?.({ type: 'error', chunkId: chunk.id, text: mode === 'survey' ? '測量施設による道路取得に失敗しました。時間を置いて再試行します。' : '周辺道路を取得できませんでした。移動後に再試行します。' });
         return;
       } finally {
         this.abortController = null;
@@ -165,6 +232,16 @@ export class RoadWorldManager {
         if (!chunkState.cached.includes(chunk.id)) chunkState.cached.push(chunk.id);
         if (!chunkState.integrated.includes(chunk.id)) chunkState.integrated.push(chunk.id);
       }
+      const observationList = mode === 'survey' ? chunkState.surveyed : chunkState.playerObserved;
+      if (!observationList.includes(chunk.id)) observationList.push(chunk.id);
+      if (defenseId) {
+        const defense = draft.combat.defenses.find(item => item.id === defenseId);
+        if (defense) {
+          defense.surveyStatus = 'WAITING';
+          defense.surveyCompletedCount = Math.max(0, Number(defense.surveyCompletedCount) || 0) + 1;
+          defense.surveyLastChunkId = chunk.id;
+        }
+      }
       chunkState.updatedAt = this.now();
     }, 'roads:chunk-merged', { validate: true });
 
@@ -172,7 +249,9 @@ export class RoadWorldManager {
     this.onStatus?.({
       type: 'loaded',
       chunkId: chunk.id,
-      text: graph.edges.length > 0 ? `新しい道路区域を確認しました（道路 ${mergeResult.addedEdges}）` : 'この区域には利用可能な道路がありません。'
+      text: graph.edges.length > 0
+        ? `${mode === 'survey' ? '測量施設が新しい道路区域を追加しました' : '新しい道路区域を確認しました'}（道路 ${mergeResult.addedEdges}）`
+        : mode === 'survey' ? '測量区域に利用可能な道路はありませんでした。' : 'この区域には利用可能な道路がありません。'
     });
   }
 
@@ -189,6 +268,7 @@ export class RoadWorldManager {
     this.pending.clear();
     this.abortController?.abort();
     this.abortController = null;
+    this.lastSurveyEnqueueAt = 0;
   }
 
   async clearCurrentWorld() {

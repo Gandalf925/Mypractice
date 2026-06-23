@@ -10,6 +10,7 @@ export function createInitialState() {
       roadGraph: null,
       homeBase: null,
       playerBases: [],
+      fieldBases: [],
       city: null,
       enemyBases: [],
       outposts: [],
@@ -100,7 +101,7 @@ export function validateState(state) {
   if (!object(state?.civilization)) errors.push('civilization is required');
   if (!object(state?.inventory?.resources)) errors.push('inventory is required');
   if (!object(state?.runtime)) errors.push('runtime is required');
-  if (!Array.isArray(state?.world?.enemyBases) || !Array.isArray(state?.world?.outposts) || !Array.isArray(state?.world?.baseRespawns) || (state?.world?.playerBases !== undefined && !Array.isArray(state.world.playerBases))) errors.push('world collections are invalid');
+  if (!Array.isArray(state?.world?.enemyBases) || !Array.isArray(state?.world?.outposts) || !Array.isArray(state?.world?.baseRespawns) || (state?.world?.playerBases !== undefined && !Array.isArray(state.world.playerBases)) || (state?.world?.fieldBases !== undefined && !Array.isArray(state.world.fieldBases))) errors.push('world collections are invalid');
   if (!Array.isArray(state?.combat?.enemies) || (state?.combat?.friendlySquads !== undefined && !Array.isArray(state.combat.friendlySquads)) || !Array.isArray(state?.combat?.defenses) || !object(state?.combat?.waves)) errors.push('combat collections are invalid');
   if (!Array.isArray(state?.civilization?.buildings) || !Array.isArray(state?.civilization?.productionQueues)) errors.push('civilization collections are invalid');
   if (state?.world?.roadGraph) validateRoadGraph(state.world.roadGraph, errors);
@@ -118,6 +119,17 @@ export function validateState(state) {
     }
     if (state.world.roadGraph && !graphNodeIds.has(base.nodeId)) {
       errors.push('player base node is missing from roadGraph');
+      break;
+    }
+  }
+
+  for (const base of state?.world?.fieldBases ?? []) {
+    if (!base?.id || !['ESTABLISHED', 'DESTROYED'].includes(base.status) || !base.nodeId || !finite(base.x) || !finite(base.y) || !finite(base.hp) || !finite(base.maxHp)) {
+      errors.push('fieldBases contains an invalid base');
+      break;
+    }
+    if (state.world.roadGraph && !graphNodeIds.has(base.nodeId)) {
+      errors.push('field base node is missing from roadGraph');
       break;
     }
   }

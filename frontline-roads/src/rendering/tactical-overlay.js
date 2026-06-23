@@ -134,19 +134,20 @@ function drawDefenseFocus(context, state, camera, defense, timeMs) {
   const definition = defenseRuntimeDefinition(defense) ?? DEFENSE_DEFINITIONS[defense.type];
   const color = defense.disabledTimer > 0 ? '#ff5268' : '#65d7ff';
   bracket(context, point, 12, color, timeMs);
-  if (defense.kind === 'tower' && definition?.range) {
+  const effectRange = defense.type === 'survey' ? definition?.surveyRadius : definition?.range;
+  if (defense.kind === 'tower' && effectRange) {
     context.save();
-    context.strokeStyle = defense.disabledTimer > 0 ? 'rgba(255,82,104,0.4)' : 'rgba(101,215,255,0.34)';
-    context.fillStyle = defense.disabledTimer > 0 ? 'rgba(255,82,104,0.025)' : 'rgba(101,215,255,0.025)';
+    context.strokeStyle = defense.disabledTimer > 0 ? 'rgba(255,82,104,0.4)' : defense.type === 'survey' ? 'rgba(255,209,102,0.40)' : 'rgba(101,215,255,0.34)';
+    context.fillStyle = defense.disabledTimer > 0 ? 'rgba(255,82,104,0.025)' : defense.type === 'survey' ? 'rgba(255,209,102,0.018)' : 'rgba(101,215,255,0.025)';
     context.lineWidth = 1;
     context.setLineDash([5, 5]);
     context.beginPath();
-    context.arc(point.x, point.y, Math.max(8, definition.range * camera.scale), 0, TAU);
+    context.arc(point.x, point.y, Math.max(8, effectRange * camera.scale), 0, TAU);
     context.fill();
     context.stroke();
     context.restore();
-    drawCooldown(context, point, defense, definition);
-    if (defense.type !== 'relay') {
+    if (defense.type !== 'survey') drawCooldown(context, point, defense, definition);
+    if (!['relay', 'survey'].includes(defense.type)) {
       const target = nearestEnemyInRange(state, world, definition.range);
       if (target) {
         const targetPoint = camera.worldToScreen(target.position);

@@ -1,10 +1,13 @@
 import {
-  CIVILIZATIONS, CIVILIZATION_PROJECTS, PRODUCTION_RECIPES,
+  CIVILIZATIONS, CIVILIZATION_PROJECTS, DEFENSE_LINES, PRODUCTION_RECIPES,
   RESOURCE_KEYS, RESOURCE_LABELS, SETTLEMENT_BUILDINGS
 } from '../civilization/data.js';
 import { bundleText, currentCivilization } from '../civilization/inventory-system.js';
 import { evaluateProject } from '../civilization/progression-system.js';
 import { queryRequired, setVisible } from './dom.js';
+import { baseLimitForCivilization } from '../base/player-bases.js';
+import { fieldBaseLimitForCivilization, fieldBaseSlotsUsed } from '../base/field-bases.js';
+import { FRIENDLY_SQUAD_DEFINITIONS, FRIENDLY_SQUAD_TYPES } from '../combat/friendly-force-system.js';
 
 function formatDuration(seconds) {
   const value = Math.max(0, Math.ceil(seconds));
@@ -14,6 +17,38 @@ function formatDuration(seconds) {
   if (hours) return `${hours}時間${minutes ? `${minutes}分` : ''}`;
   if (minutes) return `${minutes}分${secs ? `${secs}秒` : ''}`;
   return `${secs}秒`;
+}
+
+
+const DEFENSE_LINE_LABELS = Object.freeze({
+  barrier: '防壁', single: '単体攻撃', area: '範囲攻撃', slow: '減速支援', repair: '自動修復',
+  medical: '主要拠点治療', fieldAid: '簡易拠点救護', survey: '道路測量', gate: '門'
+});
+
+function defenseTierCatalog(state) {
+  const level = Math.max(0, Math.min(4, Number(state.civilization?.level) || 0));
+  return Object.entries(DEFENSE_LINE_LABELS).map(([line, label]) => {
+    const minimum = line === 'gate' ? 2 : ['survey', 'medical', 'fieldAid'].includes(line) ? 1 : 0;
+    if (level < minimum) {
+      return `<div class="defenseTierCard is-locked"><small>${label}</small><strong>文明Lv.${minimum}で解禁</strong><span>現在は利用できません</span></div>`;
+    }
+    let tier = level;
+    while (tier >= minimum && !DEFENSE_LINES[line]?.[tier]) tier -= 1;
+    const current = DEFENSE_LINES[line]?.[tier];
+    const next = tier < 4 ? DEFENSE_LINES[line]?.[tier + 1] : null;
+    return `<div class="defenseTierCard"><small>${label}・強化上限 Tier ${tier}</small><strong>${current?.name ?? '未定義'}</strong><span>${next ? `次：文明Lv.${tier + 1}で${next.name}` : '最終Tier解禁済み'}</span></div>`;
+  }).join('');
+}
+
+
+function friendlyUnitCatalog(state) {
+  const level = Math.max(0, Math.min(4, Number(state.civilization?.level) || 0));
+  return FRIENDLY_SQUAD_TYPES.map(type => {
+    const definition = FRIENDLY_SQUAD_DEFINITIONS[type];
+    const unlocked = level >= definition.unlockLevel;
+    const bases = definition.allowedBaseKinds.includes('FIELD') ? '主要・簡易拠点' : '主要拠点のみ';
+    return `<div class="defenseTierCard ${unlocked ? '' : 'is-locked'}"><small>${definition.role}・${bases}</small><strong>${definition.name}</strong><span>${unlocked ? definition.description : `文明Lv.${definition.unlockLevel}で解禁`}</span></div>`;
+  }).join('');
 }
 
 function checkLabel(check) {
@@ -159,9 +194,11 @@ export class CivilizationUi {
     const outposts = state.world.outposts.map(outpost => `<div class="conditionRow complete"><span>前哨地 ${outpost.sourceBaseType}</span><strong>${outpost.status}</strong></div>`).join('') || '<p class="emptyText">制圧済み前哨地はありません。</p>';
 
     this.body.innerHTML = `
-      <section class="civilizationOverview"><div><span>文明</span><strong>${civilization.name}</strong></div><div><span>中央施設</span><strong>${civilization.central}</strong></div><div><span>建設枠</span><strong>${state.civilization.buildings.filter(item => !item.demolished).length}/${civilization.slots}</strong></div></section>
+      <section class="civilizationOverview"><div><span>文明</span><strong>${civilization.name}</strong></div><div><span>中央施設</span><strong>${civilization.central}</strong></div><div><span>集落建設枠</span><strong>${state.civilization.buildings.filter(item => !item.demolished).length}/${civilization.slots}</strong></div><div><span>拠点上限</span><strong>主要 ${baseLimitForCivilization(state.civilization.level)}・簡易 ${fieldBaseSlotsUsed(state)}/${fieldBaseLimitForCivilization(state.civilization.level)}</strong></div></section>
       <section><h2>資源</h2><div class="resourceGrid">${resources}</div></section>
       <section><h2>文明発展</h2>${projectHtml}</section>
+      <section><h2>防衛設備Tier</h2><p class="sectionNote">通常設備はTier 0、測量施設は文明Lv.1でTier 1から建設できます。文明レベルと同じTierまで、MAP上の既設設備を個別に強化できます。</p><div class="defenseTierGrid">${defenseTierCatalog(state)}</div></section>
+      <section><h2>派兵部隊</h2><p class="sectionNote">文明レベルごとに役割の異なる部隊が解禁されます。簡易拠点から派兵できるのは突撃部隊と遊撃部隊だけです。</p><div class="defenseTierGrid">${friendlyUnitCatalog(state)}</div></section>
       <section><h2>集落施設</h2><div class="catalogGrid">${buildingCatalog}</div></section>
       <section><h2>生産</h2>${production}</section>
       <section><h2>前哨地</h2>${outposts}</section>`;

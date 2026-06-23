@@ -153,7 +153,7 @@ export function reconcileFrontiers(state) {
   const graph = state.world.roadGraph;
   if (!graph?.nodes?.length || !state.world.city || !state.world.roadChunks) return sources;
   const candidates = findFrontierCandidates(state);
-  const loaded = new Set(state.world.roadChunks.loaded ?? []);
+  const playerObserved = new Set(state.world.roadChunks.playerObserved ?? state.world.roadChunks.loaded ?? []);
   const worldTimeMs = state.runtime?.worldTimeMs ?? Date.now();
 
   for (const source of sources) {
@@ -163,8 +163,8 @@ export function reconcileFrontiers(state) {
       source.entryNodeId = entry.nodeId;
       source.direction = normalizeVector({ x: source.point.x - entry.point.x, y: source.point.y - entry.point.y });
     }
-    const sourceChunkLoaded = loaded.has(chunkForWorldPoint(source.point, state.world.roadChunks.sizeMeters).id);
-    updateSignal(source, state.player.worldPosition, sourceChunkLoaded, worldTimeMs);
+    const sourceChunkObserved = playerObserved.has(chunkForWorldPoint(source.point, state.world.roadChunks.sizeMeters).id);
+    updateSignal(source, state.player.worldPosition, sourceChunkObserved, worldTimeMs);
   }
 
   for (const candidate of candidates) {

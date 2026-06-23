@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.22.1-tactical-orders';
+export const APP_VERSION = '0.28.0-retrieval-corps';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 

@@ -5,6 +5,9 @@ import { GameLoop } from '../src/app/game-loop.js';
 import { buildCombatSpatialIndex } from '../src/combat/combat-spatial-index.js';
 import { Renderer } from '../src/rendering/renderer.js';
 import { Camera } from '../src/rendering/camera.js';
+import { createInitialState } from '../src/core/state-schema.js';
+import { attachGraphIndexes } from '../src/roads/road-graph.js';
+import { buildFriendlyRouteOptions } from '../src/combat/friendly-route-planner.js';
 
 function runtimeState() {
   return { runtime: { worldTimeMs: 0, lastSavedAt: 0, performance: { frames: 0, slowFrames: 0, lastFrameMs: 0 } } };
@@ -104,4 +107,52 @@ test('renderer caches static radar and road layers between frames', () => {
   assert.equal(renderer.backgroundContext.ops, staticOps);
   renderer.destroy();
   globalThis.requestAnimationFrame = previousRaf;
+});
+
+
+test('tactical route choices use spatial snapshots instead of rescanning every enemy and defense per road edge', () => {
+  const size = 50;
+  const spacing = 30;
+  const nodes = [];
+  const edges = [];
+  for (let row = 0; row < size; row += 1) {
+    for (let column = 0; column < size; column += 1) nodes.push({ id: `n${row}_${column}`, x: column * spacing, y: row * spacing });
+  }
+  for (let row = 0; row < size; row += 1) {
+    for (let column = 0; column < size; column += 1) {
+      if (column < size - 1) edges.push({ id: `h${row}_${column}`, a: `n${row}_${column}`, b: `n${row}_${column + 1}`, length: spacing });
+      if (row < size - 1) edges.push({ id: `v${row}_${column}`, a: `n${row}_${column}`, b: `n${row + 1}_${column}`, length: spacing });
+    }
+  }
+  const state = createInitialState();
+  state.world.roadGraph = attachGraphIndexes({ center: { lat: 35, lon: 139 }, source: 'performance-test', roadSpecVersion: 4, nodes, edges });
+  state.world.playerBases = [{ id: 'home-base', name: '本拠地', status: 'ESTABLISHED', nodeId: 'n0_0', x: 0, y: 0, hp: 100, maxHp: 100 }];
+  state.world.enemyBases = [{ id: 'enemy-base', type: 'barracks', nodeId: `n${size - 1}_${size - 1}`, alive: true, hp: 100, maxHp: 100 }];
+  const enemies = Array.from({ length: 150 }, (_, index) => ({
+    id: `enemy-${index}`, type: 'infantry', level: 1, hp: 50, maxHp: 50,
+    nodeId: `n${(index * 17) % size}_${(index * 31) % size}`, edgeId: null, path: null, pathIndex: 0, edgeProgress: 0, departDelay: 0
+  }));
+  const defenses = Array.from({ length: 150 }, (_, index) => ({
+    id: `defense-${index}`, type: 'gun', kind: 'tower', nodeId: `n${(index * 13) % size}_${(index * 29) % size}`,
+    hp: 100, maxHp: 100, range: 80, ruined: false
+  }));
+  let enemyScans = 0;
+  let defenseScans = 0;
+  state.combat.enemies = new Proxy(enemies, {
+    get(target, property, receiver) {
+      if (property === Symbol.iterator) return function* iterator() { enemyScans += 1; yield* target; };
+      return Reflect.get(target, property, receiver);
+    }
+  });
+  state.combat.defenses = new Proxy(defenses, {
+    get(target, property, receiver) {
+      if (property === Symbol.iterator) return function* iterator() { defenseScans += 1; yield* target; };
+      return Reflect.get(target, property, receiver);
+    }
+  });
+  const squad = { id: 'squad', type: 'assault', hp: 180, maxHp: 180, nodeId: `n${size / 2}_${size / 2}`, edgeId: null, edgeProgress: 0, pathIndex: 0, path: null };
+  const options = buildFriendlyRouteOptions(state, squad, 'n0_0');
+  assert.equal(options.length, 3);
+  assert.ok(enemyScans <= 2, `enemy collection was rescanned ${enemyScans} times`);
+  assert.ok(defenseScans <= 2, `defense collection was rescanned ${defenseScans} times`);
 });

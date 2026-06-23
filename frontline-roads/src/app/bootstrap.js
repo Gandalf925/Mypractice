@@ -104,6 +104,7 @@ class FrontlineRoadsApp {
     this.baseCommandUi = new BaseCommandUi({
       store: this.store,
       playerBaseSystem: this.civilizationSystem.playerBases,
+      fieldBaseSystem: this.civilizationSystem.fieldBases,
       renderer: this.renderer,
       notifications: this.notifications,
       persist: () => this.persist()
@@ -130,6 +131,7 @@ class FrontlineRoadsApp {
         this.deploymentUi.update();
         this.baseCommandUi.update();
         this.civilizationUi.update();
+        this.roadWorld.considerSurveyFacilities();
       },
       onError: error => this.notifications.show(error?.message ?? '保存に失敗しました。'),
       onSaveDisabled: () => this.updateStorageUi(),

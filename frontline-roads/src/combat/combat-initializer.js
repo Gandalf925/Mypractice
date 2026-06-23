@@ -60,6 +60,7 @@ export function initializeCombatState(state) {
   const cityNodeId = state.world.homeBase.nodeId;
   state.world.city = { nodeId: cityNodeId, hp: 100, maxHp: 100 };
   state.world.playerBases = [{ ...state.world.homeBase, name: '本拠地', primary: true, hp: 100, maxHp: 100 }];
+  state.world.fieldBases = [];
   state.player.worldPosition = { x: state.world.homeBase.x ?? 0, y: state.world.homeBase.y ?? 0 };
   ensureCivilizationState(state, { initializeInventory: true });
   state.combat.enemies = [];

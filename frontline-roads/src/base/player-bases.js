@@ -27,7 +27,8 @@ export function ensurePlayerBaseState(state) {
   for (let index = 0; index < state.world.playerBases.length; index += 1) {
     const base = state.world.playerBases[index];
     base.id ??= stableId('player_base', base.nodeId, base.establishedAt ?? index);
-    base.name = String(base.name || (index === 0 ? '本拠地' : `前線拠点 ${index + 1}`));
+    base.name = String(base.name || (index === 0 ? '本拠地' : `主要拠点 ${index + 1}`));
+    if (index > 0 && /^前線拠点 \d+$/.test(base.name)) base.name = `主要拠点 ${index + 1}`;
     base.status = base.status === 'DESTROYED' ? 'DESTROYED' : 'ESTABLISHED';
     base.primary = index === 0 || Boolean(base.primary && !state.world.playerBases.slice(0, index).some(item => item.primary));
     base.maxHp = Math.max(1, Number(base.maxHp) || 100);

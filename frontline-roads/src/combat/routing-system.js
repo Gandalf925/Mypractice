@@ -67,7 +67,7 @@ function edgeTowerThreat(state, edgeId, towers, cache) {
   if (!middle) return 0;
   let threat = 0;
   for (const tower of towers) {
-    if (tower.kind !== 'tower' || tower.type === 'relay') continue;
+    if (tower.kind !== 'tower' || ['relay', 'survey', 'medical', 'fieldAid'].includes(tower.type)) continue;
     const node = graph.nodeById.get(tower.nodeId);
     const range = tower.range ?? 80;
     if (node && distance(middle, node) <= range) threat += 1;

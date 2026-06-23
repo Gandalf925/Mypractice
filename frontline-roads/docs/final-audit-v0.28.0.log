@@ -1,0 +1,63 @@
+FRONTLINE ROADS v0.28.0 RETRIEVAL CORPS AUDIT
+==============================================
+
+Release: 0.28.0-retrieval-corps
+Scope: Phase 7 only — weak remote retrieval squad, recovery-item reservation, on-site collection, physical return and death drops.
+Explicit exclusions: cargo weight, medical/supply items, ammunition, transport capacity and logistics micromanagement.
+
+FULL VERIFICATION
+# tests 282
+# pass 282
+# fail 0
+
+SERIAL TEST EXECUTION
+# tests 282
+# pass 282
+# fail 0
+
+STATIC STRUCTURE
+production_js_modules=95
+reachable_from_bootstrap=95
+unreachable=0
+missing_relative_imports=0
+import_cycles=0
+html_ids=55
+duplicate_html_ids=0
+css_brace_delta=0
+empty_source_or_test_files=0
+pwa_runtime_js_entries=95
+pwa_missing_runtime_files=0
+pwa_stale_runtime_entries=0
+
+PHASE 7 BEHAVIOR VERIFIED
+- Retrieval squads unlock at civilization Lv.0 and deploy from established major or simple bases.
+- The squad has 55 HP, 1.2 enemy DPS, no hostile-base damage and intentionally low combat survivability.
+- Deployment reserves exactly one available recovery item and prevents direct-player or second-squad duplication.
+- The squad follows the road graph, collects for eight simulated seconds and receives no artifact at pickup time.
+- Artifact inventory increases only after the carrying squad physically returns to an established base.
+- Destruction before pickup releases the item at its original point.
+- Destruction while carrying drops the item at the squad's exact road position and keeps a routable road-node reference.
+- Withdrawal before pickup releases the reservation without awarding the item.
+- Orphaned reservations recover automatically if their assigned squad is absent.
+- Recovery missions survive save/restore and complete across active, peripheral and dormant regional intervals.
+- Direct player collection remains available and faster when the player can reach the site.
+- Retrieval squads enter the existing recovery/reorganization system after a successful return.
+
+ISSUES FOUND AND CORRECTED
+1. Direct player collection could remain active while the deployment preview still presented the same item. Recovery deployment now rejects that target before any cost or garrison mutation.
+2. Recovery dispatch previously consumed resources and mutated/replaced a ready squad before the item reservation was final. Confirmation now reserves first, rolls back a reservation if payment fails and mutates squad state only after both checks succeed.
+3. Existing squad-count and mixed-combat tests assumed five squads and that every squad targeted hostile bases. Tests now distinguish the sixth recovery-only mission type.
+4. Current README descriptions of simple-base deployment and recovery were updated to include retrieval squads while retaining major-only restrictions for siege, heavy and expedition squads.
+
+CROSS-SYSTEM REGRESSION
+Result: PASS
+Construction, defense tiers, combat balance, hostile progression, all combat squads, tactical route orders, squad recovery, major/simple bases, surveying, dynamic roads, frontiers, direct player recovery, civilization progression, regional simulation, offline progression, persistence and PWA delivery remain operational.
+
+BROWSER ATTEMPT
+Result: INCONCLUSIVE DUE TO BUILD-CONTAINER RESTRICTIONS
+The local HTTP listener could not accept a loopback connection. Chromium stopped before DOM creation and reported netlink, DBus and inotify restrictions. No application JavaScript exception or missing-module error was produced.
+See docs/browser-test-limit-v0.28.0.md.
+
+FILE INTEGRITY
+manifest_entries=246
+manifest_self_excluded=1

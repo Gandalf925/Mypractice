@@ -1,0 +1,61 @@
+FRONTLINE ROADS v0.26.0 COMBINED ARMS AUDIT
+============================================
+
+Release: 0.26.0-combined-arms
+Scope: Phase 5 only — civilization-gated skirmisher, siege, heavy and expedition squads added to the existing assault-squad system.
+Future phases: NOT STARTED (squad recovery/reorganization, treatment facilities, simple aid posts and recovery squads).
+Explicit exclusions: ammunition, cargo, weight, supply-item and medical-item micromanagement.
+
+FULL VERIFICATION
+# tests 254
+# pass 254
+# fail 0
+
+SERIAL TEST EXECUTION
+# tests 254
+# pass 254
+# fail 0
+
+STATIC STRUCTURE
+production_js_modules=94
+reachable_from_bootstrap=94
+unreachable=0
+missing_relative_imports=0
+import_cycles=0
+html_ids=55
+duplicate_html_ids=0
+css_brace_delta=0
+empty_files=0
+pwa_missing_runtime_files=0
+pwa_stale_runtime_entries=0
+
+PHASE 5 BEHAVIOR VERIFIED
+- Assault squads remain the civilization Lv.0 balanced baseline and may deploy from major or simple bases.
+- Skirmisher squads unlock at Lv.1, may deploy from major or simple bases, prioritize light specialists, deal 1.70x damage to light targets and 0.55x damage to armored targets.
+- Siege squads unlock at Lv.2, deploy from major bases only and apply 22 DPS to hostile bases while remaining weak against road enemies.
+- Heavy squads unlock at Lv.3, deploy from major bases only and intercept 45% of damage aimed at a nearby friendly squad within 24 m.
+- Expedition squads unlock at Lv.4, deploy from major bases only and recover 1.4 HP/s after ten seconds outside combat.
+- Civilization locks, base-kind restrictions, route availability, per-base active-squad limits and exact resource costs are revalidated before dispatch.
+- Every squad type uses the existing stop, selected retreat, route-selected resume and withdrawal orders without teleportation.
+- Squad type and role-specific state survive save/restore and active, peripheral and dormant regional simulation.
+- Deployment, selected-squad and civilization interfaces expose the actual role and unlock state.
+- Radar glyphs and short labels distinguish all five friendly squad types.
+
+ISSUES FOUND AND CORRECTED
+1. The new friendly-force definition module was initially absent from the PWA app shell. It is now cached and covered by the app-shell completeness test.
+2. Skirmisher damage multipliers alone did not guarantee its intended battlefield role. Target selection now prioritizes discovered light specialists before ordinary distance ordering.
+3. Release synchronization initially left the app-shell version test on v0.25.0. Package, runtime label, cache key and test expectation are now synchronized at v0.26.0.
+4. Obsolete friendly attack-clock state and an unused friendly damage export were removed instead of retained as dead compatibility code.
+
+CROSS-SYSTEM REGRESSION
+Result: PASS
+Unchanged systems covered by the full suite include defense tiers, combat balance, tactical orders, construction, major and simple bases, surveying, dynamic roads, frontiers, field recovery, civilization progression, regional simulation, offline progression, save/restore and PWA shell integrity.
+
+MIXED-SQUAD STRESS
+Result: PASS
+All five friendly squad types were advanced together for 240 simulated seconds against light and armored enemies and a hostile base. No invalid HP, broken route, stale engagement, missing base reference or regional-clock corruption was found.
+
+BROWSER ATTEMPT
+Result: INCONCLUSIVE DUE TO BUILD-CONTAINER RESTRICTIONS
+The local application shell returned HTTP 200 with the expected HTML payload. Chromium stopped before DOM creation and reported netlink, DBus and inotify restrictions. No application exception, missing module or HTTP failure was reported.
+See docs/browser-test-limit-v0.26.0.md.

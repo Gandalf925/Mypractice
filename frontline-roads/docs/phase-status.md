@@ -27,5 +27,12 @@
 | 21.1 Readable UI | Complete | Larger HUD, panel, button and canvas labels with responsive spacing preserved |
 | 22 Combat balance phase 1 | Complete | Limited splash and slowing, enemy-base levels, fixed enemy unit levels, progressive wave composition and reference simulations |
 | 22.1 Tactical squad orders | Complete | Stop, selectable retreat/withdraw destinations and routes, route-selected resume, two waypoints, persistence and remote simulation |
+| 22.2 System-wide audit | Complete | Cross-system regression audit, route-planning spatial indexes, accurate mid-edge ETA and route-line selection |
+| 23 Defense tiers | Complete | Civilization-gated Tier 0–4 upgrades, deterministic durability, exact previews and damage-percentage preservation |
+| 24 Simple field bases | Complete | Separate civilization-gated slots, 40 HP, 50 m build zones, limited deployment, enemy attacks, destruction and onsite rebuild |
+| 25 Survey network | Complete | Base-anchored road expansion, serialized API acquisition, remote-information boundaries and physical discovery promotion |
+| 26 Combined arms squads | Complete | Civilization-gated assault, skirmisher, siege, heavy and expedition roles, base restrictions, specialist targeting, guard interception and remote persistence |
+| 27 Squad recovery | Complete | Persistent returning formations, major-base recovery, treatment facilities, simple-base aid and free same-type redeployment |
+| 28 Retrieval corps | Complete | Weak road-bound remote recovery, item reservation, eight-second pickup, return-only award, death drops and regional persistence |
 | Single HTML | Deferred | Generate only immediately before blockchain publication |
 | GitHub upload | Prepared | Complete modular replacement package generated for manual upload |

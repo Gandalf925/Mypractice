@@ -85,7 +85,7 @@ test('manager loads a cached chunk without calling the road server', async () =>
   assert.ok(store.select(state => state.world.roadChunks.integrated.includes(id)));
 });
 
-test('failed acquisitions are cooled down instead of queued on every position update', async () => {
+test('failed acquisitions cool down without blocking unrelated nearby chunks', () => {
   let now = 1000;
   const store = storeWithWorld();
   store.mutate(state => {
@@ -97,10 +97,13 @@ test('failed acquisitions are cooled down instead of queued on every position up
     roadService: { async loadChunk() { throw new Error('unused'); } },
     now: () => now
   });
-  assert.deepEqual(manager.considerLocation({ lat: 35, lon: 139 }), []);
+  manager.enqueue = () => {};
+  const initialIds = manager.considerLocation({ lat: 35, lon: 139 });
+  assert.ok(!initialIds.includes('1:0'));
+  assert.ok(initialIds.includes('1:-1'));
   now += 5 * 60 * 1000;
-  const ids = manager.considerLocation({ lat: 35, lon: 139 });
-  assert.ok(ids.includes('1:0'));
+  const retryIds = manager.considerLocation({ lat: 35, lon: 139 });
+  assert.ok(retryIds.includes('1:0'));
   manager.abort();
 });
 

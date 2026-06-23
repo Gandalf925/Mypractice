@@ -1,6 +1,6 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const CACHE_NAME = `${CACHE_PREFIX}v0-22-1-tactical-orders`;
+const CACHE_NAME = `${CACHE_PREFIX}v0-28-0-retrieval-corps`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -16,10 +16,13 @@ const APP_SHELL = [
   './src/base/base-graph.js',
   './src/base/base-placement-service.js',
   './src/base/base-state.js',
+  './src/base/field-bases.js',
+  './src/base/field-base-system.js',
   './src/base/player-bases.js',
   './src/base/player-base-system.js',
   './src/civilization/civilization-system.js',
   './src/civilization/data.js',
+  './src/civilization/defense-upgrade.js',
   './src/civilization/inventory-system.js',
   './src/civilization/outpost-system.js',
   './src/civilization/production-system.js',
@@ -37,6 +40,8 @@ const APP_SHELL = [
   './src/combat/enemy-system.js',
   './src/combat/enemy-scaling.js',
   './src/combat/enemy-base-system.js',
+  './src/combat/friendly-force-definitions.js',
+  './src/combat/friendly-recovery-system.js',
   './src/combat/friendly-force-system.js',
   './src/combat/friendly-route-planner.js',
   './src/combat/road-unit-position.js',
@@ -52,6 +57,7 @@ const APP_SHELL = [
   './src/exploration/frontier-system.js',
   './src/exploration/exploration-system.js',
   './src/exploration/recovery-system.js',
+  './src/exploration/survey-system.js',
   './src/location/geolocation-service.js',
   './src/location/location-privacy.js',
   './src/persistence/legacy-save-migration.js',

@@ -1,0 +1,59 @@
+FRONTLINE ROADS v0.25.0 SURVEY NETWORK AUDIT
+==============================================
+
+Release: 0.25.0-survey-network
+Scope: Phase 4 only — base-anchored survey towers, gradual road-chunk expansion, API throttling and remote-information boundaries.
+Future phases: NOT STARTED (additional squad classes, squad recovery facilities, recovery squad).
+
+FULL VERIFICATION
+# tests 246
+# pass 246
+# fail 0
+# duration_ms 4319.182941
+
+SERIAL TEST EXECUTION
+# tests 246
+# pass 246
+# fail 0
+# duration_ms 7319.590439
+
+STATIC STRUCTURE
+production_js_modules=93
+reachable_from_bootstrap=93
+unreachable=0
+missing_relative_imports=0
+import_cycles=0
+html_ids=55
+duplicate_html_ids=0
+css_brace_delta=0
+empty_files=0
+pwa_missing_runtime_files=0
+pwa_stale_runtime_entries=0
+
+PHASE 4 BEHAVIOR VERIFIED
+- Survey towers unlock at civilization Lv.1, start at Tier 1 and upgrade through Tier 4.
+- Tier radii are 600/900/1200/1600 m with 180/150/120/90 second chunk intervals.
+- Survey towers require a living major or simple base anchor and are limited to one active tower per base.
+- The player-only construction zone cannot authorize a survey tower.
+- Survey requests use the existing serialized road queue and a global 30-second minimum real-time start interval.
+- Duplicate pending chunks and recently failed chunks are excluded without blocking unrelated directions.
+- Remotely surveyed roads are stored separately from physically observed regions.
+- Remote surveying reveals roads and unidentified frontier signals but not exact frontier-source sites, ambient exploration sites or exact hostile-base placement.
+- Physical entry promotes a surveyed chunk to player-observed state and then reconciles local content.
+- Survey towers belonging to destroyed simple bases remain inactive until the base is rebuilt.
+- Survey schedule, last chunk, completion count and observation boundaries survive save/restore.
+
+ISSUES FOUND AND CORRECTED
+1. A missing failure record was previously interpreted as a failure at time zero under synthetic clocks, which could block unrelated road acquisition. Cooldown now applies only to chunks with an actual failure record.
+2. Remote surveyed roads could enter the ordinary hostile-base placement pool. New and respawned exact hostile bases are now restricted to physically observed chunks.
+3. Survey towers attached to destroyed simple bases could continue operating. Anchor viability is now revalidated before scheduling.
+4. Physical entry into a remotely surveyed chunk was explicitly verified to promote observation and reveal eligible local content without requiring a second road download.
+
+CROSS-SYSTEM REGRESSION
+Result: PASS
+Unchanged systems covered by the full suite include defense tiers, combat balance, friendly squads and tactical orders, construction, simple and major bases, frontiers, field recovery, civilization progression, regional simulation, offline progression, save/restore and PWA shell integrity.
+
+BROWSER ATTEMPT
+Result: INCONCLUSIVE DUE TO BUILD-CONTAINER RESTRICTIONS
+The local application shell returned HTTP 200 with 8,692 bytes. Chromium timed out before DOM output and reported netlink, DBus and inotify restrictions. No application exception, missing module or HTTP failure was reported.
+See docs/browser-test-limit-v0.25.0.md.

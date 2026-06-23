@@ -67,7 +67,7 @@ test('release version is synchronized across package, runtime label and service-
   const packageData = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
   const constants = await readFile(resolve(root, 'src/core/constants.js'), 'utf8');
   const serviceWorker = await readFile(resolve(root, 'sw.js'), 'utf8');
-  assert.equal(packageData.version, '0.22.1');
-  assert.match(constants, /APP_VERSION = ['"]0\.22\.1-tactical-orders['"]/);
-  assert.match(serviceWorker, /v0-22-1-tactical-orders/);
+  assert.equal(packageData.version, '0.28.0');
+  assert.match(constants, /APP_VERSION = ['"]0\.28\.0-retrieval-corps['"]/);
+  assert.match(serviceWorker, /v0-28-0-retrieval-corps/);
 });

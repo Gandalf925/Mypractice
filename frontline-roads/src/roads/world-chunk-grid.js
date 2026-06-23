@@ -68,6 +68,25 @@ export function neighboringChunks(chunk, radius = 1) {
   return result;
 }
 
+
+export function chunksIntersectingCircle(centerPoint, radiusMeters, sizeMeters = ROAD_CONFIG.chunkSizeMeters) {
+  const min = chunkForWorldPoint({ x: centerPoint.x - radiusMeters, y: centerPoint.y - radiusMeters }, sizeMeters);
+  const max = chunkForWorldPoint({ x: centerPoint.x + radiusMeters, y: centerPoint.y + radiusMeters }, sizeMeters);
+  const result = [];
+  for (let y = min.y; y <= max.y; y += 1) {
+    for (let x = min.x; x <= max.x; x += 1) {
+      const chunk = { x, y, id: chunkId(x, y) };
+      const bounds = chunkBounds(chunk, sizeMeters);
+      const nearestX = Math.max(bounds.minX, Math.min(centerPoint.x, bounds.maxX));
+      const nearestY = Math.max(bounds.minY, Math.min(centerPoint.y, bounds.maxY));
+      if (Math.hypot(centerPoint.x - nearestX, centerPoint.y - nearestY) > radiusMeters) continue;
+      chunk.center = chunkCenterWorld(chunk, sizeMeters);
+      result.push(chunk);
+    }
+  }
+  return result;
+}
+
 export function chunksCoveredByCircle(centerPoint, radiusMeters, sizeMeters = ROAD_CONFIG.chunkSizeMeters) {
   const min = chunkForWorldPoint({ x: centerPoint.x - radiusMeters, y: centerPoint.y - radiusMeters }, sizeMeters);
   const max = chunkForWorldPoint({ x: centerPoint.x + radiusMeters, y: centerPoint.y + radiusMeters }, sizeMeters);
@@ -93,6 +112,8 @@ export function createRoadChunkState({ initialCenterPoint = { x: 0, y: 0 }, fetc
     empty: [],
     cached: [],
     integrated: [...loaded],
+    playerObserved: [...loaded],
+    surveyed: [],
     failed: {},
     updatedAt: Date.now()
   };
@@ -110,10 +131,14 @@ export function ensureRoadChunkState(world) {
   current.cached = Array.isArray(current.cached) ? current.cached : [];
   current.integrated = Array.isArray(current.integrated) ? current.integrated : [...current.loaded];
   current.failed = current.failed && typeof current.failed === 'object' ? current.failed : {};
+  current.surveyed = Array.isArray(current.surveyed) ? current.surveyed : [];
+  current.playerObserved = Array.isArray(current.playerObserved) ? current.playerObserved : current.loaded.filter(id => !current.surveyed.includes(id));
   current.updatedAt = Number(current.updatedAt) || Date.now();
   current.loaded = [...new Set(current.loaded.map(String))];
   current.empty = [...new Set(current.empty.map(String))];
   current.cached = [...new Set(current.cached.map(String))];
   current.integrated = [...new Set(current.integrated.map(String))];
+  current.playerObserved = [...new Set(current.playerObserved.map(String))];
+  current.surveyed = [...new Set(current.surveyed.map(String))];
   return current;
 }

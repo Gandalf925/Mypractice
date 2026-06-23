@@ -1,0 +1,62 @@
+FRONTLINE ROADS v0.23.0 DEFENSE TIER AUDIT
+============================================
+
+Release: 0.23.0-defense-tiers
+Scope: Phase 2 only — civilization-gated facility tiers, individual upgrades, exact costs and UI.
+Future phases: NOT STARTED (forward bases, surveying, additional squads, recovery, recovery squad).
+
+FULL VERIFICATION
+# tests 218
+# pass 218
+# fail 0
+# duration_ms 3763.64629
+
+SERIAL TEST EXECUTION
+# tests 218
+# pass 218
+# fail 0
+# duration_ms 6647.145704
+
+STATIC STRUCTURE
+production_js_modules=90
+reachable_from_bootstrap=90
+unreachable=0
+missing_relative_imports=0
+import_cycles=0
+html_ids=55
+duplicate_html_ids=0
+css_brace_delta=0
+empty_files=0
+pwa_missing_runtime_files=0
+pwa_stale_runtime_entries=0
+
+PHASE 2 BEHAVIOR VERIFIED
+- New defenses begin at Tier 0.
+- Upgrades proceed one tier at a time and require the matching civilization level.
+- Upgrade resources are consumed only after final validation.
+- Upgrade failures leave resources, tier and HP unchanged.
+- Upgrades preserve the current HP percentage instead of healing the facility.
+- Ruined facilities cannot be upgraded before repair.
+- Tier 4 is the maximum.
+- Tier-specific names, HP and operating statistics are used by live combat.
+- Legacy facilities normalize to deterministic tier HP while preserving damage percentage.
+- Wall-to-gate conversion begins at Tier 2 and preserves damage percentage.
+- Defense and civilization panels show current tier, next tier, stat changes, cost and lock reason.
+- Small-screen defense panels use bounded scrolling and sticky action controls.
+
+ISSUES FOUND AND CORRECTED
+1. The previous upgrade action restored facilities to full HP; upgrades now preserve damage percentage.
+2. Tower/support durability used cumulative runtime multiplication; every tier now has an explicit deterministic HP value.
+3. Selected facilities did not consistently show the actual tier name and next-tier differences; the details panel now uses tier definitions directly.
+4. Upgrade costs and civilization/resource locks were not visible before confirmation; they are now displayed and invalid actions are disabled.
+5. Two single-target facility names contained wording that could be mistaken for a rejected monitoring facility; they were renamed to clearly describe attack facilities.
+6. The expanded upgrade preview could make the mobile detail panel too tall; bounded scrolling and sticky controls were added.
+
+CROSS-SYSTEM REGRESSION
+Result: PASS
+Unchanged systems covered by the full suite include combat balance, friendly squads and tactical orders, construction, road expansion, frontiers, exploration, recovery items, civilization progression, multiple bases, remote simulation, offline progression, save/restore and PWA shell integrity.
+
+BROWSER ATTEMPT
+Result: INCONCLUSIVE DUE TO BUILD-CONTAINER RESTRICTIONS
+The local application shell returned HTTP 200. Chromium timed out before DOM output and reported netlink, DBus and inotify restrictions. No application exception, missing module or HTTP failure was reported.
+See docs/browser-test-limit-v0.23.0.md.

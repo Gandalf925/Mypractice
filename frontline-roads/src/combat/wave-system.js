@@ -2,6 +2,7 @@ import { stableId } from '../core/utilities.js';
 import { ENEMY_BASE_DEFINITIONS, ENEMY_GENERATIONS } from './definitions.js';
 import { spawnEnemy } from './enemy-system.js';
 import { enemyBaseLevelForState, waveIntervalForBase } from './enemy-scaling.js';
+import { chunkForWorldPoint } from '../roads/world-chunk-grid.js';
 
 export const INITIAL_BASE_TYPES = Object.freeze(['barracks', 'engineer', 'raider', 'motor']);
 
@@ -108,7 +109,9 @@ function chooseBaseNode(state, type, sourceNodeId = null) {
   ]);
   const occupiedPoints = [...occupiedNodes].map(id => graph.nodeById.get(id)).filter(Boolean);
   const target = (definition.range[0] + definition.range[1]) / 2;
+  const physicallyObservedChunks = new Set(state.world.roadChunks?.playerObserved ?? state.world.roadChunks?.loaded ?? []);
   const candidates = graph.nodes
+    .filter(node => physicallyObservedChunks.size === 0 || physicallyObservedChunks.has(chunkForWorldPoint(node, state.world.roadChunks?.sizeMeters).id))
     .filter(node => !occupiedNodes.has(node.id) && (graph.adjacency.get(node.id)?.length ?? 0) >= 2)
     .filter(node => !sourceNode || Math.hypot(node.x - sourceNode.x, node.y - sourceNode.y) >= 150)
     .filter(node => occupiedPoints.every(point => Math.hypot(node.x - point.x, node.y - point.y) >= 100))

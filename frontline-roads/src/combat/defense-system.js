@@ -24,6 +24,7 @@ export class DefenseSystem {
     if (tower.ruined || tower.hp <= 0) return;
     tower.disabledTimer = Math.max(0, (tower.disabledTimer ?? 0) - deltaSeconds);
     if (tower.disabledTimer > 0) return;
+    if (['survey', 'medical', 'fieldAid'].includes(tower.type)) return;
     tower.cooldown = Math.max(0, (tower.cooldown ?? 0) - deltaSeconds);
     if (tower.cooldown > 0) return;
 

@@ -57,6 +57,11 @@ function anchorPalette(anchor, affordable) {
     fill: 'rgba(255,209,102,0.018)',
     marker: '#ffd166'
   };
+  if (anchor.kind === 'FIELD') return {
+    stroke: 'rgba(101,215,255,0.50)',
+    fill: 'rgba(101,215,255,0.016)',
+    marker: '#65d7ff'
+  };
   return {
     stroke: 'rgba(101,255,208,0.48)',
     fill: 'rgba(101,255,208,0.014)',
@@ -66,10 +71,10 @@ function anchorPalette(anchor, affordable) {
 
 function drawAnchor(context, camera, anchor, affordable, quality) {
   const palette = anchorPalette(anchor, affordable);
-  drawWorldCircle(context, camera, anchor.point, BUILD_RANGE_METERS, {
+  drawWorldCircle(context, camera, anchor.point, anchor.range ?? BUILD_RANGE_METERS, {
     stroke: palette.stroke,
     fill: palette.fill,
-    dash: anchor.id === 'player' ? [4, 5] : [8, 7],
+    dash: anchor.id === 'player' ? [4, 5] : anchor.kind === 'FIELD' ? [3, 4] : [8, 7],
     width: 1.2
   });
   const point = camera.worldToScreen(anchor.point);
@@ -125,7 +130,7 @@ function drawBarrierSites(context, camera, sites, anchors, color, quality) {
   for (const site of sites) {
     for (const anchor of anchors) {
       if (site.anchorIds?.length && !site.anchorIds.includes(anchor.id)) continue;
-      const segment = clipSegmentToCircle(site.a, site.b, anchor.point, BUILD_RANGE_METERS);
+      const segment = clipSegmentToCircle(site.a, site.b, anchor.point, anchor.range ?? BUILD_RANGE_METERS);
       if (!segment) continue;
       const a = camera.worldToScreen(segment.a);
       const b = camera.worldToScreen(segment.b);
@@ -164,10 +169,11 @@ function drawCandidate(context, camera, placement, timeMs, quality) {
   const color = affordable ? '#ffffff' : '#ffb454';
 
   drawCandidateAnchorLink(context, camera, placement, candidate, affordable);
-  if (definition?.kind === 'tower' && definition.range > 0) {
-    drawWorldCircle(context, camera, candidate.point, definition.range, {
-      stroke: affordable ? 'rgba(101,215,255,0.72)' : 'rgba(255,180,84,0.68)',
-      fill: affordable ? 'rgba(101,215,255,0.035)' : 'rgba(255,180,84,0.025)',
+  const effectRadius = definition?.type === 'survey' ? definition.surveyRadius : ['medical', 'fieldAid'].includes(definition?.type) ? 0 : definition?.range;
+  if (definition?.kind === 'tower' && effectRadius > 0) {
+    drawWorldCircle(context, camera, candidate.point, effectRadius, {
+      stroke: definition?.type === 'survey' ? 'rgba(255,209,102,0.72)' : affordable ? 'rgba(101,215,255,0.72)' : 'rgba(255,180,84,0.68)',
+      fill: definition?.type === 'survey' ? 'rgba(255,209,102,0.025)' : affordable ? 'rgba(101,215,255,0.035)' : 'rgba(255,180,84,0.025)',
       dash: [6, 5],
       width: 1.2
     });

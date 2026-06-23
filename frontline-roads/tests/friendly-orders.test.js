@@ -14,6 +14,7 @@ import {
 import {
   buildFriendlyRouteOptions,
   commandStartNodeId,
+  friendlyRouteIndexAtPoint,
   validateRetreatDestination
 } from '../src/combat/friendly-route-planner.js';
 import { SaveRepository } from '../src/persistence/save-repository.js';
@@ -147,7 +148,7 @@ test('retreat reaches the selected node, stops there, and keeps the original att
   assert.equal(squad.missionTargetBaseId, 'enemy-base');
 });
 
-test('withdraw abandons the mission and removes the squad only after it reaches the origin', () => {
+test('withdraw abandons the mission and begins recovery only after it reaches the origin', () => {
   const state = linearState();
   const squad = dispatchedAtA(state);
   const result = issueFriendlyRouteOrder(state, squad.id, {
@@ -162,7 +163,9 @@ test('withdraw abandons the mission and removes the squad only after it reaches 
   system.update(state, 20, emptySpatial());
   assert.equal(state.combat.friendlySquads.length, 1);
   for (let index = 0; index < 80; index += 1) system.update(state, 1, emptySpatial());
-  assert.equal(state.combat.friendlySquads.length, 0);
+  assert.equal(state.combat.friendlySquads.length, 1);
+  assert.equal(squad.status, FRIENDLY_SQUAD_STATUS.RECOVERING);
+  assert.equal(squad.recoveryBaseId, 'home-base');
 });
 
 test('stopping a retreat preserves the retreat destination for route-selected resume', () => {
@@ -281,4 +284,29 @@ test('route orders reject paths whose edges do not connect the declared node seq
   });
   assert.equal(result.ok, false);
   assert.equal(squad.order, FRIENDLY_SQUAD_ORDER.ADVANCE);
+});
+
+
+test('route estimates include the remaining distance on the squad current road segment', () => {
+  const state = linearState();
+  const squad = dispatchAssaultSquad(state, 'home-base', 'enemy-base').squad;
+  squad.edgeProgress = 40;
+  const options = buildFriendlyRouteOptions(state, squad, 'home');
+  assert.ok(options.length > 0);
+  assert.equal(Math.round(options[0].physicalDistance), 160);
+  assert.equal(Math.round(options[0].etaSeconds), 128);
+});
+
+test('a map tap near a displayed route selects that route instead of becoming a waypoint', () => {
+  const state = branchingState();
+  const squad = dispatchAssaultSquad(state, 'home-base', 'enemy-base').squad;
+  squad.nodeId = 'b';
+  squad.path = { nodeIds: ['b', 'enemy'], edgeIds: ['b-enemy'], targetId: 'enemy', cost: 100 };
+  squad.pathIndex = 0;
+  squad.edgeId = null;
+  const options = buildFriendlyRouteOptions(state, squad, 'home');
+  assert.ok(options.length >= 2);
+  const selected = friendlyRouteIndexAtPoint(state, squad, options, { x: 150, y: -80 }, 15);
+  assert.ok(selected >= 0);
+  assert.ok(options[selected].path.nodeIds.includes('lower'));
 });
