@@ -28,7 +28,7 @@ function normalizeEnemy(enemy) {
     cost: enemy.path.cost ?? 0
   } : null;
   return {
-    id: enemy.id, type: enemy.type ?? 'infantry',
+    id: enemy.id, type: enemy.type ?? 'infantry', level: Math.max(1, Math.min(5, Math.floor(Number(enemy.level) || 1))),
     hp: Number(enemy.hp) || 1, maxHp: Number(enemy.maxHp) || Number(enemy.hp) || 1,
     nodeId: enemy.nodeId, path, pathIndex: Math.max(0, Number(enemy.pathIndex) || 0),
     edgeId: enemy.edgeId ?? null, edgeProgress: Math.max(0, Number(enemy.edgeProgress) || 0),
@@ -78,7 +78,7 @@ function normalizeEnemyBases(legacy) {
   return (legacy.world?.enemyBases ?? legacy.bases ?? []).map(base => ({
     id: base.id, type: base.type ?? 'barracks', nodeId: base.nodeId,
     hp: Math.max(0, Number(base.hp) || 100), maxHp: Math.max(1, Number(base.maxHp) || 100),
-    alive: base.alive !== false, captured: Boolean(base.captured), level: Math.max(1, Number(base.level) || 1),
+    alive: base.alive !== false, level: Math.max(1, Number(base.level) || 1),
     ageSeconds: Math.max(0, Number(base.ageSeconds) || 0), spawnClock: Math.max(0, Number(base.spawnClock) || 0),
     wavesSent: Math.max(0, Number(base.wavesSent) || 0), routeDistance: Number(base.routeDistance ?? base.roadDistance) || 0
   }));

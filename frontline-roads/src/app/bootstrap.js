@@ -26,6 +26,8 @@ import { CombatSystem } from '../combat/combat-system.js';
 import { BuildSystem } from '../combat/build-system.js';
 import { CombatUi } from '../ui/combat-ui.js';
 import { CivilizationUi } from '../ui/civilization-ui.js';
+import { DeploymentUi } from '../ui/deployment-ui.js';
+import { BaseCommandUi } from '../ui/base-command-ui.js';
 import { MenuUi } from '../ui/menu-ui.js';
 import { RadarPreferences } from '../ui/radar-preferences.js';
 import { GameLoop } from './game-loop.js';
@@ -69,9 +71,12 @@ class FrontlineRoadsApp {
       buildSystem: this.buildSystem,
       civilizationSystem: this.civilizationSystem,
       explorationSystem: this.combatSystem.explorationSystem,
+      recoverySystem: this.combatSystem.recoverySystem,
+      friendlyForceSystem: this.combatSystem.friendlyForceSystem,
       camera: this.camera,
       renderer: this.renderer,
-      notifications: this.notifications
+      notifications: this.notifications,
+      persist: () => this.persist()
     });
     this.roadWorld = new RoadWorldManager({
       roadService: this.roadService,
@@ -89,6 +94,19 @@ class FrontlineRoadsApp {
       onStatus: status => {
         if (status.type === 'loaded' || status.type === 'error') this.notifications.show(status.text, 4500);
       }
+    });
+    this.deploymentUi = new DeploymentUi({
+      store: this.store,
+      friendlyForceSystem: this.combatSystem.friendlyForceSystem,
+      notifications: this.notifications,
+      persist: () => this.persist()
+    });
+    this.baseCommandUi = new BaseCommandUi({
+      store: this.store,
+      playerBaseSystem: this.civilizationSystem.playerBases,
+      renderer: this.renderer,
+      notifications: this.notifications,
+      persist: () => this.persist()
     });
     this.civilizationUi = new CivilizationUi({
       store: this.store,
@@ -109,6 +127,8 @@ class FrontlineRoadsApp {
       saveRepository: this.saveRepository,
       onUiUpdate: () => {
         this.combatUi.update();
+        this.deploymentUi.update();
+        this.baseCommandUi.update();
         this.civilizationUi.update();
       },
       onError: error => this.notifications.show(error?.message ?? '保存に失敗しました。'),
@@ -173,7 +193,7 @@ class FrontlineRoadsApp {
       document.documentElement.dataset.lifecycle = current;
       queryRequired('#lifecycleText').textContent = current;
     });
-    this.events.on('civilization:level-up', () => this.civilizationUi.render());
+    this.events.on('civilization:level-up', () => { this.civilizationUi.render(); this.baseCommandUi.render(); });
   }
 
   async start() {
@@ -241,6 +261,7 @@ class FrontlineRoadsApp {
       this.store.update(draft => {
         draft.player.currentPosition = { lat: currentLocation.lat, lon: currentLocation.lon };
         draft.player.locationAccuracy = currentLocation.accuracy;
+        draft.player.locationUpdatedAt = currentLocation.timestamp ?? Date.now();
         draft.runtime.lastError = null;
       }, 'location:resolved');
       this.lifecycle.startRoadLoading();
@@ -308,6 +329,7 @@ class FrontlineRoadsApp {
       setVisible(queryRequired('#playingHud'), true);
       queryRequired('#baseSummary').textContent = `拠点設置完了：初回現在地から約${Math.round(homeBase.selectedDistanceMeters)}m`;
       this.combatUi.update();
+      this.baseCommandUi.update();
       this.civilizationUi.updateSummary();
       this.startRuntime();
       this.notifications.show('拠点を設置しました。移動すると周辺道路を順次偵察し、MAPへ追加します。');
@@ -327,6 +349,7 @@ class FrontlineRoadsApp {
     setVisible(queryRequired('#playingHud'), true);
     queryRequired('#baseSummary').textContent = `保存済み拠点：初回現在地から約${Math.round(state.world.homeBase.selectedDistanceMeters ?? 0)}m`;
     this.combatUi.update();
+    this.baseCommandUi.update();
     this.civilizationUi.updateSummary();
     this.startRuntime();
   }
@@ -347,6 +370,7 @@ class FrontlineRoadsApp {
       this.store.mutate(state => {
         state.player.currentPosition = { lat: locationValue.lat, lon: locationValue.lon };
         state.player.locationAccuracy = locationValue.accuracy;
+        state.player.locationUpdatedAt = locationValue.timestamp ?? Date.now();
         state.player.worldPosition = latLonToXY(locationValue.lat, locationValue.lon, state.world.roadGraph.center);
       }, 'location:watch');
       this.renderer.render();
@@ -432,6 +456,7 @@ class FrontlineRoadsApp {
     this.renderer.setGraph(saved.world.roadGraph);
     this.renderer.setHomeBase(saved.world.homeBase);
     this.combatUi.update();
+    this.baseCommandUi.update();
     this.civilizationUi.updateSummary();
     return true;
   }

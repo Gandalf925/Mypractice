@@ -23,5 +23,9 @@
 | 18 Build planning UX | Complete | Non-destructive candidate preview, valid-site/range overlays, facility effects and capture awareness |
 | 19 Adaptive fronts | Complete | Enemy-specific barrier decisions, facility-targeting specialists, dual home/player build zones |
 | 20 World frontiers | Complete | Dynamic road chunks, unknown frontiers, fixed exploration sources, regional simulation and compact saves |
+| 21 Expeditionary command | Complete | Friendly expedition forces, enemy-base combat, field loot, civilization-gated multiple bases and remote base map switching |
+| 21.1 Readable UI | Complete | Larger HUD, panel, button and canvas labels with responsive spacing preserved |
+| 22 Combat balance phase 1 | Complete | Limited splash and slowing, enemy-base levels, fixed enemy unit levels, progressive wave composition and reference simulations |
+| 22.1 Tactical squad orders | Complete | Stop, selectable retreat/withdraw destinations and routes, route-selected resume, two waypoints, persistence and remote simulation |
 | Single HTML | Deferred | Generate only immediately before blockchain publication |
 | GitHub upload | Prepared | Complete modular replacement package generated for manual upload |

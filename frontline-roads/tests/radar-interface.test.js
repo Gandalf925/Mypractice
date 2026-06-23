@@ -57,6 +57,6 @@ test('radar canvas layers render with a minimal canvas context', async () => {
 test('playing footer stays clear of the combat toolbar', async () => {
   const { readFile } = await import('node:fs/promises');
   const css = await readFile(new URL('../src/styles/app.css', import.meta.url), 'utf8');
-  assert.match(css, /html\[data-lifecycle="PLAYING"\] footer\s*\{[^}]*bottom:\s*calc\(var\(--safe-bottom\) \+ 104px\)/s);
+  assert.match(css, /html\[data-lifecycle="PLAYING"\] footer\s*\{[^}]*bottom:\s*calc\(var\(--safe-bottom\) \+ 111px\)/s);
   assert.match(css, /orientation:\s*landscape[\s\S]*html\[data-lifecycle="PLAYING"\] footer\s*\{\s*display:\s*none;/);
 });

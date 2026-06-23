@@ -36,7 +36,7 @@ export function drawFrontierSignals(context, state, camera, timeMs = 0, preferen
     context.lineTo(tip.x + direction.y * 4, tip.y - direction.x * 4);
     context.closePath?.(); context.fill(); context.stroke();
     if (quality !== 'minimal' && typeof context.fillText === 'function') {
-      context.font = '10px monospace';
+      context.font = '11px monospace';
       context.fillStyle = 'rgba(255,190,150,0.92)';
       context.fillText(`${presentation.stage} T${presentation.threat}`, tip.x + 11, tip.y - 8);
     }

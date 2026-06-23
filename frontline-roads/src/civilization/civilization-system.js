@@ -4,6 +4,10 @@ import { ProgressionSystem, createProgressState, ensureProject } from './progres
 import { SettlementSystem } from './settlement-system.js';
 import { OutpostSystem } from './outpost-system.js';
 import { RESOURCE_OUTPOSTS } from './data.js';
+import { ensurePlayerBaseState } from '../base/player-bases.js';
+import { PlayerBaseSystem } from '../base/player-base-system.js';
+import { ensureFriendlyForceState } from '../combat/friendly-force-system.js';
+import { ensureRecoveryState } from '../exploration/recovery-system.js';
 
 export function ensureCivilizationState(state, { initializeInventory = false } = {}) {
   state.runtime ??= {};
@@ -28,6 +32,9 @@ export function ensureCivilizationState(state, { initializeInventory = false } =
   state.civilization.progress.cityHpStreaks = { 50: 0, 60: 0, 70: 0, ...(state.civilization.progress.cityHpStreaks ?? {}) };
   ensureInventoryState(state, { initialize: initializeInventory });
   ensureProject(state);
+  ensurePlayerBaseState(state);
+  ensureFriendlyForceState(state);
+  ensureRecoveryState(state);
   state.world.outposts ??= [];
   state.world.baseRespawns ??= [];
   for (const outpost of state.world.outposts) {
@@ -54,6 +61,7 @@ export class CivilizationSystem {
     this.progression = new ProgressionSystem(events);
     this.settlement = new SettlementSystem(events);
     this.outposts = new OutpostSystem(events);
+    this.playerBases = new PlayerBaseSystem(events);
   }
 
   update(state, deltaSeconds) {

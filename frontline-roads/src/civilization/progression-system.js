@@ -93,6 +93,10 @@ export function evaluateProject(state, { create = true } = {}) {
     const current = progressCheckValue(state, key, required);
     checks.push({ kind: 'progress', key, current, required: requiredValue, complete: current >= requiredValue });
   }
+  if ((definition.artifactsRequired ?? 0) > 0) {
+    const current = Math.max(0, Number(state.civilization.totalArtifactsRecovered) || 0);
+    checks.push({ kind: 'artifact', key: 'recoveredArtifacts', current, required: definition.artifactsRequired, complete: current >= definition.artifactsRequired });
+  }
   return { complete: checks.every(check => check.complete), checks, project, definition };
 }
 

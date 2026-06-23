@@ -5,6 +5,8 @@ import { WaveSystem } from './wave-system.js';
 import { buildCombatSpatialIndex } from './combat-spatial-index.js';
 import { FrontierSystem } from '../exploration/frontier-system.js';
 import { ExplorationSystem } from '../exploration/exploration-system.js';
+import { FriendlyForceSystem, friendlySquadPosition } from './friendly-force-system.js';
+import { RecoverySystem } from '../exploration/recovery-system.js';
 import {
   REGION_ACTIVITY,
   REGION_ACTIVITY_CONFIG,
@@ -24,15 +26,19 @@ function defensePoint(state, defense) {
 function assignmentsForState(state, spatial) {
   const enemies = new Map();
   const defenses = new Map();
+  const friendlySquads = new Map();
   for (const enemy of state.combat.enemies) {
     const point = spatial.positions.get(enemy.id) ?? enemyPosition(state, enemy);
     enemies.set(enemy.id, regionActivityAtPoint(state, point));
+  }
+  for (const squad of state.combat.friendlySquads ?? []) {
+    friendlySquads.set(squad.id, regionActivityAtPoint(state, friendlySquadPosition(state, squad)));
   }
   for (const defense of state.combat.defenses) {
     if (defense.kind !== 'tower') continue;
     defenses.set(defense.id, regionActivityAtPoint(state, defensePoint(state, defense)));
   }
-  return { enemies, defenses };
+  return { enemies, defenses, friendlySquads };
 }
 
 export class CombatSystem {
@@ -40,6 +46,8 @@ export class CombatSystem {
     this.enemySystem = new EnemySystem(events);
     this.defenseSystem = new DefenseSystem(events);
     this.waveSystem = new WaveSystem(events);
+    this.friendlyForceSystem = new FriendlyForceSystem(events);
+    this.recoverySystem = new RecoverySystem(events);
     this.frontierSystem = new FrontierSystem(events);
     this.explorationSystem = new ExplorationSystem(events);
     this.events = events;
@@ -56,6 +64,12 @@ export class CombatSystem {
         spatial,
         defense => assignments.defenses.get(defense.id) === activity
       );
+      this.friendlyForceSystem.update(
+        state,
+        step,
+        spatial,
+        squad => assignments.friendlySquads.get(squad.id) === activity
+      );
       this.enemySystem.update(
         state,
         step,
@@ -67,6 +81,7 @@ export class CombatSystem {
   }
 
   update(state, deltaSeconds) {
+    this.recoverySystem.update(state, deltaSeconds);
     this.explorationSystem.update(state, deltaSeconds);
     this.frontierSystem.update(state, deltaSeconds);
     this.waveSystem.update(state, deltaSeconds);

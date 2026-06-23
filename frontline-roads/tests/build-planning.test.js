@@ -202,7 +202,7 @@ test('a current-location candidate is rejected if the player leaves its build zo
   const result = build.buildCandidate(state, preview.candidate);
 
   assert.equal(result.ok, false);
-  assert.match(result.reason, /本拠地または現在地/);
+  assert.match(result.reason, /拠点または現在地/);
   assert.deepEqual(state.inventory.resources, before);
 });
 

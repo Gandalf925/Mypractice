@@ -1,6 +1,6 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const CACHE_NAME = `${CACHE_PREFIX}v0-20-0-world-frontiers`;
+const CACHE_NAME = `${CACHE_PREFIX}v0-22-1-tactical-orders`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -16,6 +16,8 @@ const APP_SHELL = [
   './src/base/base-graph.js',
   './src/base/base-placement-service.js',
   './src/base/base-state.js',
+  './src/base/player-bases.js',
+  './src/base/player-base-system.js',
   './src/civilization/civilization-system.js',
   './src/civilization/data.js',
   './src/civilization/inventory-system.js',
@@ -33,6 +35,11 @@ const APP_SHELL = [
   './src/combat/defense-presentation.js',
   './src/combat/definitions.js',
   './src/combat/enemy-system.js',
+  './src/combat/enemy-scaling.js',
+  './src/combat/enemy-base-system.js',
+  './src/combat/friendly-force-system.js',
+  './src/combat/friendly-route-planner.js',
+  './src/combat/road-unit-position.js',
   './src/combat/region-activity.js',
   './src/combat/routing-system.js',
   './src/combat/wave-system.js',
@@ -44,6 +51,7 @@ const APP_SHELL = [
   './src/core/utilities.js',
   './src/exploration/frontier-system.js',
   './src/exploration/exploration-system.js',
+  './src/exploration/recovery-system.js',
   './src/location/geolocation-service.js',
   './src/location/location-privacy.js',
   './src/persistence/legacy-save-migration.js',
@@ -57,6 +65,7 @@ const APP_SHELL = [
   './src/rendering/build-placement-overlay.js',
   './src/rendering/combat-renderer.js',
   './src/rendering/frontier-renderer.js',
+  './src/rendering/friendly-order-overlay.js',
   './src/rendering/exploration-renderer.js',
   './src/rendering/combat-effects.js',
   './src/rendering/renderer.js',
@@ -79,8 +88,10 @@ const APP_SHELL = [
   './src/roads/world-chunk-grid.js',
   './src/styles/app.css',
   './src/ui/base-placement-screen.js',
+  './src/ui/base-command-ui.js',
   './src/ui/civilization-ui.js',
   './src/ui/combat-ui.js',
+  './src/ui/deployment-ui.js',
   './src/ui/dom.js',
   './src/ui/map-input.js',
   './src/ui/menu-ui.js',

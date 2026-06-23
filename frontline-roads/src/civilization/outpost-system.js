@@ -1,21 +1,5 @@
-import { distance, stableId } from '../core/utilities.js';
-import { ENEMY_BASE_CAPTURE_RANGE_METERS, ENEMY_BASE_DEFINITIONS } from '../combat/definitions.js';
 import { DEFENSE_LINES, RESOURCE_OUTPOSTS, defenseLineForType } from './data.js';
 import { addBundle, consumeBundle, missingBundle } from './inventory-system.js';
-
-const OUTPOST_MAX_HP = 240;
-const BASE_RESPAWN_MIN_SECONDS = 4 * 60 * 60;
-const BASE_RESPAWN_MAX_SECONDS = 6 * 60 * 60;
-
-function deterministicRespawnSeconds(baseId) {
-  let hash = 2166136261;
-  for (const character of String(baseId)) {
-    hash ^= character.charCodeAt(0);
-    hash = Math.imul(hash, 16777619);
-  }
-  const span = BASE_RESPAWN_MAX_SECONDS - BASE_RESPAWN_MIN_SECONDS;
-  return BASE_RESPAWN_MIN_SECONDS + ((hash >>> 0) % (span + 1));
-}
 
 function defaultOutpostDefenseKey(state) {
   const tier = Math.max(0, Math.min(4, state.civilization.level ?? 0));
@@ -34,63 +18,6 @@ function defenseByKey(key) {
 export class OutpostSystem {
   constructor(events = null) {
     this.events = events;
-  }
-
-  beginCapture(state, baseId) {
-    const base = state.world.enemyBases.find(item => item.id === baseId && item.alive);
-    if (!base) return { ok: false, reason: '敵拠点が見つかりません。' };
-    const node = state.world.roadGraph.nodeById.get(base.nodeId);
-    const player = state.player.worldPosition;
-    if (!player || !node || distance(player, node) > ENEMY_BASE_CAPTURE_RANGE_METERS) return { ok: false, reason: `敵拠点の${ENEMY_BASE_CAPTURE_RANGE_METERS}m以内へ移動してください。` };
-    if (state.combat.enemies.some(enemy => enemy.hp > 0 && enemy.sourceBaseId === base.id)) {
-      return { ok: false, reason: 'この拠点から出撃した敵を先に排除してください。' };
-    }
-    base.captureActive = true;
-    base.captureProgress ??= 0;
-    this.events?.emit('message', { text: '敵拠点の制圧を開始しました。範囲内に留まってください。' });
-    return { ok: true, base };
-  }
-
-  completeCapture(state, base) {
-    const definition = ENEMY_BASE_DEFINITIONS[base.type];
-    const resourceDefinition = RESOURCE_OUTPOSTS[base.type];
-    base.alive = false;
-    base.captured = true;
-    base.captureActive = false;
-    base.captureProgress = definition?.captureDuration ?? base.captureProgress ?? 0;
-    state.statistics.campsCaptured += 1;
-    state.civilization.progress.campsCapturedByType[base.type] = (state.civilization.progress.campsCapturedByType[base.type] ?? 0) + 1;
-    addBundle(state, definition?.reward ?? {});
-
-    const outpost = {
-      id: stableId('outpost', base.id, state.statistics.campsCaptured),
-      nodeId: base.nodeId,
-      sourceBaseId: base.id,
-      sourceBaseType: base.type,
-      status: 'RUINED',
-      hp: 0,
-      maxHp: OUTPOST_MAX_HP,
-      defenseKey: null,
-      productionClock: 0,
-      resource: resourceDefinition?.resource ?? null,
-      amount: resourceDefinition?.amount ?? 0,
-      intervalSec: resourceDefinition?.intervalSec ?? 0,
-      capturedAt: state.runtime?.worldTimeMs ?? Date.now(),
-      restoredAt: null
-    };
-    state.world.outposts.push(outpost);
-    state.world.baseRespawns ??= [];
-    state.world.baseRespawns.push({
-      id: stableId('respawn', base.id, state.statistics.campsCaptured),
-      baseType: base.type,
-      sourceNodeId: base.nodeId,
-      remainingSec: deterministicRespawnSeconds(base.id),
-      attempts: 0
-    });
-
-    this.events?.emit('civilization:outpost-captured', { outpost, base });
-    this.events?.emit('message', { text: `${definition?.name ?? '敵拠点'}を制圧しました。廃墟前哨地を修復できます。` });
-    return outpost;
   }
 
   restoreCost(state, outpost, defenseKey = defaultOutpostDefenseKey(state)) {
@@ -118,24 +45,11 @@ export class OutpostSystem {
   }
 
   update(state, deltaSeconds) {
-    for (const base of state.world.enemyBases) {
-      if (!base.alive || !base.captureActive) continue;
-      const node = state.world.roadGraph.nodeById.get(base.nodeId);
-      const player = state.player.worldPosition;
-      if (!player || !node || distance(player, node) > ENEMY_BASE_CAPTURE_RANGE_METERS) {
-        base.captureActive = false;
-        this.events?.emit('message', { text: '制圧範囲から離れたため、制圧を一時停止しました。' });
-        continue;
-      }
-      if (state.combat.enemies.some(enemy => enemy.hp > 0 && enemy.sourceBaseId === base.id)) {
-        base.captureActive = false;
-        continue;
-      }
-      base.captureProgress = (base.captureProgress ?? 0) + deltaSeconds;
-      if (base.captureProgress >= (ENEMY_BASE_DEFINITIONS[base.type]?.captureDuration ?? 60)) this.completeCapture(state, base);
-    }
-
     for (const outpost of state.world.outposts) {
+      const resourceDefinition = RESOURCE_OUTPOSTS[outpost.sourceBaseType];
+      outpost.resource ??= resourceDefinition?.resource ?? null;
+      outpost.amount = Math.max(0, Number(outpost.amount) || resourceDefinition?.amount || 0);
+      outpost.intervalSec = Math.max(0, Number(outpost.intervalSec) || resourceDefinition?.intervalSec || 0);
       if (outpost.status !== 'ACTIVE' || !outpost.resource || outpost.intervalSec <= 0) continue;
       outpost.productionClock = (outpost.productionClock ?? 0) + deltaSeconds;
       while (outpost.productionClock >= outpost.intervalSec) {

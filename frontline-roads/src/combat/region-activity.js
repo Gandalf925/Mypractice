@@ -1,4 +1,5 @@
 import { distance } from '../core/utilities.js';
+import { activePlayerBases } from '../base/player-bases.js';
 
 export const REGION_ACTIVITY = Object.freeze({
   ACTIVE: 'ACTIVE',
@@ -19,10 +20,7 @@ function finitePoint(point) {
 }
 
 export function regionActivityAnchors(state) {
-  const anchors = [];
-  const graph = state.world?.roadGraph;
-  const cityNode = graph?.nodeById?.get(state.world?.city?.nodeId);
-  if (finitePoint(cityNode)) anchors.push(cityNode);
+  const anchors = activePlayerBases(state).filter(finitePoint).map(base => ({ x: base.x, y: base.y }));
   if (finitePoint(state.player?.worldPosition)) {
     const player = state.player.worldPosition;
     if (!anchors.some(anchor => distance(anchor, player) < 1)) anchors.push(player);

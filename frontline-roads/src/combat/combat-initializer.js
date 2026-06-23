@@ -4,6 +4,8 @@ import { ENEMY_BASE_DEFINITIONS } from './definitions.js';
 import { INITIAL_BASE_TYPES } from './wave-system.js';
 import { reconcileFrontiers, ensureFrontierState } from '../exploration/frontier-system.js';
 import { ensureExplorationState, reconcileExplorationSites } from '../exploration/exploration-system.js';
+import { ensurePlayerBaseState } from '../base/player-bases.js';
+import { ensureFriendlyForceState } from './friendly-force-system.js';
 
 function distancesFrom(graph, startId) {
   const distances = new Map([[startId, 0]]);
@@ -57,9 +59,11 @@ export function initializeCombatState(state) {
   const graph = state.world.roadGraph;
   const cityNodeId = state.world.homeBase.nodeId;
   state.world.city = { nodeId: cityNodeId, hp: 100, maxHp: 100 };
+  state.world.playerBases = [{ ...state.world.homeBase, name: '本拠地', primary: true, hp: 100, maxHp: 100 }];
   state.player.worldPosition = { x: state.world.homeBase.x ?? 0, y: state.world.homeBase.y ?? 0 };
   ensureCivilizationState(state, { initializeInventory: true });
   state.combat.enemies = [];
+  state.combat.friendlySquads = [];
   state.combat.defenses = [];
   state.combat.waves = { elapsed: 0, nextSpawnAt: null, active: {}, resourceBaseCheckClock: 30 };
   state.combat.pendingSettlementDamage = [];
@@ -67,11 +71,13 @@ export function initializeCombatState(state) {
   state.world.frontierSources = [];
   state.world.explorationSites = [];
   state.world.exploredSiteChunks = [];
+  state.world.recoveryItems = [];
+  state.world.recoveryCollection = null;
   state.world.enemyBases = selectEnemyBasePlacements(graph, cityNodeId).map(placement => {
     const definition = ENEMY_BASE_DEFINITIONS[placement.type];
     return {
       id: stableId('enemy_base', placement.type, placement.nodeId), type: placement.type,
-      nodeId: placement.nodeId, hp: 100, maxHp: 100, alive: true, captured: false,
+      nodeId: placement.nodeId, hp: 100, maxHp: 100, alive: true,
       level: 1, ageSeconds: 0, spawnClock: Math.max(0, definition.interval - definition.firstDelay),
       wavesSent: 0, routeDistance: placement.routeDistance
     };
@@ -86,6 +92,8 @@ export function ensureCombatInitialized(state) {
   state.combat.pendingSettlementDamage ??= [];
   ensureFrontierState(state);
   ensureExplorationState(state);
+  ensurePlayerBaseState(state);
+  ensureFriendlyForceState(state);
   ensureCivilizationState(state, { initializeInventory: !state.runtime.combatInitialized });
   if (!state.runtime.combatInitialized || !state.world.city) initializeCombatState(state);
   return state;

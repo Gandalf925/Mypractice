@@ -18,12 +18,12 @@ function formatDuration(seconds) {
 
 function checkLabel(check) {
   const labels = {
-    totalKills: '敵撃破', totalCampsCaptured: '敵拠点制圧', totalRepairHpPaid: '資源を使った修理',
+    totalKills: '敵撃破', totalCampsCaptured: '敵拠点破壊', totalRepairHpPaid: '資源を使った修理',
     totalProduced: '加工資材の生産', selfProducedBronze: '自作青銅塊', selfProducedWroughtIron: '自作鍛鉄',
     perfectWaveStreak: '完全防衛連続数', simultaneousOutposts: '同時保有前哨地',
     copperCampsCaptured: '銅鉱野営地制圧', tinCampsCaptured: '錫鉱野営地制圧',
     ironCampsCaptured: '鉄鉱野営地制圧', siegeCaptainsDefeated: '攻城隊長撃破',
-    cityHpStreak: '都市耐久の連続維持', barrier0: '丸太柵', single0: '投石台',
+    cityHpStreak: '都市耐久の連続維持', recoveredArtifacts: '現地回収した特殊アイテム', barrier0: '丸太柵', single0: '投石台',
     otherDefense0: 'その他の防衛設備', upgradedDefenses: '改良済み防衛設備',
     upgradedDefenseKinds: '改良設備の種類', barrier2: '石壁', gate2: '石門', gate3: '青銅門',
     bronzeDefenses: '青銅設備', bronzeDefenseKinds: '青銅設備の種類', wallAtLeast2: '石壁以上'

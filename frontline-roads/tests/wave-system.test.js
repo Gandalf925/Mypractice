@@ -50,7 +50,7 @@ test('initial base placement excludes civilization resource bases', async () => 
   assert.deepEqual(types.filter(type => ['copperCamp', 'tinCamp', 'ironCamp', 'bronzeCamp', 'siegeWorks'].includes(type)), []);
 });
 
-test('captured base waits for its respawn timer and then reappears elsewhere', () => {
+test('destroyed base waits for its respawn timer and then reappears elsewhere', () => {
   const state = longRoadState();
   state.world.enemyBases[0].alive = false;
   state.world.baseRespawns = [{ id: 'respawn-1', baseType: 'barracks', sourceNodeId: 'n2', remainingSec: 1, attempts: 0 }];

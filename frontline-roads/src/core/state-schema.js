@@ -9,6 +9,7 @@ export function createInitialState() {
     world: {
       roadGraph: null,
       homeBase: null,
+      playerBases: [],
       city: null,
       enemyBases: [],
       outposts: [],
@@ -16,15 +17,19 @@ export function createInitialState() {
       roadChunks: null,
       frontierSources: [],
       explorationSites: [],
-      exploredSiteChunks: []
+      exploredSiteChunks: [],
+      recoveryItems: [],
+      recoveryCollection: null
     },
     player: {
       currentPosition: null,
       locationAccuracy: null,
+      locationUpdatedAt: null,
       worldPosition: null
     },
     combat: {
       enemies: [],
+      friendlySquads: [],
       defenses: [],
       waves: { elapsed: 0, nextSpawnAt: null, active: {}, resourceBaseCheckClock: 30 },
       pendingSettlementDamage: []
@@ -36,7 +41,9 @@ export function createInitialState() {
       project: null,
       buildings: [],
       productionQueues: [],
-      progress: createProgressState()
+      progress: createProgressState(),
+      artifacts: {},
+      totalArtifactsRecovered: 0
     },
     inventory: {
       resources: emptyResourceBundle(),
@@ -93,8 +100,8 @@ export function validateState(state) {
   if (!object(state?.civilization)) errors.push('civilization is required');
   if (!object(state?.inventory?.resources)) errors.push('inventory is required');
   if (!object(state?.runtime)) errors.push('runtime is required');
-  if (!Array.isArray(state?.world?.enemyBases) || !Array.isArray(state?.world?.outposts) || !Array.isArray(state?.world?.baseRespawns)) errors.push('world collections are invalid');
-  if (!Array.isArray(state?.combat?.enemies) || !Array.isArray(state?.combat?.defenses) || !object(state?.combat?.waves)) errors.push('combat collections are invalid');
+  if (!Array.isArray(state?.world?.enemyBases) || !Array.isArray(state?.world?.outposts) || !Array.isArray(state?.world?.baseRespawns) || (state?.world?.playerBases !== undefined && !Array.isArray(state.world.playerBases))) errors.push('world collections are invalid');
+  if (!Array.isArray(state?.combat?.enemies) || (state?.combat?.friendlySquads !== undefined && !Array.isArray(state.combat.friendlySquads)) || !Array.isArray(state?.combat?.defenses) || !object(state?.combat?.waves)) errors.push('combat collections are invalid');
   if (!Array.isArray(state?.civilization?.buildings) || !Array.isArray(state?.civilization?.productionQueues)) errors.push('civilization collections are invalid');
   if (state?.world?.roadGraph) validateRoadGraph(state.world.roadGraph, errors);
   const graphNodeIds = new Set(state?.world?.roadGraph?.nodes?.map(node => node.id) ?? []);
@@ -103,6 +110,16 @@ export function validateState(state) {
     if (home.status !== 'ESTABLISHED' || !home.nodeId || !finite(home.x) || !finite(home.y)) errors.push('homeBase is invalid');
     if (!state.world.roadGraph) errors.push('homeBase requires roadGraph');
     else if (!graphNodeIds.has(home.nodeId)) errors.push('homeBase node is missing from roadGraph');
+  }
+  for (const base of state?.world?.playerBases ?? []) {
+    if (!base?.id || base.status !== 'ESTABLISHED' || !base.nodeId || !finite(base.x) || !finite(base.y) || !finite(base.hp) || !finite(base.maxHp)) {
+      errors.push('playerBases contains an invalid base');
+      break;
+    }
+    if (state.world.roadGraph && !graphNodeIds.has(base.nodeId)) {
+      errors.push('player base node is missing from roadGraph');
+      break;
+    }
   }
   if (state?.world?.city) {
     const city = state.world.city;

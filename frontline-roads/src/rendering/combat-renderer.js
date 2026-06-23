@@ -1,6 +1,7 @@
 import { clamp } from '../core/utilities.js';
 import { edgeMidpoint } from '../combat/combat-geometry.js';
 import { enemyPosition } from '../combat/enemy-system.js';
+import { friendlySquadPosition } from '../combat/friendly-force-system.js';
 import { sweepIntensity } from './radar-renderer.js';
 
 const TAU = Math.PI * 2;
@@ -78,7 +79,7 @@ function drawEnemyBase(context, point, timeMs, quality) {
   ring(context, point, pulse, '#ff6b7d', 1, 0.65, true);
   drawTicks(context, point, 12, '#ff6b7d');
   context.fillStyle = '#ffb3bd';
-  context.font = '700 7px ui-monospace, monospace';
+  context.font = '700 8px ui-monospace, monospace';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   context.fillText('HOST', point.x, point.y + 0.5);
@@ -92,7 +93,7 @@ function drawOutpost(context, point, active, timeMs, quality) {
   polygon(context, point, 9, 6, Math.PI / 6, active ? 'rgba(102,255,209,0.16)' : 'rgba(80,100,95,0.2)', color, 1.5);
   ring(context, point, 12 + Math.sin(timeMs * 0.003) * 1.2, color, 1, active ? 0.5 : 0.25, !active);
   context.fillStyle = color;
-  context.font = '700 7px ui-monospace, monospace';
+  context.font = '700 8px ui-monospace, monospace';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   context.fillText(active ? 'OUT' : 'RUI', point.x, point.y + 0.5);
@@ -161,6 +162,22 @@ function drawEnemyBlip(context, point, radius, slowed, intensity, timeMs, qualit
   context.restore();
 }
 
+
+function drawFriendlySquad(context, point, status, timeMs, quality) {
+  const color = status === 'ENGAGED' || status === 'ATTACKING_BASE' ? '#fff3a1' : '#65d7ff';
+  const pulse = 10 + Math.sin(timeMs * 0.006) * 1.2;
+  context.save();
+  glow(context, color, 13, quality);
+  polygon(context, point, 6.5, 4, Math.PI / 4, 'rgba(101,215,255,0.2)', color, 1.5);
+  ring(context, point, pulse, color, 1, 0.52, true);
+  context.fillStyle = color;
+  context.font = '800 7px ui-monospace, monospace';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText('ALLY', point.x, point.y + 0.5);
+  context.restore();
+}
+
 function drawCity(context, point, timeMs, quality) {
   const pulse = 17 + Math.sin(timeMs * 0.0035) * 1.5;
   context.save();
@@ -170,10 +187,24 @@ function drawCity(context, point, timeMs, quality) {
   ring(context, point, 7.5, '#65ffd0', 1.2, 0.9);
   drawTicks(context, point, 13, '#9effe4');
   context.fillStyle = '#dffff7';
-  context.font = '800 7px ui-monospace, monospace';
+  context.font = '800 8px ui-monospace, monospace';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   context.fillText('HQ', point.x, point.y + 0.4);
+  context.restore();
+}
+
+function drawPlayerBase(context, point, timeMs, quality) {
+  const pulse = 13 + Math.sin(timeMs * 0.0035) * 1.2;
+  context.save();
+  glow(context, '#65d7ff', 14, quality);
+  polygon(context, point, 8.5, 6, Math.PI / 6, 'rgba(101,215,255,0.16)', '#65d7ff', 1.5);
+  ring(context, point, pulse, '#65d7ff', 1, 0.45, true);
+  context.fillStyle = '#d9f6ff';
+  context.font = '800 7px ui-monospace, monospace';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText('BASE', point.x, point.y + 0.4);
   context.restore();
 }
 
@@ -187,6 +218,21 @@ function shouldDrawHealth(value, maximum, quality) {
   if (quality === 'full') return ratio < 1;
   if (quality === 'balanced') return ratio < 0.8;
   return ratio < 0.5;
+}
+
+
+function drawRecoveryItem(context, point, timeMs, quality) {
+  const pulse = 11 + Math.sin(timeMs * 0.005) * 1.5;
+  context.save();
+  glow(context, '#ffd166', 16, quality);
+  polygon(context, point, 6, 4, Math.PI / 4, 'rgba(255,209,102,0.2)', '#ffd166', 1.5);
+  ring(context, point, pulse, '#ffd166', 1, 0.55, true);
+  context.fillStyle = '#fff1bf';
+  context.font = '800 7px ui-monospace, monospace';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText('ITEM', point.x, point.y + 0.5);
+  context.restore();
 }
 
 function drawPlayer(context, point, quality) {
@@ -208,7 +254,10 @@ export function drawCombatState(context, state, camera, radar = {}) {
     const node = graph.nodeById.get(base.nodeId);
     if (!node) continue;
     const point = camera.worldToScreen(node);
-    if (visiblePoint(point, camera)) drawEnemyBase(context, point, timeMs, quality);
+    if (visiblePoint(point, camera)) {
+      drawEnemyBase(context, point, timeMs, quality);
+      if (shouldDrawHealth(base.hp, base.maxHp, quality)) drawHealthBar(context, point, base.hp, base.maxHp, 26, 15, quality);
+    }
   }
 
   for (const outpost of state.world.outposts ?? []) {
@@ -266,6 +315,23 @@ export function drawCombatState(context, state, camera, radar = {}) {
     context.restore();
   }
 
+
+
+  for (const item of state.world.recoveryItems ?? []) {
+    if (item.status !== 'AVAILABLE') continue;
+    const node = graph.nodeById.get(item.nodeId) ?? item;
+    const point = camera.worldToScreen(node);
+    if (visiblePoint(point, camera, 24)) drawRecoveryItem(context, point, timeMs, quality);
+  }
+
+  for (const squad of state.combat.friendlySquads ?? []) {
+    if (squad.hp <= 0) continue;
+    const point = camera.worldToScreen(friendlySquadPosition(state, squad));
+    if (!visiblePoint(point, camera, 24)) continue;
+    drawFriendlySquad(context, point, squad.status, timeMs, quality);
+    if (shouldDrawHealth(squad.hp, squad.maxHp, quality)) drawHealthBar(context, point, squad.hp, squad.maxHp, 22, 10, quality);
+  }
+
   const edgeEnemyIndices = new Map();
   for (const enemy of state.combat.enemies ?? []) {
     if (enemy.hp <= 0 || enemy.departDelay > 0) continue;
@@ -291,6 +357,15 @@ export function drawCombatState(context, state, camera, radar = {}) {
     const intensity = radar.center ? sweepIntensity(point, radar.center, radar.sweepAngle ?? 0) : 0;
     drawEnemyBlip(context, point, enemy.radius ?? 5, enemy.slowTimer > 0, intensity, timeMs, quality);
     if (shouldDrawHealth(enemy.hp, enemy.maxHp, quality)) drawHealthBar(context, point, enemy.hp, enemy.maxHp, 16, 8, quality);
+  }
+
+  for (const base of state.world.playerBases ?? []) {
+    if (base.primary || base.status !== 'ESTABLISHED' || base.hp <= 0) continue;
+    const node = graph.nodeById.get(base.nodeId) ?? base;
+    const point = camera.worldToScreen(node);
+    if (!visiblePoint(point, camera, 32)) continue;
+    drawPlayerBase(context, point, timeMs, quality);
+    if (shouldDrawHealth(base.hp, base.maxHp, quality)) drawHealthBar(context, point, base.hp, base.maxHp, 24, 14, quality);
   }
 
   const cityNode = graph.nodeById.get(state.world.city.nodeId);

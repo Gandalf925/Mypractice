@@ -25,10 +25,10 @@ export const CIVILIZATIONS = Object.freeze([
 ]);
 
 export const CIVILIZATION_PROJECTS = Object.freeze({
-  1: { target: 1, durationSec: 600, contributions: { wood: 180, stone: 110, fiber: 80 }, buildings: { barrier0: 2, single0: 1, otherDefense0: 1 }, progress: { totalKills: 30, totalCampsCaptured: 1, cityHpStreak: { threshold: 50, seconds: 300 } } },
-  2: { target: 2, durationSec: 1800, contributions: { wood: 260, stone: 220, fiber: 120, timber: 24, rope: 12, cutStone: 30 }, buildings: { storehouse1: 1, carpentry: 1, ropeworks: 1, stonecutter: 1, upgradedDefenses: 3, upgradedDefenseKinds: 2 }, progress: { totalKills: 100, totalCampsCaptured: 3, totalRepairHpPaid: 200, totalProduced: 30, cityHpStreak: { threshold: 60, seconds: 900 } } },
-  3: { target: 3, durationSec: 7200, contributions: { wood: 350, stone: 400, fiber: 180, timber: 40, rope: 20, cutStone: 50, charcoal: 50, bronzeIngot: 24 }, buildings: { storehouse2: 1, charcoalKiln: 1, copperFurnace: 1, tinFurnace: 1, trialBronzeFurnace: 1, barrier2: 3, gate2: 1 }, progress: { totalKills: 250, totalCampsCaptured: 6, copperCampsCaptured: 1, tinCampsCaptured: 1, selfProducedBronze: 24, perfectWaveStreak: 3 } },
-  4: { target: 4, durationSec: 28800, contributions: { wood: 500, stone: 650, fiber: 250, timber: 60, rope: 30, cutStone: 80, charcoal: 100, bronzeIngot: 40, wroughtIron: 30 }, buildings: { storehouse3: 1, bronzeWorkshop: 1, bloomery: 1, forge: 1, gate3: 1, bronzeDefenses: 4, bronzeDefenseKinds: 3, wallAtLeast2: 4 }, progress: { totalKills: 500, totalCampsCaptured: 12, siegeCaptainsDefeated: 3, ironCampsCaptured: 2, selfProducedWroughtIron: 30, simultaneousOutposts: 3, perfectWaveStreak: 5, cityHpStreak: { threshold: 70, seconds: 1800 } } }
+  1: { target: 1, durationSec: 600, artifactsRequired: 1, contributions: { wood: 180, stone: 110, fiber: 80 }, buildings: { barrier0: 2, single0: 1, otherDefense0: 1 }, progress: { totalKills: 30, totalCampsCaptured: 1, cityHpStreak: { threshold: 50, seconds: 300 } } },
+  2: { target: 2, durationSec: 1800, artifactsRequired: 2, contributions: { wood: 260, stone: 220, fiber: 120, timber: 24, rope: 12, cutStone: 30 }, buildings: { storehouse1: 1, carpentry: 1, ropeworks: 1, stonecutter: 1, upgradedDefenses: 3, upgradedDefenseKinds: 2 }, progress: { totalKills: 100, totalCampsCaptured: 3, totalRepairHpPaid: 200, totalProduced: 30, cityHpStreak: { threshold: 60, seconds: 900 } } },
+  3: { target: 3, durationSec: 7200, artifactsRequired: 4, contributions: { wood: 350, stone: 400, fiber: 180, timber: 40, rope: 20, cutStone: 50, charcoal: 50, bronzeIngot: 24 }, buildings: { storehouse2: 1, charcoalKiln: 1, copperFurnace: 1, tinFurnace: 1, trialBronzeFurnace: 1, barrier2: 3, gate2: 1 }, progress: { totalKills: 250, totalCampsCaptured: 6, copperCampsCaptured: 1, tinCampsCaptured: 1, selfProducedBronze: 24, perfectWaveStreak: 3 } },
+  4: { target: 4, durationSec: 28800, artifactsRequired: 7, contributions: { wood: 500, stone: 650, fiber: 250, timber: 60, rope: 30, cutStone: 80, charcoal: 100, bronzeIngot: 40, wroughtIron: 30 }, buildings: { storehouse3: 1, bronzeWorkshop: 1, bloomery: 1, forge: 1, gate3: 1, bronzeDefenses: 4, bronzeDefenseKinds: 3, wallAtLeast2: 4 }, progress: { totalKills: 500, totalCampsCaptured: 12, siegeCaptainsDefeated: 3, ironCampsCaptured: 2, selfProducedWroughtIron: 30, simultaneousOutposts: 3, perfectWaveStreak: 5, cityHpStreak: { threshold: 70, seconds: 1800 } } }
 });
 
 export const PRODUCTION_RECIPES = Object.freeze({
@@ -77,18 +77,18 @@ export const DEFENSE_LINES = Object.freeze({
     { key: 'single4', name: '鉄弩砲', range: 115, damage: 30, cooldown: 2, upgrade: { timber: 10, rope: 4, wroughtIron: 10 } }
   ],
   area: [
-    { key: 'area0', name: '岩落とし台', type: 'mortar', hp: 150, range: 125, damage: 30, cooldown: 12, blastRadius: 30, cost: { wood: 42, stone: 48, fiber: 16 } },
-    { key: 'area1', name: '大型岩落とし台', range: 130, damage: 38, cooldown: 11, blastRadius: 31, upgrade: { timber: 4, cutStone: 4 } },
-    { key: 'area2', name: '牽引式投石機', range: 145, damage: 50, cooldown: 10, blastRadius: 32, upgrade: { cutStone: 10, timber: 8, rope: 5 } },
-    { key: 'area3', name: '青銅破砕機', range: 155, damage: 65, cooldown: 9, blastRadius: 34, upgrade: { cutStone: 16, timber: 10, bronzeIngot: 8 } },
-    { key: 'area4', name: '重投石機', range: 175, damage: 85, cooldown: 9, blastRadius: 36, upgrade: { cutStone: 20, timber: 16, rope: 8, wroughtIron: 8 } }
+    { key: 'area0', name: '岩落とし台', type: 'mortar', hp: 150, range: 90, damage: 18, cooldown: 16, blastRadius: 18, maxTargets: 3, splashMultiplier: 0.60, cost: { wood: 50, stone: 60, fiber: 18 } },
+    { key: 'area1', name: '大型岩落とし台', range: 100, damage: 24, cooldown: 15, blastRadius: 20, maxTargets: 3, splashMultiplier: 0.60, upgrade: { timber: 4, cutStone: 4 } },
+    { key: 'area2', name: '牽引式投石機', range: 115, damage: 34, cooldown: 14, blastRadius: 22, maxTargets: 4, splashMultiplier: 0.60, upgrade: { cutStone: 10, timber: 8, rope: 5 } },
+    { key: 'area3', name: '青銅破砕機', range: 132, damage: 48, cooldown: 13, blastRadius: 25, maxTargets: 5, splashMultiplier: 0.65, upgrade: { cutStone: 16, timber: 10, bronzeIngot: 8 } },
+    { key: 'area4', name: '重投石機', range: 150, damage: 68, cooldown: 12, blastRadius: 28, maxTargets: 6, splashMultiplier: 0.65, upgrade: { cutStone: 20, timber: 16, rope: 8, wroughtIron: 8 } }
   ],
   slow: [
-    { key: 'slow0', name: '蔓縄罠', type: 'slow', hp: 150, range: 82, slow: 0.48, duration: 12, damage: 1, maxTargets: 5, cooldown: 5, cost: { wood: 14, stone: 8, fiber: 28 } },
-    { key: 'slow1', name: '杭と縄の罠', range: 88, slow: 0.52, duration: 14, damage: 1, maxTargets: 5, cooldown: 5, upgrade: { timber: 2, rope: 4 } },
-    { key: 'slow2', name: '重石罠', range: 94, slow: 0.58, duration: 14, damage: 2, maxTargets: 6, cooldown: 4.8, upgrade: { cutStone: 5, rope: 4 } },
-    { key: 'slow3', name: '青銅拘束具', range: 100, slow: 0.64, duration: 15, damage: 3, maxTargets: 7, cooldown: 4.5, upgrade: { cutStone: 8, rope: 4, bronzeIngot: 5 } },
-    { key: 'slow4', name: '鉄杭罠', range: 108, slow: 0.70, duration: 16, damage: 4, maxTargets: 8, cooldown: 4.2, upgrade: { timber: 4, rope: 3, wroughtIron: 5 } }
+    { key: 'slow0', name: '蔓縄罠', type: 'slow', hp: 150, range: 72, slow: 0.25, duration: 6, damage: 1, maxTargets: 3, cooldown: 8, cost: { wood: 14, stone: 8, fiber: 28 } },
+    { key: 'slow1', name: '杭と縄の罠', range: 78, slow: 0.30, duration: 7, damage: 1, maxTargets: 3, cooldown: 7.5, upgrade: { timber: 2, rope: 4 } },
+    { key: 'slow2', name: '重石罠', range: 86, slow: 0.36, duration: 8, damage: 2, maxTargets: 4, cooldown: 7, upgrade: { cutStone: 5, rope: 4 } },
+    { key: 'slow3', name: '青銅拘束具', range: 94, slow: 0.42, duration: 9, damage: 3, maxTargets: 5, cooldown: 6.5, upgrade: { cutStone: 8, rope: 4, bronzeIngot: 5 } },
+    { key: 'slow4', name: '鉄杭罠', range: 102, slow: 0.48, duration: 10, damage: 4, maxTargets: 6, cooldown: 6, upgrade: { timber: 4, rope: 3, wroughtIron: 5 } }
   ],
   repair: [
     { key: 'repair0', name: '修繕小屋', type: 'relay', hp: 180, range: 105, repairTower: 5, repairBarrier: 6, cooldown: 3, cost: { wood: 34, stone: 14, fiber: 18 } },

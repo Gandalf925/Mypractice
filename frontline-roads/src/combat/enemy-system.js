@@ -1,7 +1,9 @@
 import { distance, stableId } from '../core/utilities.js';
 import { addBundle } from '../civilization/inventory-system.js';
 import { ENEMY_DEFINITIONS, MAX_ENEMIES } from './definitions.js';
+import { normalizeEnemyLevel, scaleEnemyDefinition } from './enemy-scaling.js';
 import { findCombatPath, findCombatPathToTargets } from './routing-system.js';
+import { roadUnitPosition } from './road-unit-position.js';
 
 const FACILITY_ATTACK_RANGE_METERS = 20;
 const FACILITY_PRIORITY_PENALTY_SECONDS = 18;
@@ -16,30 +18,23 @@ function stableRouteBias(text) {
 }
 
 export function enemyPosition(state, enemy) {
-  const graph = state.world.roadGraph;
-  if (!enemy.edgeId || !enemy.path) return graph.nodeById.get(enemy.nodeId) ?? { x: 0, y: 0 };
-  const edge = graph.edgeById.get(enemy.edgeId);
-  const fromId = enemy.path.nodeIds[enemy.pathIndex];
-  const toId = enemy.path.nodeIds[enemy.pathIndex + 1];
-  const from = graph.nodeById.get(fromId);
-  const to = graph.nodeById.get(toId);
-  if (!edge || !from || !to) return graph.nodeById.get(enemy.nodeId) ?? { x: 0, y: 0 };
-  const t = Math.max(0, Math.min(1, enemy.edgeProgress / Math.max(1, edge.length)));
-  return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
+  return roadUnitPosition(state, enemy);
 }
 
 export function spawnEnemy(state, base, type, departDelay = 0, waveId = null) {
   if (state.combat.enemies.length >= MAX_ENEMIES) return null;
-  const definition = ENEMY_DEFINITIONS[type];
-  if (!definition) return null;
+  const baseDefinition = ENEMY_DEFINITIONS[type];
+  if (!baseDefinition) return null;
+  const level = normalizeEnemyLevel(base.level);
+  const definition = scaleEnemyDefinition(baseDefinition, level);
   const id = stableId('enemy', base.id, type, base.wavesSent, state.combat.enemies.length, state.runtime?.worldTimeMs ?? Date.now());
   const enemy = {
     id,
-    type, hp: definition.hp, maxHp: definition.hp, nodeId: base.nodeId,
+    type, level, hp: definition.hp, maxHp: definition.hp, nodeId: base.nodeId,
     path: null, pathIndex: 0, edgeId: null, edgeProgress: 0,
     slowTimer: 0, slowMultiplier: 0.52, attackClock: 0, departDelay,
     sourceBaseId: base.id, waveId, waveResolved: false, rewardGranted: false,
-    reroutePending: false, routeBias: stableRouteBias(id), targetDefenseId: null, notifiedDefenseIds: []
+    reroutePending: false, routeBias: stableRouteBias(id), targetDefenseId: null, notifiedDefenseIds: [], engagedSquadId: null
   };
   state.combat.enemies.push(enemy);
   return enemy;
@@ -69,14 +64,14 @@ function planPath(state, enemy) {
   const definition = ENEMY_DEFINITIONS[enemy.type] ?? ENEMY_DEFINITIONS.infantry;
   const targets = facilityTargetCandidates(state, definition);
   if (targets.length) {
-    const facilityPath = findCombatPathToTargets(state, enemy.nodeId, targets, enemy.type, enemy.routeBias ?? 1);
+    const facilityPath = findCombatPathToTargets(state, enemy.nodeId, targets, enemy.type, enemy.routeBias ?? 1, enemy.level ?? 1);
     if (facilityPath) {
       enemy.targetDefenseId = facilityPath.targetObjectId;
       return facilityPath;
     }
   }
   enemy.targetDefenseId = null;
-  return findCombatPath(state, enemy.nodeId, state.world.city.nodeId, enemy.type, null, enemy.routeBias ?? 1);
+  return findCombatPath(state, enemy.nodeId, state.world.city.nodeId, enemy.type, null, enemy.routeBias ?? 1, enemy.level ?? 1);
 }
 
 function ensurePath(state, enemy) {
@@ -184,6 +179,38 @@ export function damageEnemy(state, enemy, amount, events = null, spatial = null)
   return true;
 }
 
+
+function activeFriendlySquadById(state, squadId) {
+  if (!squadId) return null;
+  return (state.combat.friendlySquads ?? []).find(squad => squad.id === squadId && squad.hp > 0) ?? null;
+}
+
+function attackFriendlySquad(state, enemy, definition, deltaSeconds, events) {
+  const squad = activeFriendlySquadById(state, enemy.engagedSquadId);
+  if (!squad) {
+    enemy.engagedSquadId = null;
+    return false;
+  }
+  const enemyPoint = enemyPosition(state, enemy);
+  const squadPoint = roadUnitPosition(state, squad);
+  if (distance(enemyPoint, squadPoint) > 24) {
+    enemy.engagedSquadId = null;
+    if (squad.engagedEnemyId === enemy.id) squad.engagedEnemyId = null;
+    return false;
+  }
+  const fieldDps = Math.max(1, (definition.cityDamage ?? 4) * 0.32 + (definition.barrierDps ?? 1) * 0.22);
+  squad.hp = Math.max(0, squad.hp - fieldDps * deltaSeconds);
+  if (squad.hp <= 0) {
+    squad.hp = 0;
+    for (const other of state.combat.enemies) {
+      if (other.engagedSquadId === squad.id) other.engagedSquadId = null;
+    }
+    events?.emit('friendly:squad-destroyed', { squadId: squad.id, position: squadPoint, originBaseId: squad.originBaseId });
+    events?.emit('message', { text: '派遣した攻撃部隊が全滅しました。' });
+  }
+  return true;
+}
+
 export class EnemySystem {
   constructor(events) { this.events = events; }
 
@@ -197,8 +224,9 @@ export class EnemySystem {
       return false;
     }
     enemy.slowTimer = Math.max(0, enemy.slowTimer - deltaSeconds);
-    const definition = ENEMY_DEFINITIONS[enemy.type] ?? ENEMY_DEFINITIONS.infantry;
+    const definition = scaleEnemyDefinition(ENEMY_DEFINITIONS[enemy.type] ?? ENEMY_DEFINITIONS.infantry, enemy.level ?? 1);
 
+    if (attackFriendlySquad(state, enemy, definition, deltaSeconds, this.events)) return false;
     if (attackTargetFacility(state, enemy, definition, deltaSeconds, this.events)) return false;
     if (!ensurePath(state, enemy) || !enemy.edgeId) return false;
 

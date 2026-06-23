@@ -24,7 +24,7 @@ export function drawExplorationSites(context, state, camera, timeMs = 0, prefere
     context.beginPath(); context.arc(point.x, point.y, radius, 0, Math.PI * 2); context.fill(); context.stroke();
     context.beginPath(); context.arc(point.x, point.y, radius + 5, 0, Math.PI * 2); context.stroke();
     if (quality !== 'minimal' && typeof context.fillText === 'function') {
-      context.font = 'bold 9px monospace';
+      context.font = 'bold 10px monospace';
       context.fillStyle = hostile ? '#ff9a84' : '#ffe29a';
       context.fillText(presentation.icon, point.x, point.y + 0.5);
     }

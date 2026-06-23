@@ -65,7 +65,7 @@ function drawRings(context, width, height, center, preferences = {}) {
   context.moveTo(center.x, center.y - 12); context.lineTo(center.x, center.y + 12); context.stroke();
   if (preferences.quality !== 'minimal') {
     context.fillStyle = 'rgba(135, 255, 228, 0.42)';
-    context.font = '600 9px ui-monospace, monospace';
+    context.font = '600 10px ui-monospace, monospace';
     context.textAlign = 'center'; context.textBaseline = 'middle';
     const labelRadius = Math.min(maximum - 12, ringGap * 2.6);
     context.fillText('N', center.x, center.y - labelRadius);

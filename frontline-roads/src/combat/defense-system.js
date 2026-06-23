@@ -70,27 +70,42 @@ export class DefenseSystem {
       let best = targets[0];
       let bestCount = -1;
       for (const candidate of targets) {
-        const count = spatial.query(candidate.position, Math.min(32, definition.blastRadius ?? 28)).filter(entry => entry.enemy.hp > 0).length;
+        const count = spatial.query(candidate.position, definition.blastRadius)
+          .filter(entry => entry.enemy.hp > 0).length;
         if (count > bestCount) { best = candidate; bestCount = count; }
       }
       tower.cooldown = definition.cooldown;
       const hit = best.position;
-      for (const entry of spatial.query(hit, definition.blastRadius)) {
-        if (entry.enemy.hp > 0) damageEnemy(state, entry.enemy, definition.damage, this.events, spatial);
+      const maximumTargets = Math.max(1, Number(definition.maxTargets) || 1);
+      const splashMultiplier = Math.max(0, Math.min(1, Number(definition.splashMultiplier) || 0));
+      const blastTargets = spatial.query(hit, definition.blastRadius)
+        .filter(entry => entry.enemy.hp > 0)
+        .sort((a, b) => {
+          if (a.enemy.id === best.enemy.id) return -1;
+          if (b.enemy.id === best.enemy.id) return 1;
+          return distance(a.position, hit) - distance(b.position, hit);
+        })
+        .slice(0, maximumTargets);
+      for (const [index, entry] of blastTargets.entries()) {
+        const damage = index === 0 ? definition.damage : definition.damage * splashMultiplier;
+        damageEnemy(state, entry.enemy, damage, this.events, spatial);
       }
-      this.events?.emit('combat:explosion', { position: hit, radius: definition.blastRadius });
+      this.events?.emit('combat:explosion', { position: hit, radius: definition.blastRadius, targets: blastTargets.length });
       return;
     }
 
     if (tower.type === 'slow') {
       tower.cooldown = definition.cooldown;
-      for (const entry of targets.slice(0, definition.maxTargets)) {
+      const affected = [...targets]
+        .sort((a, b) => distance(a.position, position) - distance(b.position, position))
+        .slice(0, definition.maxTargets);
+      for (const entry of affected) {
         const enemy = entry.enemy;
         enemy.slowTimer = Math.max(enemy.slowTimer, definition.slowSeconds);
         enemy.slowMultiplier = 1 - definition.slow;
         damageEnemy(state, enemy, definition.damage, this.events, spatial);
       }
-      this.events?.emit('combat:shot', { type: tower.type, from: position, to: targets[0].position });
+      this.events?.emit('combat:shot', { type: tower.type, from: position, to: affected[0].position });
     }
   }
 

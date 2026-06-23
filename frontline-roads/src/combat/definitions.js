@@ -1,7 +1,6 @@
 import { DEFENSE_LINES, ENEMY_DROPS, defenseLineForType, defenseTierDefinition } from '../civilization/data.js';
 
 export const BUILD_RANGE_METERS = 85;
-export const ENEMY_BASE_CAPTURE_RANGE_METERS = 50;
 export const MAX_ENEMIES = 220;
 
 export const ENEMY_DEFINITIONS = Object.freeze({
@@ -91,39 +90,39 @@ export const ENEMY_GENERATIONS = Object.freeze({
 
 export const ENEMY_BASE_DEFINITIONS = Object.freeze({
   barracks: {
-    name: '前哨基地', icon: '⚑', interval: 180, firstDelay: 90, captureDuration: 45, range: [160, 240], reward: { wood: 40, stone: 20, fiber: 20 },
+    name: '前哨基地', icon: '⚑', interval: 180, firstDelay: 90, range: [160, 240], reward: { wood: 40, stone: 20, fiber: 20 },
     waves: { 1: ['infantry', 'infantry', 'scout'], 2: ['infantry', 'infantry', 'infantry', 'shield'], 3: ['infantry', 'infantry', 'infantry', 'infantry', 'scout', 'shield'] }
   },
   engineer: {
-    name: '工兵拠点', icon: '⚒', interval: 300, firstDelay: 150, captureDuration: 60, range: [260, 380], reward: { wood: 45, stone: 45, fiber: 20 },
+    name: '工兵拠点', icon: '⚒', interval: 300, firstDelay: 150, range: [260, 380], reward: { wood: 45, stone: 45, fiber: 20 },
     waves: { 1: ['engineer', 'infantry', 'infantry'], 2: ['engineer', 'shield', 'infantry', 'infantry'], 3: ['engineer', 'engineer', 'shield', 'infantry', 'infantry'] }
   },
   raider: {
-    name: '工作員拠点', icon: '✦', interval: 360, firstDelay: 180, captureDuration: 60, range: [260, 420], reward: { wood: 40, stone: 20, fiber: 70 },
+    name: '工作員拠点', icon: '✦', interval: 360, firstDelay: 180, range: [260, 420], reward: { wood: 40, stone: 20, fiber: 70 },
     waves: { 1: ['raider', 'scout'], 2: ['raider', 'raider', 'scout'], 3: ['raider', 'raider', 'engineer', 'scout'] }
   },
   copperCamp: {
-    name: '銅鉱野営地', icon: 'Cu', interval: 420, firstDelay: 180, captureDuration: 70, range: [300, 650], reward: { copperOre: 24, stone: 20 }, isResourceBase: true,
+    name: '銅鉱野営地', icon: 'Cu', interval: 420, firstDelay: 180, range: [300, 650], reward: { copperOre: 24, stone: 20 }, isResourceBase: true,
     waves: { 1: ['miner', 'oreCarrier'], 2: ['miner', 'miner', 'oreCarrier', 'shield'], 3: ['siegeBreaker', 'miner', 'oreCarrier', 'oreCarrier'] }
   },
   tinCamp: {
-    name: '錫鉱野営地', icon: 'Sn', interval: 480, firstDelay: 220, captureDuration: 75, range: [350, 700], reward: { tinOre: 20, stone: 20 }, isResourceBase: true,
+    name: '錫鉱野営地', icon: 'Sn', interval: 480, firstDelay: 220, range: [350, 700], reward: { tinOre: 20, stone: 20 }, isResourceBase: true,
     waves: { 1: ['miner', 'oreCarrier'], 2: ['miner', 'oreCarrier', 'ropeCutter'], 3: ['siegeBreaker', 'miner', 'oreCarrier', 'ropeCutter'] }
   },
   ironCamp: {
-    name: '鉄鉱野営地', icon: 'Fe', interval: 540, firstDelay: 240, captureDuration: 85, range: [400, 800], reward: { ironOre: 24, stone: 30 }, isResourceBase: true,
+    name: '鉄鉱野営地', icon: 'Fe', interval: 540, firstDelay: 240, range: [400, 800], reward: { ironOre: 24, stone: 30 }, isResourceBase: true,
     waves: { 1: ['ironCarrier', 'bronzeShield'], 2: ['ironCarrier', 'ironCarrier', 'bronzeShield'], 3: ['siegeCaptain', 'ironCarrier', 'bronzeShield'] }
   },
   bronzeCamp: {
-    name: '青銅軍営', icon: 'Bz', interval: 600, firstDelay: 280, captureDuration: 90, range: [450, 850], reward: { bronzeIngot: 12, charcoal: 20 }, isResourceBase: true,
+    name: '青銅軍営', icon: 'Bz', interval: 600, firstDelay: 280, range: [450, 850], reward: { bronzeIngot: 12, charcoal: 20 }, isResourceBase: true,
     waves: { 1: ['bronzeShield', 'archer'], 2: ['bronzeShield', 'bronzeShield', 'siegeBreaker'], 3: ['siegeCaptain', 'bronzeShield', 'archer'] }
   },
   siegeWorks: {
-    name: '攻城兵器工房', icon: '⚒', interval: 720, firstDelay: 320, captureDuration: 100, range: [500, 950], reward: { wroughtIron: 8, charcoal: 24 }, isResourceBase: true,
+    name: '攻城兵器工房', icon: '⚒', interval: 720, firstDelay: 320, range: [500, 950], reward: { wroughtIron: 8, charcoal: 24 }, isResourceBase: true,
     waves: { 1: ['siegeBreaker', 'miner'], 2: ['siegeBreaker', 'bronzeShield', 'ropeCutter'], 3: ['siegeCaptain', 'siegeBreaker', 'bronzeShield'] }
   },
   motor: {
-    name: '装甲工場', icon: '⬢', interval: 420, firstDelay: 240, captureDuration: 75, range: [420, 550], reward: { wood: 30, stone: 100, fiber: 30 },
+    name: '装甲工場', icon: '⬢', interval: 420, firstDelay: 240, range: [420, 550], reward: { wood: 30, stone: 100, fiber: 30 },
     waves: { 1: ['heavy', 'infantry', 'infantry'], 2: ['heavy', 'shield', 'infantry', 'infantry'], 3: ['heavy', 'heavy', 'shield', 'scout'] }
   }
 });
@@ -147,6 +146,7 @@ export const DEFENSE_DEFINITIONS = Object.freeze(Object.fromEntries(
       cooldown: tier.cooldown,
       blastRadius: tier.blastRadius,
       maxTargets: tier.maxTargets,
+      splashMultiplier: tier.splashMultiplier,
       slowSeconds: tier.duration,
       slow: tier.slow,
       repairTower: tier.repairTower,
@@ -163,6 +163,7 @@ export function defenseRuntimeDefinition(defense) {
     ...base,
     slowSeconds: base.duration ?? DEFENSE_DEFINITIONS[defense.type]?.slowSeconds,
     blastRadius: base.blastRadius ?? DEFENSE_DEFINITIONS[defense.type]?.blastRadius,
-    maxTargets: base.maxTargets ?? DEFENSE_DEFINITIONS[defense.type]?.maxTargets
+    maxTargets: base.maxTargets ?? DEFENSE_DEFINITIONS[defense.type]?.maxTargets,
+    splashMultiplier: base.splashMultiplier ?? DEFENSE_DEFINITIONS[defense.type]?.splashMultiplier
   };
 }

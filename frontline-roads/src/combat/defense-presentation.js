@@ -19,7 +19,7 @@ const TEXT = Object.freeze({
   mortar: {
     role: '範囲攻撃',
     summary: '敵が密集した地点を狙い、爆発範囲内の複数目標へ攻撃します。',
-    effect: '再装填は長い一方、集団へ高い損害を与えます。防壁や減速設備の後方が有効です。',
+    effect: '中心目標へ最大ダメージ、周辺へ減衰ダメージを与えます。同時命中数には上限があり、防壁や減速設備の後方が有効です。',
     placement: '建設可能範囲内の交差点へ設置します。'
   },
   slow: {
@@ -45,7 +45,7 @@ export function defensePresentation(type, definition = DEFENSE_DEFINITIONS[type]
   } else if (type === 'gun') {
     metrics.push(['RANGE', `${definition.range}m`], ['DAMAGE', String(definition.damage)], ['RELOAD', seconds(definition.cooldown)]);
   } else if (type === 'mortar') {
-    metrics.push(['RANGE', `${definition.range}m`], ['DAMAGE', String(definition.damage)], ['BLAST', `${definition.blastRadius}m`]);
+    metrics.push(['RANGE', `${definition.range}m`], ['DAMAGE', String(definition.damage)], ['BLAST', `${definition.blastRadius}m`], ['TARGETS', String(definition.maxTargets)], ['SPLASH', percent(definition.splashMultiplier)]);
   } else if (type === 'slow') {
     metrics.push(['RANGE', `${definition.range}m`], ['SLOW', percent(definition.slow)], ['TARGETS', String(definition.maxTargets)]);
   } else if (type === 'relay') {

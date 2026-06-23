@@ -53,14 +53,10 @@ test('tactical routes and focus render with a minimal canvas context', async () 
   assert.doesNotThrow(() => drawTacticalFocus(context, state, camera, { kind: 'enemy', id: 'enemy-0' }, 1000));
 });
 
-test('selected enemy base renders its exact capture radius', async () => {
+test('selected enemy base no longer renders a misleading player capture radius', async () => {
   const { drawTacticalFocus } = await import('../src/rendering/tactical-overlay.js');
-  const { ENEMY_BASE_CAPTURE_RANGE_METERS } = await import('../src/combat/definitions.js');
   const arcs = [];
-  const context = {
-    ...mockContext(),
-    arc(x, y, radius) { arcs.push(radius); }
-  };
+  const context = { ...mockContext(), arc(x, y, radius) { arcs.push(radius); } };
   const node = { id: 'base', x: 40, y: 20 };
   const state = stateWithEnemy({ count: 0 });
   state.world.roadGraph.nodes.push(node);
@@ -70,8 +66,6 @@ test('selected enemy base renders its exact capture radius', async () => {
   state.player = { worldPosition: { x: 0, y: 0 } };
   state.combat.defenses = [];
   const camera = { scale: 2, worldToScreen: point => point };
-
   drawTacticalFocus(context, state, camera, { kind: 'enemyBase', id: 'camp' }, 0);
-
-  assert.ok(arcs.includes(ENEMY_BASE_CAPTURE_RANGE_METERS * camera.scale));
+  assert.equal(arcs.some(radius => radius >= 80), false);
 });

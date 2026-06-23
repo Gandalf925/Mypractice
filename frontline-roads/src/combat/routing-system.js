@@ -1,5 +1,6 @@
 import { distance } from '../core/utilities.js';
 import { DEFENSE_DEFINITIONS, ENEMY_DEFINITIONS } from './definitions.js';
+import { scaleEnemyDefinition } from './enemy-scaling.js';
 import { edgeMidpoint } from './combat-geometry.js';
 
 class MinHeap {
@@ -102,10 +103,10 @@ function reconstructPath(previous, startId, targetId, cost, extra = {}) {
   return { nodeIds, edgeIds, cost, targetId, ...extra };
 }
 
-function searchCombatPath(state, startId, targetCandidates, enemyType, previewBarrierEdgeId, routeBias) {
+function searchCombatPath(state, startId, targetCandidates, enemyType, previewBarrierEdgeId, routeBias, enemyLevel = 1) {
   const graph = state.world.roadGraph;
   if (!graph?.nodeById?.has(startId) || !targetCandidates.length) return null;
-  const enemyDefinition = ENEMY_DEFINITIONS[enemyType] ?? ENEMY_DEFINITIONS.infantry;
+  const enemyDefinition = scaleEnemyDefinition(ENEMY_DEFINITIONS[enemyType] ?? ENEMY_DEFINITIONS.infantry, enemyLevel);
   const { barriers, towers } = defenseMaps(state);
   const edgeCounts = enemyDefinition.avoidCongestion ? enemyCountMap(state) : null;
   const threatCache = new Map();
@@ -158,10 +159,82 @@ function searchCombatPath(state, startId, targetCandidates, enemyType, previewBa
   return reconstructPath(previous, startId, best.nodeId, best.routeCost, { targetObjectId: best.targetObjectId ?? null });
 }
 
-export function findCombatPath(state, startId, targetId, enemyType = 'infantry', previewBarrierEdgeId = null, routeBias = 1) {
-  return searchCombatPath(state, startId, [{ nodeId: targetId }], enemyType, previewBarrierEdgeId, routeBias);
+
+export function findRoadPath(state, startId, targetId) {
+  const graph = state.world.roadGraph;
+  if (!graph?.nodeById?.has(startId) || !graph.nodeById.has(targetId)) return null;
+  if (startId === targetId) return { nodeIds: [startId], edgeIds: [], cost: 0, targetId };
+  const distances = new Map([[startId, 0]]);
+  const previous = new Map();
+  const visited = new Set();
+  const queue = new MinHeap();
+  queue.push({ id: startId, distance: 0 });
+  while (queue.length > 0) {
+    const current = queue.pop();
+    if (visited.has(current.id)) continue;
+    visited.add(current.id);
+    if (current.id === targetId) return reconstructPath(previous, startId, targetId, current.distance);
+    for (const connection of graph.adjacency.get(current.id) ?? []) {
+      if (!graph.edgeById.has(connection.edgeId)) continue;
+      const nextDistance = current.distance + connection.length;
+      if (nextDistance >= (distances.get(connection.to) ?? Infinity)) continue;
+      distances.set(connection.to, nextDistance);
+      previous.set(connection.to, { from: current.id, edgeId: connection.edgeId });
+      queue.push({ id: connection.to, distance: nextDistance });
+    }
+  }
+  return null;
 }
 
-export function findCombatPathToTargets(state, startId, targets, enemyType = 'infantry', routeBias = 1) {
-  return searchCombatPath(state, startId, targets, enemyType, null, routeBias);
+export function findRoadPathWeighted(state, startId, targetId, edgeWeight = null) {
+  const graph = state.world.roadGraph;
+  if (!graph?.nodeById?.has(startId) || !graph.nodeById.has(targetId)) return null;
+  if (startId === targetId) return { nodeIds: [startId], edgeIds: [], cost: 0, targetId };
+  const distances = new Map([[startId, 0]]);
+  const previous = new Map();
+  const visited = new Set();
+  const queue = new MinHeap();
+  queue.push({ id: startId, distance: 0 });
+  while (queue.length > 0) {
+    const current = queue.pop();
+    if (visited.has(current.id)) continue;
+    visited.add(current.id);
+    if (current.id === targetId) return reconstructPath(previous, startId, targetId, current.distance);
+    for (const connection of graph.adjacency.get(current.id) ?? []) {
+      const edge = graph.edgeById.get(connection.edgeId);
+      if (!edge) continue;
+      const rawWeight = edgeWeight ? edgeWeight(edge, current.id, connection.to) : edge.length;
+      const weight = Number.isFinite(rawWeight) ? Math.max(0.001, rawWeight) : edge.length;
+      const nextDistance = current.distance + weight;
+      if (nextDistance >= (distances.get(connection.to) ?? Infinity)) continue;
+      distances.set(connection.to, nextDistance);
+      previous.set(connection.to, { from: current.id, edgeId: connection.edgeId });
+      queue.push({ id: connection.to, distance: nextDistance });
+    }
+  }
+  return null;
+}
+
+export function combineRoadPaths(paths) {
+  const valid = paths.filter(Boolean);
+  if (!valid.length) return null;
+  const nodeIds = [...valid[0].nodeIds];
+  const edgeIds = [...valid[0].edgeIds];
+  let cost = Number(valid[0].cost) || 0;
+  for (let index = 1; index < valid.length; index += 1) {
+    const path = valid[index];
+    if (nodeIds[nodeIds.length - 1] !== path.nodeIds[0]) return null;
+    nodeIds.push(...path.nodeIds.slice(1));
+    edgeIds.push(...path.edgeIds);
+    cost += Number(path.cost) || 0;
+  }
+  return { nodeIds, edgeIds, cost, targetId: nodeIds[nodeIds.length - 1] };
+}
+
+export function findCombatPath(state, startId, targetId, enemyType = 'infantry', previewBarrierEdgeId = null, routeBias = 1, enemyLevel = 1) {
+  return searchCombatPath(state, startId, [{ nodeId: targetId }], enemyType, previewBarrierEdgeId, routeBias, enemyLevel);
+}
+
+export function findCombatPathToTargets(state, startId, targets, enemyType = 'infantry', routeBias = 1, enemyLevel = 1) {
+  return searchCombatPath(state, startId, targets, enemyType, null, routeBias, enemyLevel);
 }

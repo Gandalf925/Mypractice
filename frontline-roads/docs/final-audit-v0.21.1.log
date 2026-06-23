@@ -1,0 +1,16 @@
+FRONTLINE ROADS v0.21.1 final static audit
+
+HTML ids: 55
+Duplicate HTML ids: 0 []
+CSS brace balance: 0
+Explicit CSS font sizes: 70
+Minimum CSS font size: 8px
+Maximum CSS font size: 24px
+Runtime JS modules: 86
+Reachable from bootstrap: 86
+Unreachable runtime modules: 0 []
+Missing local imports: 0 []
+Import cycles: 0 []
+
+Browser launch: blocked before DOM capture by container netlink/DBus/inotify restrictions.
+Automated verification: see verification-v0.21.1.log.

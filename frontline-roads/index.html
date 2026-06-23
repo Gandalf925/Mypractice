@@ -62,6 +62,8 @@
         </div>
       </div>
       <div class="topActions">
+        <button id="baseCommandButton" type="button">BASES // 拠点</button>
+        <button id="deploymentButton" type="button">DEPLOY // 派兵</button>
         <button id="civilizationButton" type="button">CIV // 文明</button>
         <button id="menuButton" type="button">MENU</button>
       </div>
@@ -79,6 +81,21 @@
       <button id="offlineClose" type="button">確認</button>
     </aside>
 
+
+    <section id="baseCommandPanel" class="modalOverlay" hidden aria-label="拠点司令部">
+      <div class="modalCard baseCommandModalCard">
+        <header class="modalHeader"><div><span class="eyebrow">BASE COMMAND</span><h1>拠点司令部</h1></div><button id="closeBaseCommand" type="button">×</button></header>
+        <div id="baseCommandBody" class="modalBody"></div>
+      </div>
+    </section>
+
+    <section id="deploymentPanel" class="modalOverlay" hidden aria-label="攻撃部隊の派兵">
+      <div class="modalCard deploymentModalCard">
+        <header class="modalHeader"><div><span class="eyebrow">FIELD OPERATIONS</span><h1>攻撃部隊の派兵</h1></div><button id="closeDeployment" type="button">×</button></header>
+        <div id="deploymentBody" class="modalBody"></div>
+      </div>
+    </section>
+
     <section id="civilizationPanel" class="modalOverlay" hidden aria-label="文明と生産">
       <div class="modalCard civilizationCard">
         <header class="modalHeader"><div><span class="eyebrow">CIVILIZATION CONTROL</span><h1>文明・資源・生産</h1></div><button id="closeCivilization" type="button">×</button></header>
@@ -94,11 +111,11 @@
             <h2>遊び方</h2>
             <div class="helpGrid">
               <div><strong>初回拠点</strong><p>現在地から1km以内の道路を直接選び、移動せず即時設置します。</p></div>
-              <div><strong>道路防衛</strong><p>本拠地または現在地から85m以内の取得済み道路へ設備を置き、敵の経路を誘導します。</p></div>
+              <div><strong>道路防衛</strong><p>各拠点または現在地から85m以内の取得済み道路へ設備を置き、敵の経路を誘導します。</p></div>
               <div><strong>未確認前線</strong><p>MAP端の敵性反応から部隊が侵入します。反応方向へ実際に移動すると道路と情報が追加されます。</p></div>
               <div><strong>発生源の無力化</strong><p>現地へ到達し、周辺部隊を排除して調査を完了すると、その方向からの新規侵攻が止まります。</p></div>
-              <div><strong>敵拠点制圧</strong><p>敵拠点の50m以内へ実際に移動し、出撃部隊を排除してから範囲内に留まります。</p></div>
-              <div><strong>文明発展</strong><p>敵の戦利品を加工し、施設・防衛実績・資源納入を満たして発展します。</p></div>
+              <div><strong>敵拠点攻撃</strong><p>拠点から攻撃部隊を派兵して敵基地を破壊します。残された特殊アイテムは現地40m以内で手動回収します。</p></div>
+              <div><strong>文明発展</strong><p>施設・防衛実績・資源納入に加え、現地回収した特殊アイテムで発展します。レベルごとに拠点上限が1増えます。</p></div>
               <div><strong>不在中</strong><p>戦闘・生産・文明建設は同じ規則で最大12時間まで計算されます。</p></div>
               <div><strong>位置情報</strong><p>正確な移動履歴は保存しません。初期取得と移動先の道路追加時に周辺位置を外部道路データサービスへ送信し、保存時の地図基準点は約10m単位へ丸めます。</p></div>
             </div>

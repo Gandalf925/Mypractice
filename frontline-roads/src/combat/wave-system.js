@@ -1,6 +1,7 @@
 import { stableId } from '../core/utilities.js';
 import { ENEMY_BASE_DEFINITIONS, ENEMY_GENERATIONS } from './definitions.js';
 import { spawnEnemy } from './enemy-system.js';
+import { enemyBaseLevelForState, waveIntervalForBase } from './enemy-scaling.js';
 
 export const INITIAL_BASE_TYPES = Object.freeze(['barracks', 'engineer', 'raider', 'motor']);
 
@@ -10,35 +11,58 @@ function deterministicIndex(text, length) {
   return length ? (hash >>> 0) % length : 0;
 }
 
-function generationProbability(state) {
-  const generation = state.civilization.level ?? 0;
+export function enemyGenerationMix(state) {
+  const generation = Math.max(0, Math.floor(Number(state.civilization.level) || 0));
   if (generation <= 0) return { generation: 0, probability: 0 };
-  const worldNow = state.runtime?.worldTimeMs ?? Date.now();
-  const elapsed = worldNow - (state.civilization.completedAt ?? worldNow);
-  if (elapsed < 900000) return { generation, probability: 0 };
-  if (elapsed < 1800000) return { generation, probability: 0.25 };
-  if (elapsed < 3600000) return { generation, probability: 0.5 };
+  const worldNow = Number(state.runtime?.worldTimeMs) || Date.now();
+  const elapsed = worldNow - (Number(state.civilization.completedAt) || worldNow);
+  if (elapsed < 15 * 60 * 1000) return { generation, probability: 0 };
+  if (elapsed < 30 * 60 * 1000) return { generation, probability: 0.25 };
+  if (elapsed < 45 * 60 * 1000) return { generation, probability: 0.50 };
+  if (elapsed < 60 * 60 * 1000) return { generation, probability: 0.75 };
   return { generation, probability: 1 };
+}
+
+function levelWave(definition, base) {
+  const level = Math.max(1, Math.min(5, Math.floor(Number(base.level) || 1)));
+  const initial = [...(definition.waves[1] ?? [])];
+  const desiredCount = initial.length + level - 1;
+  const template = [...(definition.waves[Math.min(level, 3)] ?? initial)];
+  const reinforcementPool = [
+    ...(definition.waves[3] ?? []),
+    ...(definition.waves[2] ?? []),
+    ...initial
+  ];
+  const wave = template.length > desiredCount && desiredCount > 1
+    ? [...template.slice(0, desiredCount - 1), template.at(-1)]
+    : template.slice(0, desiredCount);
+  while (wave.length < desiredCount && reinforcementPool.length) {
+    const index = deterministicIndex(`${base.id}:${base.wavesSent}:${level}:reinforcement:${wave.length}`, reinforcementPool.length);
+    wave.push(reinforcementPool[index]);
+  }
+  return wave;
 }
 
 export function waveForBase(state, base) {
   const definition = ENEMY_BASE_DEFINITIONS[base.type];
-  const wave = [...(definition.waves[base.level] ?? definition.waves[1])];
+  if (!definition) return [];
+  const wave = levelWave(definition, base);
   if (definition.isResourceBase) return wave;
-  const mix = generationProbability(state);
-  if (mix.generation <= 0 || mix.probability <= 0) return wave;
+
+  const mix = enemyGenerationMix(state);
+  if (mix.generation <= 0 || wave.length === 0) return wave;
   const current = ENEMY_GENERATIONS[mix.generation] ?? [];
   const previous = Object.entries(ENEMY_GENERATIONS)
     .filter(([generation]) => Number(generation) > 0 && Number(generation) < mix.generation)
     .flatMap(([, values]) => values);
-  const additions = base.level >= 3 ? 2 : 1;
-  for (let index = 0; index < additions; index += 1) {
+  if (mix.probability <= 0 && previous.length === 0) return wave;
+  const replacementSlots = base.level >= 4 ? 2 : 1;
+  for (let index = 0; index < Math.min(replacementSlots, wave.length); index += 1) {
     const roll = deterministicIndex(`${base.id}:${base.wavesSent}:${index}:roll`, 1000) / 1000;
     const pool = current.length && roll < mix.probability ? current : previous;
     if (!pool.length) continue;
     const type = pool[deterministicIndex(`${base.id}:${base.wavesSent}:${index}:type`, pool.length)];
-    if (index === 0 && wave.length > 2) wave[wave.length - 1] = type;
-    else wave.push(type);
+    wave[wave.length - 1 - index] = type;
   }
   return wave;
 }
@@ -101,11 +125,10 @@ function createBase(type, placement, idSeed = placement.node.id) {
     id: stableId('enemy_base', type, idSeed), type, nodeId: placement.node.id,
     hp: definition.isResourceBase ? 120 : 100,
     maxHp: definition.isResourceBase ? 120 : 100,
-    alive: true, captured: false,
+    alive: true,
     level: 1, ageSeconds: 0,
     spawnClock: Math.max(0, definition.interval - definition.firstDelay),
-    wavesSent: 0, routeDistance: placement.route,
-    captureProgress: 0, captureActive: false
+    wavesSent: 0, routeDistance: placement.route
   };
 }
 
@@ -120,11 +143,11 @@ export class WaveSystem {
     wave.forEach((type, index) => { if (spawnEnemy(state, base, type, index * (guard ? 3 : 8), waveId)) spawned += 1; });
     if (spawned > 0) {
       state.combat.waves.active[waveId] = { id: waveId, baseId: base.id, remaining: spawned, breached: false, startedAt: state.runtime?.worldTimeMs ?? Date.now() };
-      this.events?.emit('combat:wave-launched', { baseId: base.id, waveId, count: spawned, guard });
+      this.events?.emit('combat:wave-launched', { baseId: base.id, waveId, count: spawned, guard, level: base.level ?? 1 });
     }
     if (!guard) {
       base.wavesSent += 1;
-      this.events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[base.type].name}から敵部隊が出撃しました。` });
+      this.events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[base.type].name} Lv.${base.level ?? 1}から敵部隊が出撃しました。` });
     }
   }
 
@@ -177,9 +200,14 @@ export class WaveSystem {
       const definition = ENEMY_BASE_DEFINITIONS[base.type];
       if (!definition) continue;
       base.ageSeconds = (base.ageSeconds ?? 0) + deltaSeconds;
-      base.level = base.ageSeconds < 900 ? 1 : base.ageSeconds < 2100 ? 2 : 3;
+      const previousLevel = Math.max(1, Math.floor(Number(base.level) || 1));
+      base.level = enemyBaseLevelForState(state, base.ageSeconds);
+      if (base.level > previousLevel) {
+        this.events?.emit('message', { text: `${definition.name}の脅威レベルがLv.${base.level}へ上昇しました。` });
+        this.events?.emit('combat:enemy-base-level-up', { baseId: base.id, level: base.level });
+      }
       base.spawnClock = (base.spawnClock ?? 0) + deltaSeconds;
-      const interval = definition.interval * (state.world.city.hp <= 30 ? 1.3 : 1);
+      const interval = waveIntervalForBase(definition, base.level, state.world.city.hp);
       while (base.spawnClock >= interval) {
         base.spawnClock -= interval;
         this.spawnWave(state, base);

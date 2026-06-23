@@ -1,21 +1,35 @@
 import { distance } from '../core/utilities.js';
-import { DEFENSE_DEFINITIONS, ENEMY_BASE_CAPTURE_RANGE_METERS, ENEMY_BASE_DEFINITIONS, ENEMY_DEFINITIONS, defenseRuntimeDefinition } from '../combat/definitions.js';
+import { DEFENSE_DEFINITIONS, ENEMY_BASE_DEFINITIONS, ENEMY_DEFINITIONS, defenseRuntimeDefinition } from '../combat/definitions.js';
 import { defensePresentation } from '../combat/defense-presentation.js';
+import { scaleEnemyDefinition } from '../combat/enemy-scaling.js';
 import { edgeMidpoint } from '../combat/combat-geometry.js';
 import { enemyPosition } from '../combat/enemy-system.js';
+import { FRIENDLY_SQUAD_DEFINITIONS, FRIENDLY_SQUAD_ORDER, friendlySquadPosition } from '../combat/friendly-force-system.js';
+import {
+  FRIENDLY_ORDER_MODE,
+  buildFriendlyRouteOptions,
+  commandStartNodeId,
+  nearestRoadNode,
+  orderDestinationNodeId,
+  validateRetreatDestination
+} from '../combat/friendly-route-planner.js';
 import { analyzeThreatCached, remainingRouteDistance } from '../rendering/threat-analysis.js';
 import { bundleText } from '../civilization/inventory-system.js';
 import { frontierPresentation } from '../exploration/frontier-system.js';
 import { EXPLORATION_INTERACTION_RANGE_METERS, explorationSitePresentation } from '../exploration/exploration-system.js';
+import { RECOVERY_COLLECTION_DURATION_SECONDS, RECOVERY_RANGE_METERS, recoveryEligibility, recoveryItemPresentation } from '../exploration/recovery-system.js';
 import { RESOURCE_LABELS } from '../civilization/data.js';
 import { queryRequired, setVisible } from './dom.js';
 
 export class CombatUi {
-  constructor({ store, buildSystem, civilizationSystem, explorationSystem, camera, renderer, notifications }) {
+  constructor({ store, buildSystem, civilizationSystem, explorationSystem, recoverySystem, friendlyForceSystem, camera, renderer, notifications, persist = null }) {
     this.store = store;
     this.buildSystem = buildSystem;
     this.civilizationSystem = civilizationSystem;
     this.explorationSystem = explorationSystem;
+    this.recoverySystem = recoverySystem;
+    this.friendlyForceSystem = friendlyForceSystem;
+    this.persist = persist;
     this.camera = camera;
     this.renderer = renderer;
     this.notifications = notifications;
@@ -25,6 +39,7 @@ export class CombatUi {
     this.buildSites = [];
     this.buildPlacementSignature = '';
     this.toolAffordabilitySignature = '';
+    this.orderPlanning = null;
     this.tools = queryRequired('#combatTools');
     this.cityHp = queryRequired('#cityHp');
     this.enemyCount = queryRequired('#enemyCount');
@@ -43,6 +58,7 @@ export class CombatUi {
   }
 
   clearObjectSelection({ hideContext = true } = {}) {
+    if (this.orderPlanning) { this.orderPlanning = null; this.renderer.setFriendlyOrderPlanning(null); }
     this.selectedObject = null;
     this.renderer.setFocus(null);
     if (hideContext) setVisible(this.context, false);
@@ -83,7 +99,7 @@ export class CombatUi {
     if (this.selectedTool === 'select') {
       this.buildSites = [];
       this.renderer.setBuildPlacement(null);
-      this.context.classList?.remove('is-build-mode', 'has-candidate');
+      this.context.classList?.remove('is-build-mode', 'has-candidate', 'is-order-mode');
       this.notifications.show('設備・敵拠点・前哨地を選択できます。');
       return;
     }
@@ -146,6 +162,11 @@ export class CombatUi {
   nearestObject(state, point, tolerance) {
     const graph = state.world.roadGraph;
     const candidates = [];
+    for (const item of state.world.recoveryItems ?? []) {
+      if (item.status !== 'AVAILABLE') continue;
+      const node = graph.nodeById.get(item.nodeId) ?? item;
+      candidates.push({ kind: 'recoveryItem', id: item.id, point: node, distance: distance(point, node) });
+    }
     for (const site of state.world.explorationSites ?? []) {
       if (site.status === 'CLEARED') continue;
       const node = graph.nodeById.get(site.nodeId);
@@ -175,13 +196,227 @@ export class CombatUi {
       const position = enemyPosition(state, enemy);
       candidates.push({ kind: 'enemy', id: enemy.id, point: position, distance: distance(point, position) });
     }
+    for (const squad of state.combat.friendlySquads ?? []) {
+      if (squad.hp <= 0) continue;
+      const position = friendlySquadPosition(state, squad);
+      candidates.push({ kind: 'friendlySquad', id: squad.id, point: position, distance: distance(point, position) });
+    }
     const city = graph.nodeById.get(state.world.city.nodeId);
     if (city) candidates.push({ kind: 'city', id: 'city', point: city, distance: distance(point, city) });
     candidates.sort((a, b) => a.distance - b.distance);
     return candidates[0]?.distance <= tolerance ? candidates[0] : null;
   }
 
+  selectedFriendlySquad(state = this.store.select(value => value)) {
+    if (this.selectedObject?.kind !== 'friendlySquad') return null;
+    return (state.combat.friendlySquads ?? []).find(squad => squad.id === this.selectedObject.id && squad.hp > 0) ?? null;
+  }
+
+  updateOrderPlanningOverlay() {
+    this.renderer.setFriendlyOrderPlanning(this.orderPlanning ? {
+      squadId: this.orderPlanning.squadId,
+      mode: this.orderPlanning.mode,
+      destinationNodeId: this.orderPlanning.destinationNodeId,
+      waypointNodeIds: [...this.orderPlanning.waypointNodeIds],
+      routes: this.orderPlanning.routes,
+      selectedRouteIndex: this.orderPlanning.selectedRouteIndex,
+    } : null);
+  }
+
+  rebuildOrderRoutes() {
+    if (!this.orderPlanning) return;
+    const state = this.store.select(value => value);
+    const squad = (state.combat.friendlySquads ?? []).find(item => item.id === this.orderPlanning.squadId && item.hp > 0);
+    if (!squad) { this.cancelOrderPlanning(); return; }
+    this.orderPlanning.startNodeId = commandStartNodeId(state, squad);
+    this.orderPlanning.routes = this.orderPlanning.destinationNodeId
+      ? buildFriendlyRouteOptions(state, squad, this.orderPlanning.destinationNodeId, this.orderPlanning.waypointNodeIds)
+      : [];
+    this.orderPlanning.selectedRouteIndex = Math.min(
+      this.orderPlanning.selectedRouteIndex,
+      Math.max(0, this.orderPlanning.routes.length - 1)
+    );
+    this.updateOrderPlanningOverlay();
+  }
+
+  beginOrderPlanning(mode) {
+    const state = this.store.select(value => value);
+    const squad = this.selectedFriendlySquad(state);
+    if (!squad) return;
+    const destinationNodeId = orderDestinationNodeId(state, squad, mode);
+    if (mode !== FRIENDLY_ORDER_MODE.RETREAT && !destinationNodeId) {
+      this.notifications.show(mode === FRIENDLY_ORDER_MODE.RESUME ? '元の攻撃目標は既に失われています。' : '出撃元へ戻る経路を設定できません。');
+      return;
+    }
+    this.selectedTool = 'select';
+    this.buildCandidate = null;
+    this.buildSites = [];
+    this.renderer.setBuildPlacement(null);
+    this.renderTools();
+    this.orderPlanning = {
+      mode,
+      squadId: squad.id,
+      destinationNodeId,
+      waypointNodeIds: [],
+      routes: [],
+      selectedRouteIndex: 0
+    };
+    this.rebuildOrderRoutes();
+    this.renderContext();
+    this.notifications.show(mode === FRIENDLY_ORDER_MODE.RETREAT
+      ? 'MAP上で後退地点を選択してください。続けて最大2か所の経由地点を追加できます。'
+      : '表示された経路を選ぶか、MAP上で最大2か所の経由地点を追加してください。');
+  }
+
+  handleOrderPlanningTap(worldPoint) {
+    const state = this.store.select(value => value);
+    const squad = this.selectedFriendlySquad(state);
+    if (!this.orderPlanning || !squad) return;
+    const nearest = nearestRoadNode(state, worldPoint, 28 / this.camera.scale);
+    if (!nearest) { this.notifications.show('道路上の交差点を選択してください。'); return; }
+    const nodeId = nearest.node.id;
+    if (this.orderPlanning.mode === FRIENDLY_ORDER_MODE.RETREAT && !this.orderPlanning.destinationNodeId) {
+      const validation = validateRetreatDestination(state, squad, nodeId);
+      if (!validation.ok) { this.notifications.show(validation.reason); return; }
+      this.orderPlanning.destinationNodeId = nodeId;
+      this.orderPlanning.waypointNodeIds = [];
+      this.orderPlanning.selectedRouteIndex = 0;
+      this.rebuildOrderRoutes();
+      this.renderContext();
+      return;
+    }
+    if (nodeId === this.orderPlanning.destinationNodeId || nodeId === commandStartNodeId(state, squad)) {
+      this.notifications.show('目的地または現在の進路先とは別の交差点を選択してください。');
+      return;
+    }
+    if (this.orderPlanning.waypointNodeIds.includes(nodeId)) {
+      this.notifications.show('その経由地点は既に選択されています。');
+      return;
+    }
+    if (this.orderPlanning.waypointNodeIds.length >= 2) {
+      this.notifications.show('経由地点は最大2か所です。');
+      return;
+    }
+    this.orderPlanning.waypointNodeIds.push(nodeId);
+    this.orderPlanning.selectedRouteIndex = 0;
+    this.rebuildOrderRoutes();
+    this.renderContext();
+  }
+
+  cancelOrderPlanning() {
+    this.orderPlanning = null;
+    this.updateOrderPlanningOverlay();
+    this.renderContext();
+  }
+
+  removeLastWaypoint() {
+    if (!this.orderPlanning?.waypointNodeIds.length) return;
+    this.orderPlanning.waypointNodeIds.pop();
+    this.orderPlanning.selectedRouteIndex = 0;
+    this.rebuildOrderRoutes();
+    this.renderContext();
+  }
+
+  resetRetreatDestination() {
+    if (!this.orderPlanning || this.orderPlanning.mode !== FRIENDLY_ORDER_MODE.RETREAT) return;
+    this.orderPlanning.destinationNodeId = null;
+    this.orderPlanning.waypointNodeIds = [];
+    this.orderPlanning.routes = [];
+    this.orderPlanning.selectedRouteIndex = 0;
+    this.updateOrderPlanningOverlay();
+    this.renderContext();
+  }
+
+  selectOrderRoute(index) {
+    if (!this.orderPlanning || !this.orderPlanning.routes[index]) return;
+    this.orderPlanning.selectedRouteIndex = index;
+    this.updateOrderPlanningOverlay();
+    this.renderContext();
+  }
+
+  confirmOrderPlanning() {
+    if (!this.orderPlanning) return;
+    const priorIndex = this.orderPlanning.selectedRouteIndex;
+    this.rebuildOrderRoutes();
+    this.orderPlanning.selectedRouteIndex = Math.min(priorIndex, Math.max(0, this.orderPlanning.routes.length - 1));
+    const route = this.orderPlanning.routes[this.orderPlanning.selectedRouteIndex];
+    if (!route) { this.notifications.show('実行可能な道路経路がありません。'); return; }
+    const currentState = this.store.select(value => value);
+    const currentSquad = (currentState.combat.friendlySquads ?? []).find(item => item.id === this.orderPlanning.squadId);
+    const order = this.orderPlanning.mode === FRIENDLY_ORDER_MODE.RETREAT
+      ? FRIENDLY_SQUAD_ORDER.RETREAT
+      : this.orderPlanning.mode === FRIENDLY_ORDER_MODE.WITHDRAW
+        ? FRIENDLY_SQUAD_ORDER.WITHDRAW
+        : currentSquad?.heldOrder === FRIENDLY_SQUAD_ORDER.RETREAT
+          ? FRIENDLY_SQUAD_ORDER.RETREAT
+          : FRIENDLY_SQUAD_ORDER.ADVANCE;
+    let result;
+    this.store.mutate(state => {
+      result = this.friendlyForceSystem.issueRouteOrder(state, this.orderPlanning.squadId, {
+        order,
+        path: route.path,
+        destinationNodeId: this.orderPlanning.destinationNodeId
+      });
+    }, 'friendly:order', { emit: true, validate: true });
+    if (!result?.ok) { this.notifications.show(result?.reason ?? '命令を実行できません。'); return; }
+    this.orderPlanning = null;
+    this.updateOrderPlanningOverlay();
+    this.persist?.();
+    this.notifications.show(order === FRIENDLY_SQUAD_ORDER.RETREAT ? '後退を開始しました。' : order === FRIENDLY_SQUAD_ORDER.WITHDRAW ? '撤退を開始しました。' : '選択ルートで進軍を再開しました。');
+    this.renderContext();
+  }
+
+  holdSelectedSquad() {
+    const squad = this.selectedFriendlySquad();
+    if (!squad) return;
+    let result;
+    this.store.mutate(state => { result = this.friendlyForceSystem.hold(state, squad.id); }, 'friendly:hold', { emit: true, validate: true });
+    this.notifications.show(result?.ok ? '部隊を停止させました。' : result?.reason ?? '停止できません。');
+    if (result?.ok) this.persist?.();
+    this.renderContext();
+  }
+
+  renderOrderPlanningContext(state, squad) {
+    this.context.classList?.add('is-order-mode');
+    const plan = this.orderPlanning;
+    const selectedRoute = plan.routes[plan.selectedRouteIndex] ?? null;
+    const modeLabel = plan.mode === FRIENDLY_ORDER_MODE.RETREAT ? '後退' : plan.mode === FRIENDLY_ORDER_MODE.WITHDRAW ? '撤退' : '進軍再開';
+    const instruction = !plan.destinationNodeId
+      ? 'MAP上で後退先の交差点を選択してください。敵基地へ近づく地点は後退先にできません。'
+      : selectedRoute
+        ? `${modeLabel}ルートを確認してください。MAPタップで最大2か所の経由地点を追加できます。`
+        : '選択地点へ到達できる道路経路がありません。目的地または経由地点を変更してください。';
+    this.contextTitle.textContent = `ALLY ORDER // ${modeLabel}`;
+    this.setContextContent(instruction, [
+      ['ROUTES', String(plan.routes.length)],
+      ['SELECT', selectedRoute?.label ?? 'NONE'],
+      ['DIST', selectedRoute ? `${Math.round(selectedRoute.physicalDistance)}m` : '--'],
+      ['ETA', selectedRoute ? `${Math.max(1, Math.ceil(selectedRoute.etaSeconds / 60))}分` : '--'],
+      ['RISK', selectedRoute?.risk ?? '--'],
+      ['CONTACT', selectedRoute ? String(selectedRoute.enemyContacts) : '--'],
+      ['VIA', `${plan.waypointNodeIds.length}/2`]
+    ], [
+      plan.mode === FRIENDLY_ORDER_MODE.WITHDRAW ? '撤退を確定すると現在の攻撃任務は破棄され、再開できません。' : '未発見の敵は危険度計算に含まれません。',
+      squad.edgeId && squad.edgeProgress > 0 ? '道路途中では現在の区間を次の交差点まで進んでから選択ルートへ入ります。' : '命令確定後、選択ルートへ直ちに移行します。'
+    ]);
+    plan.routes.forEach((route, index) => this.action(
+      `${index + 1}. ${route.label}${index === plan.selectedRouteIndex ? ' ✓' : ''}`,
+      () => this.selectOrderRoute(index),
+      index === plan.selectedRouteIndex ? 'primary' : ''
+    ));
+    if (plan.waypointNodeIds.length) this.action('最後の経由地点を取消', () => this.removeLastWaypoint());
+    if (plan.mode === FRIENDLY_ORDER_MODE.RETREAT && plan.destinationNodeId) this.action('後退地点を選び直す', () => this.resetRetreatDestination());
+    const confirm = this.action(`${modeLabel}を確定`, () => this.confirmOrderPlanning(), 'primary');
+    confirm.disabled = !selectedRoute;
+    this.action('命令を取消', () => this.cancelOrderPlanning());
+    setVisible(this.context, true);
+  }
+
   handleMapTap(worldPoint) {
+    if (this.orderPlanning) {
+      this.handleOrderPlanningTap(worldPoint);
+      return;
+    }
     if (this.selectedTool === 'select') {
       const state = this.store.select(value => value);
       this.selectedObject = this.nearestObject(state, worldPoint, 24 / this.camera.scale);
@@ -333,7 +568,7 @@ export class CombatUi {
       this.renderBuildContext();
       return;
     }
-    this.context.classList?.remove('is-build-mode', 'has-candidate');
+    this.context.classList?.remove('is-build-mode', 'has-candidate', 'is-order-mode');
     if (!this.selectedObject) {
       setVisible(this.context, false);
       return;
@@ -341,10 +576,68 @@ export class CombatUi {
     const state = this.store.select(value => value);
     this.contextActions.textContent = '';
     const selected = this.selectedObject;
-    if (selected.kind === 'enemy') {
+    if (this.orderPlanning) {
+      const squad = this.selectedFriendlySquad(state);
+      if (!squad) { this.cancelOrderPlanning(); return; }
+      this.renderOrderPlanningContext(state, squad);
+      return;
+    }
+    if (selected.kind === 'recoveryItem') {
+      const item = (state.world.recoveryItems ?? []).find(value => value.id === selected.id && value.status === 'AVAILABLE');
+      if (!item) { this.clearObjectSelection(); return; }
+      const presentation = recoveryItemPresentation(item);
+      const node = state.world.roadGraph.nodeById.get(item.nodeId) ?? item;
+      const gap = state.player.worldPosition ? distance(state.player.worldPosition, node) : Infinity;
+      const eligibility = recoveryEligibility(state, item);
+      const collection = state.world.recoveryCollection?.itemId === item.id ? state.world.recoveryCollection : null;
+      const progress = Math.min(RECOVERY_COLLECTION_DURATION_SECONDS, collection?.progressSec ?? 0);
+      this.contextTitle.textContent = `RECOVERY // ${presentation.name}`;
+      this.setContextContent(
+        `${presentation.sourceName}の破壊地点に残された特殊回収物です。現地へ移動し、最新の位置情報で回収してください。`,
+        [['DIST', Number.isFinite(gap) ? `${Math.round(gap)}m` : 'NO GPS'], ['ENTRY', `${RECOVERY_RANGE_METERS}m`], ['STATUS', collection ? 'RECOVERING' : eligibility.ok ? 'READY' : 'FIELD LOCK'], ['TIME', collection ? `${progress.toFixed(1)}/${RECOVERY_COLLECTION_DURATION_SECONDS}s` : `${RECOVERY_COLLECTION_DURATION_SECONDS}s`], ['SOURCE', presentation.sourceName]],
+        [presentation.description, collection ? '回収完了まで範囲内に留まってください。' : eligibility.ok ? '回収後は文明発展の実績として記録されます。' : eligibility.reason]
+      );
+      const collect = this.action(collection ? `回収中 ${Math.floor(progress)}/${RECOVERY_COLLECTION_DURATION_SECONDS}秒` : '特殊アイテムを回収', () => this.mutateAction(draft => this.recoverySystem.beginCollection(draft, item.id), 'recovery:begin'), 'primary');
+      collect.disabled = Boolean(collection) || !eligibility.ok;
+    } else if (selected.kind === 'friendlySquad') {
+      const squad = (state.combat.friendlySquads ?? []).find(item => item.id === selected.id);
+      if (!squad || squad.hp <= 0) { this.clearObjectSelection(); return; }
+      const definition = FRIENDLY_SQUAD_DEFINITIONS[squad.type] ?? FRIENDLY_SQUAD_DEFINITIONS.assault;
+      const remaining = remainingRouteDistance(state, squad);
+      const origin = (state.world.playerBases ?? []).find(base => base.id === squad.originBaseId);
+      const target = state.world.enemyBases.find(base => base.id === squad.targetBaseId);
+      this.contextTitle.textContent = `ALLY // ${definition.name}`;
+      const orderLabel = ({ ADVANCE: '進軍', HOLD: '停止', RETREAT: '後退', WITHDRAW: '撤退', RETURN: '帰還' })[squad.order] ?? squad.order;
+      this.setContextContent(
+        squad.order === FRIENDLY_SQUAD_ORDER.HOLD
+          ? '指定地点で停止中です。周辺の敵とは交戦しますが、勝手に移動しません。'
+          : squad.order === FRIENDLY_SQUAD_ORDER.RETREAT
+            ? '選択した道路ルートで後退中です。指定地点へ到着すると停止します。'
+            : squad.order === FRIENDLY_SQUAD_ORDER.WITHDRAW
+              ? '現在の任務を破棄し、選択した道路ルートで出撃元へ撤退中です。'
+              : squad.targetBaseId
+                ? '敵基地へ進軍中の味方攻撃部隊です。道中の敵と交戦し、基地破壊後は出撃元へ帰還します。'
+                : '任務を終えて出撃元へ帰還中の味方攻撃部隊です。',
+        [
+          ['HP', `${Math.ceil(squad.hp)}/${squad.maxHp}`],
+          ['MEN', String(Math.max(1, Math.ceil((squad.hp / squad.maxHp) * definition.members)))],
+          ['STATUS', squad.status],
+          ['ORDER', orderLabel],
+          ['RANGE', Number.isFinite(remaining) ? `${Math.round(remaining)}m` : 'RECALC'],
+          ['ORIGIN', origin?.name ?? '不明'],
+          ['TARGET', target ? ENEMY_BASE_DEFINITIONS[target.type]?.name ?? '敵拠点' : squad.order === FRIENDLY_SQUAD_ORDER.WITHDRAW ? '出撃元' : '帰還']
+        ]
+      );
+      if (![FRIENDLY_SQUAD_ORDER.RETURN, FRIENDLY_SQUAD_ORDER.WITHDRAW].includes(squad.order)) {
+        if (squad.order !== FRIENDLY_SQUAD_ORDER.HOLD) this.action('停止', () => this.holdSelectedSquad());
+        if (squad.order === FRIENDLY_SQUAD_ORDER.HOLD && ((squad.missionTargetBaseId ?? squad.targetBaseId) || squad.heldDestinationNodeId)) this.action('移動再開', () => this.beginOrderPlanning(FRIENDLY_ORDER_MODE.RESUME), 'primary');
+        this.action('後退', () => this.beginOrderPlanning(FRIENDLY_ORDER_MODE.RETREAT));
+        this.action('撤退', () => this.beginOrderPlanning(FRIENDLY_ORDER_MODE.WITHDRAW), 'danger');
+      }
+    } else if (selected.kind === 'enemy') {
       const enemy = state.combat.enemies.find(item => item.id === selected.id);
       if (!enemy || enemy.hp <= 0) { this.clearObjectSelection(); return; }
-      const definition = ENEMY_DEFINITIONS[enemy.type] ?? ENEMY_DEFINITIONS.infantry;
+      const definition = scaleEnemyDefinition(ENEMY_DEFINITIONS[enemy.type] ?? ENEMY_DEFINITIONS.infantry, enemy.level ?? 1);
       const remaining = remainingRouteDistance(state, enemy);
       const targetDefense = enemy.targetDefenseId
         ? state.combat.defenses.find(defense => defense.id === enemy.targetDefenseId && defense.hp > 0 && !defense.ruined)
@@ -355,6 +648,7 @@ export class CombatUi {
         : '都市へ進行中の敵性反応です。壁への対応は敵種ごとに異なります。';
       this.contextTitle.textContent = `TARGET // ${definition.name}`;
       this.setContextContent(summary, [
+        ['LEVEL', `Lv.${enemy.level ?? 1}`],
         ['HP', `${Math.ceil(enemy.hp)}/${enemy.maxHp}`],
         ['RANGE', Number.isFinite(remaining) ? `${Math.round(remaining)}m` : 'RECALC'],
         ['SPEED', `${definition.speed}m/s`],
@@ -409,14 +703,12 @@ export class CombatUi {
       if (!base?.alive) { this.clearObjectSelection(); return; }
       const definition = ENEMY_BASE_DEFINITIONS[base.type];
       const node = state.world.roadGraph.nodeById.get(base.nodeId);
-      const gap = state.player.worldPosition && node ? distance(state.player.worldPosition, node) : Infinity;
       this.contextTitle.textContent = definition.name;
-      const entryStatus = gap <= ENEMY_BASE_CAPTURE_RANGE_METERS ? 'IN RANGE' : 'OUTSIDE';
+      const attackers = (state.combat.friendlySquads ?? []).filter(squad => squad.targetBaseId === base.id).length;
       this.setContextContent(
-        '敵部隊の出撃源です。制圧範囲内で敵を排除し、必要時間その場に留まると前哨地化できます。',
-        [['WAVES', String(base.wavesSent)], ['DIST', Number.isFinite(gap) ? `${Math.round(gap)}m` : 'NO GPS'], ['ENTRY', `${ENEMY_BASE_CAPTURE_RANGE_METERS}m`], ['STATUS', entryStatus], ['CAPTURE', `${Math.floor(base.captureProgress ?? 0)}/${definition.captureDuration}s`], ['LEVEL', String(base.level ?? 1)]]
+        '敵部隊の出撃源です。DEPLOY画面から拠点を選び、攻撃部隊を派遣して破壊します。プレイヤーが現地にいるだけでは破壊できません。',
+        [['HP', `${Math.ceil(base.hp)}/${base.maxHp}`], ['WAVES', String(base.wavesSent)], ['ATTACKERS', String(attackers)], ['STATUS', attackers ? 'UNDER ATTACK' : 'HOSTILE'], ['LEVEL', String(base.level ?? 1)]]
       );
-      this.action('現地で制圧開始', () => this.mutateAction(draft => this.civilizationSystem.outposts.beginCapture(draft, base.id), 'outpost:capture-start'), 'primary');
     } else if (selected.kind === 'defense') {
       const defense = state.combat.defenses.find(item => item.id === selected.id);
       if (!defense) { this.clearObjectSelection(); return; }
@@ -467,6 +759,12 @@ export class CombatUi {
     const affordability = this.affordabilitySignature(state);
     if (affordability !== this.toolAffordabilitySignature) this.renderTools();
     if (this.selectedTool !== 'select') this.refreshBuildPlacement();
+    if (this.orderPlanning) {
+      const squad = this.selectedFriendlySquad(state);
+      const startNodeId = squad ? commandStartNodeId(state, squad) : null;
+      if (!squad) this.cancelOrderPlanning();
+      else if (startNodeId !== this.orderPlanning.startNodeId) this.rebuildOrderRoutes();
+    }
     if (!this.context.hidden) this.renderContext();
   }
 }

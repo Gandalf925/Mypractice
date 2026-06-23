@@ -4,6 +4,7 @@ import { graphElementsNearPoint } from '../roads/road-graph.js';
 import { bundleText, consumeBundle, missingBundle } from '../civilization/inventory-system.js';
 import { BUILD_RANGE_METERS, DEFENSE_DEFINITIONS } from './definitions.js';
 import { findCombatPath } from './routing-system.js';
+import { activePlayerBases } from '../base/player-bases.js';
 
 const CANDIDATE_POINT_TOLERANCE_METERS = 1;
 const ANCHOR_DUPLICATE_TOLERANCE_METERS = 0.5;
@@ -13,10 +14,14 @@ function finitePoint(point) {
 }
 
 function buildAnchors(state) {
-  const anchors = [];
-  if (finitePoint(state.world.homeBase)) {
-    anchors.push({ id: 'base', label: '本拠地', point: { x: state.world.homeBase.x, y: state.world.homeBase.y } });
-  }
+  const anchors = activePlayerBases(state)
+    .filter(finitePoint)
+    .map((base, index) => ({
+      id: index === 0 ? 'base' : `base:${base.id}`,
+      label: base.name || (index === 0 ? '本拠地' : `前線拠点 ${index + 1}`),
+      point: { x: base.x, y: base.y },
+      baseId: base.id
+    }));
   if (finitePoint(state.player.worldPosition)) {
     const point = { x: state.player.worldPosition.x, y: state.player.worldPosition.y };
     const overlapsBase = anchors.some(anchor => distance(anchor.point, point) <= ANCHOR_DUPLICATE_TOLERANCE_METERS);
@@ -193,7 +198,7 @@ export class BuildSystem {
     const graph = state.world.roadGraph;
     if (!graph?.nodeById) return { ok: false, reason: '道路データを利用できません。' };
     const anchors = buildAnchors(state);
-    if (!anchors.length) return { ok: false, reason: '建設基準となる本拠地または現在地を取得できません。' };
+    if (!anchors.length) return { ok: false, reason: '建設基準となる拠点または現在地を取得できません。' };
     let normalized;
 
     if (definition.kind === 'barrier') {
@@ -206,7 +211,7 @@ export class BuildSystem {
       const projection = pointToSegmentProjection(requestedPoint, a, b);
       if (projection.distance > CANDIDATE_POINT_TOLERANCE_METERS) return { ok: false, reason: '設置候補が道路上にありません。' };
       const anchor = nearestAnchor(anchors, projection.point);
-      if (!anchor || anchor.distance > BUILD_RANGE_METERS) return { ok: false, reason: `本拠地または現在地から${BUILD_RANGE_METERS}m以内へ設置してください。` };
+      if (!anchor || anchor.distance > BUILD_RANGE_METERS) return { ok: false, reason: `拠点または現在地から${BUILD_RANGE_METERS}m以内へ設置してください。` };
       if (state.combat.defenses.some(defense => defense.kind === 'barrier' && defense.edgeId === edge.id && activeDefense(defense))) {
         return { ok: false, reason: 'この道路にはすでに防壁があります。' };
       }
@@ -215,7 +220,7 @@ export class BuildSystem {
       const node = graph.nodeById.get(candidate.nodeId);
       if (!node) return { ok: false, reason: '対象交差点が見つかりません。' };
       const anchor = nearestAnchor(anchors, node);
-      if (!anchor || anchor.distance > BUILD_RANGE_METERS) return { ok: false, reason: `本拠地または現在地から${BUILD_RANGE_METERS}m以内へ設置してください。` };
+      if (!anchor || anchor.distance > BUILD_RANGE_METERS) return { ok: false, reason: `拠点または現在地から${BUILD_RANGE_METERS}m以内へ設置してください。` };
       if (state.combat.defenses.some(defense => defense.kind === 'tower' && defense.nodeId === node.id && activeDefense(defense))) {
         return { ok: false, reason: 'この交差点にはすでに設備があります。' };
       }

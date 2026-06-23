@@ -47,37 +47,28 @@ test('production reserves inputs once and completes through the civilization upd
   assert.equal(state.civilization.progress.totalProduced.timber, 1);
 });
 
-test('enemy base capture requires the player to be on site and progresses over time', () => {
-  const state = stateWithWorld();
-  state.world.enemyBases = [{ id: 'camp', type: 'barracks', nodeId: 'base', alive: true, captured: false, captureProgress: 0 }];
+test('enemy bases are no longer captured by standing nearby', () => {
   const system = new CivilizationSystem();
-  state.player.worldPosition = { x: 100, y: 0 };
-  assert.equal(system.outposts.beginCapture(state, 'camp').ok, false);
-  state.player.worldPosition = { x: 30, y: 0 };
-  assert.equal(system.outposts.beginCapture(state, 'camp').ok, true);
-  system.update(state, 45);
-  assert.equal(state.world.enemyBases[0].alive, false);
-  assert.equal(state.world.outposts.length, 1);
-  assert.equal(state.world.outposts[0].status, 'RUINED');
-  assert.equal(state.world.baseRespawns.length, 1);
-  assert.equal(state.statistics.campsCaptured, 1);
+  assert.equal('beginCapture' in system.outposts, false);
 });
 
 
-test('a captured outpost must be restored before it becomes active', () => {
+test('legacy ruined outposts can still be restored and produce resources', () => {
   const state = stateWithWorld();
-  state.world.enemyBases = [{ id: 'camp', type: 'barracks', nodeId: 'base', alive: true, captured: false, captureProgress: 0 }];
   const system = new CivilizationSystem();
-  state.player.worldPosition = { x: 30, y: 0 };
-  system.outposts.beginCapture(state, 'camp');
-  system.update(state, 45);
-  const outpost = state.world.outposts[0];
-  assert.equal(outpost.status, 'RUINED');
+  state.civilization.level = 2;
+  recalculateCapacity(state);
+  state.world.outposts = [{
+    id: 'legacy-outpost', nodeId: 'base', sourceBaseType: 'copperCamp', status: 'RUINED',
+    hp: 0, maxHp: 240, defenseKey: null, productionClock: 0,
+    resource: 'copperOre', amount: 2, intervalSec: 300
+  }];
   Object.assign(state.inventory.resources, { wood: 300, stone: 300, fiber: 300 });
-  const restored = system.outposts.restore(state, outpost.id);
+  const restored = system.outposts.restore(state, 'legacy-outpost', 'single0');
   assert.equal(restored.ok, true);
-  assert.equal(outpost.status, 'ACTIVE');
-  assert.equal(outpost.hp, outpost.maxHp);
+  assert.equal(state.world.outposts[0].status, 'ACTIVE');
+  system.update(state, 300);
+  assert.equal(state.inventory.resources.copperOre, 2);
 });
 
 test('settlement damage ruins a building and disables its production', () => {
@@ -109,17 +100,4 @@ test('production overflow stays in the building buffer until collection', () => 
   state.inventory.resources.timber -= 1;
   assert.equal(system.production.collectOutput(state, building.id).ok, true);
   assert.equal(building.outputBuffer.timber ?? 0, 0);
-});
-
-test('enemy base capture boundary uses the shared capture-range constant', async () => {
-  const { ENEMY_BASE_CAPTURE_RANGE_METERS } = await import('../src/combat/definitions.js');
-  const state = stateWithWorld();
-  state.world.enemyBases = [{ id: 'boundary-camp', type: 'barracks', nodeId: 'base', alive: true, captured: false, captureProgress: 0 }];
-  const system = new CivilizationSystem();
-  const baseNode = state.world.roadGraph.nodeById.get('base');
-  state.player.worldPosition = { x: baseNode.x - ENEMY_BASE_CAPTURE_RANGE_METERS, y: baseNode.y };
-  assert.equal(system.outposts.beginCapture(state, 'boundary-camp').ok, true);
-  state.world.enemyBases[0].captureActive = false;
-  state.player.worldPosition = { x: baseNode.x - ENEMY_BASE_CAPTURE_RANGE_METERS - 0.01, y: baseNode.y };
-  assert.equal(system.outposts.beginCapture(state, 'boundary-camp').ok, false);
 });

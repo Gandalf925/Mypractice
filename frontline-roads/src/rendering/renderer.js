@@ -7,6 +7,7 @@ import {
 } from './radar-renderer.js';
 import { drawThreatRoutes, drawTacticalFocus } from './tactical-overlay.js';
 import { drawBuildPlacement } from './build-placement-overlay.js';
+import { drawFriendlyOrderPlanning } from './friendly-order-overlay.js';
 import { CombatEffects } from './combat-effects.js';
 import { drawFrontierSignals } from './frontier-renderer.js';
 import { drawExplorationSites } from './exploration-renderer.js';
@@ -40,6 +41,7 @@ export class Renderer {
     this.stateProvider = null;
     this.focus = null;
     this.buildPlacement = null;
+    this.friendlyOrderPlanning = null;
     this.effects = new CombatEffects();
     this.preferences = { quality: 'balanced', motion: true, routes: 'priority' };
     this.cssWidth = 1;
@@ -112,6 +114,7 @@ export class Renderer {
   bindEvents(events) { this.effects.bind(events, () => this.stateProvider?.()); }
   setFocus(focus) { this.focus = focus; this.render(); }
   setBuildPlacement(placement) { this.buildPlacement = placement; this.render(); }
+  setFriendlyOrderPlanning(planning) { this.friendlyOrderPlanning = planning; this.render(); }
 
   centerOn(point, minimumScale = 0.75) {
     if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
@@ -194,6 +197,7 @@ export class Renderer {
       drawTacticalFocus(this.context, state, this.camera, this.focus, visualTime, this.preferences);
       this.effects.draw(this.context, this.camera, state, timeMs, this.cssWidth, this.cssHeight, this.preferences);
       drawBuildPlacement(this.context, this.camera, this.buildPlacement, visualTime, this.preferences);
+      drawFriendlyOrderPlanning(this.context, state, this.camera, this.friendlyOrderPlanning, visualTime);
     }
 
     const marker = this.selection?.point ?? this.homeBase;

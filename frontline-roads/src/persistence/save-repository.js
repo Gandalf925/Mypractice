@@ -26,8 +26,11 @@ function sanitizeState(state) {
   copy.runtime.lastSavedAt = timestamp;
   copy.player.currentPosition = null;
   copy.player.locationAccuracy = null;
+  copy.player.locationUpdatedAt = null;
   copy.player.worldPosition = copy.world.homeBase ? { x: copy.world.homeBase.x, y: copy.world.homeBase.y } : null;
+  copy.world.recoveryCollection = null;
   if (copy.world.homeBase) delete copy.world.homeBase.location;
+  for (const base of copy.world.playerBases ?? []) delete base.location;
   copy.world.roadGraph = sanitizeGraph(copy.world.roadGraph);
   return { copy, timestamp };
 }

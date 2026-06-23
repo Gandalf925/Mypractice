@@ -1,5 +1,5 @@
 import { distance } from '../core/utilities.js';
-import { DEFENSE_DEFINITIONS, ENEMY_BASE_CAPTURE_RANGE_METERS, ENEMY_DEFINITIONS, defenseRuntimeDefinition } from '../combat/definitions.js';
+import { DEFENSE_DEFINITIONS, ENEMY_DEFINITIONS, defenseRuntimeDefinition } from '../combat/definitions.js';
 import { edgeMidpoint } from '../combat/combat-geometry.js';
 import { enemyPosition } from '../combat/enemy-system.js';
 import { analyzeThreatCached, enemyRouteWorldPoints, remainingRouteDistance } from './threat-analysis.js';
@@ -173,7 +173,7 @@ function drawEnemyFocus(context, state, camera, enemy, timeMs) {
   const remaining = remainingRouteDistance(state, enemy);
   context.save();
   context.fillStyle = '#ffd7dd';
-  context.font = '700 8px ui-monospace, monospace';
+  context.font = '700 9px ui-monospace, monospace';
   context.textAlign = 'center';
   context.fillText(Number.isFinite(remaining) ? `${Math.round(remaining)}m` : 'NO ROUTE', point.x, point.y - 18);
   context.restore();
@@ -197,21 +197,6 @@ export function drawTacticalFocus(context, state, camera, focus = null, timeMs =
   if (focus.kind === 'enemyBase') {
     world = graph.nodeById.get(state.world.enemyBases.find(item => item.id === focus.id)?.nodeId);
     color = '#ff5268';
-    if (world) {
-      const point = camera.worldToScreen(world);
-      const player = state.player?.worldPosition;
-      const inRange = player ? distance(player, world) <= ENEMY_BASE_CAPTURE_RANGE_METERS : false;
-      context.save();
-      context.strokeStyle = inRange ? 'rgba(101,255,208,0.82)' : 'rgba(255,82,104,0.66)';
-      context.fillStyle = inRange ? 'rgba(101,255,208,0.035)' : 'rgba(255,82,104,0.025)';
-      context.lineWidth = 1.3;
-      context.setLineDash([6, 5]);
-      context.beginPath();
-      context.arc(point.x, point.y, ENEMY_BASE_CAPTURE_RANGE_METERS * camera.scale, 0, TAU);
-      context.fill();
-      context.stroke();
-      context.restore();
-    }
   } else if (focus.kind === 'outpost') {
     world = graph.nodeById.get(state.world.outposts.find(item => item.id === focus.id)?.nodeId);
   } else if (focus.kind === 'city') {
