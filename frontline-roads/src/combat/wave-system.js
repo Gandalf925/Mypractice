@@ -67,8 +67,6 @@ export function waveForBase(state, base, doctrineKey = null) {
   const definition = ENEMY_BASE_DEFINITIONS[base.type];
   if (!definition) return [];
   const wave = levelWave(definition, base);
-  if (definition.isResourceBase) return wave;
-
   const doctrine = doctrineKey ? waveDoctrineDefinition(doctrineKey) : waveDoctrineForBase(state, base);
   const mix = enemyGenerationMix(state);
   if (mix.generation <= 0 || wave.length === 0) return wave;

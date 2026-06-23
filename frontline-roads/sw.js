@@ -1,6 +1,6 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const CACHE_NAME = `${CACHE_PREFIX}v0-29-1-display-recovery`;
+const CACHE_NAME = `${CACHE_PREFIX}v0-30-1-construction-boundaries`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -24,7 +24,6 @@ const APP_SHELL = [
   './src/civilization/data.js',
   './src/civilization/defense-upgrade.js',
   './src/civilization/inventory-system.js',
-  './src/civilization/outpost-system.js',
   './src/civilization/production-system.js',
   './src/civilization/progression-system.js',
   './src/civilization/repair-cost.js',

@@ -1,6 +1,28 @@
-# FRONTLINE ROADS — modular source v0.29.1 display recovery
+# FRONTLINE ROADS — modular source v0.30.1 construction boundaries and removal
 
 FRONTLINE ROADS is a location-based, continuously progressing road-defense strategy game. This directory is the canonical modular development source.
+
+## Construction boundaries and defense removal v0.30.1
+
+- Removes the unintended facility-to-facility construction-anchor propagation introduced in v0.28.3.
+- Construction zones now originate only from active major bases, active simple bases and the player’s current position.
+- Existing out-of-zone facilities remain operational for save compatibility but cannot extend construction farther; they can be removed manually.
+- Adds a two-step removal action for every placed road-defense facility and barrier. Removal has no resource refund and immediately invalidates enemy routes.
+- Preserves the v0.30.0 progression, enemy doctrine, resource-cargo and base-rebuilding fixes.
+
+Implementation and verification are documented in `docs/construction-boundaries-v0.30.1.md`.
+
+## System integrity and progression repair v0.30.0
+
+- Removes the obsolete resource-outpost subsystem from runtime state, rendering, production and UI. Legacy same-schema outpost fields are discarded during normalization.
+- Makes simple-base placement practical on real mobile location updates while preserving its 50 m construction zone.
+- Converts hostile resource-base rewards into recoverable field cargo, preventing immediate attack snowball while restoring the ore path required by civilization projects.
+- Shortens resource-base replacement to 45–75 minutes and raises declared ore rewards so Lv.3 bronze and Lv.4 iron requirements are reachable through the real production chain.
+- Applies wave doctrine to actual routing and target selection, uses real tower ranges, restores tiered shield auras and updates friendly-unit matchup classifications for all new enemy types.
+- Adds destruction and onsite rebuilding for additional major bases, bounds specialist pursuit distance and enforces project-only trial-bronze production.
+- Preserves the v0.29.1 stylesheet-first deployment loader and save key/schema.
+
+Implementation and verification are documented in `docs/system-integrity-v0.30.0.md`.
 
 ## Display recovery v0.29.1
 
@@ -36,7 +58,7 @@ This release uses repeated deterministic playthroughs to correct progression blo
 - Initial hostile bases spread across independent road fronts where the road graph permits it. When several bases must share one front, their first launches are staggered and their sustained intervals are widened instead of stacking all pressure at the opening.
 - A hostile base launches its own composition as a one-time guard force when first attacked. Guard encounters do not count toward the perfect-defense streak.
 - The city begins passive reconstruction after 120 seconds without damage at 0.08 HP per second. A city defeat also resets live enemy-base launch clocks, preventing immediate defeat loops.
-- The Lv.4 project now requires three active simple bases instead of the obsolete captured-outpost counter.
+- The Lv.4 project requires three active simple bases.
 - Additional major and simple bases now consume escalating processed-resource costs. Simple-base rebuilding also consumes a small fixed cost.
 - The release includes deterministic balanced-opening and attack-only regression playthroughs in `tests/game-balance-regression.test.js`.
 

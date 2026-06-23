@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.29.1-display-recovery';
+export const APP_VERSION = '0.30.1-construction-boundaries';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 

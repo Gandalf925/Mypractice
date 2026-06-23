@@ -2,62 +2,16 @@ import { distance, stableId } from '../core/utilities.js';
 import { pointToSegmentProjection } from '../roads/geometry.js';
 import { graphElementsNearPoint } from '../roads/road-graph.js';
 import { bundleText, consumeBundle, missingBundle } from '../civilization/inventory-system.js';
-import { BUILD_RANGE_METERS, DEFENSE_DEFINITIONS } from './definitions.js';
+import { BUILD_RANGE_METERS, DEFENSE_DEFINITIONS, defenseRuntimeDefinition } from './definitions.js';
 import { findCombatPath } from './routing-system.js';
 import { activePlayerBases } from '../base/player-bases.js';
 import { FIELD_BASE_BUILD_RANGE_METERS, activeFieldBases } from '../base/field-bases.js';
 
 const CANDIDATE_POINT_TOLERANCE_METERS = 1;
 const ANCHOR_DUPLICATE_TOLERANCE_METERS = 0.5;
-const DEFENSE_BUILD_RANGE_MULTIPLIER = 2;
 
 function finitePoint(point) {
   return point && Number.isFinite(point.x) && Number.isFinite(point.y);
-}
-
-function defenseAnchorBaseRange(defense) {
-  const inherited = Number(defense?.buildAnchorBaseRange);
-  if (Number.isFinite(inherited) && inherited > 0) return inherited;
-  return defense?.buildAnchorKind === 'FIELD' ? FIELD_BASE_BUILD_RANGE_METERS : BUILD_RANGE_METERS;
-}
-
-function defenseAnchorPoint(state, defense) {
-  const graph = state.world.roadGraph;
-  if (!graph?.nodeById) return null;
-  if (defense.kind === 'tower') {
-    const node = graph.nodeById.get(defense.nodeId);
-    return finitePoint(node) ? { x: node.x, y: node.y } : null;
-  }
-  if (defense.kind === 'barrier') {
-    const edge = graph.edgeById?.get(defense.edgeId) ?? graph.edges?.find(item => item.id === defense.edgeId);
-    if (!edge) return null;
-    const a = graph.nodeById.get(edge.a);
-    const b = graph.nodeById.get(edge.b);
-    if (!finitePoint(a) || !finitePoint(b)) return null;
-    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-  }
-  return null;
-}
-
-function defenseBuildAnchors(state) {
-  return (state.combat?.defenses ?? [])
-    .filter(activeDefense)
-    .map(defense => {
-      const point = defenseAnchorPoint(state, defense);
-      if (!point) return null;
-      const baseRange = defenseAnchorBaseRange(defense);
-      return {
-        id: `defense:${defense.id}`,
-        label: DEFENSE_DEFINITIONS[defense.type]?.name ?? '既設施設',
-        point,
-        range: baseRange * DEFENSE_BUILD_RANGE_MULTIPLIER,
-        baseRange,
-        kind: 'DEFENSE',
-        defenseId: defense.id,
-        baseId: defense.baseId ?? null
-      };
-    })
-    .filter(Boolean);
 }
 
 function buildAnchors(state) {
@@ -68,7 +22,6 @@ function buildAnchors(state) {
       label: base.name || (index === 0 ? '本拠地' : `主要拠点 ${index + 1}`),
       point: { x: base.x, y: base.y },
       range: BUILD_RANGE_METERS,
-      baseRange: BUILD_RANGE_METERS,
       kind: 'MAJOR',
       baseId: base.id
     }));
@@ -78,7 +31,6 @@ function buildAnchors(state) {
       label: base.name || '簡易拠点',
       point: { x: base.x, y: base.y },
       range: FIELD_BASE_BUILD_RANGE_METERS,
-      baseRange: FIELD_BASE_BUILD_RANGE_METERS,
       kind: 'FIELD',
       baseId: base.id
     });
@@ -86,9 +38,8 @@ function buildAnchors(state) {
   if (finitePoint(state.player.worldPosition)) {
     const point = { x: state.player.worldPosition.x, y: state.player.worldPosition.y };
     const overlapsBase = anchors.some(anchor => (anchor.range ?? BUILD_RANGE_METERS) >= BUILD_RANGE_METERS && distance(anchor.point, point) <= ANCHOR_DUPLICATE_TOLERANCE_METERS);
-    if (!overlapsBase) anchors.push({ id: 'player', label: '現在地', point, range: BUILD_RANGE_METERS, baseRange: BUILD_RANGE_METERS, kind: 'PLAYER' });
+    if (!overlapsBase) anchors.push({ id: 'player', label: '現在地', point, range: BUILD_RANGE_METERS, kind: 'PLAYER' });
   }
-  anchors.push(...defenseBuildAnchors(state));
   return anchors;
 }
 
@@ -135,8 +86,7 @@ function towerCandidate(type, node, anchor = null) {
     anchorId: anchor?.id ?? null,
     anchorLabel: anchor?.label ?? null,
     anchorKind: anchor?.kind ?? null,
-    baseId: anchor?.baseId ?? null,
-    anchorBaseRange: anchor?.baseRange ?? null
+    baseId: anchor?.baseId ?? null
   };
 }
 
@@ -149,8 +99,7 @@ function barrierCandidate(type, edge, point, anchor = null) {
     anchorId: anchor?.id ?? null,
     anchorLabel: anchor?.label ?? null,
     anchorKind: anchor?.kind ?? null,
-    baseId: anchor?.baseId ?? null,
-    anchorBaseRange: anchor?.baseRange ?? null
+    baseId: anchor?.baseId ?? null
   };
 }
 
@@ -308,7 +257,7 @@ export class BuildSystem {
       const projection = pointToSegmentProjection(requestedPoint, a, b);
       if (projection.distance > CANDIDATE_POINT_TOLERANCE_METERS) return { ok: false, reason: '設置候補が道路上にありません。' };
       const anchor = coveringAnchor(anchors, projection.point);
-      if (!anchor) return { ok: false, reason: '建設可能範囲内へ設置してください（主要拠点・現在地は85m以内、簡易拠点は50m以内、既設施設は170mまたは100m以内）。' };
+      if (!anchor) return { ok: false, reason: '建設可能範囲内へ設置してください（主要拠点・現在地は85m以内、簡易拠点は50m以内）。' };
       if (anchorHasFacility(state, definition, anchor)) return { ok: false, reason: `${anchor.label}には同種設備をこれ以上設置できません。` };
       if (state.combat.defenses.some(defense => defense.kind === 'barrier' && defense.edgeId === edge.id && activeDefense(defense))) {
         return { ok: false, reason: 'この道路にはすでに防壁があります。' };
@@ -318,7 +267,7 @@ export class BuildSystem {
       const node = graph.nodeById.get(candidate.nodeId);
       if (!node) return { ok: false, reason: '対象交差点が見つかりません。' };
       const anchor = coveringAnchor(anchors, node);
-      if (!anchor) return { ok: false, reason: definition.allowedAnchorKinds ? '測量施設は主要拠点または簡易拠点の建設範囲内へ設置してください。' : '建設可能範囲内へ設置してください（主要拠点・現在地は85m以内、簡易拠点は50m以内、既設施設は170mまたは100m以内）。' };
+      if (!anchor) return { ok: false, reason: definition.allowedAnchorKinds ? '測量施設は主要拠点または簡易拠点の建設範囲内へ設置してください。' : '建設可能範囲内へ設置してください（主要拠点・現在地は85m以内、簡易拠点は50m以内）。' };
       if (anchorHasFacility(state, definition, anchor)) return { ok: false, reason: `${anchor.label}には測量施設を1基だけ設置できます。` };
       if (state.combat.defenses.some(defense => defense.kind === 'tower' && defense.nodeId === node.id && activeDefense(defense))) {
         return { ok: false, reason: 'この交差点にはすでに設備があります。' };
@@ -346,8 +295,7 @@ export class BuildSystem {
         id: stableId('barrier', normalized.edgeId, state.runtime?.worldTimeMs ?? Date.now(), state.combat.defenses.length),
         kind: 'barrier', type: 'barrier', line: 'barrier', tier: 0, defenseKey: 'barrier0',
         edgeId: normalized.edgeId, hp: definition.hp, maxHp: definition.hp, ruined: false, isGate: false,
-        buildAnchorId: normalized.anchorId, buildAnchorKind: normalized.anchorKind, baseId: normalized.baseId,
-        buildAnchorBaseRange: normalized.anchorBaseRange
+        buildAnchorId: normalized.anchorId, buildAnchorKind: normalized.anchorKind, baseId: normalized.baseId
       };
       state.combat.defenses.push(defense);
       for (const enemy of state.combat.enemies) enemy.reroutePending = true;
@@ -363,7 +311,6 @@ export class BuildSystem {
       kind: 'tower', type: normalized.type, line: definition.line, tier: definition.initialTier ?? 0, defenseKey: definition.defenseKey ?? `${definition.line}${definition.initialTier ?? 0}`,
       nodeId: normalized.nodeId, hp: definition.hp, maxHp: definition.hp,
       buildAnchorId: normalized.anchorId, buildAnchorKind: normalized.anchorKind, baseId: normalized.baseId,
-      buildAnchorBaseRange: normalized.anchorBaseRange,
       cooldown: 0, disabledTimer: 0, ruined: false
     };
     if (normalized.type === 'survey') {
@@ -377,5 +324,21 @@ export class BuildSystem {
     for (const enemy of state.combat.enemies) enemy.reroutePending = true;
     this.events?.emit('combat:defense-built', { defense });
     return { ok: true, defense, candidate: normalized };
+  }
+
+  removeDefense(state, defenseId) {
+    const defenses = state.combat?.defenses ?? [];
+    const index = defenses.findIndex(defense => defense.id === defenseId);
+    if (index < 0) return { ok: false, reason: '撤去する設備が見つかりません。' };
+
+    const [defense] = defenses.splice(index, 1);
+    for (const enemy of state.combat?.enemies ?? []) {
+      if (enemy.targetDefenseId === defense.id) enemy.targetDefenseId = null;
+      enemy.reroutePending = true;
+    }
+
+    const name = defenseRuntimeDefinition(defense).name ?? DEFENSE_DEFINITIONS[defense.type]?.name ?? '設備';
+    this.events?.emit('combat:defense-removed', { defenseId: defense.id, defense });
+    return { ok: true, defense, message: `${name}を撤去しました。資源は返還されません。` };
   }
 }

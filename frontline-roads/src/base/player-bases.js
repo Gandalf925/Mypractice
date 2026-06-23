@@ -2,6 +2,7 @@ import { distance, stableId } from '../core/utilities.js';
 
 export const PLAYER_BASE_MINIMUM_SEPARATION_METERS = 220;
 export const PLAYER_BASE_PLACEMENT_RANGE_METERS = 50;
+export const PLAYER_BASE_REBUILD_COST = Object.freeze({ timber: 6, rope: 3, cutStone: 6 });
 export const PLAYER_BASE_PLACEMENT_COSTS = Object.freeze({
   2: Object.freeze({ timber: 8, rope: 4, cutStone: 8 }),
   3: Object.freeze({ timber: 14, rope: 6, cutStone: 14 }),
@@ -9,8 +10,12 @@ export const PLAYER_BASE_PLACEMENT_COSTS = Object.freeze({
   5: Object.freeze({ timber: 26, rope: 10, cutStone: 28, wroughtIron: 4 })
 });
 
+export function playerBaseSlotsUsed(state) {
+  return ensurePlayerBaseState(state).length;
+}
+
 export function playerBasePlacementCost(state) {
-  const targetCount = activePlayerBases(state).length + 1;
+  const targetCount = playerBaseSlotsUsed(state) + 1;
   return { ...(PLAYER_BASE_PLACEMENT_COSTS[targetCount] ?? PLAYER_BASE_PLACEMENT_COSTS[5]) };
 }
 
@@ -63,8 +68,10 @@ export function ensurePlayerBaseState(state) {
   return state.world.playerBases;
 }
 
-export function playerBaseById(state, baseId) {
-  return ensurePlayerBaseState(state).find(base => base.id === baseId) ?? null;
+export function playerBaseById(state, baseId, { includeDestroyed = true } = {}) {
+  const base = ensurePlayerBaseState(state).find(item => item.id === baseId) ?? null;
+  if (!base || (!includeDestroyed && (base.status !== 'ESTABLISHED' || base.hp <= 0))) return null;
+  return base;
 }
 
 export function activePlayerBases(state) {
@@ -79,11 +86,13 @@ export function nearestPlayerBase(state, point) {
 }
 
 export function canPlaceAdditionalBase(state, point) {
-  const bases = activePlayerBases(state);
+  const bases = ensurePlayerBaseState(state);
   if (bases.length >= baseLimitForCivilization(state.civilization?.level)) {
     return { ok: false, reason: '文明レベルに対する拠点上限へ到達しています。' };
   }
-  const nearest = nearestPlayerBase(state, point);
+  const nearest = bases
+    .map(base => ({ base, gap: distance(base, point) }))
+    .sort((a, b) => a.gap - b.gap)[0] ?? null;
   if (nearest && nearest.gap < PLAYER_BASE_MINIMUM_SEPARATION_METERS) {
     return { ok: false, reason: `既存拠点から${PLAYER_BASE_MINIMUM_SEPARATION_METERS}m以上離れてください。`, nearest };
   }

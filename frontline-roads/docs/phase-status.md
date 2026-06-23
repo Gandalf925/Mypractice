@@ -11,7 +11,7 @@
 | 6 Combat | Complete | Enemies, bases, waves, barriers, defenses, rerouting and city damage |
 | 7 Save migration | Complete | JSON saves, index reconstruction, legacy migrations and malformed-save quarantine |
 | 8 Offline progress | Complete | Canonical combat/civilization simulation, deterministic and capped at 12 hours |
-| 9 Civilization | Complete | Resources, facilities, production, progression, outposts and respawn |
+| 9 Civilization | Complete | Resources, facilities, production, progression and hostile resource-base replacement |
 | 10 Full UI | Complete | Base placement, combat HUD, context, civilization, production and menu |
 | 11 Stability/PWA | Complete | Enemy cap, multi-tab ownership, privacy, service worker safety and app shell |
 | 12 Radar foundation | Complete | Grid, rings, sweep, luminous roads and vector tactical glyphs |
@@ -49,4 +49,24 @@
 - Removed destructive pre-boot cache deletion and forced reload.
 - Added stylesheet-first startup, versioned module retry, canonical path fallback, `.nojekyll` markers and `/fr/` compatibility redirect.
 - All v0.29.0 gameplay systems and save compatibility remain unchanged.
+
+## v0.30.0 System integrity and progression repair
+
+- Removed the obsolete resource-outpost subsystem while discarding legacy outpost fields safely during load normalization.
+- Repaired simple-base placement, hostile resource-base reward recovery, ore availability and the complete Lv.3/Lv.4 production path.
+- Connected enemy doctrines to real route/target behavior, corrected shield auras, actual tower avoidance ranges and friendly matchup classifications.
+- Added attack, destruction and onsite rebuilding for secondary major bases; bounded specialist pursuit and enforced project-only trial-bronze production.
+- Save key and schema remain unchanged.
+
+## v0.30.1 — Construction boundaries and defense removal
+
+Status: complete.
+
+- Removed facility-to-facility construction-anchor propagation.
+- Authorized construction anchors are limited to active major bases, active simple bases and the current player position.
+- Older out-of-zone facilities remain operational without extending construction range.
+- Added two-step manual removal for active and ruined road-defense facilities.
+- Removal clears hostile facility targets, invalidates routes and persists immediately.
+- Save key and schema remain unchanged.
+- Normal, serial and archive-reextraction verification: 329/329 passing.
 

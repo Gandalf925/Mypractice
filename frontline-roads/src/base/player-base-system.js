@@ -5,13 +5,16 @@ import {
   PLAYER_BASE_MINIMUM_SEPARATION_METERS,
   PLAYER_BASE_PLACEMENT_RANGE_METERS,
   activePlayerBases,
+  ensurePlayerBaseState,
+  playerBaseById,
+  playerBaseSlotsUsed,
+  PLAYER_BASE_REBUILD_COST,
   baseLimitForCivilization,
   canPlaceAdditionalBase,
-  ensurePlayerBaseState,
   playerBasePlacementCost
 } from './player-bases.js';
 
-export const PLAYER_BASE_LOCATION_MAX_AGE_MS = 60_000;
+export const PLAYER_BASE_LOCATION_MAX_AGE_MS = 5 * 60_000;
 export const PLAYER_BASE_MAX_ACCURACY_METERS = 100;
 
 function nearestRoadNode(state, point) {
@@ -27,7 +30,7 @@ function nearestRoadNode(state, point) {
 }
 
 export function previewPlayerBasePlacement(state, now = Date.now()) {
-  const bases = activePlayerBases(state);
+  const bases = ensurePlayerBaseState(state);
   const limit = baseLimitForCivilization(state.civilization?.level);
   const cost = playerBasePlacementCost(state);
   if (bases.length >= limit) {
@@ -70,6 +73,40 @@ export function previewPlayerBasePlacement(state, now = Date.now()) {
   };
 }
 
+
+export function previewPlayerBaseRebuild(state, baseId, now = Date.now()) {
+  ensurePlayerBaseState(state);
+  const cost = { ...PLAYER_BASE_REBUILD_COST };
+  const base = playerBaseById(state, baseId, { includeDestroyed: true });
+  if (!base || base.primary) return { ok: false, reason: '再建対象の主要拠点が見つかりません。', cost };
+  if (base.status !== 'DESTROYED' && base.hp > 0) return { ok: false, reason: 'この主要拠点は稼働中です。', cost };
+  const player = state.player?.worldPosition;
+  if (!player) return { ok: false, reason: '現在地を取得してください。', cost };
+  const updatedAt = Number(state.player?.locationUpdatedAt) || 0;
+  if (!updatedAt || now - updatedAt > PLAYER_BASE_LOCATION_MAX_AGE_MS) return { ok: false, reason: '位置情報が古いため再建できません。', cost };
+  const gap = distance(player, base);
+  if (gap > PLAYER_BASE_PLACEMENT_RANGE_METERS) return { ok: false, reason: `破壊された主要拠点から${PLAYER_BASE_PLACEMENT_RANGE_METERS}m以内へ移動してください。`, cost, base, distance: gap };
+  const missing = missingBundle(state, cost);
+  if (Object.keys(missing).length) return { ok: false, reason: '主要拠点の再建資源が不足しています。', cost, missing, base };
+  return { ok: true, cost, base, distance: gap };
+}
+
+export function destroyPlayerBase(state, base, events = null, { enemyId = null } = {}) {
+  if (!base || base.primary || base.status === 'DESTROYED') return false;
+  base.hp = 0;
+  base.status = 'DESTROYED';
+  base.destroyedAt = state.runtime?.worldTimeMs ?? Date.now();
+  for (const enemy of state.combat.enemies ?? []) {
+    if (enemy.targetPlayerBaseId === base.id) {
+      enemy.targetPlayerBaseId = null;
+      enemy.reroutePending = true;
+    }
+  }
+  events?.emit('base:player-destroyed', { baseId: base.id, enemyId, position: { x: base.x, y: base.y } });
+  events?.emit('message', { text: `${base.name}が破壊されました。現地で再建できます。` });
+  return true;
+}
+
 export class PlayerBaseSystem {
   constructor(events = null) {
     this.events = events;
@@ -85,7 +122,7 @@ export class PlayerBaseSystem {
     if (!preview.ok) return preview;
     if (!consumeBundle(state, preview.cost)) return { ok: false, reason: '主要拠点の設置直前に資源が不足しました。', missing: missingBundle(state, preview.cost), cost: preview.cost };
     const establishedAt = state.runtime?.worldTimeMs ?? now;
-    const sequence = activePlayerBases(state).length + 1;
+    const sequence = playerBaseSlotsUsed(state) + 1;
     const base = {
       id: stableId('player_base', preview.node.id, establishedAt, sequence),
       name: `主要拠点 ${sequence}`,
@@ -104,4 +141,23 @@ export class PlayerBaseSystem {
     this.events?.emit('message', { text: `${base.name}を設置しました。` });
     return { ok: true, base, cost: preview.cost, current: activePlayerBases(state).length, limit: baseLimitForCivilization(state.civilization?.level) };
   }
+
+  previewRebuild(state, baseId, now = Date.now()) {
+    return previewPlayerBaseRebuild(state, baseId, now);
+  }
+
+  rebuild(state, baseId, now = Date.now()) {
+    const preview = this.previewRebuild(state, baseId, now);
+    if (!preview.ok) return preview;
+    if (!consumeBundle(state, preview.cost)) return { ok: false, reason: '主要拠点の再建直前に資源が不足しました。', cost: preview.cost };
+    const base = preview.base;
+    base.status = 'ESTABLISHED';
+    base.hp = base.maxHp = 100;
+    base.destroyedAt = null;
+    base.rebuiltAt = state.runtime?.worldTimeMs ?? now;
+    this.events?.emit('base:player-rebuilt', { base });
+    this.events?.emit('message', { text: `${base.name}を再建しました。` });
+    return { ok: true, base, cost: preview.cost };
+  }
+
 }

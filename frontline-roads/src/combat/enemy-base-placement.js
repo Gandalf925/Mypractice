@@ -120,8 +120,7 @@ export function selectEnemyBaseNode(state, type, sourceNodeId = null) {
   const activeBases = state.world.enemyBases.filter(base => base.alive);
   const occupiedNodes = new Set([
     state.world.city.nodeId,
-    ...activeBases.map(base => base.nodeId),
-    ...state.world.outposts.filter(outpost => outpost.status === 'ACTIVE').map(outpost => outpost.nodeId)
+    ...activeBases.map(base => base.nodeId)
   ]);
   const occupiedPoints = [...occupiedNodes].map(id => graph.nodeById.get(id)).filter(Boolean);
   const references = activeBases

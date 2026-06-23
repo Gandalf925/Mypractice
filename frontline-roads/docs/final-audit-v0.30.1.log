@@ -1,0 +1,43 @@
+FRONTLINE ROADS v0.30.1 CONSTRUCTION BOUNDARIES AUDIT
+
+Release: 0.30.1-construction-boundaries
+
+ROOT CAUSE
+- v0.28.3 added every active defense as a construction anchor.
+- Each placed defense inherited a 170m or 100m propagation radius.
+- Chaining facilities therefore bypassed physical player movement.
+
+CORRECTION
+- Build anchors: active major bases, active simple bases, current player position only.
+- Facility-origin build anchors: removed from production code.
+- Legacy out-of-zone facilities: retained but cannot propagate range.
+- Manual removal: two-step confirmation, no resource refund.
+- Removal clears matching enemy targetDefenseId and marks all enemy routes for recalculation.
+
+AUTOMATED VERIFICATION
+- Standard verify: 329 passed, 0 failed.
+- Serial verify: 329 passed, 0 failed.
+- Production JS modules: 96.
+- Reachable from bootstrap: 96.
+- Missing relative imports: 0.
+- Import cycles: 0.
+- Duplicate HTML IDs: 0.
+- CSS brace delta: 0.
+- PWA missing entries: 0.
+- Forbidden facility-anchor implementation terms: 0.
+
+HTTP VERIFICATION
+- Root entry: 200.
+- Legacy /fr/ entry: 200.
+- Application entry: 200.
+- Stylesheet: 200.
+- Bootstrap module: 200.
+- Service worker: 200.
+
+BROWSER LIMIT
+- Chromium headless timed out before DOM output because the container cannot provide its DBus/netlink runtime requirements.
+- Final GPS, touch and installed-PWA behavior requires the deployed mobile HTTPS build.
+
+COMPATIBILITY
+- Save key unchanged: frontline_roads_refactor_v2.
+- Schema unchanged: 2.

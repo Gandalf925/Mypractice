@@ -1,5 +1,5 @@
 import { distance } from '../core/utilities.js';
-import { activePlayerBases, baseLimitForCivilization } from '../base/player-bases.js';
+import { activePlayerBases, baseLimitForCivilization, ensurePlayerBaseState, playerBaseSlotsUsed } from '../base/player-bases.js';
 import {
   activeFieldBases,
   ensureFieldBaseState,
@@ -49,17 +49,17 @@ export function summarizePlayerBase(state, base) {
   };
 }
 
-function baseCard(state, base, { selected, label, field = false, rebuild = null }) {
+function baseCard(state, base, { selected, label, field = false, rebuild = null, rebuildKind = null }) {
   const status = summarizePlayerBase(state, base);
   const destroyed = base.status === 'DESTROYED' || base.hp <= 0;
   return `<article class="baseCommandCard ${selected ? 'selected' : ''} ${destroyed ? 'destroyed' : ''}">
     <header><div><small>${label}</small><strong>${base.name}</strong></div><span data-alert="${destroyed || status.nearbyEnemies > 0 ? 'danger' : 'clear'}">${status.alert}</span></header>
     <div class="contextMetricGrid"><span><small>HP</small><b>${Math.ceil(base.hp)}/${base.maxHp}</b></span><span><small>ENEMY</small><b>${status.nearbyEnemies}</b></span><span><small>DEF</small><b>${status.facilities}</b></span><span><small>SQUAD</small><b>${status.activeSquads}/${status.squads}</b></span></div>
-    ${field ? '<p class="sectionNote">建設範囲50m・突撃／遊撃部隊を派兵可能</p>' : ''}
+    ${field ? '<p class="sectionNote">建設範囲50m・突撃／遊撃／回収部隊を派兵可能</p>' : ''}
     ${status.recoveringSquads || status.readySquads ? `<p class="baseSquadNotice">回復中 ${status.recoveringSquads}・再出撃待機 ${status.readySquads}</p>` : ''}
     ${status.recoveryItems ? `<p class="baseRecoveryNotice">周辺に未回収アイテム ${status.recoveryItems}</p>` : ''}
     <button class="primary wideButton" data-action="focus-base" data-base-id="${base.id}" data-base-kind="${field ? 'field' : 'major'}">この拠点をMAP表示</button>
-    ${destroyed ? `<button class="secondary wideButton" data-action="rebuild-field-base" data-base-id="${base.id}" ${rebuild?.ok ? '' : 'disabled'}>現地で簡易拠点を再建</button><p class="sectionNote">費用 ${bundleText(rebuild?.cost)}・${rebuild?.ok ? '現在地から再建できます。' : rebuild?.reason ?? '現地へ移動してください。'}</p>` : ''}
+    ${destroyed && rebuildKind ? `<button class="secondary wideButton" data-action="rebuild-${rebuildKind}-base" data-base-id="${base.id}" ${rebuild?.ok ? '' : 'disabled'}>現地で${rebuildKind === 'field' ? '簡易拠点' : '主要拠点'}を再建</button><p class="sectionNote">費用 ${bundleText(rebuild?.cost)}・${rebuild?.ok ? '現在地から再建できます。' : rebuild?.reason ?? '現地へ移動してください。'}</p>` : ''}
   </article>`;
 }
 
@@ -83,7 +83,7 @@ export class BaseCommandUi {
   }
 
   availableBases(state) {
-    return [...activePlayerBases(state), ...ensureFieldBaseState(state)];
+    return [...ensurePlayerBaseState(state), ...ensureFieldBaseState(state)];
   }
 
   open() {
@@ -107,9 +107,10 @@ export class BaseCommandUi {
   updateSummary() {
     const state = this.store.select(value => value);
     const major = activePlayerBases(state);
+    const majorSlots = playerBaseSlotsUsed(state);
     const field = ensureFieldBaseState(state);
     const focused = [...major, ...field].find(base => base.id === this.focusedBaseId);
-    this.summary.textContent = `主要 ${major.length}/${baseLimitForCivilization(state.civilization?.level)}・簡易 ${fieldBaseSlotsUsed(state)}/${fieldBaseLimitForCivilization(state.civilization?.level)}${focused ? `・表示 ${focused.name}` : ''}`;
+    this.summary.textContent = `主要 ${major.length}稼働・${majorSlots}/${baseLimitForCivilization(state.civilization?.level)}・簡易 ${fieldBaseSlotsUsed(state)}/${fieldBaseLimitForCivilization(state.civilization?.level)}${focused ? `・表示 ${focused.name}` : ''}`;
   }
 
   handleAction(event) {
@@ -118,7 +119,7 @@ export class BaseCommandUi {
     const { action, baseId, baseKind } = button.dataset;
     if (action === 'focus-base') {
       const state = this.store.select(value => value);
-      const pool = baseKind === 'field' ? ensureFieldBaseState(state) : activePlayerBases(state);
+      const pool = baseKind === 'field' ? ensureFieldBaseState(state) : ensurePlayerBaseState(state);
       const base = pool.find(value => value.id === baseId);
       if (!base) return;
       this.focusedBaseId = base.id;
@@ -159,6 +160,19 @@ export class BaseCommandUi {
       this.render();
       return;
     }
+    if (action === 'rebuild-major-base') {
+      let result;
+      this.store.mutate(state => { result = this.system.rebuild(state, baseId); }, 'base:player-rebuilt', { emit: true, validate: true });
+      if (!result?.ok) this.notifications.show(result?.reason ?? '主要拠点を再建できません。');
+      else {
+        this.renderer.invalidateStatic();
+        this.renderer.render();
+        this.notifications.show(`${result.base.name}を再建しました。`);
+        this.persist?.();
+      }
+      this.render();
+      return;
+    }
     if (action === 'rebuild-field-base') {
       if (!this.fieldSystem) return;
       let result;
@@ -177,7 +191,7 @@ export class BaseCommandUi {
   render() {
     const state = this.store.select(value => value);
     this.lastRenderAt = Date.now();
-    const majorBases = activePlayerBases(state);
+    const majorBases = ensurePlayerBaseState(state);
     const fieldBases = ensureFieldBaseState(state);
     const majorLimit = baseLimitForCivilization(state.civilization?.level);
     const fieldLimit = fieldBaseLimitForCivilization(state.civilization?.level);
@@ -188,20 +202,23 @@ export class BaseCommandUi {
     const fieldPlacement = this.fieldSystem?.previewCurrentLocation(state) ?? { ok: false, reason: '簡易拠点システムを利用できません。' };
     const majorCards = majorBases.map((base, index) => baseCard(state, base, {
       selected: base.id === this.focusedBaseId,
-      label: index === 0 ? 'PRIMARY' : `MAJOR ${String(index + 1).padStart(2, '0')}`
+      label: index === 0 ? 'PRIMARY' : `MAJOR ${String(index + 1).padStart(2, '0')}`,
+      rebuild: base.status === 'DESTROYED' ? this.system.previewRebuild(state, base.id) : null,
+      rebuildKind: base.primary ? null : 'major'
     })).join('') || '<p class="emptyText">稼働中の主要拠点がありません。</p>';
     const fieldCards = fieldBases.map((base, index) => baseCard(state, base, {
       selected: base.id === this.focusedBaseId,
       label: `FIELD ${String(index + 1).padStart(2, '0')}`,
       field: true,
-      rebuild: base.status === 'DESTROYED' ? this.fieldSystem?.previewRebuild(state, base.id) : null
+      rebuild: base.status === 'DESTROYED' ? this.fieldSystem?.previewRebuild(state, base.id) : null,
+      rebuildKind: 'field'
     })).join('') || '<p class="emptyText">簡易拠点はまだありません。</p>';
 
     this.body.innerHTML = `<section class="baseCommandOverview"><div><span>主要拠点</span><strong>${majorBases.length}/${majorLimit}</strong></div><div><span>簡易拠点</span><strong>${fieldBaseSlotsUsed(state)}/${fieldLimit}</strong></div><div><span>文明レベル</span><strong>Lv.${state.civilization.level}</strong></div></section>
       <section><h2>主要拠点</h2><div class="baseCommandGrid">${majorCards}</div></section>
       <section><h2>簡易拠点</h2><div class="baseCommandGrid">${fieldCards}</div></section>
       <section class="baseEstablishSection"><h2>現在地に主要拠点</h2><p class="sectionNote">主要拠点は建設範囲85mで、すべての部隊を派兵できます。</p><button class="primary wideButton" data-action="establish-base" ${majorPlacement.ok ? '' : 'disabled'}>現在地に主要拠点を設置</button><p class="sectionNote">費用 ${bundleText(majorPlacement.cost)}・${majorPlacement.ok ? `設置可能・道路まで約${Math.round(majorPlacement.distanceToRoad)}m` : majorPlacement.reason}</p></section>
-      <section class="baseEstablishSection"><h2>現在地に簡易拠点</h2><p class="sectionNote">文明Lv.1で解禁。HP40、建設範囲50m、突撃／遊撃部隊を派兵できます。破壊後は現地で再建が必要です。</p><button class="primary wideButton" data-action="establish-field-base" ${fieldPlacement.ok ? '' : 'disabled'}>現在地に簡易拠点を設置</button><p class="sectionNote">費用 ${bundleText(fieldPlacement.cost)}・${fieldPlacement.ok ? `設置可能・道路まで約${Math.round(fieldPlacement.distanceToRoad)}m` : fieldPlacement.reason}</p></section>`;
+      <section class="baseEstablishSection"><h2>現在地に簡易拠点</h2><p class="sectionNote">文明Lv.1で解禁。取得済み道路の交差点から100m以内で設置できます。HP40、建設範囲50m、突撃／遊撃／回収部隊を派兵できます。破壊後は現地で再建が必要です。</p><button class="primary wideButton" data-action="establish-field-base" ${fieldPlacement.ok ? '' : 'disabled'}>現在地に簡易拠点を設置</button><p class="sectionNote">費用 ${bundleText(fieldPlacement.cost)}・${fieldPlacement.ok ? `設置可能・道路まで約${Math.round(fieldPlacement.distanceToRoad)}m` : fieldPlacement.reason}</p></section>`;
     this.updateSummary();
   }
 }

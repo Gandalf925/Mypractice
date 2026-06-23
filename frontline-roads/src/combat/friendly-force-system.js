@@ -687,7 +687,9 @@ export class FriendlyForceSystem {
             const delivered = deliverRecoveryItem(state, item.id, squad.id);
             if (delivered.ok) {
               this.events?.emit('exploration:recovery-collected', delivered);
-              this.events?.emit('message', { text: `${recoveryItemPresentation(item).name}を拠点へ持ち帰りました。` });
+              const presentation = recoveryItemPresentation(item);
+              const lootText = Object.keys(delivered.loot ?? {}).length ? ` 資源：${presentation.lootText}。` : '';
+              this.events?.emit('message', { text: `${presentation.name}を拠点へ持ち帰りました。${lootText}` });
             }
           } else releaseSquadRecoveryItem(state, squad);
           squad.targetRecoveryItemId = null;

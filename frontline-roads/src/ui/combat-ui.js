@@ -49,6 +49,7 @@ export class CombatUi {
     this.orderPlanning = null;
     this.contextDisclosureKey = '';
     this.contextDisclosureOpen = false;
+    this.pendingDefenseRemovalId = null;
     this.tools = queryRequired('#combatTools');
     this.cityHp = queryRequired('#cityHp');
     this.enemyCount = queryRequired('#enemyCount');
@@ -63,6 +64,7 @@ export class CombatUi {
   clearObjectSelection({ hideContext = true } = {}) {
     if (this.orderPlanning) { this.orderPlanning = null; this.renderer.setFriendlyOrderPlanning(null); }
     this.selectedObject = null;
+    this.pendingDefenseRemovalId = null;
     this.renderer.setFocus(null);
     if (hideContext) setVisible(this.context, false);
   }
@@ -110,7 +112,7 @@ export class CombatUi {
       this.buildSites = [];
       this.renderer.setBuildPlacement(null);
       this.context.classList?.remove('is-build-mode', 'has-candidate', 'is-order-mode', 'is-defense-mode', 'is-target-mode');
-      this.notifications.show('設備・敵拠点・前哨地を選択できます。');
+      this.notifications.show('設備・敵拠点・部隊を選択できます。');
       return;
     }
 
@@ -192,11 +194,6 @@ export class CombatUi {
       if (!base.alive) continue;
       const node = graph.nodeById.get(base.nodeId);
       if (node) candidates.push({ kind: 'enemyBase', id: base.id, point: node, distance: distance(point, node) });
-    }
-    for (const outpost of state.world.outposts) {
-      if (!['ACTIVE', 'RUINED'].includes(outpost.status)) continue;
-      const node = graph.nodeById.get(outpost.nodeId);
-      if (node) candidates.push({ kind: 'outpost', id: outpost.id, point: node, distance: distance(point, node) });
     }
     for (const defense of state.combat.defenses) {
       const position = defense.kind === 'barrier' ? edgeMidpoint(graph, defense.edgeId) : graph.nodeById.get(defense.nodeId);
@@ -438,6 +435,7 @@ export class CombatUi {
     }
     if (this.selectedTool === 'select') {
       const state = this.store.select(value => value);
+      this.pendingDefenseRemovalId = null;
       this.selectedObject = this.nearestObject(state, worldPoint, 24 / this.camera.scale);
       this.renderer.setFocus(this.selectedObject ? { kind: this.selectedObject.kind, id: this.selectedObject.id } : null);
       this.renderContext();
@@ -519,6 +517,7 @@ export class CombatUi {
     if (this.contextDisclosureKey !== disclosureKey) {
       this.contextDisclosureKey = disclosureKey;
       this.contextDisclosureOpen = false;
+    this.pendingDefenseRemovalId = null;
     }
     const disclosure = document.createElement('details');
     disclosure.className = 'contextDisclosure';
@@ -633,6 +632,35 @@ export class CombatUi {
     this.renderer.render();
   }
 
+  requestDefenseRemoval(defenseId) {
+    if (this.pendingDefenseRemovalId !== defenseId) {
+      this.pendingDefenseRemovalId = defenseId;
+      this.notifications.show('撤去すると設備は消失し、資源は返還されません。もう一度ボタンを押すと確定します。');
+      this.renderContext();
+      return;
+    }
+
+    let result;
+    this.store.mutate(state => { result = this.buildSystem.removeDefense(state, defenseId); }, 'defense:remove', { emit: true, validate: true });
+    this.pendingDefenseRemovalId = null;
+    if (!result?.ok) {
+      this.notifications.show(result?.reason ?? '設備を撤去できません。');
+      this.renderContext();
+      return;
+    }
+
+    this.clearObjectSelection();
+    this.renderTools();
+    this.renderer.render();
+    this.persist?.();
+    this.notifications.show(result.message ?? '設備を撤去しました。');
+  }
+
+  cancelDefenseRemoval() {
+    this.pendingDefenseRemovalId = null;
+    this.renderContext();
+  }
+
   renderBuildContext() {
     const state = this.store.select(value => value);
     const definition = DEFENSE_DEFINITIONS[this.selectedTool];
@@ -670,7 +698,7 @@ export class CombatUi {
       `新設時はTier ${definition.initialTier ?? 0}です。文明レベル上昇後、既設設備を選択して資源を支払い個別に強化できます。`,
       this.selectedTool === 'survey'
         ? '測量施設は主要拠点・簡易拠点ごとに1基までです。遠隔取得で見えるのは道路と未確認前線だけで、現地情報は実際の移動後に表示されます。'
-        : `建設可能範囲は主要拠点と現在地が各85m、簡易拠点が50mです。さらに既設施設の周辺は、その設置元に応じて170mまたは100mまで拡張されます。移動先の道路は周辺区域の取得完了後に建設へ利用できます。`
+        : `建設可能範囲は主要拠点と現在地が各85m、簡易拠点が50mです。設置済み施設は新たな建設基準点にはなりません。移動先の道路は周辺区域の取得完了後に建設へ利用できます。`
     ]);
     if (this.buildCandidate) {
       const confirm = this.action(affordable ? '建設を確定' : buildStatus.requiredCivilizationLevel ? '文明未解禁' : '資源不足', () => this.confirmBuildCandidate(), 'primary');
@@ -712,7 +740,7 @@ export class CombatUi {
       this.contextTitle.textContent = `RECOVERY // ${presentation.name}`;
       this.setContextContent(
         `${presentation.sourceName}の破壊地点に残された特殊回収物です。現地へ移動し、最新の位置情報で回収してください。`,
-        [['DIST', Number.isFinite(gap) ? `${Math.round(gap)}m` : 'NO GPS'], ['ENTRY', `${RECOVERY_RANGE_METERS}m`], ['STATUS', collection ? 'RECOVERING' : eligibility.ok ? 'READY' : 'FIELD LOCK'], ['TIME', collection ? `${progress.toFixed(1)}/${RECOVERY_COLLECTION_DURATION_SECONDS}s` : `${RECOVERY_COLLECTION_DURATION_SECONDS}s`], ['SOURCE', presentation.sourceName]],
+        [['DIST', Number.isFinite(gap) ? `${Math.round(gap)}m` : 'NO GPS'], ['ENTRY', `${RECOVERY_RANGE_METERS}m`], ['STATUS', collection ? 'RECOVERING' : eligibility.ok ? 'READY' : 'FIELD LOCK'], ['TIME', collection ? `${progress.toFixed(1)}/${RECOVERY_COLLECTION_DURATION_SECONDS}s` : `${RECOVERY_COLLECTION_DURATION_SECONDS}s`], ['SOURCE', presentation.sourceName], ['LOOT', presentation.lootText]],
         [presentation.description, collection ? '回収完了まで範囲内に留まってください。' : eligibility.ok ? '回収後は文明発展の実績として記録されます。' : eligibility.reason]
       );
       this.context.classList?.add('is-target-mode');
@@ -800,13 +828,14 @@ export class CombatUi {
       const enemy = state.combat.enemies.find(item => item.id === selected.id);
       if (!enemy || enemy.hp <= 0) { this.clearObjectSelection(); return; }
       const definition = scaleEnemyDefinition(ENEMY_DEFINITIONS[enemy.type] ?? ENEMY_DEFINITIONS.infantry, enemy.level ?? 1);
-      const behavior = enemyBehaviorForDefinition(definition);
+      const behavior = enemyBehaviorForDefinition(definition, enemy.doctrineKey);
       const doctrine = waveDoctrineDefinition(enemy.doctrineKey);
       const remaining = remainingRouteDistance(state, enemy);
       const targetDefense = enemy.targetDefenseId
         ? state.combat.defenses.find(defense => defense.id === enemy.targetDefenseId && defense.hp > 0 && !defense.ruined)
         : null;
       const targetFieldBase = enemy.targetFieldBaseId ? ownedBaseById(state, enemy.targetFieldBaseId) : null;
+      const targetPlayerBase = enemy.targetPlayerBaseId ? ownedBaseById(state, enemy.targetPlayerBaseId) : null;
       const targetSquad = enemy.targetSquadId
         ? (state.combat.friendlySquads ?? []).find(squad => squad.id === enemy.targetSquadId && squad.hp > 0)
         : null;
@@ -814,12 +843,12 @@ export class CombatUi {
         ? DEFENSE_DEFINITIONS[targetDefense.type]?.name ?? '防衛施設'
         : targetSquad
           ? FRIENDLY_SQUAD_DEFINITIONS[targetSquad.type]?.name ?? '味方部隊'
-          : targetFieldBase?.name ?? (enemy.targetFieldBaseId ? '簡易拠点' : '都市');
+          : targetPlayerBase?.name ?? targetFieldBase?.name ?? (enemy.targetPlayerBaseId ? '主要拠点' : enemy.targetFieldBaseId ? '簡易拠点' : '都市');
       const summary = targetDefense
         ? `${targetName}を優先目標として進行中です。目標喪失時は性格に従って再経路を選択します。`
         : targetSquad
           ? `${targetName}を追跡中です。部隊が移動すると次の道路節点で追跡経路を更新します。`
-          : enemy.targetFieldBaseId
+          : enemy.targetPlayerBaseId || enemy.targetFieldBaseId
             ? `${targetName}への襲撃を優先しています。都市へ直行する敵とは異なる防衛線が必要です。`
             : '都市へ進行中です。経路は敵の性格と波の作戦に応じて選択されます。';
       const routeMode = ({ FLANK: '側面迂回', EVASIVE: '危険回避', BREACH: '正面突破', SABOTAGE: '施設潜入', RAID: '拠点襲撃', HUNT: '部隊追跡', SUPPORT: '支援同行', GUARD: '護衛進軍', COMMAND: '指揮進軍', DIRECT: '最短進軍' })[enemy.path?.routeMode ?? behavior.routeMode] ?? definition.routeLabel ?? '状況判断';
@@ -918,17 +947,13 @@ export class CombatUi {
         const gate = this.action((state.civilization.level ?? 0) >= 2 ? '門へ変換' : '門は文明Lv.2で解禁', () => this.mutateAction(draft => this.civilizationSystem.progression.convertBarrierToGate(draft, defense.id), 'defense:gate'));
         gate.disabled = (state.civilization.level ?? 0) < 2 || defense.ruined || defense.hp <= 0;
       }
-    } else if (selected.kind === 'outpost') {
-      const outpost = state.world.outposts.find(item => item.id === selected.id);
-      if (!outpost) { this.clearObjectSelection(); return; }
-      this.contextTitle.textContent = outpost.status === 'RUINED' ? '廃墟前哨地' : '前哨地';
-      if (outpost.status === 'RUINED') {
-        const cost = this.civilizationSystem.outposts.restoreCost(state, outpost);
-        this.setContextContent('修復すると資源前哨地として再稼働します。', [['STATUS', 'RUINED'], ['COST', bundleText(cost)]]);
-        this.action('前哨地を修復', () => this.mutateAction(draft => this.civilizationSystem.outposts.restore(draft, outpost.id), 'outpost:restore'), 'primary');
-      } else {
-        this.setContextContent('制圧済み前哨地です。', [['STATUS', 'ACTIVE'], ['OUTPUT', outpost.resource ? `${RESOURCE_LABELS[outpost.resource] ?? outpost.resource}` : 'NONE'], ['HP', `${Math.ceil(outpost.hp)}/${outpost.maxHp}`]]);
-      }
+      const removalPending = this.pendingDefenseRemovalId === defense.id;
+      this.action(
+        removalPending ? '撤去を確定（資源返還なし）' : defense.ruined || defense.hp <= 0 ? '残骸を撤去' : '撤去',
+        () => this.requestDefenseRemoval(defense.id),
+        'danger'
+      );
+      if (removalPending) this.action('撤去を中止', () => this.cancelDefenseRemoval());
     } else {
       this.contextTitle.textContent = '都市';
       this.setContextContent('防衛対象となる中枢都市です。', [['HP', `${Math.ceil(state.world.city.hp)}/${state.world.city.maxHp}`], ['CIV', String(state.civilization.level)], ['KILLS', String(state.statistics.kills ?? 0)]]);

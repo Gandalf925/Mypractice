@@ -1,0 +1,15 @@
+{
+  "release": "0.30.1-construction-boundaries",
+  "production_js_modules": 96,
+  "reachable_from_bootstrap": 96,
+  "unreachable_modules": [],
+  "missing_relative_imports": [],
+  "import_cycles": [],
+  "html_ids": 51,
+  "duplicate_html_ids": [],
+  "css_brace_delta": 0,
+  "pwa_missing_entries": [],
+  "forbidden_facility_anchor_terms": [],
+  "remove_defense_method": true,
+  "ui_two_step_removal": true
+}

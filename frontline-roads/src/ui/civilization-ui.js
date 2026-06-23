@@ -191,7 +191,6 @@ export class CivilizationUi {
       return `<div class="productionCard ${building.ruined ? 'is-ruined' : ''}"><strong>${definition.name}</strong><small>耐久 ${Math.ceil(building.hp)}/${building.maxHp}・${current}</small>${buffer !== 'なし' ? `<small>保留：${buffer}</small>` : ''}<div class="recipeButtons">${recipes.map(recipe => `<button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" ${building.ruined ? 'disabled' : ''}>${recipe.name}<small>${bundleText(recipe.input)}</small></button>`).join('') || '<span>生産レシピなし</span>'}</div><div class="buttonRow">${building.hp < building.maxHp ? `<button data-action="repair-building" data-building-id="${building.id}">修理</button>` : ''}${buffer !== 'なし' ? `<button data-action="collect-output" data-building-id="${building.id}">保留品を回収</button>` : ''}<button data-action="demolish-building" data-building-id="${building.id}">解体</button></div></div>`;
     }).join('') || '<p class="emptyText">生産施設はまだありません。</p>';
 
-    const outposts = state.world.outposts.map(outpost => `<div class="conditionRow complete"><span>前哨地 ${outpost.sourceBaseType}</span><strong>${outpost.status}</strong></div>`).join('') || '<p class="emptyText">制圧済み前哨地はありません。</p>';
 
     this.body.innerHTML = `
       <section class="civilizationOverview"><div><span>文明</span><strong>${civilization.name}</strong></div><div><span>中央施設</span><strong>${civilization.central}</strong></div><div><span>集落建設枠</span><strong>${state.civilization.buildings.filter(item => !item.demolished).length}/${civilization.slots}</strong></div><div><span>拠点上限</span><strong>主要 ${baseLimitForCivilization(state.civilization.level)}・簡易 ${fieldBaseSlotsUsed(state)}/${fieldBaseLimitForCivilization(state.civilization.level)}</strong></div></section>
@@ -200,7 +199,6 @@ export class CivilizationUi {
       <section><h2>防衛設備Tier</h2><p class="sectionNote">通常設備はTier 0、測量施設は文明Lv.1でTier 1から建設できます。文明レベルと同じTierまで、MAP上の既設設備を個別に強化できます。</p><div class="defenseTierGrid">${defenseTierCatalog(state)}</div></section>
       <section><h2>派兵部隊</h2><p class="sectionNote">文明レベルごとに役割の異なる部隊が解禁されます。簡易拠点から派兵できるのは突撃部隊と遊撃部隊だけです。</p><div class="defenseTierGrid">${friendlyUnitCatalog(state)}</div></section>
       <section><h2>集落施設</h2><div class="catalogGrid">${buildingCatalog}</div></section>
-      <section><h2>生産</h2>${production}</section>
-      <section><h2>前哨地</h2>${outposts}</section>`;
+      <section><h2>生産</h2>${production}</section>`;
   }
 }

@@ -4,7 +4,7 @@ export const ENEMY_PERSONALITIES = Object.freeze({
     description: '最短経路と都市到達を優先する基本的な行動です。'
   }),
   evasive: Object.freeze({
-    key: 'evasive', label: '警戒迂回型', routeMode: 'EVASIVE', avoidTowers: true,
+    key: 'evasive', label: '警戒迂回型', routeMode: 'EVASIVE', avoidTowers: true, avoidCongestion: true,
     description: '防衛塔と混雑を避け、比較的安全な道路を選びます。'
   }),
   flanker: Object.freeze({
@@ -53,21 +53,26 @@ export const ENEMY_WAVE_DOCTRINES = Object.freeze({
   guard: Object.freeze({ key: 'guard', label: '拠点守備', preferredPersonalities: ['guardian', 'direct', 'breacher'] })
 });
 
-export function enemyBehaviorForDefinition(definition = {}) {
+export function enemyBehaviorForDefinition(definition = {}, doctrineKey = null) {
   const personalityKey = definition.personality ?? 'direct';
   const profile = ENEMY_PERSONALITIES[personalityKey] ?? ENEMY_PERSONALITIES.direct;
+  const doctrine = doctrineKey ? waveDoctrineDefinition(doctrineKey) : null;
+  const flankDoctrine = doctrine?.key === 'flank';
   return {
     ...profile,
     personalityKey: profile.key,
     personalityLabel: profile.label,
-    avoidTowers: definition.avoidTowers ?? profile.avoidTowers ?? false,
-    avoidCongestion: definition.avoidCongestion ?? profile.avoidCongestion ?? false,
-    prefersDetour: definition.prefersDetour ?? profile.prefersDetour ?? false,
-    flankPreference: Number(definition.flankPreference ?? profile.flankPreference ?? 0),
-    flankWidthMeters: Number(definition.flankWidthMeters ?? profile.flankWidthMeters ?? 120),
-    maxDetourRatio: Number(definition.maxDetourRatio ?? profile.maxDetourRatio ?? 1),
-    minimumLateralMeters: Number(definition.minimumLateralMeters ?? profile.minimumLateralMeters ?? 0),
-    routeMode: definition.routeMode ?? profile.routeMode ?? 'DIRECT',
+    doctrineKey: doctrine?.key ?? null,
+    targetMode: doctrine?.key === 'raid' ? 'BASES' : doctrine?.key === 'hunt' ? 'SQUADS' : 'DEFAULT',
+    avoidTowers: flankDoctrine || (definition.avoidTowers ?? profile.avoidTowers ?? false),
+    avoidCongestion: flankDoctrine || (definition.avoidCongestion ?? profile.avoidCongestion ?? false),
+    prefersDetour: flankDoctrine || (definition.prefersDetour ?? profile.prefersDetour ?? false),
+    flankPreference: Math.max(Number(definition.flankPreference ?? profile.flankPreference ?? 0), flankDoctrine ? 3.2 : 0),
+    flankWidthMeters: Math.max(Number(definition.flankWidthMeters ?? profile.flankWidthMeters ?? 120), flankDoctrine ? 130 : 0),
+    maxDetourRatio: Math.max(Number(definition.maxDetourRatio ?? profile.maxDetourRatio ?? 1), flankDoctrine ? 1.6 : 1),
+    minimumLateralMeters: Math.max(Number(definition.minimumLateralMeters ?? profile.minimumLateralMeters ?? 0), flankDoctrine ? 30 : 0),
+    barrierCostMultiplier: doctrine?.key === 'breach' ? 0.42 : 1,
+    routeMode: flankDoctrine ? 'FLANK' : doctrine?.key === 'breach' ? 'BREACH' : definition.routeMode ?? profile.routeMode ?? 'DIRECT',
     description: definition.personalityDescription ?? profile.description
   };
 }

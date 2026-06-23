@@ -88,20 +88,6 @@ function drawEnemyBase(context, point, timeMs, quality) {
   context.restore();
 }
 
-function drawOutpost(context, point, active, timeMs, quality) {
-  const color = active ? '#66ffd1' : '#72857e';
-  context.save();
-  glow(context, color, active ? 12 : 3, quality);
-  polygon(context, point, 9, 6, Math.PI / 6, active ? 'rgba(102,255,209,0.16)' : 'rgba(80,100,95,0.2)', color, 1.5);
-  ring(context, point, 12 + Math.sin(timeMs * 0.003) * 1.2, color, 1, active ? 0.5 : 0.25, !active);
-  context.fillStyle = color;
-  context.font = '700 8px ui-monospace, monospace';
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
-  context.fillText(active ? 'OUT' : 'RUI', point.x, point.y + 0.5);
-  context.restore();
-}
-
 function drawBarrier(context, point, angle, quality) {
   context.save();
   context.translate(point.x, point.y);
@@ -304,16 +290,7 @@ export function drawCombatState(context, state, camera, radar = {}) {
     }
   }
 
-  for (const outpost of state.world.outposts ?? []) {
-    if (!['ACTIVE', 'RUINED'].includes(outpost.status)) continue;
-    const node = graph.nodeById.get(outpost.nodeId);
-    if (!node) continue;
-    const point = camera.worldToScreen(node);
-    if (!visiblePoint(point, camera)) continue;
-    const active = outpost.status === 'ACTIVE';
-    drawOutpost(context, point, active, timeMs, quality);
-    if (active && shouldDrawHealth(outpost.hp, outpost.maxHp, quality)) drawHealthBar(context, point, outpost.hp, outpost.maxHp, 22, 14, quality);
-  }
+
 
   for (const defense of state.combat.defenses ?? []) {
     if (defense.hp <= 0 || defense.ruined) continue;
@@ -404,12 +381,14 @@ export function drawCombatState(context, state, camera, radar = {}) {
   }
 
   for (const base of state.world.playerBases ?? []) {
-    if (base.primary || base.status !== 'ESTABLISHED' || base.hp <= 0) continue;
+    if (base.primary) continue;
     const node = graph.nodeById.get(base.nodeId) ?? base;
     const point = camera.worldToScreen(node);
     if (!visiblePoint(point, camera, 32)) continue;
-    drawPlayerBase(context, point, timeMs, quality);
-    if (shouldDrawHealth(base.hp, base.maxHp, quality)) drawHealthBar(context, point, base.hp, base.maxHp, 24, 14, quality);
+    const active = base.status === 'ESTABLISHED' && base.hp > 0;
+    if (active) drawPlayerBase(context, point, timeMs, quality);
+    else drawFieldBase(context, point, false, timeMs, quality);
+    if (active && shouldDrawHealth(base.hp, base.maxHp, quality)) drawHealthBar(context, point, base.hp, base.maxHp, 24, 14, quality);
   }
 
   for (const base of state.world.fieldBases ?? []) {

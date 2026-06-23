@@ -38,7 +38,7 @@ export const PRODUCTION_RECIPES = Object.freeze({
   charcoal: { name: '木炭', building: 'charcoalKiln', input: { wood: 8 }, output: { charcoal: 1 }, seconds: 120, level: 2 },
   copperIngot: { name: '銅塊', building: 'copperFurnace', input: { copperOre: 6, charcoal: 2 }, output: { copperIngot: 1 }, seconds: 180, level: 2 },
   tinIngot: { name: '錫塊', building: 'tinFurnace', input: { tinOre: 4, charcoal: 2 }, output: { tinIngot: 1 }, seconds: 180, level: 2 },
-  trialBronze: { name: '試験青銅', building: 'trialBronzeFurnace', input: { copperIngot: 3, tinIngot: 1, charcoal: 2 }, output: { bronzeIngot: 2 }, seconds: 420, level: 2, projectOnly: true },
+  trialBronze: { name: '試験青銅', building: 'trialBronzeFurnace', input: { copperIngot: 3, tinIngot: 1, charcoal: 2 }, output: { bronzeIngot: 4 }, seconds: 420, level: 2, projectOnly: true },
   bronzeIngot: { name: '青銅塊', building: 'bronzeWorkshop', input: { copperIngot: 3, tinIngot: 1, charcoal: 2 }, output: { bronzeIngot: 4 }, seconds: 300, level: 3 },
   ironBloom: { name: '鉄塊', building: 'bloomery', input: { ironOre: 8, charcoal: 4 }, output: { ironBloom: 1 }, seconds: 300, level: 3 },
   wroughtIron: { name: '鍛鉄', building: 'forge', input: { ironBloom: 1, charcoal: 2 }, output: { wroughtIron: 1 }, seconds: 240, level: 3 }
@@ -131,12 +131,6 @@ export const ENEMY_DROPS = Object.freeze({
   engineer: { wood: 2, stone: 2, fiber: 1 },
   heavy: { stone: 5, wood: 2 },
   raider: { wood: 2, fiber: 4 }
-});
-
-export const RESOURCE_OUTPOSTS = Object.freeze({
-  copperCamp: { name: '銅鉱前哨地', resource: 'copperOre', amount: 2, intervalSec: 300 },
-  tinCamp: { name: '錫鉱前哨地', resource: 'tinOre', amount: 2, intervalSec: 360 },
-  ironCamp: { name: '鉄鉱前哨地', resource: 'ironOre', amount: 2, intervalSec: 420 }
 });
 
 export function emptyResourceBundle() {

@@ -2,8 +2,6 @@ import { InventorySystem, ensureInventoryState } from './inventory-system.js';
 import { ProductionSystem } from './production-system.js';
 import { ProgressionSystem, createProgressState, ensureProject } from './progression-system.js';
 import { SettlementSystem } from './settlement-system.js';
-import { OutpostSystem } from './outpost-system.js';
-import { RESOURCE_OUTPOSTS } from './data.js';
 import { ensurePlayerBaseState } from '../base/player-bases.js';
 import { PlayerBaseSystem } from '../base/player-base-system.js';
 import { ensureFieldBaseState } from '../base/field-bases.js';
@@ -42,18 +40,8 @@ export function ensureCivilizationState(state, { initializeInventory = false } =
   state.combat ??= {};
   state.combat.defenses ??= [];
   for (const defense of state.combat.defenses) synchronizeDefenseTier(defense);
-  state.world.outposts ??= [];
+  delete state.world.outposts;
   state.world.baseRespawns ??= [];
-  for (const outpost of state.world.outposts) {
-    const resource = RESOURCE_OUTPOSTS[outpost.sourceBaseType];
-    outpost.status = outpost.status ?? (outpost.hp > 0 ? 'ACTIVE' : 'RUINED');
-    outpost.maxHp = Math.max(1, Number(outpost.maxHp) || 240);
-    outpost.hp = Math.max(0, Number(outpost.hp) || (outpost.status === 'ACTIVE' ? outpost.maxHp : 0));
-    outpost.productionClock = Math.max(0, Number(outpost.productionClock) || 0);
-    outpost.resource ??= resource?.resource ?? null;
-    outpost.amount = Math.max(0, Number(outpost.amount) || resource?.amount || 0);
-    outpost.intervalSec = Math.max(0, Number(outpost.intervalSec) || resource?.intervalSec || 0);
-  }
   for (const respawn of state.world.baseRespawns) {
     respawn.remainingSec = Math.max(0, Number(respawn.remainingSec) || 0);
     respawn.attempts = Math.max(0, Number(respawn.attempts) || 0);
@@ -67,7 +55,6 @@ export class CivilizationSystem {
     this.production = new ProductionSystem(events);
     this.progression = new ProgressionSystem(events);
     this.settlement = new SettlementSystem(events);
-    this.outposts = new OutpostSystem(events);
     this.playerBases = new PlayerBaseSystem(events);
     this.fieldBases = new FieldBaseSystem(events);
   }
@@ -76,7 +63,6 @@ export class CivilizationSystem {
     this.inventory.update(state, deltaSeconds);
     this.settlement.processDamageQueue(state);
     this.production.update(state, deltaSeconds);
-    this.outposts.update(state, deltaSeconds);
     this.progression.update(state, deltaSeconds);
   }
 }

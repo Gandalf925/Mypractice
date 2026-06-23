@@ -2,17 +2,21 @@ import { stableId } from '../core/utilities.js';
 import { ENEMY_BASE_DEFINITIONS } from './definitions.js';
 import { createBaseRecoveryItem } from '../exploration/recovery-system.js';
 
-const BASE_RESPAWN_MIN_SECONDS = 4 * 60 * 60;
-const BASE_RESPAWN_MAX_SECONDS = 6 * 60 * 60;
+export const BASE_RESPAWN_MIN_SECONDS = 4 * 60 * 60;
+export const BASE_RESPAWN_MAX_SECONDS = 6 * 60 * 60;
+export const RESOURCE_BASE_RESPAWN_MIN_SECONDS = 45 * 60;
+export const RESOURCE_BASE_RESPAWN_MAX_SECONDS = 75 * 60;
 
-function deterministicRespawnSeconds(baseId) {
+function deterministicRespawnSeconds(baseId, resourceBase = false) {
   let hash = 2166136261;
   for (const character of String(baseId)) {
     hash ^= character.charCodeAt(0);
     hash = Math.imul(hash, 16777619);
   }
-  const span = BASE_RESPAWN_MAX_SECONDS - BASE_RESPAWN_MIN_SECONDS;
-  return BASE_RESPAWN_MIN_SECONDS + ((hash >>> 0) % (span + 1));
+  const minimum = resourceBase ? RESOURCE_BASE_RESPAWN_MIN_SECONDS : BASE_RESPAWN_MIN_SECONDS;
+  const maximum = resourceBase ? RESOURCE_BASE_RESPAWN_MAX_SECONDS : BASE_RESPAWN_MAX_SECONDS;
+  const span = maximum - minimum;
+  return minimum + ((hash >>> 0) % (span + 1));
 }
 
 export function scheduleEnemyBaseRespawn(state, base) {
@@ -23,7 +27,7 @@ export function scheduleEnemyBaseRespawn(state, base) {
     sourceBaseId: base.id,
     baseType: base.type,
     sourceNodeId: base.nodeId,
-    remainingSec: deterministicRespawnSeconds(base.id),
+    remainingSec: deterministicRespawnSeconds(base.id, Boolean(ENEMY_BASE_DEFINITIONS[base.type]?.isResourceBase)),
     attempts: 0
   };
   state.world.baseRespawns.push(respawn);
@@ -39,12 +43,14 @@ export function destroyEnemyBase(state, base, events = null, cause = {}) {
   state.statistics.campsCaptured = (state.statistics.campsCaptured ?? 0) + 1;
   state.civilization.progress.campsCapturedByType[base.type] = (state.civilization.progress.campsCapturedByType[base.type] ?? 0) + 1;
   scheduleEnemyBaseRespawn(state, base);
-  const recoveryItem = createBaseRecoveryItem(state, base);
+  const definition = ENEMY_BASE_DEFINITIONS[base.type];
+  const reward = { ...(definition?.reward ?? {}) };
+  const recoveryItem = createBaseRecoveryItem(state, base, reward);
   for (const enemy of state.combat.enemies) {
     if (enemy.sourceBaseId === base.id) enemy.sourceBaseDestroyed = true;
   }
-  const definition = ENEMY_BASE_DEFINITIONS[base.type];
-  events?.emit('combat:enemy-base-destroyed', { baseId: base.id, base, cause, recoveryItem });
-  events?.emit('message', { text: `${definition?.name ?? '敵拠点'}を破壊しました。現地に特殊回収物が残されています。` });
+  base.rewardAssigned = true;
+  events?.emit('combat:enemy-base-destroyed', { baseId: base.id, base, cause, recoveryItem, reward });
+  events?.emit('message', { text: `${definition?.name ?? '敵拠点'}を破壊しました。特殊回収物と資源備蓄が現地に残されています。` });
   return true;
 }

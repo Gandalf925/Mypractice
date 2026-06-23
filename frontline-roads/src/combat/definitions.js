@@ -30,7 +30,7 @@ export const ENEMY_DEFINITIONS = Object.freeze({
   raider: {
     name: '破壊工作員', hp: 55, speed: 1.3, cityDamage: 6, barrierDps: 3, radius: 4.9, drops: ENEMY_DROPS.raider,
     personality: 'saboteur', barrierStrategy: 'avoid', barrierCostFactor: 2.0, routeLabel: '施設潜入', objectiveLabel: '支援・火力施設',
-    targetPriorities: ['medical', 'fieldAid', 'relay', 'mortar', 'gun', 'slow'], facilityDps: 12, stunSeconds: 8,
+    targetPriorities: ['medical', 'fieldAid', 'relay', 'mortar', 'gun', 'slow'], facilitySearchRadius: 420, facilityDps: 12, stunSeconds: 8,
     attackMessage: '破壊工作員が防衛施設を停止させました。'
   },
   archer: {
@@ -40,7 +40,7 @@ export const ENEMY_DEFINITIONS = Object.freeze({
   ropeCutter: {
     name: '縄切り兵', hp: 65, speed: 1.1, cityDamage: 6, barrierDps: 5, radius: 4.5, drops: { wood: 2, stone: 1, fiber: 3 }, generation: 1,
     personality: 'saboteur', barrierStrategy: 'balanced', barrierCostFactor: 0.9, routeLabel: '妨害排除', objectiveLabel: '減速・修復施設',
-    targetPriorities: ['slow', 'relay'], facilityPriorityPenaltySeconds: 120, facilityDps: 10,
+    targetPriorities: ['slow', 'relay'], facilitySearchRadius: 360, facilityPriorityPenaltySeconds: 120, facilityDps: 10,
     attackMessage: '縄切り兵が妨害施設を破壊しています。'
   },
   pathfinder: {
@@ -74,7 +74,7 @@ export const ENEMY_DEFINITIONS = Object.freeze({
     name: '資源略奪兵', hp: 105, speed: 1.02, cityDamage: 11, barrierDps: 4, radius: 5.3, drops: { wood: 3, stone: 3, copperOre: 1 }, generation: 2,
     personality: 'marauder', avoidCongestion: true, barrierStrategy: 'balanced', barrierCostFactor: 1.0,
     routeLabel: '前線略奪', objectiveLabel: '簡易拠点・支援施設', cityPriorityPenalty: 42, fieldBasePriorityPenalty: 0,
-    targetPriorities: ['survey', 'relay', 'fieldAid', 'medical'], facilityDps: 13,
+    targetPriorities: ['survey', 'relay', 'fieldAid', 'medical'], facilitySearchRadius: 460, facilityDps: 13,
     attackMessage: '資源略奪兵が前線支援施設を破壊しています。'
   },
   bronzeShield: {
@@ -84,7 +84,7 @@ export const ENEMY_DEFINITIONS = Object.freeze({
   siegeCaptain: {
     name: '攻城隊長', hp: 270, speed: 0.62, cityDamage: 30, barrierDps: 16, settlementDamage: 24, radius: 7, drops: { charcoal: 3, bronzeIngot: 2 }, generation: 3, slowResistance: 0.35,
     personality: 'commander', barrierStrategy: 'breach', barrierCostFactor: 0.24, routeLabel: '攻城指揮', objectiveLabel: '重火力施設',
-    targetPriorities: ['mortar', 'gun'], facilityDps: 16, speedAura: 0.10, auraRange: 32,
+    targetPriorities: ['mortar', 'gun'], facilitySearchRadius: 500, facilityDps: 16, speedAura: 0.10, auraRange: 32,
     attackMessage: '攻城隊長が火力施設へ攻撃を集中しています。'
   },
   ironCarrier: {
@@ -117,14 +117,14 @@ export const ENEMY_DEFINITIONS = Object.freeze({
   },
   squadHunter: {
     name: '部隊狩り', hp: 220, speed: 1.34, cityDamage: 15, barrierDps: 5, radius: 6, drops: { ironOre: 2, bronzeIngot: 1 }, generation: 4, slowResistance: 0.3,
-    personality: 'hunter', huntFriendlySquads: true, avoidCongestion: true, barrierStrategy: 'balanced', barrierCostFactor: 0.95,
+    personality: 'hunter', huntFriendlySquads: true, huntRadius: 650, avoidCongestion: true, barrierStrategy: 'balanced', barrierCostFactor: 0.95,
     routeLabel: '味方部隊追跡', objectiveLabel: '道路上の味方部隊', cityPriorityPenalty: 60, fieldBasePriorityPenalty: 35
   },
   ironSaboteur: {
     name: '重破壊工作員', hp: 265, speed: 0.9, cityDamage: 20, barrierDps: 8, radius: 6.3, drops: { ironOre: 2, wroughtIron: 1 }, generation: 4, slowResistance: 0.35,
     personality: 'saboteur', avoidTowers: true, barrierStrategy: 'avoid', barrierCostFactor: 2.1,
     routeLabel: '後方施設破壊', objectiveLabel: '治療・修復・火力施設',
-    targetPriorities: ['medical', 'fieldAid', 'relay', 'mortar', 'gun', 'slow', 'survey'], facilityDps: 22, stunSeconds: 12,
+    targetPriorities: ['medical', 'fieldAid', 'relay', 'mortar', 'gun', 'slow', 'survey'], facilitySearchRadius: 560, facilityDps: 22, stunSeconds: 12,
     attackMessage: '重破壊工作員が後方施設を機能停止させました。'
   },
   bodyguard: {
@@ -155,15 +155,15 @@ export const ENEMY_BASE_DEFINITIONS = Object.freeze({
     waves: { 1: ['raider', 'scout'], 2: ['raider', 'raider', 'scout'], 3: ['raider', 'raider', 'engineer', 'scout'] }
   },
   copperCamp: {
-    name: '銅鉱野営地', icon: 'Cu', interval: 420, firstDelay: 180, range: [300, 650], reward: { copperOre: 24, stone: 20 }, isResourceBase: true,
+    name: '銅鉱野営地', icon: 'Cu', interval: 420, firstDelay: 180, range: [300, 650], reward: { copperOre: 120, stone: 20 }, isResourceBase: true,
     waves: { 1: ['miner', 'oreCarrier'], 2: ['miner', 'miner', 'oreCarrier', 'shield'], 3: ['siegeBreaker', 'miner', 'oreCarrier', 'oreCarrier'] }
   },
   tinCamp: {
-    name: '錫鉱野営地', icon: 'Sn', interval: 480, firstDelay: 220, range: [350, 700], reward: { tinOre: 20, stone: 20 }, isResourceBase: true,
+    name: '錫鉱野営地', icon: 'Sn', interval: 480, firstDelay: 220, range: [350, 700], reward: { tinOre: 32, stone: 20 }, isResourceBase: true,
     waves: { 1: ['miner', 'oreCarrier'], 2: ['miner', 'oreCarrier', 'ropeCutter'], 3: ['siegeBreaker', 'miner', 'oreCarrier', 'ropeCutter'] }
   },
   ironCamp: {
-    name: '鉄鉱野営地', icon: 'Fe', interval: 540, firstDelay: 240, range: [400, 800], reward: { ironOre: 24, stone: 30 }, isResourceBase: true,
+    name: '鉄鉱野営地', icon: 'Fe', interval: 540, firstDelay: 240, range: [400, 800], reward: { ironOre: 128, stone: 30 }, isResourceBase: true,
     waves: { 1: ['ironCarrier', 'bronzeShield'], 2: ['ironCarrier', 'ironCarrier', 'bronzeShield'], 3: ['siegeCaptain', 'ironCarrier', 'bronzeShield'] }
   },
   bronzeCamp: {

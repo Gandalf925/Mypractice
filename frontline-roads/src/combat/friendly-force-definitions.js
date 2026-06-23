@@ -10,7 +10,7 @@ export const FRIENDLY_SQUAD_DEFINITIONS = Object.freeze({
     type: 'skirmisher', name: '遊撃部隊', shortLabel: 'SKRM', role: '軽装迎撃', unlockLevel: 1,
     members: 5, hp: 125, speed: 1.65, enemyDps: 8, baseDps: 2.5, engagementRange: 21,
     allowedBaseKinds: Object.freeze(['MAJOR', 'FIELD']),
-    targetPriorityTypes: Object.freeze(['raider', 'scout', 'archer', 'ropeCutter', 'oreCarrier', 'ironCarrier']),
+    targetPriorityTypes: Object.freeze(['raider', 'scout', 'archer', 'ropeCutter', 'oreCarrier', 'ironCarrier', 'pathfinder', 'marauder', 'flankRider', 'warDrummer', 'squadHunter']),
     lightTargetMultiplier: 1.7, armoredTargetMultiplier: 0.55,
     cost: Object.freeze({ wood: 36, fiber: 42, timber: 4, rope: 2 }),
     description: '高速で軽装敵を処理しますが、重装敵と敵基地には弱い部隊です。'
@@ -47,8 +47,8 @@ export const FRIENDLY_SQUAD_DEFINITIONS = Object.freeze({
 
 export const FRIENDLY_SQUAD_TYPES = Object.freeze(Object.keys(FRIENDLY_SQUAD_DEFINITIONS));
 
-const LIGHT_ENEMY_TYPES = new Set(['scout', 'raider', 'archer', 'ropeCutter', 'oreCarrier', 'ironCarrier']);
-const ARMORED_ENEMY_TYPES = new Set(['shield', 'heavy', 'siegeBreaker', 'bronzeShield', 'siegeCaptain', 'ironclad', 'heavySiege', 'commander']);
+const LIGHT_ENEMY_TYPES = new Set(['scout', 'raider', 'archer', 'ropeCutter', 'oreCarrier', 'ironCarrier', 'pathfinder', 'marauder', 'flankRider', 'warDrummer', 'squadHunter']);
+const ARMORED_ENEMY_TYPES = new Set(['shield', 'heavy', 'siegeBreaker', 'sapper', 'bronzeShield', 'siegeCaptain', 'ironclad', 'heavySiege', 'commander', 'ironSaboteur', 'bodyguard']);
 
 export function friendlySquadDefinition(type) {
   return FRIENDLY_SQUAD_DEFINITIONS[type] ?? FRIENDLY_SQUAD_DEFINITIONS.assault;

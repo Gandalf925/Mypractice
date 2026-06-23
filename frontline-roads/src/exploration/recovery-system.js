@@ -1,5 +1,6 @@
 import { distance, stableId } from '../core/utilities.js';
 import { ENEMY_BASE_DEFINITIONS } from '../combat/definitions.js';
+import { addBundle, bundleText } from '../civilization/inventory-system.js';
 
 export const RECOVERY_RANGE_METERS = 40;
 export const RECOVERY_LOCATION_MAX_AGE_MS = 60_000;
@@ -44,6 +45,7 @@ export function ensureRecoveryState(state) {
     item.status = VALID_STATUS.has(item.status) ? item.status : RECOVERY_ITEM_STATUS.AVAILABLE;
     item.artifactType = ARTIFACT_DEFINITIONS[item.artifactType] ? item.artifactType : 'commandSeal';
     item.amount = Math.max(1, Number(item.amount) || 1);
+    item.loot = item.loot && typeof item.loot === 'object' ? Object.fromEntries(Object.entries(item.loot).filter(([, amount]) => Number(amount) > 0).map(([resource, amount]) => [resource, Math.floor(Number(amount))])) : {};
     item.assignedSquadId = item.assignedSquadId ?? null;
     if ([RECOVERY_ITEM_STATUS.RESERVED, RECOVERY_ITEM_STATUS.CARRIED].includes(item.status) && (!item.assignedSquadId || !activeSquadIds.has(item.assignedSquadId))) {
       item.status = RECOVERY_ITEM_STATUS.AVAILABLE;
@@ -62,7 +64,7 @@ export function ensureRecoveryState(state) {
 
 export function artifactForBaseType(baseType) { return ARTIFACT_BY_BASE_TYPE[baseType] ?? 'commandSeal'; }
 
-export function createBaseRecoveryItem(state, base) {
+export function createBaseRecoveryItem(state, base, loot = null) {
   ensureRecoveryState(state);
   if (state.world.recoveryItems.some(item => item.sourceBaseId === base.id)) return null;
   const node = state.world.roadGraph?.nodeById?.get(base.nodeId);
@@ -70,7 +72,7 @@ export function createBaseRecoveryItem(state, base) {
   const artifactType = artifactForBaseType(base.type);
   const item = {
     id: stableId('recovery', base.id, artifactType), sourceBaseId: base.id, sourceBaseType: base.type,
-    nodeId: base.nodeId, x: node.x, y: node.y, artifactType, amount: 1,
+    nodeId: base.nodeId, x: node.x, y: node.y, artifactType, amount: 1, loot: { ...(loot ?? ENEMY_BASE_DEFINITIONS[base.type]?.reward ?? {}) },
     status: RECOVERY_ITEM_STATUS.AVAILABLE, assignedSquadId: null,
     droppedAt: state.runtime?.worldTimeMs ?? Date.now()
   };
@@ -80,7 +82,8 @@ export function createBaseRecoveryItem(state, base) {
 
 export function recoveryItemPresentation(item) {
   const artifact = ARTIFACT_DEFINITIONS[item?.artifactType] ?? ARTIFACT_DEFINITIONS.commandSeal;
-  return { name: artifact.name, description: artifact.description, sourceName: ENEMY_BASE_DEFINITIONS[item?.sourceBaseType]?.name ?? '敵拠点' };
+  const loot = item?.loot && typeof item.loot === 'object' ? item.loot : {};
+  return { name: artifact.name, description: artifact.description, sourceName: ENEMY_BASE_DEFINITIONS[item?.sourceBaseType]?.name ?? '敵拠点', loot, lootText: Object.keys(loot).length ? bundleText(loot) : 'なし' };
 }
 
 export function reserveRecoveryItem(state, itemId, squadId) {
@@ -123,7 +126,8 @@ function awardRecoveryItem(state, item) {
   item.collectedAt = state.runtime?.worldTimeMs ?? Date.now();
   state.civilization.artifacts[item.artifactType] = (state.civilization.artifacts[item.artifactType] ?? 0) + item.amount;
   state.civilization.totalArtifactsRecovered += item.amount;
-  return { ok: true, item, artifactType: item.artifactType, amount: item.amount };
+  const lootResult = addBundle(state, item.loot ?? {});
+  return { ok: true, item, artifactType: item.artifactType, amount: item.amount, loot: { ...(item.loot ?? {}) }, lootResult };
 }
 
 export function deliverRecoveryItem(state, itemId, squadId) {
@@ -173,7 +177,8 @@ export class RecoverySystem {
     if (!result.ok) return result;
     const presentation = recoveryItemPresentation(item);
     this.events?.emit('exploration:recovery-collected', result);
-    this.events?.emit('message', { text: `${presentation.name}を現地回収しました。` });
+    const lootText = Object.keys(result.loot ?? {}).length ? ` 資源：${bundleText(result.loot)}。` : '';
+    this.events?.emit('message', { text: `${presentation.name}を現地回収しました。${lootText}` });
     return result;
   }
 

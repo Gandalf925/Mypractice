@@ -29,7 +29,7 @@ function normalizeEnemy(enemy) {
   } : null;
   return {
     id: enemy.id, type: enemy.type ?? 'infantry', level: Math.max(1, Math.min(5, Math.floor(Number(enemy.level) || 1))),
-    hp: Number(enemy.hp) || 1, maxHp: Number(enemy.maxHp) || Number(enemy.hp) || 1,
+    hp: Number(enemy.hp) || 1, maxHp: Number(enemy.maxHp) || Number(enemy.hp) || 1, radius: Number(enemy.radius) || null,
     nodeId: enemy.nodeId, path, pathIndex: Math.max(0, Number(enemy.pathIndex) || 0),
     edgeId: enemy.edgeId ?? null, edgeProgress: Math.max(0, Number(enemy.edgeProgress) || 0),
     slowTimer: Math.max(0, Number(enemy.slowTimer) || 0), slowMultiplier: Number(enemy.slowMultiplier) || 0.52,
@@ -37,6 +37,7 @@ function normalizeEnemy(enemy) {
     sourceBaseId: enemy.sourceBaseId ?? null, waveId: enemy.waveId ?? null, waveResolved: Boolean(enemy.waveResolved),
     routeBias: Number.isFinite(Number(enemy.routeBias)) ? Number(enemy.routeBias) : 1,
     targetDefenseId: enemy.targetDefenseId ?? null,
+    targetFieldBaseId: enemy.targetFieldBaseId ?? null, targetPlayerBaseId: enemy.targetPlayerBaseId ?? null, targetSquadId: enemy.targetSquadId ?? null, doctrineKey: enemy.doctrineKey ?? 'frontal',
     notifiedDefenseIds: Array.isArray(enemy.notifiedDefenseIds)
       ? enemy.notifiedDefenseIds
       : Array.isArray(enemy.stunnedTowerIds) ? enemy.stunnedTowerIds : [],
@@ -94,6 +95,7 @@ function migrateRefactorV1(legacy) {
   state.schemaVersion = SCHEMA_VERSION;
   state.lifecycle = Object.values(LifecycleState).includes(state.lifecycle) ? state.lifecycle : LifecycleState.LOAD_SAVE;
   state.world = { ...defaults.world, ...(state.world ?? {}) };
+  delete state.world.outposts;
   state.player = { ...defaults.player, ...(state.player ?? {}) };
   state.combat = { ...defaults.combat, ...(state.combat ?? {}) };
   state.statistics = { ...defaults.statistics, ...(state.statistics ?? {}) };
@@ -135,7 +137,6 @@ export function migrateLegacySave(legacy) {
     hp: Math.max(0, Number(legacy.city?.hp) || 100), maxHp: Math.max(1, Number(legacy.city?.maxHp) || 100)
   };
   state.world.enemyBases = normalizeEnemyBases(legacy);
-  state.world.outposts = deepClone(legacy.outposts ?? []);
   state.world.baseRespawns = (legacy.baseRespawns ?? []).map(item => ({
     id: item.id ?? `legacy_respawn_${item.baseType}_${item.sourceNodeId}`,
     baseType: item.baseType,

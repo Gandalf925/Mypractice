@@ -7,6 +7,7 @@ import {
   FIELD_BASE_MAX_HP,
   FIELD_BASE_MINIMUM_SEPARATION_METERS,
   FIELD_BASE_BUILD_RANGE_METERS,
+  FIELD_BASE_PLACEMENT_RANGE_METERS,
   activeFieldBases,
   ensureFieldBaseState,
   fieldBaseById,
@@ -39,9 +40,9 @@ function nearestRoadNode(state, point) {
   const graph = state.world.roadGraph;
   if (!graph?.nodeById || !point) return null;
   let nearest = null;
-  for (const node of graphElementsNearPoint(graph, point, FIELD_BASE_BUILD_RANGE_METERS).nodes) {
+  for (const node of graphElementsNearPoint(graph, point, FIELD_BASE_PLACEMENT_RANGE_METERS).nodes) {
     const gap = distance(point, node);
-    if (gap > FIELD_BASE_BUILD_RANGE_METERS) continue;
+    if (gap > FIELD_BASE_PLACEMENT_RANGE_METERS) continue;
     if (!nearest || gap < nearest.distance) nearest = { node, distance: gap };
   }
   return nearest;
@@ -69,7 +70,7 @@ export function previewFieldBasePlacement(state, now = Date.now()) {
   if (!location.ok) return { ...location, current: used, limit, cost };
   const road = nearestRoadNode(state, location.player);
   if (!road) {
-    return { ok: false, reason: `取得済み道路の交差点から${FIELD_BASE_BUILD_RANGE_METERS}m以内へ移動してください。`, current: used, limit, cost };
+    return { ok: false, reason: `取得済み道路の交差点から${FIELD_BASE_PLACEMENT_RANGE_METERS}m以内へ移動してください。`, current: used, limit, cost };
   }
 
   const nearest = nearestOwnedBase(state, road.node, { includeDestroyed: true });

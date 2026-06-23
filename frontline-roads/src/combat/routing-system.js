@@ -1,6 +1,6 @@
 import { distance } from '../core/utilities.js';
 import { pointToSegmentProjection } from '../roads/geometry.js';
-import { DEFENSE_DEFINITIONS, ENEMY_DEFINITIONS } from './definitions.js';
+import { DEFENSE_DEFINITIONS, ENEMY_DEFINITIONS, defenseRuntimeDefinition } from './definitions.js';
 import { enemyBehaviorForDefinition } from './enemy-personalities.js';
 import { scaleEnemyDefinition } from './enemy-scaling.js';
 import { edgeMidpoint } from './combat-geometry.js';
@@ -71,18 +71,18 @@ function edgeTowerThreat(state, edgeId, towers, cache) {
   for (const tower of towers) {
     if (tower.kind !== 'tower' || ['relay', 'survey', 'medical', 'fieldAid'].includes(tower.type)) continue;
     const node = graph.nodeById.get(tower.nodeId);
-    const range = tower.range ?? 80;
+    const range = defenseRuntimeDefinition(tower).range ?? 80;
     if (node && distance(middle, node) <= range) threat += 1;
   }
   cache.set(edgeId, threat);
   return threat;
 }
 
-function barrierDelaySeconds(enemyDefinition, barrier, routeBias) {
+function barrierDelaySeconds(enemyDefinition, barrier, routeBias, behavior) {
   const dps = Math.max(0.1, Number(enemyDefinition.barrierDps) || 0.1);
   const breakSeconds = Math.max(0, Number(barrier.hp) || 0) / dps;
   const strategy = enemyDefinition.barrierStrategy ?? 'balanced';
-  const factor = Math.max(0.05, Number(enemyDefinition.barrierCostFactor) || 1);
+  const factor = Math.max(0.05, Number(enemyDefinition.barrierCostFactor) || 1) * Math.max(0.05, Number(behavior?.barrierCostMultiplier) || 1);
   const bias = Math.max(0.75, Math.min(1.25, Number(routeBias) || 1));
   if (strategy === 'avoid') return 900 + breakSeconds * factor * bias;
   return breakSeconds * factor * bias;
@@ -136,11 +136,11 @@ function flankWeightMultiplier(state, edge, startId, targetId, behavior) {
   return 1 + Math.max(0, behavior.flankPreference) * proximity * centerFactor;
 }
 
-function searchCombatPathCore(state, startId, targetCandidates, enemyType, previewBarrierEdgeId, routeBias, enemyLevel = 1, flankTargetId = null) {
+function searchCombatPathCore(state, startId, targetCandidates, enemyType, previewBarrierEdgeId, routeBias, enemyLevel = 1, flankTargetId = null, doctrineKey = null) {
   const graph = state.world.roadGraph;
   if (!graph?.nodeById?.has(startId) || !targetCandidates.length) return null;
   const enemyDefinition = scaleEnemyDefinition(ENEMY_DEFINITIONS[enemyType] ?? ENEMY_DEFINITIONS.infantry, enemyLevel);
-  const behavior = enemyBehaviorForDefinition(enemyDefinition);
+  const behavior = enemyBehaviorForDefinition(enemyDefinition, doctrineKey);
   const { barriers, towers } = defenseMaps(state);
   const edgeCounts = behavior.avoidCongestion ? enemyCountMap(state) : null;
   const threatCache = new Map();
@@ -178,7 +178,7 @@ function searchCombatPathCore(state, startId, targetCandidates, enemyType, previ
       const barrier = connection.edgeId === previewBarrierEdgeId
         ? { hp: DEFENSE_DEFINITIONS.barrier.hp }
         : barriers.get(connection.edgeId);
-      if (barrier?.hp > 0) weight += barrierDelaySeconds(enemyDefinition, barrier, routeBias);
+      if (barrier?.hp > 0) weight += barrierDelaySeconds(enemyDefinition, barrier, routeBias, behavior);
       if (behavior.avoidTowers) weight *= 1 + edgeTowerThreat(state, edge.id, towers, threatCache) * 0.9;
       if (behavior.avoidCongestion) weight *= 1 + (edgeCounts.get(edge.id) ?? 0) / 12;
       if (flankTargetId) weight *= flankWeightMultiplier(state, edge, startId, flankTargetId, behavior);
@@ -204,16 +204,16 @@ function withRoutePresentation(path, behavior, routeMode = behavior.routeMode, d
   return path ? { ...path, routeMode, personalityKey: behavior.personalityKey, detourPercent } : null;
 }
 
-function searchCombatPath(state, startId, targetCandidates, enemyType, previewBarrierEdgeId, routeBias, enemyLevel = 1) {
+function searchCombatPath(state, startId, targetCandidates, enemyType, previewBarrierEdgeId, routeBias, enemyLevel = 1, doctrineKey = null) {
   const definition = scaleEnemyDefinition(ENEMY_DEFINITIONS[enemyType] ?? ENEMY_DEFINITIONS.infantry, enemyLevel);
-  const behavior = enemyBehaviorForDefinition(definition);
-  const baseline = searchCombatPathCore(state, startId, targetCandidates, enemyType, previewBarrierEdgeId, routeBias, enemyLevel);
+  const behavior = enemyBehaviorForDefinition(definition, doctrineKey);
+  const baseline = searchCombatPathCore(state, startId, targetCandidates, enemyType, previewBarrierEdgeId, routeBias, enemyLevel, null, doctrineKey);
   if (!baseline || !behavior.prefersDetour || baseline.edgeIds.length < 2) return withRoutePresentation(baseline, behavior);
 
   const selectedTarget = targetCandidates.find(target =>
     target.nodeId === baseline.targetId && (target.targetObjectId ?? null) === (baseline.targetObjectId ?? null)
   ) ?? { nodeId: baseline.targetId, targetObjectId: baseline.targetObjectId ?? null };
-  const flanking = searchCombatPathCore(state, startId, [selectedTarget], enemyType, previewBarrierEdgeId, routeBias, enemyLevel, baseline.targetId);
+  const flanking = searchCombatPathCore(state, startId, [selectedTarget], enemyType, previewBarrierEdgeId, routeBias, enemyLevel, baseline.targetId, doctrineKey);
   const shortest = findRoadPath(state, startId, baseline.targetId);
   if (!flanking || !shortest || shortest.cost <= 0 || !pathsDiffer(flanking, baseline)) return withRoutePresentation(baseline, behavior, 'EVASIVE');
 
@@ -295,10 +295,10 @@ export function combineRoadPaths(paths) {
   return { nodeIds, edgeIds, cost, targetId: nodeIds[nodeIds.length - 1] };
 }
 
-export function findCombatPath(state, startId, targetId, enemyType = 'infantry', previewBarrierEdgeId = null, routeBias = 1, enemyLevel = 1) {
-  return searchCombatPath(state, startId, [{ nodeId: targetId }], enemyType, previewBarrierEdgeId, routeBias, enemyLevel);
+export function findCombatPath(state, startId, targetId, enemyType = 'infantry', previewBarrierEdgeId = null, routeBias = 1, enemyLevel = 1, doctrineKey = null) {
+  return searchCombatPath(state, startId, [{ nodeId: targetId }], enemyType, previewBarrierEdgeId, routeBias, enemyLevel, doctrineKey);
 }
 
-export function findCombatPathToTargets(state, startId, targets, enemyType = 'infantry', routeBias = 1, enemyLevel = 1) {
-  return searchCombatPath(state, startId, targets, enemyType, null, routeBias, enemyLevel);
+export function findCombatPathToTargets(state, startId, targets, enemyType = 'infantry', routeBias = 1, enemyLevel = 1, doctrineKey = null) {
+  return searchCombatPath(state, startId, targets, enemyType, null, routeBias, enemyLevel, doctrineKey);
 }

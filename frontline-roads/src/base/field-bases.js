@@ -1,7 +1,8 @@
 import { distance, stableId } from '../core/utilities.js';
-import { activePlayerBases } from './player-bases.js';
+import { activePlayerBases, ensurePlayerBaseState, playerBaseById } from './player-bases.js';
 
 export const FIELD_BASE_BUILD_RANGE_METERS = 50;
+export const FIELD_BASE_PLACEMENT_RANGE_METERS = 100;
 export const FIELD_BASE_MAX_HP = 40;
 export const FIELD_BASE_MINIMUM_SEPARATION_METERS = 140;
 export const FIELD_BASE_ENEMY_EXCLUSION_METERS = 120;
@@ -72,7 +73,7 @@ export function deploymentBases(state, squadType = 'assault') {
 }
 
 export function ownedBaseById(state, baseId, { includeDestroyed = false } = {}) {
-  const major = activePlayerBases(state).find(base => base.id === baseId);
+  const major = playerBaseById(state, baseId, { includeDestroyed });
   if (major) return major;
   return fieldBaseById(state, baseId, { includeDestroyed });
 }
@@ -80,7 +81,7 @@ export function ownedBaseById(state, baseId, { includeDestroyed = false } = {}) 
 export function nearestOwnedBase(state, point, { includeDestroyed = false } = {}) {
   if (!point) return null;
   const bases = includeDestroyed
-    ? [...activePlayerBases(state), ...ensureFieldBaseState(state)]
+    ? [...ensurePlayerBaseState(state), ...ensureFieldBaseState(state)]
     : activeOwnedBases(state);
   return bases
     .map(base => ({ base, gap: distance(base, point) }))

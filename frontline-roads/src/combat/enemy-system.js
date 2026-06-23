@@ -5,6 +5,9 @@ import { normalizeEnemyLevel, scaleEnemyDefinition } from './enemy-scaling.js';
 import { findCombatPath, findCombatPathToTargets } from './routing-system.js';
 import { roadUnitPosition } from './road-unit-position.js';
 import { activeFieldBases, fieldBaseById } from '../base/field-bases.js';
+import { activePlayerBases, playerBaseById } from '../base/player-bases.js';
+import { destroyPlayerBase } from '../base/player-base-system.js';
+import { enemyBehaviorForDefinition } from './enemy-personalities.js';
 import { destroyFieldBase } from '../base/field-base-system.js';
 import { FRIENDLY_SQUAD_DEFINITIONS, friendlySquadDefinition } from './friendly-force-definitions.js';
 
@@ -12,6 +15,8 @@ const FACILITY_ATTACK_RANGE_METERS = 20;
 const FACILITY_PRIORITY_PENALTY_SECONDS = 18;
 const FIELD_BASE_PRIORITY_PENALTY_SECONDS = 20;
 const FRIENDLY_SQUAD_ATTACK_RANGE_METERS = 24;
+const DEFAULT_FACILITY_SEARCH_RADIUS_METERS = 480;
+const DEFAULT_SQUAD_HUNT_RADIUS_METERS = 650;
 
 function stableRouteBias(text) {
   let hash = 2166136261;
@@ -35,11 +40,11 @@ export function spawnEnemy(state, base, type, departDelay = 0, waveId = null, do
   const id = stableId('enemy', base.id, type, base.wavesSent, state.combat.enemies.length, state.runtime?.worldTimeMs ?? Date.now());
   const enemy = {
     id,
-    type, level, hp: definition.hp, maxHp: definition.hp, nodeId: base.nodeId,
+    type, level, hp: definition.hp, maxHp: definition.hp, radius: definition.radius, nodeId: base.nodeId,
     path: null, pathIndex: 0, edgeId: null, edgeProgress: 0,
     slowTimer: 0, slowMultiplier: 0.52, attackClock: 0, departDelay,
     sourceBaseId: base.id, waveId, doctrineKey, waveResolved: false, rewardGranted: false,
-    reroutePending: false, routeBias: stableRouteBias(id), targetDefenseId: null, targetFieldBaseId: null, targetSquadId: null,
+    reroutePending: false, routeBias: stableRouteBias(id), targetDefenseId: null, targetFieldBaseId: null, targetPlayerBaseId: null, targetSquadId: null,
     notifiedDefenseIds: [], engagedSquadId: null
   };
   state.combat.enemies.push(enemy);
@@ -53,12 +58,18 @@ function activeTowerById(state, defenseId) {
   ) ?? null;
 }
 
-function facilityTargetCandidates(state, definition) {
+function facilityTargetCandidates(state, definition, enemy) {
   const priorities = definition.targetPriorities ?? [];
   if (!priorities.length) return [];
   const rankByType = new Map(priorities.map((type, index) => [type, index]));
+  const origin = enemyPosition(state, enemy);
+  const maxDistance = Math.max(50, Number(definition.facilitySearchRadius) || DEFAULT_FACILITY_SEARCH_RADIUS_METERS);
   return state.combat.defenses
     .filter(defense => defense.kind === 'tower' && defense.hp > 0 && !defense.ruined && rankByType.has(defense.type))
+    .filter(defense => {
+      const node = state.world.roadGraph.nodeById.get(defense.nodeId);
+      return node && distance(origin, node) <= maxDistance;
+    })
     .map(defense => ({
       nodeId: defense.nodeId,
       targetObjectId: defense.id,
@@ -70,11 +81,16 @@ function activeFieldBaseById(state, baseId) {
   return baseId ? fieldBaseById(state, baseId, { includeDestroyed: false }) : null;
 }
 
-function activeHuntSquadById(state, squadId) {
+function activeHuntSquadById(state, squadId, enemy = null, definition = null) {
   if (!squadId) return null;
-  return (state.combat.friendlySquads ?? []).find(squad =>
-    squad.id === squadId && squad.hp > 0 && !['RECOVERING', 'READY'].includes(squad.status)
+  const squad = (state.combat.friendlySquads ?? []).find(item =>
+    item.id === squadId && item.hp > 0 && !['RECOVERING', 'READY'].includes(item.status)
   ) ?? null;
+  if (!squad || !enemy || !definition) return squad;
+  const nodeId = squadTargetNodeId(state, squad);
+  const node = nodeId ? state.world.roadGraph.nodeById.get(nodeId) : null;
+  const maxDistance = Math.max(80, Number(definition.huntRadius) || DEFAULT_SQUAD_HUNT_RADIUS_METERS);
+  return node && distance(enemyPosition(state, enemy), node) <= maxDistance ? squad : null;
 }
 
 function squadTargetNodeId(state, squad) {
@@ -86,11 +102,13 @@ function squadTargetNodeId(state, squad) {
   return state.world.roadGraph.nodeById.has(squad.nodeId) ? squad.nodeId : null;
 }
 
-function friendlySquadTargetCandidates(state) {
+function friendlySquadTargetCandidates(state, enemy, definition) {
+  const origin = enemyPosition(state, enemy);
+  const maxDistance = Math.max(80, Number(definition.huntRadius) || DEFAULT_SQUAD_HUNT_RADIUS_METERS);
   return (state.combat.friendlySquads ?? [])
     .filter(squad => squad.hp > 0 && !['RECOVERING', 'READY'].includes(squad.status))
     .map(squad => ({ squad, nodeId: squadTargetNodeId(state, squad) }))
-    .filter(entry => entry.nodeId)
+    .filter(entry => entry.nodeId && distance(origin, state.world.roadGraph.nodeById.get(entry.nodeId)) <= maxDistance)
     .map(({ squad, nodeId }) => ({
       nodeId,
       targetObjectId: `squad:${squad.id}`,
@@ -100,46 +118,54 @@ function friendlySquadTargetCandidates(state) {
 
 function planPath(state, enemy) {
   const definition = ENEMY_DEFINITIONS[enemy.type] ?? ENEMY_DEFINITIONS.infantry;
-  if (definition.huntFriendlySquads) {
+  const behavior = enemyBehaviorForDefinition(definition, enemy.doctrineKey);
+  if (definition.huntFriendlySquads || behavior.targetMode === 'SQUADS') {
     const squadPath = findCombatPathToTargets(
       state,
       enemy.nodeId,
-      friendlySquadTargetCandidates(state),
+      friendlySquadTargetCandidates(state, enemy, definition),
       enemy.type,
       enemy.routeBias ?? 1,
-      enemy.level ?? 1
+      enemy.level ?? 1,
+      enemy.doctrineKey
     );
     if (squadPath?.targetObjectId?.startsWith('squad:')) {
       enemy.targetSquadId = squadPath.targetObjectId.slice(6);
       enemy.targetDefenseId = null;
       enemy.targetFieldBaseId = null;
+      enemy.targetPlayerBaseId = null;
       return squadPath;
     }
   }
   enemy.targetSquadId = null;
 
-  const targets = facilityTargetCandidates(state, definition);
+  const targets = facilityTargetCandidates(state, definition, enemy);
   if (targets.length) {
-    const facilityPath = findCombatPathToTargets(state, enemy.nodeId, targets, enemy.type, enemy.routeBias ?? 1, enemy.level ?? 1);
+    const facilityPath = findCombatPathToTargets(state, enemy.nodeId, targets, enemy.type, enemy.routeBias ?? 1, enemy.level ?? 1, enemy.doctrineKey);
     if (facilityPath) {
       enemy.targetDefenseId = facilityPath.targetObjectId;
       enemy.targetFieldBaseId = null;
+      enemy.targetPlayerBaseId = null;
       return facilityPath;
     }
   }
   enemy.targetDefenseId = null;
-  const cityPenalty = Math.max(0, Number(definition.cityPriorityPenalty ?? 0));
-  const fieldPenalty = Math.max(0, Number(definition.fieldBasePriorityPenalty ?? FIELD_BASE_PRIORITY_PENALTY_SECONDS));
+  const raid = behavior.targetMode === 'BASES';
+  const cityPenalty = Math.max(0, Number(definition.cityPriorityPenalty ?? 0)) + (raid ? 60 : 0);
+  const fieldPenalty = Math.max(0, Number(definition.fieldBasePriorityPenalty ?? FIELD_BASE_PRIORITY_PENALTY_SECONDS)) + (raid ? 0 : 0);
+  const majorPenalty = Math.max(0, Number(definition.majorBasePriorityPenalty ?? 14)) + (raid ? 0 : 0);
   const settlementTargets = [
     { nodeId: state.world.city.nodeId, targetObjectId: 'city', priorityPenalty: cityPenalty },
+    ...activePlayerBases(state).filter(base => !base.primary).map(base => ({ nodeId: base.nodeId, targetObjectId: `major:${base.id}`, priorityPenalty: majorPenalty })),
     ...activeFieldBases(state).map(base => ({
       nodeId: base.nodeId,
       targetObjectId: `field:${base.id}`,
       priorityPenalty: fieldPenalty
     }))
   ];
-  const path = findCombatPathToTargets(state, enemy.nodeId, settlementTargets, enemy.type, enemy.routeBias ?? 1, enemy.level ?? 1);
+  const path = findCombatPathToTargets(state, enemy.nodeId, settlementTargets, enemy.type, enemy.routeBias ?? 1, enemy.level ?? 1, enemy.doctrineKey);
   enemy.targetFieldBaseId = path?.targetObjectId?.startsWith('field:') ? path.targetObjectId.slice(6) : null;
+  enemy.targetPlayerBaseId = path?.targetObjectId?.startsWith('major:') ? path.targetObjectId.slice(6) : null;
   return path;
 }
 
@@ -148,20 +174,27 @@ function ensurePath(state, enemy) {
     enemy.targetDefenseId = null;
     enemy.reroutePending = true;
   }
+  if (enemy.targetPlayerBaseId && !playerBaseById(state, enemy.targetPlayerBaseId, { includeDestroyed: false })) {
+    enemy.targetPlayerBaseId = null;
+    enemy.reroutePending = true;
+  }
   if (enemy.targetFieldBaseId && !activeFieldBaseById(state, enemy.targetFieldBaseId)) {
     enemy.targetFieldBaseId = null;
     enemy.reroutePending = true;
   }
-  if (enemy.targetSquadId && !activeHuntSquadById(state, enemy.targetSquadId)) {
+  const definition = ENEMY_DEFINITIONS[enemy.type] ?? ENEMY_DEFINITIONS.infantry;
+  if (enemy.targetSquadId && !activeHuntSquadById(state, enemy.targetSquadId, enemy, definition)) {
     enemy.targetSquadId = null;
     enemy.reroutePending = true;
   }
-  const targetSquad = activeHuntSquadById(state, enemy.targetSquadId);
+  const targetSquad = activeHuntSquadById(state, enemy.targetSquadId, enemy, definition);
   const expectedTargetId = enemy.targetDefenseId
     ? activeTowerById(state, enemy.targetDefenseId)?.nodeId
-    : enemy.targetFieldBaseId
-      ? activeFieldBaseById(state, enemy.targetFieldBaseId)?.nodeId
-      : targetSquad
+    : enemy.targetPlayerBaseId
+      ? playerBaseById(state, enemy.targetPlayerBaseId, { includeDestroyed: false })?.nodeId
+      : enemy.targetFieldBaseId
+        ? activeFieldBaseById(state, enemy.targetFieldBaseId)?.nodeId
+        : targetSquad
         ? squadTargetNodeId(state, targetSquad)
         : state.world.city.nodeId;
   const currentPathValid = expectedTargetId && enemy.path?.targetId === expectedTargetId && enemy.pathIndex < enemy.path.edgeIds.length;
@@ -235,12 +268,15 @@ export function damageEnemy(state, enemy, amount, events = null, spatial = null)
   if (enemy.hp <= 0 || enemy.rewardGranted) return false;
   if (!(ENEMY_DEFINITIONS[enemy.type]?.shieldAura > 0)) {
     const position = spatial?.positions?.get(enemy.id) ?? enemyPosition(state, enemy);
-    const shieldCandidates = spatial ? spatial.query(position, 14) : state.combat.enemies.map(other => ({ enemy: other, position: enemyPosition(state, other) }));
-    const protectedByShield = shieldCandidates.some(entry => {
+    const shieldCandidates = spatial ? spatial.query(position, 24) : state.combat.enemies.map(other => ({ enemy: other, position: enemyPosition(state, other) }));
+    let strongestShield = 0;
+    for (const entry of shieldCandidates) {
       const other = entry.enemy;
-      return other !== enemy && other.hp > 0 && (ENEMY_DEFINITIONS[other.type]?.shieldAura > 0) && distance(entry.position, position) <= 14;
-    });
-    if (protectedByShield) amount *= 0.7;
+      const shield = Math.max(0, Math.min(0.8, Number(ENEMY_DEFINITIONS[other.type]?.shieldAura) || 0));
+      const range = Math.max(1, Number(ENEMY_DEFINITIONS[other.type]?.shieldRange) || 14);
+      if (other !== enemy && other.hp > 0 && shield > 0 && distance(entry.position, position) <= range) strongestShield = Math.max(strongestShield, shield);
+    }
+    if (strongestShield > 0) amount *= 1 - strongestShield;
   }
   enemy.hp -= amount;
   if (enemy.hp > 0) return false;
@@ -298,7 +334,7 @@ function nearbyHeavyGuard(state, protectedSquad, protectedPoint) {
 
 function acquireHuntEngagement(state, enemy, definition) {
   if (!definition.huntFriendlySquads || enemy.engagedSquadId) return;
-  const squad = activeHuntSquadById(state, enemy.targetSquadId);
+  const squad = activeHuntSquadById(state, enemy.targetSquadId, enemy, definition);
   if (!squad) return;
   if (distance(enemyPosition(state, enemy), roadUnitPosition(state, squad)) > FRIENDLY_SQUAD_ATTACK_RANGE_METERS) return;
   enemy.engagedSquadId = squad.id;
@@ -345,6 +381,13 @@ export class EnemySystem {
       return false;
     }
     enemy.slowTimer = Math.max(0, enemy.slowTimer - deltaSeconds);
+    const baseDefinition = ENEMY_DEFINITIONS[enemy.type] ?? ENEMY_DEFINITIONS.infantry;
+    enemy.radius = Math.max(1, Number(enemy.radius) || Number(baseDefinition.radius) || 5);
+    enemy.doctrineKey ??= 'frontal';
+    enemy.targetDefenseId ??= null;
+    enemy.targetFieldBaseId ??= null;
+    enemy.targetPlayerBaseId ??= null;
+    enemy.targetSquadId ??= null;
     const definition = scaleEnemyDefinition(ENEMY_DEFINITIONS[enemy.type] ?? ENEMY_DEFINITIONS.infantry, enemy.level ?? 1);
 
     acquireHuntEngagement(state, enemy, definition);
@@ -401,6 +444,21 @@ export class EnemySystem {
       enemy.pathIndex = 0;
       enemy.edgeId = null;
       enemy.reroutePending = false;
+      return false;
+    }
+
+    if (enemy.nodeId === enemy.path.targetId && enemy.targetPlayerBaseId) {
+      const majorBase = playerBaseById(state, enemy.targetPlayerBaseId, { includeDestroyed: false });
+      if (majorBase && majorBase.nodeId === enemy.path.targetId) {
+        majorBase.hp = Math.max(0, majorBase.hp - definition.cityDamage);
+        this.events?.emit('combat:player-base-hit', { baseId: majorBase.id, damage: definition.cityDamage, enemyId: enemy.id });
+        if (majorBase.hp <= 0) destroyPlayerBase(state, majorBase, this.events, { enemyId: enemy.id });
+        resolveWaveEnemy(state, enemy, true);
+        return true;
+      }
+      enemy.targetPlayerBaseId = null;
+      enemy.path = null;
+      enemy.edgeId = null;
       return false;
     }
 
