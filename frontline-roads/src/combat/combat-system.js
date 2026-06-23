@@ -107,20 +107,23 @@ export class CombatSystem {
     if (due.dormant > 0) this.updateRegion(state, due.dormant, REGION_ACTIVITY.DORMANT, assignments);
 
     if (state.world.city.hp <= 0) {
-      state.world.city.hp = 35;
+      const opening = Math.max(0, Math.floor(Number(state.civilization?.level) || 0)) === 0;
+      state.world.city.hp = opening ? 50 : 35;
       state.combat.cityRecoveryCooldown = CITY_RECOVERY_DELAY_SECONDS;
       state.combat.enemies = [];
       state.combat.waves.active = {};
       for (const base of state.world.enemyBases ?? []) {
-        if (base.alive) base.spawnClock = 0;
+        if (base.alive) base.spawnClock = opening ? -60 : 0;
       }
-      const recoveryCost = { wood: 30, stone: 20 };
+      const recoveryCost = opening ? { wood: 12, stone: 8 } : { wood: 30, stone: 20 };
       const paid = consumeBundle(state, recoveryCost);
       state.civilization.progress.perfectWaveStreak = 0;
-      this.events?.emit('combat:city-defeated', { recoveryCost, paid });
+      this.events?.emit('combat:city-defeated', { recoveryCost, paid, openingProtection: opening });
       this.events?.emit('message', {
         text: paid
-          ? '都市防衛線が崩壊し、木材30・石材20を使って緊急再編成しました。'
+          ? opening
+            ? '序盤防衛線が崩壊しました。木材12・石材8で応急再編成し、敵の次回進軍を遅らせました。'
+            : '都市防衛線が崩壊し、木材30・石材20を使って緊急再編成しました。'
           : '都市防衛線が崩壊しました。備蓄不足のため最低限の応急再編成だけが行われました。'
       });
     }

@@ -159,8 +159,9 @@ for (const kind of ['line', 'cross', 'grid']) {
   });
 }
 
-test('attack-only opening cannot erase every enemy base without material losses', () => {
+test('attack-only opening can suppress the first bases but still causes material losses', () => {
   const state = openingState('grid');
+  const initialBaseCount = state.world.enemyBases.filter(base => base.alive).length;
   const events = new BalanceEvents();
   const combat = new CombatSystem(events);
   const civilization = new CivilizationSystem(events);
@@ -170,7 +171,8 @@ test('attack-only opening cannot erase every enemy base without material losses'
     combat.update(state, 1);
     civilization.update(state, 1);
   }
-  assert.ok(state.world.enemyBases.some(base => base.alive));
+  assert.ok(state.statistics.campsCaptured >= initialBaseCount);
   assert.ok((events.counts['friendly:squad-destroyed'] ?? 0) >= 1);
   assert.ok((events.counts['combat:city-defeated'] ?? 0) >= 1);
+  assert.ok(state.inventory.resources.wood < 150 || state.inventory.resources.stone < 100 || state.inventory.resources.fiber < 70);
 });

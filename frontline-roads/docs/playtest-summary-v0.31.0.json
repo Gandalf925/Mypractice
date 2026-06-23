@@ -1,0 +1,94 @@
+{
+  "release": "0.31.0-gameplay-stabilization",
+  "opening": {
+    "line": {
+      "runs": 24,
+      "completed": 24,
+      "completionRate": 1.0,
+      "medianCompletionMinutes": 31.4,
+      "cityDefeats": 0,
+      "squadDeaths": 11,
+      "medianActions": 20.5
+    },
+    "cross": {
+      "runs": 24,
+      "completed": 24,
+      "completionRate": 1.0,
+      "medianCompletionMinutes": 26.0,
+      "cityDefeats": 0,
+      "squadDeaths": 0,
+      "medianActions": 19.0
+    },
+    "grid": {
+      "runs": 24,
+      "completed": 24,
+      "completionRate": 1.0,
+      "medianCompletionMinutes": 28.1,
+      "cityDefeats": 0,
+      "squadDeaths": 0,
+      "medianActions": 20.0
+    }
+  },
+  "coordinated": {
+    "assault+skirmisher+heavy+siege+expedition": {
+      "individual": {
+        "runs": 9,
+        "wins": 9,
+        "squadDeaths": 20,
+        "meanSimulationSeconds": 868.6
+      },
+      "coordinated": {
+        "runs": 9,
+        "wins": 9,
+        "squadDeaths": 17,
+        "meanSimulationSeconds": 1136.7
+      }
+    },
+    "heavy+heavy+siege+expedition": {
+      "individual": {
+        "runs": 9,
+        "wins": 1,
+        "squadDeaths": 34,
+        "meanSimulationSeconds": 1302.4
+      },
+      "coordinated": {
+        "runs": 9,
+        "wins": 0,
+        "squadDeaths": 36,
+        "meanSimulationSeconds": 1714.3
+      }
+    },
+    "heavy+siege+expedition": {
+      "individual": {
+        "runs": 9,
+        "wins": 0,
+        "squadDeaths": 27,
+        "meanSimulationSeconds": 1120.9
+      },
+      "coordinated": {
+        "runs": 9,
+        "wins": 0,
+        "squadDeaths": 27,
+        "meanSimulationSeconds": 1181.7
+      }
+    },
+    "heavy+siege+skirmisher": {
+      "individual": {
+        "runs": 9,
+        "wins": 0,
+        "squadDeaths": 27,
+        "meanSimulationSeconds": 1001.4
+      },
+      "coordinated": {
+        "runs": 9,
+        "wins": 8,
+        "squadDeaths": 19,
+        "meanSimulationSeconds": 1468.2
+      }
+    }
+  },
+  "limits": [
+    "Deterministic simulation does not reproduce mobile GPS accuracy, touch mistakes, network latency or human attention.",
+    "The four-hour Civ.0 offline stress case was not treated as a normal progression case because all successful opening runs reached Civ.1 in about 26–31 minutes."
+  ]
+}

@@ -20,7 +20,7 @@ export const FRIENDLY_SQUAD_DEFINITIONS = Object.freeze({
     members: 4, hp: 150, speed: 0.72, enemyDps: 4, baseDps: 22, engagementRange: 16,
     allowedBaseKinds: Object.freeze(['MAJOR']),
     cost: Object.freeze({ timber: 8, rope: 4, cutStone: 8, charcoal: 6 }),
-    description: '道中の敵には弱い一方、敵基地へ非常に高い損害を与えます。'
+    description: '敵基地へ非常に高い損害を与えますが、単独では道中の敵に弱いため連携出撃で護衛が必要です。'
   }),
   heavy: Object.freeze({
     type: 'heavy', name: '重装部隊', shortLabel: 'HVY', role: '味方防護', unlockLevel: 3,

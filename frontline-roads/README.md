@@ -1,7 +1,19 @@
-# FRONTLINE ROADS — modular source v0.30.3 compact facility panel
+# FRONTLINE ROADS — modular source v0.31.0 gameplay stabilization
 
 FRONTLINE ROADS is a location-based, continuously progressing road-defense strategy game. This directory is the canonical modular development source.
 
+
+## Gameplay stabilization v0.31.0
+
+- Adds 1, 5, 10 and maximum-quantity production reservations while preventing queued recipes from double-spending the same inputs.
+- Adds safe civilization contribution that preserves a level-specific construction and repair reserve; full contribution remains an explicit option.
+- Gives the opening civilization a fifteen-minute pressure ramp and a less destructive recovery after city defeat without weakening later civilizations.
+- Adds coordinated deployment for two to six attack squads. It assigns separate bases and delays departures while retaining each squad's natural speed so mixed formations reach the target together.
+- Adds a road-network feasibility diagnosis for the three simple bases required by Civilization Lv.4.
+- Corrects dense-road barrier candidates so every listed placement point is also valid under the final build-range check. The one-time Civilization Lv.1 barrier requirement no longer reverses when that barrier is later destroyed.
+- Repeated opening tests now reach Civilization Lv.1 in all 72 line, cross and dense-grid scenarios without a city defeat.
+
+Implementation and verification are documented in `docs/gameplay-stabilization-v0.31.0.md`.
 
 ## Compact facility inspection v0.30.3
 

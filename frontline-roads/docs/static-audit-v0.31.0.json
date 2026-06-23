@@ -1,0 +1,26 @@
+{
+  "release": "0.31.0-gameplay-stabilization",
+  "productionJsModules": 96,
+  "reachableFromBootstrap": 96,
+  "unreachableModules": [],
+  "missingRelativeImports": [],
+  "importCycles": [],
+  "htmlIds": 51,
+  "duplicateHtmlIds": [],
+  "cssBraceDelta": 0,
+  "pwaRuntimeEntries": 101,
+  "pwaMissing": [],
+  "pwaUnlistedModules": [],
+  "pwaStaleModules": [],
+  "emptySourceOrTestFiles": [],
+  "gameplayStabilization": {
+    "batchProductionQuantities": true,
+    "safeContribution": true,
+    "openingPressureRamp": true,
+    "coordinatedDeployment": true,
+    "naturalSpeedSynchronization": true,
+    "fieldBaseDiagnosis": true,
+    "barrierProjectionPlacement": true,
+    "barrierMilestonePersistence": true
+  }
+}

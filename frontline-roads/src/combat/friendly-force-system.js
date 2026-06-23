@@ -109,6 +109,10 @@ export function ensureFriendlyForceState(state) {
     squad.edgeProgress = Math.max(0, Number(squad.edgeProgress) || 0);
     squad.combatCooldown = Math.max(0, Number(squad.combatCooldown) || 0);
     squad.departDelay = Math.max(0, Number(squad.departDelay) || 0);
+    squad.formationId ??= null;
+    squad.formationTargetId ??= null;
+    squad.formationSpeed = squad.formationSpeed == null ? null : Math.max(0.1, Number(squad.formationSpeed) || 0.1);
+    squad.formationSize = squad.formationSize == null ? null : Math.max(1, Math.floor(Number(squad.formationSize) || 1));
     squad.engagedEnemyId ??= null;
     squad.path = normalizePath(squad.path);
     squad.travelHistoryNodeIds = Array.isArray(squad.travelHistoryNodeIds) && squad.travelHistoryNodeIds.length
@@ -194,27 +198,12 @@ export function previewFriendlyDeployment(state, squadType, originBaseId, target
   };
 }
 
-export function dispatchFriendlySquad(state, squadType, originBaseId, targetId, events = null) {
-  const preview = previewFriendlyDeployment(state, squadType, originBaseId, targetId);
-  if (!preview.ok) return preview;
-
+function instantiateFriendlySquad(state, preview, squadType, originBaseId, targetId, events = null, formation = null) {
   const definition = preview.definition;
   const worldTime = state.runtime?.worldTimeMs ?? Date.now();
   const squadId = preview.reuseReadySquad && preview.garrison
     ? preview.garrison.id
     : stableId('friendly_squad', definition.type, originBaseId, targetId, worldTime, state.combat.friendlySquads.length);
-
-  let reservation = null;
-  if (preview.missionType === FRIENDLY_SQUAD_MISSION.RECOVERY) {
-    reservation = reserveRecoveryItem(state, targetId, squadId);
-    if (!reservation.ok) return reservation;
-  }
-
-  if (!consumeBundle(state, preview.cost)) {
-    if (reservation) releaseRecoveryItem(state, targetId, squadId);
-    return { ok: false, reason: '派兵確定時に資源が不足しました。' };
-  }
-
   if (preview.replaceReadySquad && preview.garrison) {
     state.combat.friendlySquads = state.combat.friendlySquads.filter(item => item.id !== preview.garrison.id);
   }
@@ -235,15 +224,131 @@ export function dispatchFriendlySquad(state, squadType, originBaseId, targetId, 
     path: normalizePath(preview.path), pathIndex: 0, edgeId: preview.path.edgeIds[0] ?? null, edgeProgress: 0,
     status: FRIENDLY_SQUAD_STATUS.OUTBOUND, order: FRIENDLY_SQUAD_ORDER.ADVANCE,
     commandDestinationNodeId: preview.path.targetId, travelHistoryNodeIds: [preview.origin.nodeId],
-    engagedEnemyId: null, combatCooldown: 0, departDelay: 0,
+    engagedEnemyId: null, combatCooldown: 0, departDelay: Math.max(0, Number(formation?.departDelay) || 0),
+    formationId: formation?.id ?? null,
+    formationTargetId: formation?.targetId ?? null,
+    formationSpeed: formation?.speed ?? null,
+    formationSize: formation?.size ?? null,
     recoveryBaseId: null, recoveryStartedAt: null, reorganizationRemaining: 0,
     recoveryTargetHp: squad.hp, recoveryFacilityType: null, recoveryFacilityId: null, readyAt: null, deployedAt: worldTime
   });
   if (!preview.reuseReadySquad) state.combat.friendlySquads.push(squad);
-  events?.emit('friendly:squad-deployed', { squad, origin: preview.origin, target: preview.target, cost: preview.cost, redeployed: preview.reuseReadySquad });
+  events?.emit('friendly:squad-deployed', { squad, origin: preview.origin, target: preview.target, cost: preview.cost, redeployed: preview.reuseReadySquad, formationId: formation?.id ?? null });
   const targetLabel = preview.missionType === FRIENDLY_SQUAD_MISSION.RECOVERY ? `${recoveryItemPresentation(preview.target).name}の回収へ` : '';
   events?.emit('message', { text: preview.reuseReadySquad ? `${preview.origin.name}から${definition.name}が${targetLabel || '再'}出撃しました。` : `${preview.origin.name}から${definition.name}が${targetLabel || ''}出撃しました。` });
-  return { ok: true, squad, cost: preview.cost, routeDistance: preview.routeDistance, redeployed: preview.reuseReadySquad, replaced: preview.replaceReadySquad };
+  return { squad, cost: preview.cost, routeDistance: preview.routeDistance, redeployed: preview.reuseReadySquad, replaced: preview.replaceReadySquad };
+}
+
+export function dispatchFriendlySquad(state, squadType, originBaseId, targetId, events = null) {
+  const preview = previewFriendlyDeployment(state, squadType, originBaseId, targetId);
+  if (!preview.ok) return preview;
+
+  let reservation = null;
+  const squadId = preview.reuseReadySquad && preview.garrison
+    ? preview.garrison.id
+    : stableId('friendly_squad', preview.definition.type, originBaseId, targetId, state.runtime?.worldTimeMs ?? Date.now(), state.combat.friendlySquads.length);
+  if (preview.missionType === FRIENDLY_SQUAD_MISSION.RECOVERY) {
+    reservation = reserveRecoveryItem(state, targetId, squadId);
+    if (!reservation.ok) return reservation;
+  }
+
+  if (!consumeBundle(state, preview.cost)) {
+    if (reservation) releaseRecoveryItem(state, targetId, squadId);
+    return { ok: false, reason: '派兵確定時に資源が不足しました。' };
+  }
+  const result = instantiateFriendlySquad(state, preview, squadType, originBaseId, targetId, events);
+  return { ok: true, ...result };
+}
+
+function addCost(total, bundle) {
+  for (const [resource, amount] of Object.entries(bundle ?? {})) total[resource] = (total[resource] ?? 0) + amount;
+  return total;
+}
+
+export function previewCoordinatedDeployment(state, targetId, squadTypes) {
+  ensureFriendlyForceState(state);
+  const requested = (Array.isArray(squadTypes) ? squadTypes : [])
+    .filter(type => FRIENDLY_SQUAD_DEFINITIONS[type]?.missionKind !== 'RECOVERY')
+    .slice(0, 6)
+    .map((type, index) => ({ type, index, definition: FRIENDLY_SQUAD_DEFINITIONS[type] }))
+    .filter(item => item.definition);
+  if (requested.length < 2) return { ok: false, reason: '連携出撃には2部隊以上を選択してください。', assignments: [], squadTypes: requested.map(item => item.type) };
+  const target = state.world.enemyBases.find(base => base.id === targetId && base.alive && base.hp > 0) ?? null;
+  if (!target) return { ok: false, reason: '攻撃可能な敵拠点ではありません。', assignments: [] };
+
+  const usedBases = new Set();
+  const assignments = [];
+  const assignmentOrder = [...requested].sort((left, right) =>
+    left.definition.allowedBaseKinds.length - right.definition.allowedBaseKinds.length
+    || right.definition.unlockLevel - left.definition.unlockLevel
+    || left.index - right.index
+  );
+  for (const item of assignmentOrder) {
+    if (!friendlySquadUnlocked(state, item.type)) return { ok: false, reason: `${item.definition.name}は文明Lv.${item.definition.unlockLevel}で解禁されます。`, assignments };
+    const candidates = deploymentBases(state, item.type)
+      .filter(base => !usedBases.has(base.id))
+      .map(base => previewFriendlyDeployment(state, item.type, base.id, targetId))
+      .filter(preview => preview.origin && preview.path && !/既に部隊/.test(preview.reason ?? '') && !/回復・再編成中/.test(preview.reason ?? ''))
+      .sort((left, right) => (left.routeDistance ?? Infinity) - (right.routeDistance ?? Infinity));
+    const selected = candidates[0] ?? null;
+    if (!selected) return { ok: false, reason: `${item.definition.name}を出撃できる空き拠点がありません。`, assignments };
+    usedBases.add(selected.origin.id);
+    assignments.push({ ...selected, squadType: item.type, requestIndex: item.index });
+  }
+  assignments.sort((left, right) => left.requestIndex - right.requestIndex);
+  const cost = assignments.reduce((total, assignment) => addCost(total, assignment.cost), {});
+  const missing = missingBundle(state, cost);
+  const slowestSpeed = Math.min(...assignments.map(assignment => Math.max(0.1, Number(assignment.definition.speed) || 0.1)));
+  const fastestSpeed = Math.max(...assignments.map(assignment => Math.max(0.1, Number(assignment.definition.speed) || 0.1)));
+  const maximumDistance = Math.max(...assignments.map(assignment => Math.max(0, Number(assignment.routeDistance) || 0)));
+  const estimatedArrivalSeconds = Math.max(...assignments.map(assignment => {
+    const naturalSpeed = Math.max(0.1, Number(assignment.definition.speed) || 0.1);
+    return Math.max(0, Number(assignment.routeDistance) || 0) / naturalSpeed;
+  }));
+  for (const assignment of assignments) {
+    const naturalSpeed = Math.max(0.1, Number(assignment.definition.speed) || 0.1);
+    assignment.synchronizedSpeed = naturalSpeed;
+    assignment.travelSeconds = Math.max(0, Number(assignment.routeDistance) || 0) / naturalSpeed;
+    assignment.departDelay = Math.max(0, estimatedArrivalSeconds - assignment.travelSeconds);
+  }
+  return {
+    ok: Object.keys(missing).length === 0,
+    reason: Object.keys(missing).length ? '連携出撃に必要な合計資源が不足しています。' : null,
+    target,
+    assignments,
+    cost,
+    missing,
+    synchronizedSpeed: null,
+    slowestSpeed,
+    fastestSpeed,
+    maximumRouteDistance: maximumDistance,
+    estimatedArrivalSeconds
+  };
+}
+
+export function dispatchCoordinatedSquads(state, targetId, squadTypes, events = null) {
+  const preview = previewCoordinatedDeployment(state, targetId, squadTypes);
+  if (!preview.ok) return preview;
+  if (!consumeBundle(state, preview.cost)) return { ok: false, reason: '連携出撃確定時に合計資源が不足しました。', preview };
+  const worldTime = state.runtime?.worldTimeMs ?? Date.now();
+  const formation = {
+    id: stableId('friendly_formation', targetId, worldTime, state.combat.friendlySquads.length),
+    targetId,
+    speed: null,
+    size: preview.assignments.length
+  };
+  const squads = preview.assignments.map(assignment => instantiateFriendlySquad(
+    state,
+    { ...assignment, cost: {} },
+    assignment.squadType,
+    assignment.origin.id,
+    targetId,
+    events,
+    { ...formation, speed: assignment.synchronizedSpeed, departDelay: assignment.departDelay }
+  ).squad);
+  events?.emit('friendly:formation-deployed', { formationId: formation.id, targetId, squadIds: squads.map(squad => squad.id), cost: preview.cost });
+  events?.emit('message', { text: `${squads.length}部隊が連携出撃しました。各部隊の本来速度を維持し、出発時刻を調整して同時到着を目指します。` });
+  return { ok: true, squads, formationId: formation.id, cost: preview.cost, estimatedArrivalSeconds: preview.estimatedArrivalSeconds };
 }
 
 export function previewAssaultDeployment(state, originBaseId, targetBaseId) { return previewFriendlyDeployment(state, 'assault', originBaseId, targetBaseId); }
@@ -543,7 +648,13 @@ function advanceAlongPath(state, squad, definition, deltaSeconds) {
   if (!squad.path || !squad.edgeId) return 'ARRIVED';
   const edge = state.world.roadGraph.edgeById.get(squad.edgeId);
   if (!edge) return 'BROKEN';
-  squad.edgeProgress += definition.speed * deltaSeconds;
+  const formationActive = Boolean(
+    squad.formationId && squad.order === FRIENDLY_SQUAD_ORDER.ADVANCE &&
+    squad.missionType === FRIENDLY_SQUAD_MISSION.ATTACK &&
+    state.world.enemyBases.some(base => base.id === squad.formationTargetId && base.alive && base.hp > 0)
+  );
+  const movementSpeed = formationActive ? Math.min(definition.speed, squad.formationSpeed ?? definition.speed) : definition.speed;
+  squad.edgeProgress += movementSpeed * deltaSeconds;
   if (squad.edgeProgress < edge.length) return 'MOVING';
   squad.nodeId = squad.path.nodeIds[squad.pathIndex + 1];
   appendHistory(squad, squad.nodeId);
@@ -601,6 +712,14 @@ export class FriendlyForceSystem {
 
   dispatch(state, originBaseId, targetBaseId, squadType = 'assault') {
     return dispatchFriendlySquad(state, squadType, originBaseId, targetBaseId, this.events);
+  }
+
+  previewCoordinatedDeployment(state, targetBaseId, squadTypes) {
+    return previewCoordinatedDeployment(state, targetBaseId, squadTypes);
+  }
+
+  dispatchCoordinated(state, targetBaseId, squadTypes) {
+    return dispatchCoordinatedSquads(state, targetBaseId, squadTypes, this.events);
   }
 
   hold(state, squadId) {

@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.30.3-compact-defense-panel';
+export const APP_VERSION = '0.31.0-gameplay-stabilization';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 

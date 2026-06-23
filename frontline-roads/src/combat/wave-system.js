@@ -7,6 +7,22 @@ import { enemyBehaviorForDefinition, waveDoctrineDefinition } from './enemy-pers
 
 export { INITIAL_BASE_TYPES } from './enemy-base-placement.js';
 
+const OPENING_WAVE_INTERVAL_MULTIPLIER = 1.35;
+const OPENING_ACTIVE_WAVE_LIMIT = 2;
+const OPENING_GRACE_SECONDS = 15 * 60;
+
+function activeWaveCount(state) {
+  return Object.values(state.combat?.waves?.active ?? {}).filter(wave => (wave?.remaining ?? 0) > 0).length;
+}
+
+function openingPressureLimited(state) {
+  if (Math.max(0, Math.floor(Number(state.civilization?.level) || 0)) !== 0) return false;
+  const createdAt = Number(state.runtime?.createdAt) || Number(state.runtime?.worldTimeMs) || Date.now();
+  const worldTime = Number(state.runtime?.worldTimeMs) || createdAt;
+  return Math.max(0, worldTime - createdAt) < OPENING_GRACE_SECONDS * 1000;
+}
+
+
 function deterministicIndex(text, length) {
   let hash = 2166136261;
   for (const character of text) { hash ^= character.charCodeAt(0); hash = Math.imul(hash, 16777619); }
@@ -204,9 +220,19 @@ export class WaveSystem {
         this.events?.emit('combat:enemy-base-level-up', { baseId: base.id, level: base.level });
       }
       base.spawnClock = (base.spawnClock ?? 0) + deltaSeconds;
+      const openingMultiplier = openingPressureLimited(state) ? OPENING_WAVE_INTERVAL_MULTIPLIER : 1;
       const interval = waveIntervalForBase(definition, base.level, state.world.city.hp)
-        * Math.max(1, Number(base.frontPressureMultiplier) || 1);
+        * Math.max(1, Number(base.frontPressureMultiplier) || 1)
+        * openingMultiplier;
+      if (openingPressureLimited(state) && activeWaveCount(state) >= OPENING_ACTIVE_WAVE_LIMIT) {
+        base.spawnClock = Math.min(base.spawnClock, interval);
+        continue;
+      }
       while (base.spawnClock >= interval) {
+        if (openingPressureLimited(state) && activeWaveCount(state) >= OPENING_ACTIVE_WAVE_LIMIT) {
+          base.spawnClock = Math.min(base.spawnClock, interval);
+          break;
+        }
         base.spawnClock -= interval;
         this.spawnWave(state, base);
       }

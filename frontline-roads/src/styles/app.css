@@ -1152,3 +1152,133 @@ button, input, select, textarea { font-size: inherit; }
     max-height: none;
   }
 }
+
+/* v0.31.0 gameplay stabilization controls */
+.contributionButtons {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 5px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.requirementRow > span,
+.conditionRow > span {
+  min-width: 0;
+}
+.requirementRow span small,
+.conditionRow span small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+.recipeButtons {
+  display: grid;
+  gap: 7px;
+  overflow: visible;
+}
+.productionRecipe {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) minmax(220px, 1.3fr);
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(101,255,208,.16);
+  background: rgba(2,18,16,.72);
+}
+.productionRecipe strong,
+.productionRecipe small {
+  display: block;
+}
+.productionRecipe small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.productionQuantity {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(58px, 1fr));
+  gap: 5px;
+}
+.productionQuantity button {
+  min-width: 0;
+  padding: 7px 5px;
+  font-size: 11px;
+}
+.fieldBaseDiagnostic {
+  display: grid;
+  gap: 3px;
+  margin: 8px 0;
+  padding: 8px 9px;
+  border: 1px solid rgba(255,200,87,.35);
+  background: rgba(47,34,8,.48);
+}
+.fieldBaseDiagnostic.is-sufficient {
+  border-color: rgba(101,255,208,.38);
+  background: rgba(4,41,31,.48);
+}
+.fieldBaseDiagnostic strong { color: var(--text); font-size: 12px; }
+.fieldBaseDiagnostic span,
+.fieldBaseDiagnostic small { color: var(--muted); font-size: 10px; line-height: 1.4; }
+.deploymentModeSwitch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+.deploymentModeSwitch button {
+  padding: 9px;
+  border: 1px solid rgba(101,255,208,.22);
+  background: rgba(3,19,17,.9);
+  color: var(--muted);
+}
+.deploymentModeSwitch button.selected {
+  border-color: var(--accent);
+  color: var(--text);
+  background: rgba(8,55,43,.82);
+}
+.coordinatedUnitGrid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.coordinatedUnitCard {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+.coordinatedUnitCard.locked { opacity: .52; }
+.coordinatedUnitCard > div:first-child { display: grid; gap: 4px; }
+.squadCountControl {
+  display: grid;
+  grid-template-columns: 34px 28px 34px;
+  align-items: center;
+  gap: 4px;
+}
+.squadCountControl button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+}
+.squadCountControl b { text-align: center; color: var(--text); }
+.formationAssignments {
+  display: grid;
+  gap: 5px;
+  margin: 7px 0;
+  padding: 0;
+  list-style: none;
+}
+.formationAssignments li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-left: 2px solid rgba(101,255,208,.45);
+  background: rgba(3,24,20,.7);
+}
+.formationAssignments strong { font-size: 11px; }
+.formationAssignments span { color: var(--muted); font-size: 10px; text-align: right; }
+@media (max-width: 620px) {
+  .productionRecipe { grid-template-columns: 1fr; }
+  .productionQuantity { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .coordinatedUnitGrid { grid-template-columns: 1fr; }
+  .formationAssignments li { align-items: flex-start; flex-direction: column; }
+  .formationAssignments span { text-align: left; }
+}

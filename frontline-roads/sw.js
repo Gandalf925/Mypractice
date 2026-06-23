@@ -1,6 +1,6 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const CACHE_NAME = `${CACHE_PREFIX}v0-30-3-compact-defense-panel`;
+const CACHE_NAME = `${CACHE_PREFIX}v0-31-0-gameplay-stabilization`;
 const APP_SHELL = [
   './',
   './index.html',

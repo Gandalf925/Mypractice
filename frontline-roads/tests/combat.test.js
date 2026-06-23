@@ -141,10 +141,10 @@ test('city defeat never creates negative resources and reports unpaid emergency 
   const messages = [];
   const system = new CombatSystem({ emit(type, payload) { if (type === 'message') messages.push(payload.text); } });
   system.update(state, 0.1);
-  assert.equal(state.world.city.hp, 35);
+  assert.equal(state.world.city.hp, 50);
   assert.equal(state.inventory.resources.wood, 0);
   assert.equal(state.inventory.resources.stone, 0);
   assert.equal(state.combat.cityRecoveryCooldown, 120);
-  assert.equal(state.world.enemyBases[0].spawnClock, 0);
+  assert.equal(state.world.enemyBases[0].spawnClock, -60);
   assert.match(messages.at(-1), /備蓄不足/);
 });

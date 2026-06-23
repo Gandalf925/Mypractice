@@ -1,0 +1,277 @@
+[
+  {
+    "kind": "line",
+    "v": 0,
+    "nodes": 15,
+    "enemyBases": 5,
+    "candidates": 0,
+    "max": 0,
+    "positions": []
+  },
+  {
+    "kind": "line",
+    "v": 1,
+    "nodes": 17,
+    "enemyBases": 5,
+    "candidates": 0,
+    "max": 0,
+    "positions": []
+  },
+  {
+    "kind": "line",
+    "v": 2,
+    "nodes": 19,
+    "enemyBases": 5,
+    "candidates": 0,
+    "max": 0,
+    "positions": []
+  },
+  {
+    "kind": "line",
+    "v": 3,
+    "nodes": 21,
+    "enemyBases": 6,
+    "candidates": 0,
+    "max": 0,
+    "positions": []
+  },
+  {
+    "kind": "line",
+    "v": 4,
+    "nodes": 23,
+    "enemyBases": 7,
+    "candidates": 0,
+    "max": 0,
+    "positions": []
+  },
+  {
+    "kind": "line",
+    "v": 5,
+    "nodes": 25,
+    "enemyBases": 8,
+    "candidates": 0,
+    "max": 0,
+    "positions": []
+  },
+  {
+    "kind": "line",
+    "v": 6,
+    "nodes": 27,
+    "enemyBases": 9,
+    "candidates": 0,
+    "max": 0,
+    "positions": []
+  },
+  {
+    "kind": "line",
+    "v": 7,
+    "nodes": 29,
+    "enemyBases": 9,
+    "candidates": 1,
+    "max": 1,
+    "positions": [
+      "n17"
+    ]
+  },
+  {
+    "kind": "cross",
+    "v": 0,
+    "nodes": 33,
+    "enemyBases": 9,
+    "candidates": 0,
+    "max": 0,
+    "positions": []
+  },
+  {
+    "kind": "cross",
+    "v": 1,
+    "nodes": 37,
+    "enemyBases": 9,
+    "candidates": 2,
+    "max": 2,
+    "positions": [
+      "w3",
+      "s3"
+    ]
+  },
+  {
+    "kind": "cross",
+    "v": 2,
+    "nodes": 41,
+    "enemyBases": 9,
+    "candidates": 5,
+    "max": 3,
+    "positions": [
+      "w3",
+      "n3",
+      "s3"
+    ]
+  },
+  {
+    "kind": "cross",
+    "v": 3,
+    "nodes": 45,
+    "enemyBases": 9,
+    "candidates": 6,
+    "max": 3,
+    "positions": [
+      "w3",
+      "n3",
+      "s3"
+    ]
+  },
+  {
+    "kind": "cross",
+    "v": 4,
+    "nodes": 49,
+    "enemyBases": 9,
+    "candidates": 6,
+    "max": 3,
+    "positions": [
+      "w3",
+      "n3",
+      "s3"
+    ]
+  },
+  {
+    "kind": "cross",
+    "v": 5,
+    "nodes": 53,
+    "enemyBases": 9,
+    "candidates": 10,
+    "max": 3,
+    "positions": [
+      "w3",
+      "w9",
+      "n3"
+    ]
+  },
+  {
+    "kind": "cross",
+    "v": 6,
+    "nodes": 57,
+    "enemyBases": 9,
+    "candidates": 12,
+    "max": 3,
+    "positions": [
+      "w3",
+      "w9",
+      "n3"
+    ]
+  },
+  {
+    "kind": "cross",
+    "v": 7,
+    "nodes": 61,
+    "enemyBases": 9,
+    "candidates": 14,
+    "max": 3,
+    "positions": [
+      "w3",
+      "w9",
+      "n3"
+    ]
+  },
+  {
+    "kind": "grid",
+    "v": 0,
+    "nodes": 81,
+    "enemyBases": 9,
+    "candidates": 1,
+    "max": 1,
+    "positions": [
+      "n6_0"
+    ]
+  },
+  {
+    "kind": "grid",
+    "v": 1,
+    "nodes": 121,
+    "enemyBases": 9,
+    "candidates": 12,
+    "max": 3,
+    "positions": [
+      "n3_2",
+      "n3_7",
+      "n4_10"
+    ]
+  },
+  {
+    "kind": "grid",
+    "v": 2,
+    "nodes": 169,
+    "enemyBases": 9,
+    "candidates": 37,
+    "max": 3,
+    "positions": [
+      "n2_4",
+      "n2_8",
+      "n4_2"
+    ]
+  },
+  {
+    "kind": "grid",
+    "v": 3,
+    "nodes": 225,
+    "enemyBases": 9,
+    "candidates": 73,
+    "max": 3,
+    "positions": [
+      "n0_0",
+      "n0_7",
+      "n0_11"
+    ]
+  },
+  {
+    "kind": "grid",
+    "v": 4,
+    "nodes": 289,
+    "enemyBases": 9,
+    "candidates": 132,
+    "max": 3,
+    "positions": [
+      "n0_0",
+      "n0_3",
+      "n0_11"
+    ]
+  },
+  {
+    "kind": "grid",
+    "v": 5,
+    "nodes": 361,
+    "enemyBases": 9,
+    "candidates": 189,
+    "max": 3,
+    "positions": [
+      "n0_0",
+      "n0_8",
+      "n0_15"
+    ]
+  },
+  {
+    "kind": "grid",
+    "v": 6,
+    "nodes": 441,
+    "enemyBases": 9,
+    "candidates": 253,
+    "max": 3,
+    "positions": [
+      "n0_0",
+      "n0_3",
+      "n0_13"
+    ]
+  },
+  {
+    "kind": "grid",
+    "v": 7,
+    "nodes": 529,
+    "enemyBases": 9,
+    "candidates": 328,
+    "max": 3,
+    "positions": [
+      "n0_5",
+      "n0_8",
+      "n0_11"
+    ]
+  }
+]

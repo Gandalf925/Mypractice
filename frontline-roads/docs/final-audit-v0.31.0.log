@@ -1,0 +1,44 @@
+FRONTLINE ROADS v0.31.0 GAMEPLAY STABILIZATION AUDIT
+
+Release: 0.31.0-gameplay-stabilization
+Save key: unchanged
+Schema version: unchanged
+
+Implemented:
+- Batch production quantities 1 / 5 / 10 / maximum
+- Queued-input reservation and project-only output cap
+- Safe civilization contribution with explicit full-contribution alternative
+- Civilization Lv.0 fifteen-minute pressure ramp and reduced defeat recovery loss
+- Coordinated multi-squad deployment with unique bases and natural-speed arrival synchronization
+- Simple-base road-network feasibility diagnosis
+- Correct barrier candidate projection on dense roads
+- Persistent one-time barrier construction milestone
+- Corrected field-base dispatch text
+
+Deterministic play evidence:
+- Opening runs: 72 total
+- Line roads: 24/24 reached Civilization Lv.1, median 31.4 minutes, 0 city defeats
+- Cross roads: 24/24 reached Civilization Lv.1, median 26.0 minutes, 0 city defeats
+- Dense grids: 24/24 reached Civilization Lv.1, median 28.1 minutes, 0 city defeats
+- Heavy + siege + skirmisher: individual 0/9 wins; coordinated 8/9 wins
+- Five-unit mixed formation: 9/9 wins in both modes, coordinated losses 17 versus individual losses 20
+- Underpowered formations can still fail; synchronization does not override unit composition
+
+Automated verification:
+- Normal test execution: 345 passed, 0 failed
+- Serial test execution: 345 passed, 0 failed
+- Production JavaScript modules: 96
+- Reachable from bootstrap: 96
+- Missing relative imports: 0
+- Import cycles: 0
+- Duplicate HTML IDs: 0
+- CSS brace delta: 0
+- Missing PWA runtime files: 0
+- Unlisted production modules in PWA shell: 0
+
+HTTP verification:
+- Outer entry, legacy entry, app entry, stylesheet, bootstrap, friendly-force module and service worker returned HTTP 200.
+
+Browser boundary:
+- Headless Chromium did not produce DOM output because the execution environment blocked inotify and NETLINK and lacked DBus. See docs/browser-test-v0.31.0.md.
+- Real GPS, walking, touch and external road-data behavior remain device-only checks.

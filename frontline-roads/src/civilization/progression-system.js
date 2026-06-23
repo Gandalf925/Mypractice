@@ -5,9 +5,33 @@ import { applyDefenseTier, defenseUpgradeStatus } from './defense-upgrade.js';
 import { defenseLine, repairCostForDefense } from './repair-cost.js';
 import { activeFieldBases } from '../base/field-bases.js';
 
+
+export const PROJECT_RESOURCE_RESERVES = Object.freeze({
+  0: Object.freeze({ wood: 40, stone: 30, fiber: 16 }),
+  1: Object.freeze({ wood: 80, stone: 60, fiber: 30, timber: 8, rope: 3, cutStone: 6 }),
+  2: Object.freeze({ wood: 100, stone: 80, fiber: 40, timber: 10, rope: 4, cutStone: 8, charcoal: 12 }),
+  3: Object.freeze({ wood: 120, stone: 100, fiber: 50, timber: 12, rope: 5, cutStone: 10, charcoal: 16, bronzeIngot: 4, wroughtIron: 4 }),
+  4: Object.freeze({})
+});
+
+export function projectContributionReserve(state, resource) {
+  const level = Math.max(0, Math.min(4, Math.floor(Number(state.civilization?.level) || 0)));
+  return Math.max(0, Number(PROJECT_RESOURCE_RESERVES[level]?.[resource]) || 0);
+}
+
+export function safeProjectContributionAmount(state, resource) {
+  const project = state.civilization?.project;
+  if (!project || ['BUILDING', 'PAUSED'].includes(project.status)) return 0;
+  const definition = CIVILIZATION_PROJECTS[project.targetLevel];
+  const remaining = Math.max(0, (definition?.contributions?.[resource] ?? 0) - (project.contributions?.[resource] ?? 0));
+  const available = Math.max(0, Number(state.inventory?.resources?.[resource]) || 0);
+  return Math.max(0, Math.min(remaining, available - projectContributionReserve(state, resource)));
+}
+
 export function createProgressState() {
   return {
     totalRepairHpPaid: 0,
+    barriersBuilt: 0,
     totalProduced: {},
     selfProducedBronze: 0,
     selfProducedWroughtIron: 0,
@@ -45,7 +69,11 @@ function defenseCount(state, predicate) {
 
 function buildingCheckValue(state, key) {
   if (SETTLEMENT_BUILDINGS[key]) return state.civilization.buildings.filter(building => building.type === key && !building.ruined && !building.demolished).length;
-  if (key === 'barrier0') return defenseCount(state, defense => defense.kind === 'barrier' && (defense.tier ?? 0) >= 0);
+  if (key === 'barrier0') {
+    const active = defenseCount(state, defense => defense.kind === 'barrier' && (defense.tier ?? 0) >= 0);
+    if (active > 0) state.civilization.progress.barriersBuilt = Math.max(1, Number(state.civilization.progress.barriersBuilt) || 0);
+    return Math.max(active, Number(state.civilization.progress.barriersBuilt) || 0);
+  }
   if (key === 'single0') return defenseCount(state, defense => defenseLineForType(defense.type) === 'single');
   if (key === 'otherDefense0') return defenseCount(state, defense => ['area', 'slow', 'repair'].includes(defenseLineForType(defense.type)));
   if (key === 'upgradedDefenses') return defenseCount(state, defense => (defense.tier ?? 0) >= 1);
@@ -105,6 +133,15 @@ export function evaluateProject(state, { create = true } = {}) {
 export class ProgressionSystem {
   constructor(events = null) {
     this.events = events;
+  }
+
+  contributeSafely(state, resource) {
+    const amount = safeProjectContributionAmount(state, resource);
+    if (amount <= 0) {
+      const reserve = projectContributionReserve(state, resource);
+      return { ok: false, reason: reserve > 0 ? `防衛・建設用の予備資源を${reserve}残しています。必要なら「全量納入」を選んでください。` : '安全に納入できる資源がありません。', reserve };
+    }
+    return this.contribute(state, resource, amount);
   }
 
   contribute(state, resource, amount = Infinity) {

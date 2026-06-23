@@ -129,10 +129,17 @@ function anchorHasFacility(state, definition, anchor) {
   );
 }
 
-function activeAnchorIdsForSegment(anchors, a, b) {
-  return anchors
-    .filter(anchor => pointToSegmentProjection(anchor.point, a, b).distance <= (anchor.range ?? BUILD_RANGE_METERS))
-    .map(anchor => anchor.id);
+function anchorPlacementForSegment(anchors, a, b) {
+  const matches = anchors
+    .map(anchor => ({ anchor, projection: pointToSegmentProjection(anchor.point, a, b) }))
+    .filter(match => match.projection.distance <= (match.anchor.range ?? BUILD_RANGE_METERS))
+    .sort((left, right) => left.projection.distance - right.projection.distance);
+  const nearest = matches[0] ?? null;
+  return nearest ? {
+    anchor: nearest.anchor,
+    point: nearest.projection.point,
+    anchorIds: matches.map(match => match.anchor.id)
+  } : null;
 }
 
 export class BuildSystem {
@@ -178,16 +185,17 @@ export class BuildSystem {
         const a = graph.nodeById.get(edge.a);
         const b = graph.nodeById.get(edge.b);
         if (!a || !b) continue;
-        const anchorIds = activeAnchorIdsForSegment(anchors, a, b);
-        if (!anchorIds.length) continue;
+        const placement = anchorPlacementForSegment(anchors, a, b);
+        if (!placement) continue;
         sites.push({
           type,
           kind: 'barrier',
           edgeId: edge.id,
-          point: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+          point: { x: placement.point.x, y: placement.point.y },
           a: { x: a.x, y: a.y },
           b: { x: b.x, y: b.y },
-          anchorIds
+          anchorId: placement.anchor.id,
+          anchorIds: placement.anchorIds
         });
       }
       return sites;
@@ -298,6 +306,7 @@ export class BuildSystem {
         buildAnchorId: normalized.anchorId, buildAnchorKind: normalized.anchorKind, baseId: normalized.baseId
       };
       state.combat.defenses.push(defense);
+      state.civilization.progress.barriersBuilt = (state.civilization.progress.barriersBuilt ?? 0) + 1;
       for (const enemy of state.combat.enemies) enemy.reroutePending = true;
       const previews = state.world.enemyBases.filter(base => base.alive).map(base =>
         findCombatPath(state, base.nodeId, state.world.city.nodeId, 'infantry')

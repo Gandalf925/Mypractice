@@ -11,22 +11,67 @@ function queueFor(state, buildingId, create = false) {
   return queue;
 }
 
-function projectCanAccept(state, recipe) {
+export function queuedProductionUnits(state, recipeId) {
+  return (state.civilization?.productionQueues ?? []).reduce((total, queue) => total + (queue.orders ?? [])
+    .filter(order => order.recipeId === recipeId)
+    .reduce((sum, order) => sum + Math.max(0, Math.floor(Number(order.remaining) || 0)), 0), 0);
+}
+
+function queuedInputCommitment(state) {
+  const committed = {};
+  for (const queue of state.civilization?.productionQueues ?? []) {
+    for (const order of queue.orders ?? []) {
+      const recipe = PRODUCTION_RECIPES[order.recipeId];
+      if (!recipe) continue;
+      const currentUnit = queue.current?.orderId === order.id ? 1 : 0;
+      const unstarted = Math.max(0, Math.floor(Number(order.remaining) || 0) - currentUnit);
+      for (const [resource, amount] of Object.entries(recipe.input ?? {})) {
+        committed[resource] = (committed[resource] ?? 0) + amount * unstarted;
+      }
+    }
+  }
+  return committed;
+}
+
+function projectRemainingUnits(state, recipeId, recipe, { includeQueued = true } = {}) {
+  if (!recipe?.projectOnly) return 99;
+  const project = state.civilization?.project;
+  if (!project || ['BUILDING', 'PAUSED'].includes(project.status)) return 0;
+  const definition = CIVILIZATION_PROJECTS[project.targetLevel];
+  if (!definition) return 0;
+  const queued = includeQueued ? queuedProductionUnits(state, recipeId) : 0;
+  const limits = Object.entries(recipe.output ?? {}).map(([resource, output]) => {
+    const required = definition.contributions?.[resource] ?? 0;
+    const current = project.contributions?.[resource] ?? 0;
+    return Math.floor(Math.max(0, required - current - queued * output) / Math.max(1, output));
+  });
+  return limits.length ? Math.max(0, Math.min(...limits)) : 0;
+}
+
+function projectCanAccept(state, recipeId, recipe) {
+  return !recipe?.projectOnly || projectRemainingUnits(state, recipeId, recipe) > 0;
+}
+
+function baseCompatible(state, building, recipe) {
+  return Boolean(
+    building && !building.ruined && !building.demolished && recipe &&
+    recipe.building === building.type && (state.civilization.level ?? 0) >= recipe.level
+  );
+}
+
+function compatible(state, building, recipeId, recipe) {
+  return baseCompatible(state, building, recipe) && projectCanAccept(state, recipeId, recipe);
+}
+
+function queuedOrderCompatible(state, building, recipe) {
+  if (!baseCompatible(state, building, recipe)) return false;
   if (!recipe?.projectOnly) return true;
   const project = state.civilization?.project;
   if (!project || ['BUILDING', 'PAUSED'].includes(project.status)) return false;
-  const definition = state.civilization?.level < 4 ? (CIVILIZATION_PROJECTS[project.targetLevel]) : null;
+  const definition = CIVILIZATION_PROJECTS[project.targetLevel];
   if (!definition) return false;
-  return Object.entries(recipe.output).every(([resource, amount]) => {
-    const required = definition.contributions?.[resource] ?? 0;
-    return required - (project.contributions?.[resource] ?? 0) >= amount;
-  });
-}
-
-function compatible(state, building, recipe) {
-  return Boolean(
-    building && !building.ruined && !building.demolished && recipe &&
-    recipe.building === building.type && (state.civilization.level ?? 0) >= recipe.level && projectCanAccept(state, recipe)
+  return Object.entries(recipe.output ?? {}).some(([resource]) =>
+    (project.contributions?.[resource] ?? 0) < (definition.contributions?.[resource] ?? 0)
   );
 }
 
@@ -37,34 +82,62 @@ export class ProductionSystem {
 
   availableRecipes(state, building) {
     return Object.entries(PRODUCTION_RECIPES)
-      .filter(([, recipe]) => compatible(state, building, recipe))
+      .filter(([id, recipe]) => compatible(state, building, id, recipe))
       .map(([id, recipe]) => ({ id, ...recipe }));
+  }
+
+  queueSummary(state, buildingId) {
+    const queue = queueFor(state, buildingId, false);
+    const pendingUnits = (queue?.orders ?? []).reduce((sum, order) => sum + Math.max(0, Math.floor(Number(order.remaining) || 0)), 0);
+    return {
+      pendingUnits,
+      orderCount: queue?.orders?.length ?? 0,
+      currentRecipeId: queue?.current?.recipeId ?? null,
+      waitingForResources: Boolean(queue?.waitingForResources)
+    };
+  }
+
+  maximumProducible(state, buildingId, recipeId, cap = 99) {
+    const building = state.civilization.buildings.find(item => item.id === buildingId && !item.demolished);
+    const recipe = PRODUCTION_RECIPES[recipeId];
+    if (!compatible(state, building, recipeId, recipe)) return { ok: false, quantity: 0, reason: 'この施設では現在生産できません。' };
+    const committed = queuedInputCommitment(state);
+    const limits = Object.entries(recipe.input ?? {}).map(([resource, amount]) => {
+      const available = Math.max(0, (state.inventory.resources[resource] ?? 0) - (committed[resource] ?? 0));
+      return Math.floor(available / Math.max(1, amount));
+    });
+    let quantity = limits.length ? Math.min(...limits) : Math.max(1, Math.floor(cap));
+    quantity = Math.min(Math.max(0, quantity), Math.max(1, Math.min(99, Math.floor(cap))));
+    if (recipe.projectOnly) quantity = Math.min(quantity, projectRemainingUnits(state, recipeId, recipe));
+    return {
+      ok: quantity > 0,
+      quantity,
+      reason: quantity > 0 ? null : '未予約の資源では追加生産できません。',
+      committed
+    };
   }
 
   enqueue(state, buildingId, recipeId, quantity = 1) {
     const building = state.civilization.buildings.find(item => item.id === buildingId && !item.demolished);
     const recipe = PRODUCTION_RECIPES[recipeId];
-    if (!compatible(state, building, recipe)) return { ok: false, reason: 'この施設では生産できません。' };
-    let amount = Math.max(1, Math.min(99, Math.floor(quantity)));
+    if (!compatible(state, building, recipeId, recipe)) return { ok: false, reason: 'この施設では生産できません。' };
+    let amount = Math.max(1, Math.min(99, Math.floor(Number(quantity) || 1)));
     if (recipe.projectOnly) {
-      const project = state.civilization.project;
-      const definition = CIVILIZATION_PROJECTS[project.targetLevel];
-      const limits = Object.entries(recipe.output).map(([resource, output]) => Math.floor(((definition.contributions?.[resource] ?? 0) - (project.contributions?.[resource] ?? 0)) / output));
-      amount = Math.min(amount, ...limits);
-      if (amount <= 0) return { ok: false, reason: '発展計画に必要な生産量へ到達しています。' };
+      amount = Math.min(amount, projectRemainingUnits(state, recipeId, recipe));
+      if (amount <= 0) return { ok: false, reason: '発展計画に必要な生産量はすでに予約済みです。' };
     }
     const queue = queueFor(state, buildingId, true);
-    queue.orders.push({ id: stableId('order', buildingId, recipeId, state.runtime?.worldTimeMs ?? Date.now()), recipeId, remaining: amount });
+    queue.orders.push({ id: stableId('order', buildingId, recipeId, state.runtime?.worldTimeMs ?? Date.now(), queue.orders.length), recipeId, remaining: amount });
     this.startNext(state, queue, building);
-    return { ok: true, queue };
+    return { ok: true, queue, quantity: amount };
   }
 
   startNext(state, queue, building) {
-    if (queue.current || !compatible(state, building, PRODUCTION_RECIPES[queue.orders[0]?.recipeId])) return false;
     while (queue.orders.length && queue.orders[0].remaining <= 0) queue.orders.shift();
     const order = queue.orders[0];
-    if (!order) return false;
+    if (queue.current || !order) return false;
     const recipe = PRODUCTION_RECIPES[order.recipeId];
+    if (!queuedOrderCompatible(state, building, recipe)) return false;
     if (!hasBundle(state, recipe.input)) {
       queue.waitingForResources = true;
       return false;
@@ -92,8 +165,11 @@ export class ProductionSystem {
       const project = state.civilization.project;
       project.contributions ??= {};
       for (const [resource, amount] of Object.entries(recipe.output)) {
-        project.contributions[resource] = (project.contributions[resource] ?? 0) + amount;
-        result.accepted[resource] = amount;
+        const definition = CIVILIZATION_PROJECTS[project.targetLevel];
+        const required = definition?.contributions?.[resource] ?? 0;
+        const accepted = Math.max(0, Math.min(amount, required - (project.contributions[resource] ?? 0)));
+        project.contributions[resource] = (project.contributions[resource] ?? 0) + accepted;
+        result.accepted[resource] = accepted;
       }
     }
     for (const [resource, amount] of Object.entries(result.overflowed)) {
@@ -143,7 +219,6 @@ export class ProductionSystem {
       }
     }
   }
-
 
   collectOutput(state, buildingId) {
     const building = state.civilization.buildings.find(item => item.id === buildingId && !item.demolished);

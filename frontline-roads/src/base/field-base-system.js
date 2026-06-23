@@ -1,6 +1,6 @@
 import { distance, stableId } from '../core/utilities.js';
 import { graphElementsNearPoint } from '../roads/road-graph.js';
-import { activePlayerBases } from './player-bases.js';
+import { activePlayerBases, ensurePlayerBaseState } from './player-bases.js';
 import { consumeBundle, missingBundle } from '../civilization/inventory-system.js';
 import {
   FIELD_BASE_ENEMY_EXCLUSION_METERS,
@@ -96,6 +96,81 @@ export function previewFieldBasePlacement(state, now = Date.now()) {
     distanceToRoad: road.distance,
     nearestBaseDistance: nearest?.gap ?? null,
     nearestEnemyBaseDistance: hostile?.gap ?? null
+  };
+}
+
+
+function candidateAllowed(state, node, occupied) {
+  if (!Number.isFinite(Number(node?.x)) || !Number.isFinite(Number(node?.y))) return false;
+  if (occupied.some(point => distance(point, node) < FIELD_BASE_MINIMUM_SEPARATION_METERS)) return false;
+  const hostile = nearestAliveEnemyBase(state, node);
+  return !hostile || hostile.gap >= FIELD_BASE_ENEMY_EXCLUSION_METERS;
+}
+
+function greedyFieldBaseCandidates(state, candidates, occupied, limit, order) {
+  const selected = [];
+  for (const node of [...candidates].sort(order)) {
+    if (selected.length >= limit) break;
+    if (!candidateAllowed(state, node, [...occupied, ...selected])) continue;
+    selected.push(node);
+  }
+  return selected;
+}
+
+/**
+ * Estimates whether the currently acquired road graph contains enough mutually
+ * separated sites for the civilization's simple-base requirement. It deliberately
+ * ignores resources and the player's current GPS position; this is a geographic
+ * planning diagnostic, not a placement authorization.
+ */
+export function diagnoseFieldBaseNetwork(state, required = fieldBaseLimitForCivilization(state.civilization?.level)) {
+  const fieldBases = ensureFieldBaseState(state);
+  const active = activeFieldBases(state).length;
+  const destroyed = Math.max(0, fieldBases.length - active);
+  const limit = fieldBaseLimitForCivilization(state.civilization?.level);
+  const target = Math.max(0, Math.min(limit, Math.floor(Number(required) || 0)));
+  const availableSlots = Math.max(0, limit - fieldBases.length);
+  const occupied = [...ensurePlayerBaseState(state), ...fieldBases]
+    .filter(point => Number.isFinite(Number(point?.x)) && Number.isFinite(Number(point?.y)));
+  const graph = state.world.roadGraph;
+  const candidates = (graph?.nodes ?? []).filter(node => candidateAllowed(state, node, occupied));
+  const center = graph?.center && Number.isFinite(Number(graph.center.x)) ? graph.center : occupied[0] ?? { x: 0, y: 0 };
+  const orders = [
+    (a, b) => a.x - b.x || a.y - b.y || String(a.id).localeCompare(String(b.id)),
+    (a, b) => b.x - a.x || b.y - a.y || String(a.id).localeCompare(String(b.id)),
+    (a, b) => a.y - b.y || a.x - b.x || String(a.id).localeCompare(String(b.id)),
+    (a, b) => b.y - a.y || b.x - a.x || String(a.id).localeCompare(String(b.id)),
+    (a, b) => distance(b, center) - distance(a, center) || String(a.id).localeCompare(String(b.id)),
+    (a, b) => distance(a, center) - distance(b, center) || String(a.id).localeCompare(String(b.id))
+  ];
+  let selected = [];
+  for (const order of orders) {
+    const attempt = greedyFieldBaseCandidates(state, candidates, occupied, availableSlots, order);
+    if (attempt.length > selected.length) selected = attempt;
+    if (selected.length >= availableSlots) break;
+  }
+  const confirmedAdditional = Math.min(availableSlots, selected.length);
+  const projectedTotal = active + destroyed + confirmedAdditional;
+  const sufficient = projectedTotal >= target;
+  let guidance;
+  if (target <= active) guidance = '必要数の簡易拠点はすでに稼働しています。';
+  else if (destroyed > 0 && active + destroyed >= target) guidance = `破壊済み簡易拠点を${target - active}基再建すると条件を満たせます。`;
+  else if (sufficient) guidance = `現在の取得道路上に、あと${Math.max(0, target - active - destroyed)}基分の設置候補を確認しました。`;
+  else if (availableSlots <= 0) guidance = '設置枠は埋まっています。破壊済み簡易拠点を現地で再建してください。';
+  else guidance = `現在の取得道路では必要数に届きません。道路をさらに取得するか、敵拠点周辺を制圧してください。`;
+  return {
+    required: target,
+    limit,
+    active,
+    destroyed,
+    slotsUsed: fieldBases.length,
+    availableSlots,
+    eligibleNodeCount: candidates.length,
+    confirmedAdditional,
+    projectedTotal,
+    sufficient,
+    candidateNodeIds: selected.map(node => node.id),
+    guidance
   };
 }
 
