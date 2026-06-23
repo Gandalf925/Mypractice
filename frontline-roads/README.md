@@ -1,6 +1,28 @@
-# FRONTLINE ROADS — modular source v0.30.1 construction boundaries and removal
+# FRONTLINE ROADS — modular source v0.30.3 compact facility panel
 
 FRONTLINE ROADS is a location-based, continuously progressing road-defense strategy game. This directory is the canonical modular development source.
+
+
+## Compact facility inspection v0.30.3
+
+- Selected facilities now open in a compact summary state containing only live metrics and primary actions.
+- Description and upgrade comparison are mutually exclusive panel states instead of content stacked below the summary.
+- Upgrade confirmation is explicit; opening the comparison never spends resources.
+- The facility action row remains visible while details or upgrade differences scroll independently.
+- Tapping the selected facility again, or tapping empty map space, closes the panel.
+- Portrait facility panels are capped at 30vh; landscape inspection moves to a compact right-side panel.
+
+Implementation and verification are documented in `docs/compact-defense-panel-v0.30.3.md`.
+
+## Reliable road expansion v0.30.2
+
+- Replaces chunk-boundary-only movement acquisition with road-frontier and movement-lookahead acquisition.
+- Approaching a visible road endpoint, moving beyond the mapped network, or advancing toward an unloaded direction now queues the relevant road chunks before the player leaves the map.
+- Legacy v1 road-chunk state no longer treats the whole initial fetch circle as permanently complete. Only chunks proven by cached or merged chunk data remain confirmed during migration.
+- Movement failures retry after 45 seconds near the road frontier instead of remaining blocked for five minutes.
+- Initial road loading no longer marks untouched chunks as loaded; subsequent GPS movement can fetch and merge disconnected roads that the initial center-component cleanup did not retain.
+
+Implementation and verification are documented in `docs/road-expansion-v0.30.2.md`.
 
 ## Construction boundaries and defense removal v0.30.1
 

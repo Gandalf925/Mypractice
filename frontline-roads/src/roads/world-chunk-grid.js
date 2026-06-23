@@ -1,7 +1,7 @@
 import { ROAD_CONFIG } from '../core/constants.js';
 import { latLonToXY, xyToLatLon } from '../location/location-privacy.js';
 
-export const ROAD_CHUNK_VERSION = 1;
+export const ROAD_CHUNK_VERSION = 2;
 
 export function chunkId(x, y) {
   return `${x}:${y}`;
@@ -102,9 +102,20 @@ export function chunksCoveredByCircle(centerPoint, radiusMeters, sizeMeters = RO
   return result;
 }
 
-export function createRoadChunkState({ initialCenterPoint = { x: 0, y: 0 }, fetchRadiusMeters = ROAD_CONFIG.fetchRadiusMeters } = {}) {
-  const loaded = chunksCoveredByCircle(initialCenterPoint, fetchRadiusMeters, ROAD_CONFIG.chunkSizeMeters).map(chunk => chunk.id);
-  if (loaded.length === 0) loaded.push(chunkForWorldPoint(initialCenterPoint).id);
+function uniqueChunkIds(values = []) {
+  return [...new Set(values.map(String))];
+}
+
+function graphChunkIds(graph) {
+  const ids = new Set();
+  for (const node of graph?.nodes ?? []) for (const id of node.chunkIds ?? []) ids.add(String(id));
+  for (const edge of graph?.edges ?? []) for (const id of edge.chunkIds ?? []) ids.add(String(id));
+  return [...ids];
+}
+
+export function createRoadChunkState({ initialLoadedChunkIds = [], initialObservedChunkIds = [] } = {}) {
+  const loaded = uniqueChunkIds(initialLoadedChunkIds);
+  const observed = uniqueChunkIds(initialObservedChunkIds).filter(id => loaded.includes(id));
   return {
     version: ROAD_CHUNK_VERSION,
     sizeMeters: ROAD_CONFIG.chunkSizeMeters,
@@ -112,18 +123,49 @@ export function createRoadChunkState({ initialCenterPoint = { x: 0, y: 0 }, fetc
     empty: [],
     cached: [],
     integrated: [...loaded],
-    playerObserved: [...loaded],
+    playerObserved: observed,
     surveyed: [],
     failed: {},
     updatedAt: Date.now()
   };
 }
 
+function migrateLegacyRoadChunkState(world, legacy) {
+  const explicitGraphIds = new Set(graphChunkIds(world?.roadGraph));
+  const cached = uniqueChunkIds(Array.isArray(legacy?.cached) ? legacy.cached : []);
+  const surveyed = uniqueChunkIds(Array.isArray(legacy?.surveyed) ? legacy.surveyed : []);
+  const empty = uniqueChunkIds(Array.isArray(legacy?.empty) ? legacy.empty : []);
+  const legacyIntegrated = new Set(uniqueChunkIds(Array.isArray(legacy?.integrated) ? legacy.integrated : []));
+  const cachedAndIntegrated = cached.filter(id => legacyIntegrated.has(id));
+  const confirmed = new Set([...explicitGraphIds, ...cachedAndIntegrated, ...surveyed]);
+  const loaded = uniqueChunkIds(Array.isArray(legacy?.loaded) ? legacy.loaded : []).filter(id => confirmed.has(id));
+  for (const id of explicitGraphIds) if (!loaded.includes(id)) loaded.push(id);
+  const known = new Set([...loaded, ...empty]);
+  const playerObserved = uniqueChunkIds(Array.isArray(legacy?.playerObserved) ? legacy.playerObserved : [])
+    .filter(id => known.has(id));
+  return {
+    version: ROAD_CHUNK_VERSION,
+    sizeMeters: ROAD_CONFIG.chunkSizeMeters,
+    loaded,
+    empty,
+    cached,
+    integrated: loaded.filter(id => explicitGraphIds.has(id) || legacyIntegrated.has(id)),
+    playerObserved,
+    surveyed: surveyed.filter(id => loaded.includes(id)),
+    failed: legacy?.failed && typeof legacy.failed === 'object' ? { ...legacy.failed } : {},
+    updatedAt: Number(legacy?.updatedAt) || Date.now()
+  };
+}
+
 export function ensureRoadChunkState(world) {
   if (!world || typeof world !== 'object') return null;
   const current = world.roadChunks;
-  if (!current || current.version !== ROAD_CHUNK_VERSION || !Array.isArray(current.loaded)) {
+  if (!current || !Array.isArray(current.loaded)) {
     world.roadChunks = createRoadChunkState();
+    return world.roadChunks;
+  }
+  if (current.version !== ROAD_CHUNK_VERSION) {
+    world.roadChunks = migrateLegacyRoadChunkState(world, current);
     return world.roadChunks;
   }
   current.sizeMeters = ROAD_CONFIG.chunkSizeMeters;
@@ -134,11 +176,11 @@ export function ensureRoadChunkState(world) {
   current.surveyed = Array.isArray(current.surveyed) ? current.surveyed : [];
   current.playerObserved = Array.isArray(current.playerObserved) ? current.playerObserved : current.loaded.filter(id => !current.surveyed.includes(id));
   current.updatedAt = Number(current.updatedAt) || Date.now();
-  current.loaded = [...new Set(current.loaded.map(String))];
-  current.empty = [...new Set(current.empty.map(String))];
-  current.cached = [...new Set(current.cached.map(String))];
-  current.integrated = [...new Set(current.integrated.map(String))];
-  current.playerObserved = [...new Set(current.playerObserved.map(String))];
-  current.surveyed = [...new Set(current.surveyed.map(String))];
+  current.loaded = uniqueChunkIds(current.loaded);
+  current.empty = uniqueChunkIds(current.empty);
+  current.cached = uniqueChunkIds(current.cached);
+  current.integrated = uniqueChunkIds(current.integrated).filter(id => current.loaded.includes(id));
+  current.playerObserved = uniqueChunkIds(current.playerObserved).filter(id => current.loaded.includes(id) || current.empty.includes(id));
+  current.surveyed = uniqueChunkIds(current.surveyed).filter(id => current.loaded.includes(id));
   return current;
 }

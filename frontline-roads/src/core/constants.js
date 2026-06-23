@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.30.1-construction-boundaries';
+export const APP_VERSION = '0.30.3-compact-defense-panel';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 
@@ -37,6 +37,14 @@ export const ROAD_CONFIG = Object.freeze({
   chunkFetchRadiusMeters: 520,
   chunkPrefetchRadius: 1,
   chunkPrefetchDistanceMeters: 180,
+  roadFrontierDistanceMeters: 220,
+  roadFrontierEdgeMarginMeters: 260,
+  roadOffNetworkDistanceMeters: 90,
+  roadLookaheadMeters: 420,
+  roadExpansionRadiusMeters: 260,
+  roadMinimumMovementMeters: 8,
+  movementChunkBatchLimit: 6,
+  movementChunkRetryCooldownMs: 45 * 1000,
   chunkRetryCooldownMs: 5 * 60 * 1000,
   overpassTimeoutMs: 18000,
   overpassTotalTimeoutMs: 90000,

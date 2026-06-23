@@ -50,6 +50,8 @@ export class CombatUi {
     this.contextDisclosureKey = '';
     this.contextDisclosureOpen = false;
     this.pendingDefenseRemovalId = null;
+    this.defensePanelMode = 'summary';
+    this.defensePanelDefenseId = null;
     this.tools = queryRequired('#combatTools');
     this.cityHp = queryRequired('#cityHp');
     this.enemyCount = queryRequired('#enemyCount');
@@ -65,6 +67,8 @@ export class CombatUi {
     if (this.orderPlanning) { this.orderPlanning = null; this.renderer.setFriendlyOrderPlanning(null); }
     this.selectedObject = null;
     this.pendingDefenseRemovalId = null;
+    this.defensePanelMode = 'summary';
+    this.defensePanelDefenseId = null;
     this.renderer.setFocus(null);
     if (hideContext) setVisible(this.context, false);
   }
@@ -111,7 +115,7 @@ export class CombatUi {
     if (this.selectedTool === 'select') {
       this.buildSites = [];
       this.renderer.setBuildPlacement(null);
-      this.context.classList?.remove('is-build-mode', 'has-candidate', 'is-order-mode', 'is-defense-mode', 'is-target-mode');
+      this.context.classList?.remove('is-build-mode', 'has-candidate', 'is-order-mode', 'is-defense-mode', 'is-defense-summary', 'is-defense-details', 'is-defense-upgrade', 'is-target-mode');
       this.notifications.show('設備・敵拠点・部隊を選択できます。');
       return;
     }
@@ -435,9 +439,20 @@ export class CombatUi {
     }
     if (this.selectedTool === 'select') {
       const state = this.store.select(value => value);
+      const nextObject = this.nearestObject(state, worldPoint, 24 / this.camera.scale);
+      const sameObject = nextObject
+        && this.selectedObject
+        && nextObject.kind === this.selectedObject.kind
+        && nextObject.id === this.selectedObject.id;
+      if (sameObject || !nextObject) {
+        this.clearObjectSelection();
+        return;
+      }
       this.pendingDefenseRemovalId = null;
-      this.selectedObject = this.nearestObject(state, worldPoint, 24 / this.camera.scale);
-      this.renderer.setFocus(this.selectedObject ? { kind: this.selectedObject.kind, id: this.selectedObject.id } : null);
+      this.defensePanelMode = 'summary';
+      this.defensePanelDefenseId = null;
+      this.selectedObject = nextObject;
+      this.renderer.setFocus({ kind: nextObject.kind, id: nextObject.id });
       this.renderContext();
       return;
     }
@@ -493,22 +508,53 @@ export class CombatUi {
     this.renderContext();
   }
 
+  appendContextMetrics(metrics = []) {
+    if (!metrics.length) return null;
+    const grid = document.createElement('div');
+    grid.className = 'contextMetricGrid';
+    for (const [label, value] of metrics) {
+      const item = document.createElement('span');
+      const key = document.createElement('small');
+      const data = document.createElement('b');
+      key.textContent = label;
+      data.textContent = value;
+      item.append(key, data);
+      grid.appendChild(item);
+    }
+    this.contextText.appendChild(grid);
+    return grid;
+  }
+
+  setContextMetrics(metrics = []) {
+    this.contextText.textContent = '';
+    this.appendContextMetrics(metrics);
+  }
+
+  setDefensePanelMode(mode, defenseId) {
+    this.defensePanelMode = mode;
+    this.defensePanelDefenseId = defenseId;
+    this.pendingDefenseRemovalId = null;
+    this.renderContext();
+  }
+
+  setDefenseDetails(presentation, notes = []) {
+    this.contextText.textContent = '';
+    const copy = document.createElement('div');
+    copy.className = 'defenseDetailCopy';
+    [presentation?.summary, presentation?.effect, presentation?.placement, ...notes]
+      .filter(text => typeof text === 'string' && text.trim().length)
+      .forEach((text, index) => {
+        const paragraph = document.createElement('p');
+        paragraph.className = index === 0 ? 'contextSummary' : 'contextDetail';
+        paragraph.textContent = text;
+        copy.appendChild(paragraph);
+      });
+    this.contextText.appendChild(copy);
+  }
+
   setContextContent(summary, metrics = [], details = []) {
     this.contextText.textContent = '';
-    if (metrics.length) {
-      const grid = document.createElement('div');
-      grid.className = 'contextMetricGrid';
-      for (const [label, value] of metrics) {
-        const item = document.createElement('span');
-        const key = document.createElement('small');
-        const data = document.createElement('b');
-        key.textContent = label;
-        data.textContent = value;
-        item.append(key, data);
-        grid.appendChild(item);
-      }
-      this.contextText.appendChild(grid);
-    }
+    this.appendContextMetrics(metrics);
 
     const explanation = [summary, ...details]
       .filter(detailText => typeof detailText === 'string' && detailText.trim().length);
@@ -517,7 +563,6 @@ export class CombatUi {
     if (this.contextDisclosureKey !== disclosureKey) {
       this.contextDisclosureKey = disclosureKey;
       this.contextDisclosureOpen = false;
-    this.pendingDefenseRemovalId = null;
     }
     const disclosure = document.createElement('details');
     disclosure.className = 'contextDisclosure';
@@ -714,7 +759,7 @@ export class CombatUi {
       this.renderBuildContext();
       return;
     }
-    this.context.classList?.remove('is-build-mode', 'has-candidate', 'is-order-mode', 'is-defense-mode', 'is-target-mode');
+    this.context.classList?.remove('is-build-mode', 'has-candidate', 'is-order-mode', 'is-defense-mode', 'is-defense-summary', 'is-defense-details', 'is-defense-upgrade', 'is-target-mode');
     if (!this.selectedObject) {
       setVisible(this.context, false);
       return;
@@ -924,36 +969,61 @@ export class CombatUi {
       this.context.classList?.add('is-defense-mode');
       const defense = state.combat.defenses.find(item => item.id === selected.id);
       if (!defense) { this.clearObjectSelection(); return; }
+      if (this.defensePanelDefenseId !== defense.id) {
+        this.defensePanelDefenseId = defense.id;
+        this.defensePanelMode = 'summary';
+        this.pendingDefenseRemovalId = null;
+      }
       const runtime = defenseRuntimeDefinition(defense);
       const presentation = defensePresentation(defense.type, runtime);
       const survey = defense.type === 'survey' ? surveyFacilityPresentation(state, defense) : null;
       const operatingStatus = defense.ruined ? '破壊済み' : defense.disabledTimer > 0 ? `停止 ${defense.disabledTimer.toFixed(1)}秒` : survey ? survey.status : defense.cooldown > 0 ? `再装填 ${defense.cooldown.toFixed(1)}秒` : '稼働';
       const upgrade = defenseUpgradeStatus(state, defense);
-      this.contextTitle.textContent = `${runtime.name} // Tier ${defense.tier ?? 0}`;
       const surveyMetrics = survey ? [['NEXT', `${survey.nextScanSeconds}秒`], ['EXPANDED', `${survey.completedCount}区域`], ['REMAIN', String(survey.remainingChunks)]] : [];
       const notes = presentation ? [presentation.effect, presentation.placement, '強化しても損傷率は維持され、全回復はしません。'] : [];
       if (survey) notes.push('遠隔測量済み区域へプレイヤーが実際に入ると、現地イベントや敵発生源の正確な情報が解禁されます。');
-      this.setContextContent(
-        presentation?.summary ?? '道路防衛設備です。',
-        [['HP', `${Math.ceil(defense.hp)}/${defense.maxHp}`], ['STATUS', operatingStatus], ['TIER', String(defense.tier ?? 0)], ...(presentation?.metrics ?? []).filter(([label]) => label !== 'HP'), ...surveyMetrics],
-        notes
-      );
-      this.appendDefenseUpgradePreview(state, defense, upgrade);
-      const repair = this.action(defense.hp >= defense.maxHp && !defense.ruined ? '修理不要' : '修理', () => this.mutateAction(draft => this.civilizationSystem.progression.repairDefense(draft, defense.id), 'defense:repair'));
-      repair.disabled = defense.hp >= defense.maxHp && !defense.ruined;
-      const upgradeButton = this.action(upgrade.atMax ? '最高Tier' : `Tier ${upgrade.nextTier}へ強化`, () => this.mutateAction(draft => this.civilizationSystem.progression.upgradeDefense(draft, defense.id), 'defense:upgrade'), 'primary');
-      upgradeButton.disabled = !upgrade.ok;
-      if (defense.kind === 'barrier' && !defense.isGate) {
-        const gate = this.action((state.civilization.level ?? 0) >= 2 ? '門へ変換' : '門は文明Lv.2で解禁', () => this.mutateAction(draft => this.civilizationSystem.progression.convertBarrierToGate(draft, defense.id), 'defense:gate'));
-        gate.disabled = (state.civilization.level ?? 0) < 2 || defense.ruined || defense.hp <= 0;
+
+      this.context.classList?.add(`is-defense-${this.defensePanelMode}`);
+      if (this.defensePanelMode === 'details') {
+        this.contextTitle.textContent = `DETAIL // ${runtime.name}`;
+        this.setDefenseDetails(presentation, notes);
+        this.action('施設情報へ戻る', () => this.setDefensePanelMode('summary', defense.id), 'primary');
+      } else if (this.defensePanelMode === 'upgrade') {
+        this.contextTitle.textContent = `UPGRADE // ${runtime.name}`;
+        this.contextText.textContent = '';
+        this.appendDefenseUpgradePreview(state, defense, upgrade);
+        this.action('戻る', () => this.setDefensePanelMode('summary', defense.id));
+        const confirmUpgrade = this.action(upgrade.atMax ? '最高Tier' : upgrade.ok ? '強化を確定' : '強化条件を満たしていません', () => {
+          this.defensePanelMode = 'summary';
+          this.mutateAction(draft => this.civilizationSystem.progression.upgradeDefense(draft, defense.id), 'defense:upgrade');
+        }, 'primary');
+        confirmUpgrade.disabled = !upgrade.ok;
+      } else {
+        this.contextTitle.textContent = `${runtime.name} // Tier ${defense.tier ?? 0}`;
+        this.setContextMetrics([
+          ['HP', `${Math.ceil(defense.hp)}/${defense.maxHp}`],
+          ['STATUS', operatingStatus],
+          ['TIER', String(defense.tier ?? 0)],
+          ...(presentation?.metrics ?? []).filter(([label]) => label !== 'HP'),
+          ...surveyMetrics
+        ]);
+        this.action('説明', () => this.setDefensePanelMode('details', defense.id));
+        const repair = this.action(defense.hp >= defense.maxHp && !defense.ruined ? '修理不要' : '修理', () => this.mutateAction(draft => this.civilizationSystem.progression.repairDefense(draft, defense.id), 'defense:repair'));
+        repair.disabled = defense.hp >= defense.maxHp && !defense.ruined;
+        const upgradeButton = this.action(upgrade.atMax ? '最高Tier' : '強化', () => this.setDefensePanelMode('upgrade', defense.id), 'primary');
+        upgradeButton.disabled = upgrade.atMax;
+        if (defense.kind === 'barrier' && !defense.isGate) {
+          const gate = this.action((state.civilization.level ?? 0) >= 2 ? '門へ変換' : '門は文明Lv.2で解禁', () => this.mutateAction(draft => this.civilizationSystem.progression.convertBarrierToGate(draft, defense.id), 'defense:gate'));
+          gate.disabled = (state.civilization.level ?? 0) < 2 || defense.ruined || defense.hp <= 0;
+        }
+        const removalPending = this.pendingDefenseRemovalId === defense.id;
+        this.action(
+          removalPending ? '撤去を確定（資源返還なし）' : defense.ruined || defense.hp <= 0 ? '残骸を撤去' : '撤去',
+          () => this.requestDefenseRemoval(defense.id),
+          'danger'
+        );
+        if (removalPending) this.action('撤去を中止', () => this.cancelDefenseRemoval());
       }
-      const removalPending = this.pendingDefenseRemovalId === defense.id;
-      this.action(
-        removalPending ? '撤去を確定（資源返還なし）' : defense.ruined || defense.hp <= 0 ? '残骸を撤去' : '撤去',
-        () => this.requestDefenseRemoval(defense.id),
-        'danger'
-      );
-      if (removalPending) this.action('撤去を中止', () => this.cancelDefenseRemoval());
     } else {
       this.contextTitle.textContent = '都市';
       this.setContextContent('防衛対象となる中枢都市です。', [['HP', `${Math.ceil(state.world.city.hp)}/${state.world.city.maxHp}`], ['CIV', String(state.civilization.level)], ['KILLS', String(state.statistics.kills ?? 0)]]);

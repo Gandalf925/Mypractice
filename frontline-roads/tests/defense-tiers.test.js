@@ -56,6 +56,7 @@ class FakeElement {
   appendChild(child) { this.children.push(child); return child; }
   append(...children) { this.children.push(...children); }
   addEventListener(type, handler) { this.listeners[type] = handler; }
+  click() { this.listeners.click?.({ currentTarget: this, target: this }); }
   setAttribute(name, value) { this[name] = String(value); }
 }
 
@@ -172,7 +173,7 @@ test('gate conversion starts at tier two and preserves the prior health ratio', 
   assert.equal(barrier.hp, 350);
 });
 
-test('combat UI shows the current tier name, next-tier changes, cost and lock state', async () => {
+test('combat UI keeps the normal facility panel compact and opens upgrade details only on demand', async () => {
   const previousDocument = globalThis.document;
   const document = makeCombatDocument();
   globalThis.document = document;
@@ -197,16 +198,60 @@ test('combat UI shows the current tier name, next-tier changes, cost and lock st
     });
     ui.selectedObject = { kind: 'defense', id: defense.id };
     ui.renderContext();
+
     assert.match(document.elements.get('#contextTitle').textContent, /投石台/);
+    const compactText = flattenText(document.elements.get('#contextText'));
+    assert.doesNotMatch(compactText, /強化投石台/);
+    assert.doesNotMatch(compactText, /加工木材 5/);
+    assert.equal(document.elements.get('#contextPanel').classList.values().has('is-defense-summary'), true);
+
+    const buttons = document.elements.get('#contextActions').children;
+    const upgrade = buttons.find(button => button.textContent === '強化');
+    assert.ok(upgrade);
+    assert.equal(upgrade.disabled, false);
+    upgrade.click();
+
     const previewText = flattenText(document.elements.get('#contextText'));
     assert.match(previewText, /強化投石台/);
     assert.match(previewText, /加工木材 5/);
     assert.match(previewText, /5 → 7/);
-    const buttons = document.elements.get('#contextActions').children;
-    const upgrade = buttons.find(button => /Tier 1へ強化/.test(button.textContent));
-    assert.ok(upgrade);
-    assert.equal(upgrade.disabled, false);
-    assert.equal(document.elements.get('#contextPanel').classList.values().has('is-defense-mode'), true);
+    assert.equal(document.elements.get('#contextPanel').classList.values().has('is-defense-upgrade'), true);
+    assert.ok(document.elements.get('#contextActions').children.find(button => button.textContent === '強化を確定'));
+
+    ui.update();
+    assert.equal(document.elements.get('#contextPanel').classList.values().has('is-defense-upgrade'), true);
+    assert.match(flattenText(document.elements.get('#contextText')), /強化投石台/);
+  } finally {
+    globalThis.document = previousDocument;
+  }
+});
+
+test('facility explanation replaces the metric view instead of stacking below it', async () => {
+  const previousDocument = globalThis.document;
+  const document = makeCombatDocument();
+  globalThis.document = document;
+  try {
+    const { CombatUi } = await import('../src/ui/combat-ui.js');
+    const state = makeState();
+    const defense = gunDefense();
+    state.combat.defenses.push(defense);
+    const ui = new CombatUi({
+      store: { select(selector) { return selector(state); }, mutate(mutator) { mutator(state); } },
+      buildSystem: new BuildSystem(),
+      civilizationSystem: new CivilizationSystem(),
+      camera: { scale: 1 },
+      renderer: { setFocus() {}, setBuildPlacement() {}, setFriendlyOrderPlanning() {}, render() {} },
+      notifications: { show() {} }
+    });
+    ui.selectedObject = { kind: 'defense', id: defense.id };
+    ui.renderContext();
+    document.elements.get('#contextActions').children.find(button => button.textContent === '説明').click();
+
+    const content = document.elements.get('#contextText');
+    assert.equal(content.children.length, 1);
+    assert.equal(content.children[0].className, 'defenseDetailCopy');
+    assert.equal(document.elements.get('#contextPanel').classList.values().has('is-defense-details'), true);
+    assert.ok(document.elements.get('#contextActions').children.find(button => button.textContent === '施設情報へ戻る'));
   } finally {
     globalThis.document = previousDocument;
   }
@@ -263,10 +308,11 @@ test('upgraded attack statistics are used by live combat rather than only the UI
   assert.equal(defense.cooldown, 2);
 });
 
-test('defense details remain scrollable after the larger upgrade preview is added', async () => {
+test('defense panel uses a compact capped layout with fixed visible actions', async () => {
   const { readFile } = await import('node:fs/promises');
   const css = await readFile(new URL('../src/styles/app.css', import.meta.url), 'utf8');
-  assert.match(css, /\.contextPanel\.is-defense-mode\s*\{[^}]*max-height:/s);
-  assert.match(css, /\.contextPanel\.is-defense-mode\s*\{[^}]*overflow-y:\s*auto/s);
-  assert.match(css, /\.contextPanel\.is-defense-mode #contextActions\s*\{[^}]*position:\s*sticky/s);
+  assert.match(css, /v0\.30\.3 compact defense inspection states[\s\S]*?\.contextPanel\.is-defense-mode\s*\{[^}]*max-height:\s*min\(30vh, 250px\)/s);
+  assert.match(css, /\.contextPanel\.is-defense-mode\s*#contextText\s*\{[^}]*overflow-y:\s*auto/s);
+  assert.match(css, /\.contextPanel\.is-defense-mode\s*#contextActions\s*\{[^}]*position:\s*static/s);
+  assert.match(css, /\.contextPanel\.is-defense-summary\s*#contextText\s*\{[^}]*overflow:\s*hidden/s);
 });

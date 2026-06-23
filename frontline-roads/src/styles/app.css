@@ -1086,3 +1086,69 @@ button, input, select, textarea { font-size: inherit; }
   padding: 4px 5px;
 }
 .contextDisclosure summary { min-height: 30px; }
+
+/* v0.30.3 compact defense inspection states */
+.contextPanel.is-defense-mode {
+  display: flex;
+  flex-direction: column;
+  max-height: min(30vh, 250px);
+  overflow: hidden;
+  padding: 9px 10px;
+}
+.contextPanel.is-defense-mode > strong {
+  flex: 0 0 auto;
+}
+.contextPanel.is-defense-mode #contextText {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.contextPanel.is-defense-summary #contextText {
+  overflow: hidden;
+}
+.contextPanel.is-defense-mode #contextActions {
+  position: static;
+  flex: 0 0 auto;
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(101,255,208,.13);
+  background: rgba(2,20,23,.98);
+}
+.contextPanel.is-defense-mode #contextActions button {
+  padding: 7px 9px;
+  font-size: 11px;
+}
+.contextPanel.is-defense-upgrade,
+.contextPanel.is-defense-details {
+  max-height: min(34vh, 300px);
+}
+.contextPanel.is-defense-upgrade .defenseUpgradePreview {
+  margin-top: 5px;
+  padding: 7px;
+}
+.contextPanel.is-defense-upgrade .defenseUpgradeDeltaGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 5px;
+}
+.contextPanel.is-defense-upgrade .defenseUpgradeDeltaGrid > span {
+  padding: 4px 5px;
+}
+.defenseDetailCopy p:last-child {
+  margin-bottom: 0;
+}
+@media (max-width: 520px) {
+  .contextPanel.is-defense-upgrade .defenseUpgradeDeltaGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (orientation: landscape) and (max-height: 560px) {
+  .contextPanel.is-defense-mode {
+    left: auto;
+    right: 10px;
+    top: calc(var(--safe-top) + 70px);
+    bottom: calc(var(--safe-bottom) + 82px);
+    width: min(430px, 46vw);
+    max-height: none;
+  }
+}

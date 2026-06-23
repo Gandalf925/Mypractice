@@ -6,7 +6,7 @@ import { StateStore } from '../src/core/state-store.js';
 import { attachGraphIndexes } from '../src/roads/road-graph.js';
 import { RoadWorldManager, roadWorldId } from '../src/roads/road-world-manager.js';
 import { MemoryRoadChunkCache } from '../src/persistence/road-chunk-cache.js';
-import { chunkCenterLocation, chunksNearWorldPoint, createRoadChunkState, parseChunkId } from '../src/roads/world-chunk-grid.js';
+import { chunkCenterLocation, chunksNearWorldPoint, createRoadChunkState, ensureRoadChunkState, parseChunkId } from '../src/roads/world-chunk-grid.js';
 
 function baseGraph() {
   return attachGraphIndexes({
@@ -112,4 +112,171 @@ test('chunk centers remain based on the original world center', () => {
   const location = chunkCenterLocation(parseChunkId('2:-1'), center);
   assert.ok(location.lon > center.lon);
   assert.ok(location.lat > center.lat);
+});
+
+
+test('legacy initial coverage is released while explicitly merged chunks remain confirmed', () => {
+  const state = createInitialState();
+  state.world.roadGraph = baseGraph();
+  state.world.roadGraph.nodes[1].chunkIds = ['1:0'];
+  state.world.roadGraph.edges[0].chunkIds = ['1:0'];
+  state.world.roadChunks = {
+    version: 1,
+    sizeMeters: 600,
+    loaded: ['-1:0', '0:0', '1:0'],
+    empty: [],
+    cached: [],
+    integrated: ['-1:0', '0:0', '1:0'],
+    playerObserved: ['-1:0', '0:0', '1:0'],
+    surveyed: [],
+    failed: {},
+    updatedAt: 1
+  };
+
+  const migrated = ensureRoadChunkState(state.world);
+
+  assert.equal(migrated.version, 2);
+  assert.deepEqual(migrated.loaded, ['1:0']);
+  assert.deepEqual(migrated.integrated, ['1:0']);
+  assert.deepEqual(migrated.playerObserved, ['1:0']);
+});
+
+test('approaching a visible road endpoint queues forward chunks before the grid boundary', () => {
+  const state = createInitialState();
+  state.world.roadGraph = attachGraphIndexes({
+    nodes: [{ id: 'a', x: 0, y: 300 }, { id: 'b', x: 300, y: 300 }],
+    edges: [{ id: 'ab', a: 'a', b: 'b', length: 300, roadWidth: 5 }],
+    center: { lat: 35, lon: 139 }, source: 'test', roadSpecVersion: 1
+  });
+  state.world.roadChunks = createRoadChunkState({ initialLoadedChunkIds: ['0:0'], initialObservedChunkIds: ['0:0'] });
+  state.player.worldPosition = { x: 260, y: 300 };
+  const store = new StateStore(state, new EventBus());
+  store.mutate(draft => attachGraphIndexes(draft.world.roadGraph));
+  const manager = new RoadWorldManager({ store, cache: new MemoryRoadChunkCache(), roadService: {} });
+  const queued = [];
+  manager.enqueue = (chunk, center, options) => queued.push({ chunk, center, options });
+
+  const ids = manager.considerLocation({ lat: 35, lon: 139 });
+
+  assert.ok(ids.includes('1:0'));
+  assert.ok(queued.some(item => item.chunk.id === '1:0' && ['road-frontier', 'movement-lookahead'].includes(item.options.reason)));
+});
+
+test('movement lookahead queues the travel direction even before the player reaches a chunk edge', () => {
+  const state = createInitialState();
+  state.world.roadGraph = attachGraphIndexes({
+    nodes: [{ id: 'a', x: 0, y: 300 }, { id: 'b', x: 500, y: 300 }],
+    edges: [{ id: 'ab', a: 'a', b: 'b', length: 500, roadWidth: 5 }],
+    center: { lat: 35, lon: 139 }, source: 'test', roadSpecVersion: 1
+  });
+  state.world.roadChunks = createRoadChunkState({ initialLoadedChunkIds: ['0:0'], initialObservedChunkIds: ['0:0'] });
+  state.player.worldPosition = { x: 200, y: 300 };
+  const store = new StateStore(state, new EventBus());
+  store.mutate(draft => attachGraphIndexes(draft.world.roadGraph));
+  const manager = new RoadWorldManager({ store, cache: new MemoryRoadChunkCache(), roadService: {} });
+  manager.enqueue = () => {};
+  manager.considerLocation({ lat: 35, lon: 139 });
+  store.mutate(draft => { draft.player.worldPosition = { x: 220, y: 300 }; });
+
+  const ids = manager.considerLocation({ lat: 35, lon: 139 });
+
+  assert.ok(ids.includes('1:0'));
+});
+
+test('frontier failures retry after the shorter movement cooldown', () => {
+  let now = 1000;
+  const state = createInitialState();
+  state.world.roadGraph = baseGraph();
+  state.world.roadChunks = createRoadChunkState({ initialLoadedChunkIds: ['0:0'], initialObservedChunkIds: ['0:0'] });
+  state.world.roadChunks.failed['1:0'] = { at: now, message: 'temporary' };
+  state.player.worldPosition = { x: 590, y: 100 };
+  const store = new StateStore(state, new EventBus());
+  store.mutate(draft => attachGraphIndexes(draft.world.roadGraph));
+  const manager = new RoadWorldManager({ store, cache: new MemoryRoadChunkCache(), roadService: {}, now: () => now });
+  manager.enqueue = () => {};
+
+  assert.ok(!manager.considerLocation({ lat: 35, lon: 139 }).includes('1:0'));
+  now += 45 * 1000;
+  assert.ok(manager.considerLocation({ lat: 35, lon: 139 }).includes('1:0'));
+});
+
+
+test('an internal cul-de-sac does not masquerade as the outer road frontier', () => {
+  const state = createInitialState();
+  state.world.roadGraph = attachGraphIndexes({
+    nodes: [
+      { id: 'west', x: 0, y: 900 },
+      { id: 'center', x: 900, y: 900 },
+      { id: 'east', x: 1800, y: 900 },
+      { id: 'south', x: 900, y: 0 },
+      { id: 'north', x: 900, y: 1800 },
+      { id: 'spur', x: 1000, y: 1000 }
+    ],
+    edges: [
+      { id: 'west-center', a: 'west', b: 'center', length: 900, roadWidth: 5 },
+      { id: 'center-east', a: 'center', b: 'east', length: 900, roadWidth: 5 },
+      { id: 'south-center', a: 'south', b: 'center', length: 900, roadWidth: 5 },
+      { id: 'center-north', a: 'center', b: 'north', length: 900, roadWidth: 5 },
+      { id: 'center-spur', a: 'center', b: 'spur', length: 141, roadWidth: 5 }
+    ],
+    center: { lat: 35, lon: 139 }, source: 'test', roadSpecVersion: 1
+  });
+  state.world.roadChunks = createRoadChunkState({ initialLoadedChunkIds: ['1:1'], initialObservedChunkIds: ['1:1'] });
+  state.player.worldPosition = { x: 990, y: 990 };
+  const store = new StateStore(state, new EventBus());
+  store.mutate(draft => attachGraphIndexes(draft.world.roadGraph));
+  const manager = new RoadWorldManager({ store, cache: new MemoryRoadChunkCache(), roadService: {} });
+  manager.enqueue = () => {};
+
+  assert.deepEqual(manager.considerLocation({ lat: 35, lon: 139 }), []);
+});
+
+test('lookahead road chunks remain hidden until the player physically enters them', async () => {
+  const state = createInitialState();
+  state.world.roadGraph = baseGraph();
+  state.world.roadChunks = createRoadChunkState({ initialLoadedChunkIds: ['0:0'], initialObservedChunkIds: ['0:0'] });
+  state.player.worldPosition = { x: 200, y: 100 };
+  const store = new StateStore(state, new EventBus());
+  store.mutate(draft => attachGraphIndexes(draft.world.roadGraph));
+  const manager = new RoadWorldManager({
+    store,
+    cache: new MemoryRoadChunkCache(),
+    roadService: { async loadChunk({ chunkId }) { return chunkGraph(chunkId); } }
+  });
+
+  await manager.loadChunk(parseChunkId('1:0'), state.world.roadGraph.center, { mode: 'movement', observe: false });
+  assert.ok(store.select(next => next.world.roadChunks.loaded.includes('1:0')));
+  assert.ok(!store.select(next => next.world.roadChunks.playerObserved.includes('1:0')));
+
+  store.mutate(draft => { draft.player.worldPosition = { x: 700, y: 100 }; });
+  manager.enqueue = () => {};
+  manager.considerLocation({ lat: 35, lon: 139 });
+  assert.ok(store.select(next => next.world.roadChunks.playerObserved.includes('1:0')));
+});
+
+
+test('road-frontier movement completes acquisition and merges the new road into the live map', async () => {
+  const state = createInitialState();
+  state.world.roadGraph = attachGraphIndexes({
+    nodes: [{ id: 'a', x: 0, y: 300 }, { id: 'b', x: 300, y: 300 }],
+    edges: [{ id: 'ab', a: 'a', b: 'b', length: 300, roadWidth: 5 }],
+    center: { lat: 35, lon: 139 }, source: 'test', roadSpecVersion: 1
+  });
+  state.world.roadChunks = createRoadChunkState({ initialLoadedChunkIds: ['0:0'], initialObservedChunkIds: ['0:0'] });
+  state.player.worldPosition = { x: 260, y: 300 };
+  const store = new StateStore(state, new EventBus());
+  store.mutate(draft => attachGraphIndexes(draft.world.roadGraph));
+  const manager = new RoadWorldManager({
+    store,
+    cache: new MemoryRoadChunkCache(),
+    roadService: { async loadChunk({ chunkId }) { return chunkGraph(chunkId); } }
+  });
+
+  const ids = manager.considerLocation({ lat: 35, lon: 139 });
+  assert.ok(ids.includes('1:0'));
+  while (manager.running || manager.queue.length > 0) await new Promise(resolve => setTimeout(resolve, 0));
+
+  const next = store.getState();
+  assert.ok(next.world.roadChunks.loaded.includes('1:0'));
+  assert.ok(next.world.roadGraph.edges.length > 1);
 });

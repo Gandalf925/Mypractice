@@ -1,11 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ROAD_CONFIG } from '../src/core/constants.js';
 import {
   chunkForLocation,
   chunkForWorldPoint,
   chunkCenterLocation,
-  chunksCoveredByCircle,
   createRoadChunkState,
   parseChunkId
 } from '../src/roads/world-chunk-grid.js';
@@ -52,11 +50,11 @@ test('world chunks use deterministic grid ids and reversible centers', () => {
   assert.equal(chunkForLocation(location, worldCenter).id, chunk.id);
 });
 
-test('initial chunk state only marks chunks fully covered by the initial acquisition', () => {
-  const chunks = chunksCoveredByCircle({ x: 0, y: 0 }, ROAD_CONFIG.fetchRadiusMeters);
+test('initial chunk state does not assume that the cleaned initial graph fully covers surrounding chunks', () => {
   const state = createRoadChunkState();
-  assert.deepEqual(state.loaded.sort(), chunks.map(item => item.id).sort());
-  assert.ok(state.loaded.length >= 4);
+  assert.equal(state.version, 2);
+  assert.deepEqual(state.loaded, []);
+  assert.deepEqual(state.playerObserved, []);
 });
 
 test('graph merge preserves existing ids, joins nearby endpoints and removes duplicate edges', () => {

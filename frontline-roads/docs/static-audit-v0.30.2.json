@@ -1,0 +1,15 @@
+{
+  "release": "0.30.2-road-expansion-reliability",
+  "productionJsModules": 96,
+  "reachableFromBootstrap": 96,
+  "unreachableModules": [],
+  "missingRelativeImports": [],
+  "importCycles": [],
+  "htmlIds": 51,
+  "duplicateHtmlIds": [],
+  "cssBraceDelta": 0,
+  "pwaRuntimeEntries": 97,
+  "pwaMissing": [],
+  "pwaStale": [],
+  "emptySourceOrTestFiles": []
+}

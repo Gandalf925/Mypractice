@@ -1,0 +1,35 @@
+FRONTLINE ROADS v0.30.2 ROAD EXPANSION RELIABILITY AUDIT
+
+Release: 0.30.2-road-expansion-reliability
+Save key: frontline_roads_refactor_v2 (unchanged)
+Schema version: 2 (unchanged)
+Road chunk state version: 2 (migrated from version 1 at runtime)
+
+ROAD EXPANSION CORRECTIONS
+- Movement acquisition no longer depends only on the final 180 m of a 600 m chunk.
+- Current position chunks are considered on every valid location update.
+- A 420 m movement lookahead prefetches the travel direction.
+- Outer road terminals within 220 m trigger frontier acquisition.
+- Internal cul-de-sacs are excluded from outer-frontier detection.
+- Moving more than 90 m away from the mapped road network triggers surrounding acquisition.
+- Legacy initial fetch-circle assumptions are released unless a chunk is proven by merged graph metadata, cache/integration state, survey data or an explicit empty result.
+- Prefetched chunks remain hidden from physical-observation content until the player enters them.
+- Movement failures near a frontier or during active movement retry after 45 seconds.
+- Survey retry behavior remains unchanged.
+
+VERIFICATION
+- npm run verify: 336 passed, 0 failed
+- Serial node test execution: 336 passed, 0 failed
+- Production JavaScript modules: 96
+- Reachable from bootstrap: 96
+- Unreachable modules: 0
+- Missing relative imports: 0
+- Import cycles: 0
+- HTML duplicate IDs: 0
+- CSS brace delta: 0
+- PWA missing/stale runtime files: 0
+- Empty source/test files: 0
+- Local HTTP checks: all requested release resources returned 200
+
+BROWSER LIMIT
+Headless Chromium could not generate DOM output because container permissions blocked inotify, NETLINK and DBus. See docs/browser-test-v0.30.2.md.

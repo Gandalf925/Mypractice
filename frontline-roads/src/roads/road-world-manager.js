@@ -1,15 +1,122 @@
 import { ROAD_CONFIG } from '../core/constants.js';
-import { stableId } from '../core/utilities.js';
-import { attachGraphIndexes } from './road-graph.js';
+import { distance, stableId } from '../core/utilities.js';
+import { attachGraphIndexes, graphElementsNearPoint } from './road-graph.js';
+import { pointToSegmentProjection } from './geometry.js';
 import { mergeRoadGraphs } from './graph-merge.js';
 import {
   chunkCenterLocation,
   chunkForWorldPoint,
+  chunksIntersectingCircle,
   chunksNearWorldPoint,
   ensureRoadChunkState
 } from './world-chunk-grid.js';
 import { activeSurveyFacilities, surveyChunkCandidates, synchronizeSurveyFacility } from '../exploration/survey-system.js';
 import { defenseRuntimeDefinition } from '../combat/definitions.js';
+
+function nearestRoadDistance(graph, point, radius = ROAD_CONFIG.roadFrontierDistanceMeters * 2) {
+  if (!graph?.nodeById || !point) return Infinity;
+  const elements = graphElementsNearPoint(graph, point, radius);
+  let nearest = Infinity;
+  for (const node of elements.nodes) nearest = Math.min(nearest, distance(point, node));
+  for (const edge of elements.edges) {
+    const a = graph.nodeById.get(edge.a);
+    const b = graph.nodeById.get(edge.b);
+    if (!a || !b) continue;
+    nearest = Math.min(nearest, pointToSegmentProjection(point, a, b).distance);
+  }
+  return nearest;
+}
+
+function roadGraphBounds(graph) {
+  const nodes = graph?.nodes ?? [];
+  if (!nodes.length) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const node of nodes) {
+    minX = Math.min(minX, node.x);
+    minY = Math.min(minY, node.y);
+    maxX = Math.max(maxX, node.x);
+    maxY = Math.max(maxY, node.y);
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+function isOuterTerminal(node, bounds, margin = ROAD_CONFIG.roadFrontierEdgeMarginMeters) {
+  if (!bounds) return false;
+  return node.x - bounds.minX <= margin
+    || bounds.maxX - node.x <= margin
+    || node.y - bounds.minY <= margin
+    || bounds.maxY - node.y <= margin;
+}
+
+function nearestTerminalNode(graph, point, radius = ROAD_CONFIG.roadFrontierDistanceMeters) {
+  const bounds = roadGraphBounds(graph);
+  let best = null;
+  let bestDistance = radius;
+  for (const node of graph?.terminalNodes ?? []) {
+    if (!isOuterTerminal(node, bounds)) continue;
+    const gap = distance(point, node);
+    if (gap <= bestDistance) {
+      best = node;
+      bestDistance = gap;
+    }
+  }
+  return best ? { node: best, distance: bestDistance } : null;
+}
+
+function normalizedDirection(from, to) {
+  const dx = Number(to?.x) - Number(from?.x);
+  const dy = Number(to?.y) - Number(from?.y);
+  const magnitude = Math.hypot(dx, dy);
+  return magnitude > 0 ? { x: dx / magnitude, y: dy / magnitude } : null;
+}
+
+function terminalOutwardDirection(graph, terminal) {
+  const connection = graph?.adjacency?.get(terminal?.id)?.[0];
+  const neighbor = connection ? graph.nodeById?.get(connection.to) : null;
+  return neighbor ? normalizedDirection(neighbor, terminal) : null;
+}
+
+function movementExpansionCandidates(graph, point, previousPoint, sizeMeters) {
+  const candidates = new Map();
+  const add = (chunk, priority, reason) => {
+    const current = candidates.get(chunk.id);
+    if (!current || priority < current.priority) candidates.set(chunk.id, { ...chunk, priority, reason });
+  };
+  for (const chunk of chunksNearWorldPoint(point, sizeMeters)) add(chunk, 0, 'position');
+
+  const moved = previousPoint ? distance(previousPoint, point) : 0;
+  const movementDirection = moved >= ROAD_CONFIG.roadMinimumMovementMeters
+    ? normalizedDirection(previousPoint, point)
+    : null;
+  const terminal = nearestTerminalNode(graph, point);
+  const roadGap = nearestRoadDistance(graph, point);
+  const nearFrontier = Boolean(terminal) || roadGap > ROAD_CONFIG.roadOffNetworkDistanceMeters;
+
+  if (nearFrontier) {
+    for (const chunk of chunksIntersectingCircle(point, ROAD_CONFIG.roadExpansionRadiusMeters, sizeMeters)) add(chunk, 1, 'road-frontier');
+  }
+
+  const direction = movementDirection ?? (terminal ? terminalOutwardDirection(graph, terminal.node) : null);
+  if (direction && (movementDirection || nearFrontier)) {
+    const origin = terminal?.node ?? point;
+    const lookahead = {
+      x: origin.x + direction.x * ROAD_CONFIG.roadLookaheadMeters,
+      y: origin.y + direction.y * ROAD_CONFIG.roadLookaheadMeters
+    };
+    for (const chunk of chunksNearWorldPoint(lookahead, sizeMeters)) add(chunk, 2, 'movement-lookahead');
+  }
+
+  return {
+    nearFrontier,
+    moving: Boolean(movementDirection),
+    roadGap,
+    terminalDistance: terminal?.distance ?? Infinity,
+    chunks: [...candidates.values()].sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id))
+  };
+}
 
 function compactChunkGraph(graph) {
   return {
@@ -42,6 +149,7 @@ export class RoadWorldManager {
     this.running = false;
     this.abortController = null;
     this.lastSurveyEnqueueAt = 0;
+    this.lastMovementPoint = null;
   }
 
   ensureState() {
@@ -66,6 +174,8 @@ export class RoadWorldManager {
       this.store.mutate(draft => {
         mergeRoadGraphs(draft.world.roadGraph, payload, { chunkId: id });
         const chunkState = ensureRoadChunkState(draft.world);
+        if (!chunkState.loaded.includes(id)) chunkState.loaded.push(id);
+        if (!chunkState.cached.includes(id)) chunkState.cached.push(id);
         if (!chunkState.integrated.includes(id)) chunkState.integrated.push(id);
       }, 'roads:cache-restored');
       restored += 1;
@@ -94,15 +204,25 @@ export class RoadWorldManager {
     }, 'roads:player-observed');
     if (observationChanged) this.graphChanged({ reason: 'player-observed', chunkId: observedChunkId });
 
-    const candidates = chunksNearWorldPoint(worldPoint, chunks.sizeMeters)
+    const expansion = movementExpansionCandidates(graph, worldPoint, this.lastMovementPoint, chunks.sizeMeters);
+    this.lastMovementPoint = { x: worldPoint.x, y: worldPoint.y };
+    const retryCooldownMs = expansion.nearFrontier || expansion.moving
+      ? ROAD_CONFIG.movementChunkRetryCooldownMs
+      : ROAD_CONFIG.chunkRetryCooldownMs;
+    const candidates = expansion.chunks
       .filter(chunk => !chunks.loaded.includes(chunk.id) && !chunks.empty.includes(chunk.id) && !this.pending.has(chunk.id))
       .filter(chunk => {
         const failure = chunks.failed?.[chunk.id];
         if (!failure) return true;
         const failedAt = Number(failure.at);
-        return !Number.isFinite(failedAt) || this.now() - failedAt >= ROAD_CONFIG.chunkRetryCooldownMs;
-      });
-    for (const chunk of candidates) this.enqueue(chunk, graph.center, { mode: 'movement' });
+        return !Number.isFinite(failedAt) || this.now() - failedAt >= retryCooldownMs;
+      })
+      .slice(0, ROAD_CONFIG.movementChunkBatchLimit);
+    for (const chunk of candidates) this.enqueue(chunk, graph.center, {
+      mode: 'movement',
+      observe: chunk.id === observedChunkId,
+      reason: chunk.reason
+    });
     return candidates.map(chunk => chunk.id);
   }
 
@@ -168,15 +288,15 @@ export class RoadWorldManager {
     }
   }
 
-  async loadChunk(chunk, worldCenter, { mode = 'movement', defenseId = null } = {}) {
+  async loadChunk(chunk, worldCenter, { mode = 'movement', defenseId = null, observe = mode === 'movement' } = {}) {
     this.ensureState();
     const state = this.store.select(value => value);
     const currentChunks = state.world.roadChunks;
     if (currentChunks.loaded.includes(chunk.id) || currentChunks.empty.includes(chunk.id)) {
       this.store.mutate(draft => {
         const chunkState = ensureRoadChunkState(draft.world);
-        const observationList = mode === 'survey' ? chunkState.surveyed : chunkState.playerObserved;
-        if (!observationList.includes(chunk.id)) observationList.push(chunk.id);
+        const observationList = mode === 'survey' ? chunkState.surveyed : observe ? chunkState.playerObserved : null;
+        if (observationList && !observationList.includes(chunk.id)) observationList.push(chunk.id);
         if (defenseId) {
           const defense = draft.combat.defenses.find(item => item.id === defenseId);
           if (defense) defense.surveyStatus = 'WAITING';
@@ -232,8 +352,8 @@ export class RoadWorldManager {
         if (!chunkState.cached.includes(chunk.id)) chunkState.cached.push(chunk.id);
         if (!chunkState.integrated.includes(chunk.id)) chunkState.integrated.push(chunk.id);
       }
-      const observationList = mode === 'survey' ? chunkState.surveyed : chunkState.playerObserved;
-      if (!observationList.includes(chunk.id)) observationList.push(chunk.id);
+      const observationList = mode === 'survey' ? chunkState.surveyed : observe ? chunkState.playerObserved : null;
+      if (observationList && !observationList.includes(chunk.id)) observationList.push(chunk.id);
       if (defenseId) {
         const defense = draft.combat.defenses.find(item => item.id === defenseId);
         if (defense) {
@@ -269,6 +389,7 @@ export class RoadWorldManager {
     this.abortController?.abort();
     this.abortController = null;
     this.lastSurveyEnqueueAt = 0;
+    this.lastMovementPoint = null;
   }
 
   async clearCurrentWorld() {

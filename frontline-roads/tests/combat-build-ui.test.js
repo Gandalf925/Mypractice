@@ -278,3 +278,38 @@ test('defense removal requires a second confirmation and then clears the selecte
     globalThis.document = previousDocument;
   }
 });
+
+test('tapping the selected facility again closes the compact context panel', async () => {
+  const previousDocument = globalThis.document;
+  const document = makeDocument();
+  globalThis.document = document;
+  try {
+    const { CombatUi } = await import('../src/ui/combat-ui.js');
+    const state = makeState();
+    state.combat.defenses.push({
+      id: 'tower-close', kind: 'tower', type: 'gun', line: 'single', tier: 0, defenseKey: 'single0',
+      nodeId: 'near', hp: 150, maxHp: 150, cooldown: 0, disabledTimer: 0, ruined: false
+    });
+    let focus = 'unset';
+    const ui = new CombatUi({
+      store: { select(selector) { return selector(state); }, mutate(mutator) { mutator(state); } },
+      buildSystem: new BuildSystem(),
+      civilizationSystem: { progression: {} },
+      camera: { scale: 1 },
+      renderer: { setFocus(value) { focus = value; }, setBuildPlacement() {}, setFriendlyOrderPlanning() {}, render() {} },
+      notifications: { show() {} }
+    });
+
+    ui.handleMapTap({ x: 60, y: 0 });
+    assert.equal(ui.selectedObject.kind, 'defense');
+    assert.equal(ui.selectedObject.id, 'tower-close');
+    assert.equal(document.elements.get('#contextPanel').hidden, false);
+
+    ui.handleMapTap({ x: 60, y: 0 });
+    assert.equal(ui.selectedObject, null);
+    assert.equal(document.elements.get('#contextPanel').hidden, true);
+    assert.equal(focus, null);
+  } finally {
+    globalThis.document = previousDocument;
+  }
+});
