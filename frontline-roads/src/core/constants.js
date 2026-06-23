@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.28.0-retrieval-corps';
+export const APP_VERSION = '0.28.1-contextual-deployment';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 

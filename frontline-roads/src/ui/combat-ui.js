@@ -27,7 +27,7 @@ import { defenseUpgradeStatus } from '../civilization/defense-upgrade.js';
 import { queryRequired, setVisible } from './dom.js';
 
 export class CombatUi {
-  constructor({ store, buildSystem, civilizationSystem, explorationSystem, recoverySystem, friendlyForceSystem, camera, renderer, notifications, persist = null }) {
+  constructor({ store, buildSystem, civilizationSystem, explorationSystem, recoverySystem, friendlyForceSystem, camera, renderer, notifications, persist = null, openDeployment = null }) {
     this.store = store;
     this.buildSystem = buildSystem;
     this.civilizationSystem = civilizationSystem;
@@ -35,6 +35,7 @@ export class CombatUi {
     this.recoverySystem = recoverySystem;
     this.friendlyForceSystem = friendlyForceSystem;
     this.persist = persist;
+    this.openDeployment = openDeployment;
     this.camera = camera;
     this.renderer = renderer;
     this.notifications = notifications;
@@ -104,7 +105,7 @@ export class CombatUi {
     if (this.selectedTool === 'select') {
       this.buildSites = [];
       this.renderer.setBuildPlacement(null);
-      this.context.classList?.remove('is-build-mode', 'has-candidate', 'is-order-mode', 'is-defense-mode');
+      this.context.classList?.remove('is-build-mode', 'has-candidate', 'is-order-mode', 'is-defense-mode', 'is-target-mode');
       this.notifications.show('設備・敵拠点・前哨地を選択できます。');
       return;
     }
@@ -665,7 +666,7 @@ export class CombatUi {
       this.renderBuildContext();
       return;
     }
-    this.context.classList?.remove('is-build-mode', 'has-candidate', 'is-order-mode', 'is-defense-mode');
+    this.context.classList?.remove('is-build-mode', 'has-candidate', 'is-order-mode', 'is-defense-mode', 'is-target-mode');
     if (!this.selectedObject) {
       setVisible(this.context, false);
       return;
@@ -694,8 +695,11 @@ export class CombatUi {
         [['DIST', Number.isFinite(gap) ? `${Math.round(gap)}m` : 'NO GPS'], ['ENTRY', `${RECOVERY_RANGE_METERS}m`], ['STATUS', collection ? 'RECOVERING' : eligibility.ok ? 'READY' : 'FIELD LOCK'], ['TIME', collection ? `${progress.toFixed(1)}/${RECOVERY_COLLECTION_DURATION_SECONDS}s` : `${RECOVERY_COLLECTION_DURATION_SECONDS}s`], ['SOURCE', presentation.sourceName]],
         [presentation.description, collection ? '回収完了まで範囲内に留まってください。' : eligibility.ok ? '回収後は文明発展の実績として記録されます。' : eligibility.reason]
       );
-      const collect = this.action(collection ? `回収中 ${Math.floor(progress)}/${RECOVERY_COLLECTION_DURATION_SECONDS}秒` : '特殊アイテムを回収', () => this.mutateAction(draft => this.recoverySystem.beginCollection(draft, item.id), 'recovery:begin'), 'primary');
+      this.context.classList?.add('is-target-mode');
+      const collect = this.action(collection ? `回収中 ${Math.floor(progress)}/${RECOVERY_COLLECTION_DURATION_SECONDS}秒` : '現地で回収', () => this.mutateAction(draft => this.recoverySystem.beginCollection(draft, item.id), 'recovery:begin'), 'primary');
       collect.disabled = Boolean(collection) || !eligibility.ok;
+      const dispatch = this.action('回収部隊を派遣', () => this.openDeployment?.({ kind: 'recoveryItem', id: item.id }));
+      dispatch.disabled = Boolean(collection) || typeof this.openDeployment !== 'function';
     } else if (selected.kind === 'friendlySquad') {
       const squad = (state.combat.friendlySquads ?? []).find(item => item.id === selected.id);
       if (!squad || squad.hp <= 0) { this.clearObjectSelection(); return; }
@@ -840,13 +844,15 @@ export class CombatUi {
       const base = state.world.enemyBases.find(item => item.id === selected.id);
       if (!base?.alive) { this.clearObjectSelection(); return; }
       const definition = ENEMY_BASE_DEFINITIONS[base.type];
-      const node = state.world.roadGraph.nodeById.get(base.nodeId);
       this.contextTitle.textContent = definition.name;
       const attackers = (state.combat.friendlySquads ?? []).filter(squad => squad.targetBaseId === base.id).length;
+      this.context.classList?.add('is-target-mode');
       this.setContextContent(
-        '敵部隊の出撃源です。DEPLOY画面から拠点を選び、攻撃部隊を派遣して破壊します。プレイヤーが現地にいるだけでは破壊できません。',
-        [['HP', `${Math.ceil(base.hp)}/${base.maxHp}`], ['WAVES', String(base.wavesSent)], ['ATTACKERS', String(attackers)], ['STATUS', attackers ? 'UNDER ATTACK' : 'HOSTILE'], ['LEVEL', String(base.level ?? 1)]]
+        '選択中の敵拠点です。攻撃部隊は道路上を移動し、この拠点へ到達後に攻撃を開始します。',
+        [['HP', `${Math.ceil(base.hp)}/${base.maxHp}`], ['LEVEL', `Lv.${base.level ?? 1}`], ['ATTACKERS', String(attackers)], ['STATUS', attackers ? 'UNDER ATTACK' : 'HOSTILE']]
       );
+      const deploy = this.action(attackers ? '追加部隊を派兵' : 'この敵拠点へ派兵', () => this.openDeployment?.({ kind: 'enemyBase', id: base.id }), 'primary');
+      deploy.disabled = typeof this.openDeployment !== 'function';
     } else if (selected.kind === 'defense') {
       this.context.classList?.add('is-defense-mode');
       const defense = state.combat.defenses.find(item => item.id === selected.id);

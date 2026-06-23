@@ -1,6 +1,21 @@
-# FRONTLINE ROADS — modular source v0.28.0 retrieval corps
+# FRONTLINE ROADS — modular source v0.28.1 contextual deployment
 
 FRONTLINE ROADS is a location-based, continuously progressing road-defense strategy game. This directory is the canonical modular development source.
+
+
+## Contextual deployment UI v0.28.1
+
+This corrective release replaces the global deployment entry point with target-first map interaction.
+
+- The upper HUD no longer contains a global `DEPLOY // 派兵` button.
+- Selecting a live hostile base opens a compact lower target panel with `この敵拠点へ派兵`.
+- The deployment panel receives and locks the selected hostile base; the player chooses only the squad type and origin base.
+- Selecting an available recovery item exposes both direct GPS collection and `回収部隊を派遣`, preserving the phase 7 remote-recovery path without restoring the global button.
+- Target context panels use a constrained height and sticky action row so they remain above the defense toolbar without covering most of the map.
+- The deployment panel is compact, side-aligned on wider screens and height-limited above the toolbar on mobile layouts.
+- Existing combat, recovery, save data and remote simulation rules are unchanged.
+
+Full behavior and regression boundaries are documented in `docs/contextual-deployment-v0.28.1.md`.
 
 ## Retrieval corps v0.28.0
 
@@ -260,4 +275,4 @@ Run:
 npm run verify
 ```
 
-The release archive contains the complete modular source and tests. Browser-launch attempts in the build container are documented under `docs/browser-test-limit-v0.28.0.md`; final GPS, Overpass and mobile-layout checks must be performed on the deployed HTTPS page.
+The release archive contains the complete modular source and tests. Browser-launch results for this release are documented under `docs/browser-test-v0.28.1.md`; final GPS, Overpass and mobile-layout checks must be performed on the deployed HTTPS page.

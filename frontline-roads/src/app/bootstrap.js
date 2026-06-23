@@ -76,7 +76,11 @@ class FrontlineRoadsApp {
       camera: this.camera,
       renderer: this.renderer,
       notifications: this.notifications,
-      persist: () => this.persist()
+      persist: () => this.persist(),
+      openDeployment: target => {
+        if (target?.kind === 'enemyBase') this.deploymentUi?.openForEnemyBase(target.id);
+        if (target?.kind === 'recoveryItem') this.deploymentUi?.openForRecoveryItem(target.id);
+      }
     });
     this.roadWorld = new RoadWorldManager({
       roadService: this.roadService,

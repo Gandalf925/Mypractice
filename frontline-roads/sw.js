@@ -1,6 +1,6 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const CACHE_NAME = `${CACHE_PREFIX}v0-28-0-retrieval-corps`;
+const CACHE_NAME = `${CACHE_PREFIX}v0-28-1-contextual-deployment`;
 const APP_SHELL = [
   './',
   './index.html',
