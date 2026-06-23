@@ -1,0 +1,18 @@
+{
+  "release": "0.29.0-enemy-personalities",
+  "productionJavaScriptModules": 98,
+  "reachableFromReleaseLoader": 98,
+  "unreachableModules": [],
+  "missingRelativeImports": [],
+  "importCycles": [],
+  "htmlIds": 49,
+  "htmlDuplicateIds": [],
+  "cssBraceDelta": 0,
+  "emptySourceOrTestFiles": [],
+  "pwaRuntimeEntriesExpected": 99,
+  "pwaMissingEntries": [],
+  "pwaStaleEntries": [],
+  "saveSchemaVersion": 2,
+  "testsPassed": 308,
+  "testsFailed": 0
+}

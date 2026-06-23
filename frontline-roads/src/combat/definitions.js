@@ -9,86 +9,136 @@ export const MAX_ENEMIES = 220;
 export const ENEMY_DEFINITIONS = Object.freeze({
   infantry: {
     name: '歩兵', hp: 50, speed: 1.2, cityDamage: 8, barrierDps: 2, radius: 4.5, drops: ENEMY_DROPS.infantry,
-    barrierStrategy: 'balanced', barrierCostFactor: 1.05, routeLabel: '状況判断', objectiveLabel: '都市'
+    personality: 'direct', barrierStrategy: 'balanced', barrierCostFactor: 1.05, routeLabel: '最短進軍', objectiveLabel: '都市'
   },
   scout: {
     name: '斥候', hp: 25, speed: 1.75, cityDamage: 4, barrierDps: 1, radius: 3.7, drops: ENEMY_DROPS.scout,
-    avoidTowers: true, barrierStrategy: 'avoid', barrierCostFactor: 2.8, routeLabel: '迂回優先', objectiveLabel: '都市'
+    personality: 'evasive', avoidTowers: true, barrierStrategy: 'avoid', barrierCostFactor: 2.8, routeLabel: '危険回避', objectiveLabel: '都市'
   },
   shield: {
     name: '盾兵', hp: 100, speed: 0.95, cityDamage: 8, barrierDps: 2, radius: 5.4, drops: ENEMY_DROPS.shield, shieldAura: 0.30,
-    barrierStrategy: 'balanced', barrierCostFactor: 0.9, routeLabel: '突破寄り', objectiveLabel: '都市'
+    personality: 'guardian', barrierStrategy: 'balanced', barrierCostFactor: 0.9, routeLabel: '護衛進軍', objectiveLabel: '都市'
   },
   engineer: {
     name: '工兵', hp: 60, speed: 1.0, cityDamage: 5, barrierDps: 8, radius: 4.7, drops: ENEMY_DROPS.engineer,
-    barrierStrategy: 'breach', barrierCostFactor: 0.42, routeLabel: '防壁破壊', objectiveLabel: '都市'
+    personality: 'breacher', barrierStrategy: 'breach', barrierCostFactor: 0.42, routeLabel: '防壁突破', objectiveLabel: '都市'
   },
   heavy: {
     name: '重装兵', hp: 180, speed: 0.7, cityDamage: 20, barrierDps: 6, radius: 6.5, drops: ENEMY_DROPS.heavy, slowResistance: 0.5,
-    barrierStrategy: 'breach', barrierCostFactor: 0.78, routeLabel: '正面突破', objectiveLabel: '都市'
+    personality: 'breacher', barrierStrategy: 'breach', barrierCostFactor: 0.78, routeLabel: '正面突破', objectiveLabel: '都市'
   },
   raider: {
     name: '破壊工作員', hp: 55, speed: 1.3, cityDamage: 6, barrierDps: 3, radius: 4.9, drops: ENEMY_DROPS.raider,
-    barrierStrategy: 'avoid', barrierCostFactor: 2.0, routeLabel: '潜入迂回', objectiveLabel: '支援・火力施設',
+    personality: 'saboteur', barrierStrategy: 'avoid', barrierCostFactor: 2.0, routeLabel: '施設潜入', objectiveLabel: '支援・火力施設',
     targetPriorities: ['medical', 'fieldAid', 'relay', 'mortar', 'gun', 'slow'], facilityDps: 12, stunSeconds: 8,
     attackMessage: '破壊工作員が防衛施設を停止させました。'
   },
   archer: {
     name: '弓兵', hp: 45, speed: 1.05, cityDamage: 7, barrierDps: 1, radius: 4, drops: { wood: 2, fiber: 4 }, generation: 1,
-    avoidTowers: true, barrierStrategy: 'avoid', barrierCostFactor: 2.4, routeLabel: '危険回避', objectiveLabel: '都市'
+    personality: 'evasive', avoidTowers: true, barrierStrategy: 'avoid', barrierCostFactor: 2.4, routeLabel: '射線回避', objectiveLabel: '都市'
   },
   ropeCutter: {
     name: '縄切り兵', hp: 65, speed: 1.1, cityDamage: 6, barrierDps: 5, radius: 4.5, drops: { wood: 2, stone: 1, fiber: 3 }, generation: 1,
-    barrierStrategy: 'balanced', barrierCostFactor: 0.9, routeLabel: '妨害排除', objectiveLabel: '減速・修復施設',
-    targetPriorities: ['slow', 'relay'], facilityDps: 10,
+    personality: 'saboteur', barrierStrategy: 'balanced', barrierCostFactor: 0.9, routeLabel: '妨害排除', objectiveLabel: '減速・修復施設',
+    targetPriorities: ['slow', 'relay'], facilityPriorityPenaltySeconds: 120, facilityDps: 10,
     attackMessage: '縄切り兵が妨害施設を破壊しています。'
+  },
+  pathfinder: {
+    name: '迂回斥候', hp: 34, speed: 1.65, cityDamage: 5, barrierDps: 1.2, radius: 3.9, drops: { wood: 1, fiber: 4 }, generation: 1,
+    personality: 'flanker', avoidTowers: true, avoidCongestion: true, barrierStrategy: 'avoid', barrierCostFactor: 3.1,
+    flankPreference: 3.8, flankWidthMeters: 145, maxDetourRatio: 1.70, minimumLateralMeters: 35,
+    routeLabel: '大迂回', objectiveLabel: '都市・簡易拠点', cityPriorityPenalty: 10, fieldBasePriorityPenalty: 4
+  },
+  marauder: {
+    name: '略奪兵', hp: 72, speed: 1.22, cityDamage: 8, barrierDps: 3, radius: 4.8, drops: { wood: 3, stone: 1, fiber: 3 }, generation: 1,
+    personality: 'marauder', avoidCongestion: true, barrierStrategy: 'balanced', barrierCostFactor: 1.1,
+    routeLabel: '拠点襲撃', objectiveLabel: '簡易拠点', cityPriorityPenalty: 50, fieldBasePriorityPenalty: 0
   },
   miner: {
     name: '採掘兵', hp: 85, speed: 0.9, cityDamage: 8, barrierDps: 4, radius: 5, drops: { stone: 3, copperOre: 1 }, generation: 2,
-    barrierStrategy: 'balanced', barrierCostFactor: 1.0, routeLabel: '状況判断', objectiveLabel: '都市'
+    personality: 'direct', barrierStrategy: 'balanced', barrierCostFactor: 1.0, routeLabel: '資源護送', objectiveLabel: '都市'
   },
   siegeBreaker: {
     name: '破城兵', hp: 145, speed: 0.72, cityDamage: 18, barrierDps: 12, settlementDamage: 18, radius: 6, drops: { stone: 5, charcoal: 1 }, generation: 2,
-    barrierStrategy: 'breach', barrierCostFactor: 0.3, routeLabel: '防壁最優先', objectiveLabel: '都市'
+    personality: 'breacher', barrierStrategy: 'breach', barrierCostFactor: 0.3, routeLabel: '防壁最優先', objectiveLabel: '都市'
   },
   oreCarrier: {
     name: '鉱石運搬兵', hp: 70, speed: 1.2, cityDamage: 5, barrierDps: 2, radius: 4.8, drops: { stone: 2, copperOre: 1, tinOre: 1 }, generation: 2,
-    barrierStrategy: 'avoid', barrierCostFactor: 1.8, routeLabel: '迂回優先', objectiveLabel: '都市'
+    personality: 'evasive', barrierStrategy: 'avoid', barrierCostFactor: 1.8, routeLabel: '護送迂回', objectiveLabel: '都市'
+  },
+  sapper: {
+    name: '爆破工兵', hp: 82, speed: 0.88, cityDamage: 7, barrierDps: 18, radius: 5.1, drops: { stone: 4, charcoal: 2 }, generation: 2,
+    personality: 'breacher', barrierStrategy: 'breach', barrierCostFactor: 0.12, routeLabel: '爆破突破', objectiveLabel: '防壁・都市'
+  },
+  pillager: {
+    name: '資源略奪兵', hp: 105, speed: 1.02, cityDamage: 11, barrierDps: 4, radius: 5.3, drops: { wood: 3, stone: 3, copperOre: 1 }, generation: 2,
+    personality: 'marauder', avoidCongestion: true, barrierStrategy: 'balanced', barrierCostFactor: 1.0,
+    routeLabel: '前線略奪', objectiveLabel: '簡易拠点・支援施設', cityPriorityPenalty: 42, fieldBasePriorityPenalty: 0,
+    targetPriorities: ['survey', 'relay', 'fieldAid', 'medical'], facilityDps: 13,
+    attackMessage: '資源略奪兵が前線支援施設を破壊しています。'
   },
   bronzeShield: {
     name: '青銅盾兵', hp: 170, speed: 0.78, cityDamage: 14, barrierDps: 4, radius: 6, drops: { stone: 4, bronzeIngot: 1 }, generation: 3, shieldAura: 0.35,
-    barrierStrategy: 'balanced', barrierCostFactor: 0.72, routeLabel: '突破寄り', objectiveLabel: '都市'
+    personality: 'guardian', barrierStrategy: 'balanced', barrierCostFactor: 0.72, routeLabel: '重護衛進軍', objectiveLabel: '都市'
   },
   siegeCaptain: {
     name: '攻城隊長', hp: 270, speed: 0.62, cityDamage: 30, barrierDps: 16, settlementDamage: 24, radius: 7, drops: { charcoal: 3, bronzeIngot: 2 }, generation: 3, slowResistance: 0.35,
-    barrierStrategy: 'breach', barrierCostFactor: 0.24, routeLabel: '攻城指揮', objectiveLabel: '重火力施設',
-    targetPriorities: ['mortar', 'gun'], facilityDps: 16,
+    personality: 'commander', barrierStrategy: 'breach', barrierCostFactor: 0.24, routeLabel: '攻城指揮', objectiveLabel: '重火力施設',
+    targetPriorities: ['mortar', 'gun'], facilityDps: 16, speedAura: 0.10, auraRange: 32,
     attackMessage: '攻城隊長が火力施設へ攻撃を集中しています。'
   },
   ironCarrier: {
     name: '鉄鉱運搬兵', hp: 115, speed: 1.0, cityDamage: 9, barrierDps: 4, radius: 5.2, drops: { stone: 3, ironOre: 2 }, generation: 3,
-    barrierStrategy: 'avoid', barrierCostFactor: 1.55, routeLabel: '迂回優先', objectiveLabel: '都市'
+    personality: 'evasive', barrierStrategy: 'avoid', barrierCostFactor: 1.55, routeLabel: '護送迂回', objectiveLabel: '都市'
+  },
+  flankRider: {
+    name: '側面騎兵', hp: 145, speed: 1.8, cityDamage: 16, barrierDps: 3, radius: 5.8, drops: { fiber: 4, bronzeIngot: 1 }, generation: 3, slowResistance: 0.25,
+    personality: 'flanker', avoidTowers: true, avoidCongestion: true, barrierStrategy: 'avoid', barrierCostFactor: 3.4,
+    flankPreference: 4.4, flankWidthMeters: 190, maxDetourRatio: 1.85, minimumLateralMeters: 55,
+    routeLabel: '長距離側面攻撃', objectiveLabel: '都市・簡易拠点', cityPriorityPenalty: 8, fieldBasePriorityPenalty: 2
+  },
+  warDrummer: {
+    name: '戦鼓兵', hp: 135, speed: 0.95, cityDamage: 9, barrierDps: 3, radius: 5.4, drops: { wood: 3, fiber: 4, bronzeIngot: 1 }, generation: 3,
+    personality: 'support', barrierStrategy: 'balanced', barrierCostFactor: 1.0, routeLabel: '主力同行', objectiveLabel: '周辺部隊支援',
+    speedAura: 0.14, auraRange: 42
   },
   ironclad: {
     name: '鉄甲兵', hp: 330, speed: 0.55, cityDamage: 36, barrierDps: 10, radius: 7.2, drops: { ironOre: 3, wroughtIron: 1 }, generation: 4, slowResistance: 0.65,
-    barrierStrategy: 'breach', barrierCostFactor: 0.5, routeLabel: '正面突破', objectiveLabel: '都市'
+    personality: 'guardian', barrierStrategy: 'breach', barrierCostFactor: 0.5, routeLabel: '鉄甲突破', objectiveLabel: '都市'
   },
   heavySiege: {
     name: '重攻城兵', hp: 460, speed: 0.42, cityDamage: 50, barrierDps: 24, settlementDamage: 36, radius: 8, drops: { ironOre: 4, wroughtIron: 1 }, generation: 4, slowResistance: 0.5,
-    barrierStrategy: 'breach', barrierCostFactor: 0.16, routeLabel: '防壁粉砕', objectiveLabel: '都市'
+    personality: 'breacher', barrierStrategy: 'breach', barrierCostFactor: 0.16, routeLabel: '防壁粉砕', objectiveLabel: '都市'
   },
   commander: {
-    name: '指揮官', hp: 310, speed: 0.75, cityDamage: 25, barrierDps: 8, radius: 7, drops: { bronzeIngot: 2, wroughtIron: 2 }, generation: 4, commanderAura: 0.18,
-    barrierStrategy: 'balanced', barrierCostFactor: 0.68, routeLabel: '部隊誘導', objectiveLabel: '都市'
+    name: '指揮官', hp: 310, speed: 0.75, cityDamage: 25, barrierDps: 8, radius: 7, drops: { bronzeIngot: 2, wroughtIron: 2 }, generation: 4,
+    personality: 'commander', commanderAura: 0.18, speedAura: 0.18, auraRange: 35,
+    barrierStrategy: 'balanced', barrierCostFactor: 0.68, routeLabel: '部隊統制', objectiveLabel: '都市'
+  },
+  squadHunter: {
+    name: '部隊狩り', hp: 220, speed: 1.34, cityDamage: 15, barrierDps: 5, radius: 6, drops: { ironOre: 2, bronzeIngot: 1 }, generation: 4, slowResistance: 0.3,
+    personality: 'hunter', huntFriendlySquads: true, avoidCongestion: true, barrierStrategy: 'balanced', barrierCostFactor: 0.95,
+    routeLabel: '味方部隊追跡', objectiveLabel: '道路上の味方部隊', cityPriorityPenalty: 60, fieldBasePriorityPenalty: 35
+  },
+  ironSaboteur: {
+    name: '重破壊工作員', hp: 265, speed: 0.9, cityDamage: 20, barrierDps: 8, radius: 6.3, drops: { ironOre: 2, wroughtIron: 1 }, generation: 4, slowResistance: 0.35,
+    personality: 'saboteur', avoidTowers: true, barrierStrategy: 'avoid', barrierCostFactor: 2.1,
+    routeLabel: '後方施設破壊', objectiveLabel: '治療・修復・火力施設',
+    targetPriorities: ['medical', 'fieldAid', 'relay', 'mortar', 'gun', 'slow', 'survey'], facilityDps: 22, stunSeconds: 12,
+    attackMessage: '重破壊工作員が後方施設を機能停止させました。'
+  },
+  bodyguard: {
+    name: '鉄衛兵', hp: 390, speed: 0.62, cityDamage: 24, barrierDps: 10, radius: 7.4, drops: { ironOre: 3, wroughtIron: 1 }, generation: 4, slowResistance: 0.55, shieldAura: 0.42,
+    personality: 'guardian', barrierStrategy: 'breach', barrierCostFactor: 0.62, routeLabel: '精鋭護衛', objectiveLabel: '指揮・攻城部隊の護衛'
   }
 });
 
 export const ENEMY_GENERATIONS = Object.freeze({
   0: ['infantry', 'scout', 'shield', 'engineer', 'heavy', 'raider'],
-  1: ['archer', 'ropeCutter'],
-  2: ['miner', 'siegeBreaker', 'oreCarrier'],
-  3: ['bronzeShield', 'siegeCaptain', 'ironCarrier'],
-  4: ['ironclad', 'heavySiege', 'commander']
+  1: ['archer', 'ropeCutter', 'pathfinder', 'marauder'],
+  2: ['miner', 'siegeBreaker', 'oreCarrier', 'sapper', 'pillager'],
+  3: ['bronzeShield', 'siegeCaptain', 'ironCarrier', 'flankRider', 'warDrummer'],
+  4: ['ironclad', 'heavySiege', 'commander', 'squadHunter', 'ironSaboteur', 'bodyguard']
 });
 
 export const ENEMY_BASE_DEFINITIONS = Object.freeze({

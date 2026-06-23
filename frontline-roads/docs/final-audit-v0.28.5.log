@@ -1,0 +1,19 @@
+FRONTLINE ROADS v0.28.5 CONTEXT PANEL STABILITY AUDIT
+
+Release: 0.28.5-context-panel-stability
+
+Completed:
+- Context explanation open state survives live HUD rerenders.
+- Disclosure state resets when the selected context target changes.
+- Context metrics render in a fixed three-column grid.
+- Metric cell padding reduced to lower panel height.
+- Alert frame remains removed.
+- Existing doubled facility build range remains unchanged.
+- Save schema remains version 2.
+
+Verification:
+- Normal automated run: 301 passed, 0 failed.
+- Serial automated run: 301 passed, 0 failed.
+- JavaScript syntax: passed.
+- Browser HTTP delivery: successful.
+- Chromium DOM render: blocked by environment inotify/DBus/netlink restrictions.

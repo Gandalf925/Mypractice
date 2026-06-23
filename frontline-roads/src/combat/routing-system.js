@@ -1,5 +1,7 @@
 import { distance } from '../core/utilities.js';
+import { pointToSegmentProjection } from '../roads/geometry.js';
 import { DEFENSE_DEFINITIONS, ENEMY_DEFINITIONS } from './definitions.js';
+import { enemyBehaviorForDefinition } from './enemy-personalities.js';
 import { scaleEnemyDefinition } from './enemy-scaling.js';
 import { edgeMidpoint } from './combat-geometry.js';
 
@@ -83,7 +85,6 @@ function barrierDelaySeconds(enemyDefinition, barrier, routeBias) {
   const factor = Math.max(0.05, Number(enemyDefinition.barrierCostFactor) || 1);
   const bias = Math.max(0.75, Math.min(1.25, Number(routeBias) || 1));
   if (strategy === 'avoid') return 900 + breakSeconds * factor * bias;
-  if (strategy === 'breach') return breakSeconds * factor * bias;
   return breakSeconds * factor * bias;
 }
 
@@ -103,12 +104,45 @@ function reconstructPath(previous, startId, targetId, cost, extra = {}) {
   return { nodeIds, edgeIds, cost, targetId, ...extra };
 }
 
-function searchCombatPath(state, startId, targetCandidates, enemyType, previewBarrierEdgeId, routeBias, enemyLevel = 1) {
+function pathGeometryMetrics(state, path, startId, targetId) {
+  const graph = state.world.roadGraph;
+  const start = graph.nodeById.get(startId);
+  const target = graph.nodeById.get(targetId);
+  let distanceMeters = 0;
+  let maxLateralDistance = 0;
+  for (const edgeId of path.edgeIds) {
+    const edge = graph.edgeById.get(edgeId);
+    if (!edge) continue;
+    distanceMeters += Math.max(0, Number(edge.length) || 0);
+    if (start && target) {
+      const middle = edgeMidpoint(graph, edgeId);
+      if (middle) maxLateralDistance = Math.max(maxLateralDistance, pointToSegmentProjection(middle, start, target).distance);
+    }
+  }
+  return { distanceMeters, maxLateralDistance };
+}
+
+function flankWeightMultiplier(state, edge, startId, targetId, behavior) {
+  const graph = state.world.roadGraph;
+  const start = graph.nodeById.get(startId);
+  const target = graph.nodeById.get(targetId);
+  const middle = edgeMidpoint(graph, edge.id);
+  if (!start || !target || !middle) return 1;
+  const lineDistance = Math.max(1, distance(start, target));
+  const width = Math.max(45, Math.min(behavior.flankWidthMeters, lineDistance * 0.75));
+  const projection = pointToSegmentProjection(middle, start, target);
+  const proximity = Math.max(0, 1 - projection.distance / width);
+  const centerFactor = Math.sin(Math.PI * projection.t);
+  return 1 + Math.max(0, behavior.flankPreference) * proximity * centerFactor;
+}
+
+function searchCombatPathCore(state, startId, targetCandidates, enemyType, previewBarrierEdgeId, routeBias, enemyLevel = 1, flankTargetId = null) {
   const graph = state.world.roadGraph;
   if (!graph?.nodeById?.has(startId) || !targetCandidates.length) return null;
   const enemyDefinition = scaleEnemyDefinition(ENEMY_DEFINITIONS[enemyType] ?? ENEMY_DEFINITIONS.infantry, enemyLevel);
+  const behavior = enemyBehaviorForDefinition(enemyDefinition);
   const { barriers, towers } = defenseMaps(state);
-  const edgeCounts = enemyDefinition.avoidCongestion ? enemyCountMap(state) : null;
+  const edgeCounts = behavior.avoidCongestion ? enemyCountMap(state) : null;
   const threatCache = new Map();
   const targetsByNode = new Map();
   for (const candidate of targetCandidates) {
@@ -145,8 +179,9 @@ function searchCombatPath(state, startId, targetCandidates, enemyType, previewBa
         ? { hp: DEFENSE_DEFINITIONS.barrier.hp }
         : barriers.get(connection.edgeId);
       if (barrier?.hp > 0) weight += barrierDelaySeconds(enemyDefinition, barrier, routeBias);
-      if (enemyDefinition.avoidTowers) weight *= 1 + edgeTowerThreat(state, edge.id, towers, threatCache) * 0.9;
-      if (enemyDefinition.avoidCongestion) weight *= 1 + (edgeCounts.get(edge.id) ?? 0) / 12;
+      if (behavior.avoidTowers) weight *= 1 + edgeTowerThreat(state, edge.id, towers, threatCache) * 0.9;
+      if (behavior.avoidCongestion) weight *= 1 + (edgeCounts.get(edge.id) ?? 0) / 12;
+      if (flankTargetId) weight *= flankWeightMultiplier(state, edge, startId, flankTargetId, behavior);
       const nextDistance = current.distance + weight;
       if (nextDistance >= (distances.get(connection.to) ?? Infinity)) continue;
       distances.set(connection.to, nextDistance);
@@ -156,9 +191,38 @@ function searchCombatPath(state, startId, targetCandidates, enemyType, previewBa
   }
 
   if (!best) return null;
-  return reconstructPath(previous, startId, best.nodeId, best.routeCost, { targetObjectId: best.targetObjectId ?? null });
+  const path = reconstructPath(previous, startId, best.nodeId, best.routeCost, { targetObjectId: best.targetObjectId ?? null });
+  return path ? { ...path, ...pathGeometryMetrics(state, path, startId, best.nodeId) } : null;
 }
 
+function pathsDiffer(left, right) {
+  if (!left || !right || left.edgeIds.length !== right.edgeIds.length) return true;
+  return left.edgeIds.some((edgeId, index) => edgeId !== right.edgeIds[index]);
+}
+
+function withRoutePresentation(path, behavior, routeMode = behavior.routeMode, detourPercent = 0) {
+  return path ? { ...path, routeMode, personalityKey: behavior.personalityKey, detourPercent } : null;
+}
+
+function searchCombatPath(state, startId, targetCandidates, enemyType, previewBarrierEdgeId, routeBias, enemyLevel = 1) {
+  const definition = scaleEnemyDefinition(ENEMY_DEFINITIONS[enemyType] ?? ENEMY_DEFINITIONS.infantry, enemyLevel);
+  const behavior = enemyBehaviorForDefinition(definition);
+  const baseline = searchCombatPathCore(state, startId, targetCandidates, enemyType, previewBarrierEdgeId, routeBias, enemyLevel);
+  if (!baseline || !behavior.prefersDetour || baseline.edgeIds.length < 2) return withRoutePresentation(baseline, behavior);
+
+  const selectedTarget = targetCandidates.find(target =>
+    target.nodeId === baseline.targetId && (target.targetObjectId ?? null) === (baseline.targetObjectId ?? null)
+  ) ?? { nodeId: baseline.targetId, targetObjectId: baseline.targetObjectId ?? null };
+  const flanking = searchCombatPathCore(state, startId, [selectedTarget], enemyType, previewBarrierEdgeId, routeBias, enemyLevel, baseline.targetId);
+  const shortest = findRoadPath(state, startId, baseline.targetId);
+  if (!flanking || !shortest || shortest.cost <= 0 || !pathsDiffer(flanking, baseline)) return withRoutePresentation(baseline, behavior, 'EVASIVE');
+
+  const ratio = flanking.distanceMeters / shortest.cost;
+  const lateralEnough = flanking.maxLateralDistance >= Math.min(behavior.minimumLateralMeters, Math.max(12, shortest.cost * 0.18));
+  if (ratio > behavior.maxDetourRatio || !lateralEnough) return withRoutePresentation(baseline, behavior, 'EVASIVE');
+  const detourPercent = Math.max(0, Math.round((ratio - 1) * 100));
+  return withRoutePresentation(flanking, behavior, 'FLANK', detourPercent);
+}
 
 export function findRoadPath(state, startId, targetId) {
   const graph = state.world.roadGraph;

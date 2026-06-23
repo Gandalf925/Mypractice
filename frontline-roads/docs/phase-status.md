@@ -38,3 +38,9 @@
 | 28.2 Balance stabilization | Complete | Repeated strategy playthroughs, reachable civilization projects, passive city reconstruction, front-aware hostile-base pressure, guarded assaults and paid base expansion |
 | Single HTML | Deferred | Generate only immediately before blockchain publication |
 | GitHub upload | Prepared | Complete modular replacement package generated for manual upload |
+
+## v0.29.0 Enemy personalities
+
+- Added unified enemy personalities, bounded flanking routes, deterministic wave doctrines and nine civilization-linked enemy variants.
+- Added simple-base raiding, friendly-squad hunting, support speed auras and expanded enemy-selection diagnostics.
+- Save schema remains unchanged.

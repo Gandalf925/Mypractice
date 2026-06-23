@@ -11,6 +11,7 @@ import { FRIENDLY_SQUAD_DEFINITIONS, friendlySquadDefinition } from './friendly-
 const FACILITY_ATTACK_RANGE_METERS = 20;
 const FACILITY_PRIORITY_PENALTY_SECONDS = 18;
 const FIELD_BASE_PRIORITY_PENALTY_SECONDS = 20;
+const FRIENDLY_SQUAD_ATTACK_RANGE_METERS = 24;
 
 function stableRouteBias(text) {
   let hash = 2166136261;
@@ -25,7 +26,7 @@ export function enemyPosition(state, enemy) {
   return roadUnitPosition(state, enemy);
 }
 
-export function spawnEnemy(state, base, type, departDelay = 0, waveId = null) {
+export function spawnEnemy(state, base, type, departDelay = 0, waveId = null, doctrineKey = 'frontal') {
   if (state.combat.enemies.length >= MAX_ENEMIES) return null;
   const baseDefinition = ENEMY_DEFINITIONS[type];
   if (!baseDefinition) return null;
@@ -37,8 +38,9 @@ export function spawnEnemy(state, base, type, departDelay = 0, waveId = null) {
     type, level, hp: definition.hp, maxHp: definition.hp, nodeId: base.nodeId,
     path: null, pathIndex: 0, edgeId: null, edgeProgress: 0,
     slowTimer: 0, slowMultiplier: 0.52, attackClock: 0, departDelay,
-    sourceBaseId: base.id, waveId, waveResolved: false, rewardGranted: false,
-    reroutePending: false, routeBias: stableRouteBias(id), targetDefenseId: null, targetFieldBaseId: null, notifiedDefenseIds: [], engagedSquadId: null
+    sourceBaseId: base.id, waveId, doctrineKey, waveResolved: false, rewardGranted: false,
+    reroutePending: false, routeBias: stableRouteBias(id), targetDefenseId: null, targetFieldBaseId: null, targetSquadId: null,
+    notifiedDefenseIds: [], engagedSquadId: null
   };
   state.combat.enemies.push(enemy);
   return enemy;
@@ -60,7 +62,7 @@ function facilityTargetCandidates(state, definition) {
     .map(defense => ({
       nodeId: defense.nodeId,
       targetObjectId: defense.id,
-      priorityPenalty: rankByType.get(defense.type) * FACILITY_PRIORITY_PENALTY_SECONDS
+      priorityPenalty: rankByType.get(defense.type) * Math.max(0, Number(definition.facilityPriorityPenaltySeconds ?? FACILITY_PRIORITY_PENALTY_SECONDS))
     }));
 }
 
@@ -68,8 +70,54 @@ function activeFieldBaseById(state, baseId) {
   return baseId ? fieldBaseById(state, baseId, { includeDestroyed: false }) : null;
 }
 
+function activeHuntSquadById(state, squadId) {
+  if (!squadId) return null;
+  return (state.combat.friendlySquads ?? []).find(squad =>
+    squad.id === squadId && squad.hp > 0 && !['RECOVERING', 'READY'].includes(squad.status)
+  ) ?? null;
+}
+
+function squadTargetNodeId(state, squad) {
+  if (!squad) return null;
+  if (squad.path?.nodeIds?.length) {
+    const next = squad.path.nodeIds[Math.min(squad.pathIndex + 1, squad.path.nodeIds.length - 1)];
+    if (next && state.world.roadGraph.nodeById.has(next)) return next;
+  }
+  return state.world.roadGraph.nodeById.has(squad.nodeId) ? squad.nodeId : null;
+}
+
+function friendlySquadTargetCandidates(state) {
+  return (state.combat.friendlySquads ?? [])
+    .filter(squad => squad.hp > 0 && !['RECOVERING', 'READY'].includes(squad.status))
+    .map(squad => ({ squad, nodeId: squadTargetNodeId(state, squad) }))
+    .filter(entry => entry.nodeId)
+    .map(({ squad, nodeId }) => ({
+      nodeId,
+      targetObjectId: `squad:${squad.id}`,
+      priorityPenalty: squad.type === 'retrieval' ? 0 : 5
+    }));
+}
+
 function planPath(state, enemy) {
   const definition = ENEMY_DEFINITIONS[enemy.type] ?? ENEMY_DEFINITIONS.infantry;
+  if (definition.huntFriendlySquads) {
+    const squadPath = findCombatPathToTargets(
+      state,
+      enemy.nodeId,
+      friendlySquadTargetCandidates(state),
+      enemy.type,
+      enemy.routeBias ?? 1,
+      enemy.level ?? 1
+    );
+    if (squadPath?.targetObjectId?.startsWith('squad:')) {
+      enemy.targetSquadId = squadPath.targetObjectId.slice(6);
+      enemy.targetDefenseId = null;
+      enemy.targetFieldBaseId = null;
+      return squadPath;
+    }
+  }
+  enemy.targetSquadId = null;
+
   const targets = facilityTargetCandidates(state, definition);
   if (targets.length) {
     const facilityPath = findCombatPathToTargets(state, enemy.nodeId, targets, enemy.type, enemy.routeBias ?? 1, enemy.level ?? 1);
@@ -80,12 +128,14 @@ function planPath(state, enemy) {
     }
   }
   enemy.targetDefenseId = null;
+  const cityPenalty = Math.max(0, Number(definition.cityPriorityPenalty ?? 0));
+  const fieldPenalty = Math.max(0, Number(definition.fieldBasePriorityPenalty ?? FIELD_BASE_PRIORITY_PENALTY_SECONDS));
   const settlementTargets = [
-    { nodeId: state.world.city.nodeId, targetObjectId: 'city', priorityPenalty: 0 },
+    { nodeId: state.world.city.nodeId, targetObjectId: 'city', priorityPenalty: cityPenalty },
     ...activeFieldBases(state).map(base => ({
       nodeId: base.nodeId,
       targetObjectId: `field:${base.id}`,
-      priorityPenalty: FIELD_BASE_PRIORITY_PENALTY_SECONDS
+      priorityPenalty: fieldPenalty
     }))
   ];
   const path = findCombatPathToTargets(state, enemy.nodeId, settlementTargets, enemy.type, enemy.routeBias ?? 1, enemy.level ?? 1);
@@ -102,11 +152,18 @@ function ensurePath(state, enemy) {
     enemy.targetFieldBaseId = null;
     enemy.reroutePending = true;
   }
+  if (enemy.targetSquadId && !activeHuntSquadById(state, enemy.targetSquadId)) {
+    enemy.targetSquadId = null;
+    enemy.reroutePending = true;
+  }
+  const targetSquad = activeHuntSquadById(state, enemy.targetSquadId);
   const expectedTargetId = enemy.targetDefenseId
     ? activeTowerById(state, enemy.targetDefenseId)?.nodeId
     : enemy.targetFieldBaseId
       ? activeFieldBaseById(state, enemy.targetFieldBaseId)?.nodeId
-      : state.world.city.nodeId;
+      : targetSquad
+        ? squadTargetNodeId(state, targetSquad)
+        : state.world.city.nodeId;
   const currentPathValid = expectedTargetId && enemy.path?.targetId === expectedTargetId && enemy.pathIndex < enemy.path.edgeIds.length;
   if (currentPathValid && !enemy.reroutePending) return true;
 
@@ -239,6 +296,15 @@ function nearbyHeavyGuard(state, protectedSquad, protectedPoint) {
     .sort((a, b) => a.gap - b.gap)[0]?.squad ?? null;
 }
 
+function acquireHuntEngagement(state, enemy, definition) {
+  if (!definition.huntFriendlySquads || enemy.engagedSquadId) return;
+  const squad = activeHuntSquadById(state, enemy.targetSquadId);
+  if (!squad) return;
+  if (distance(enemyPosition(state, enemy), roadUnitPosition(state, squad)) > FRIENDLY_SQUAD_ATTACK_RANGE_METERS) return;
+  enemy.engagedSquadId = squad.id;
+  squad.engagedEnemyId ??= enemy.id;
+}
+
 function attackFriendlySquad(state, enemy, definition, deltaSeconds, events) {
   const squad = activeFriendlySquadById(state, enemy.engagedSquadId);
   if (!squad) {
@@ -247,7 +313,7 @@ function attackFriendlySquad(state, enemy, definition, deltaSeconds, events) {
   }
   const enemyPoint = enemyPosition(state, enemy);
   const squadPoint = roadUnitPosition(state, squad);
-  if (distance(enemyPoint, squadPoint) > 24) {
+  if (distance(enemyPoint, squadPoint) > FRIENDLY_SQUAD_ATTACK_RANGE_METERS) {
     enemy.engagedSquadId = null;
     if (squad.engagedEnemyId === enemy.id) squad.engagedEnemyId = null;
     return false;
@@ -281,6 +347,7 @@ export class EnemySystem {
     enemy.slowTimer = Math.max(0, enemy.slowTimer - deltaSeconds);
     const definition = scaleEnemyDefinition(ENEMY_DEFINITIONS[enemy.type] ?? ENEMY_DEFINITIONS.infantry, enemy.level ?? 1);
 
+    acquireHuntEngagement(state, enemy, definition);
     if (attackFriendlySquad(state, enemy, definition, deltaSeconds, this.events)) return false;
     if (attackTargetFacility(state, enemy, definition, deltaSeconds, this.events)) return false;
     if (!ensurePath(state, enemy) || !enemy.edgeId) return false;
@@ -309,17 +376,20 @@ export class EnemySystem {
       return false;
     }
 
-    let commanderMultiplier = 1;
-    if (enemy.type !== 'commander') {
-      const position = frame.spatial.positions.get(enemy.id) ?? enemyPosition(state, enemy);
-      const commanded = frame.spatial.commanders.some(entry => entry.enemy.hp > 0 && distance(entry.position, position) <= 35);
-      if (commanded) commanderMultiplier = 1 + (ENEMY_DEFINITIONS.commander.commanderAura ?? 0);
+    let commandMultiplier = 1;
+    const position = frame.spatial.positions.get(enemy.id) ?? enemyPosition(state, enemy);
+    for (const entry of frame.spatial.speedAuras ?? frame.spatial.commanders ?? []) {
+      if (entry.enemy.id === enemy.id || entry.enemy.hp <= 0) continue;
+      const auraDefinition = ENEMY_DEFINITIONS[entry.enemy.type] ?? {};
+      const aura = Math.max(0, Number(auraDefinition.speedAura ?? auraDefinition.commanderAura) || 0);
+      const range = Math.max(1, Number(auraDefinition.auraRange) || 35);
+      if (aura > 0 && distance(entry.position, position) <= range) commandMultiplier = Math.max(commandMultiplier, 1 + aura);
     }
     const slowBase = enemy.slowMultiplier ?? 0.52;
     const slowMultiplier = enemy.slowTimer > 0
       ? 1 - (1 - slowBase) * (1 - (definition.slowResistance ?? 0))
       : 1;
-    enemy.edgeProgress += definition.speed * commanderMultiplier * slowMultiplier * deltaSeconds;
+    enemy.edgeProgress += definition.speed * commandMultiplier * slowMultiplier * deltaSeconds;
 
     if (enemy.edgeProgress < edge.length) return false;
     enemy.nodeId = enemy.path.nodeIds[enemy.pathIndex + 1];
@@ -373,6 +443,7 @@ export class EnemySystem {
     if (!spatial) {
       const positions = new Map();
       const commanders = [];
+      const speedAuras = [];
       const entries = [];
       for (const enemy of state.combat.enemies) {
         if (enemy.hp <= 0 || enemy.departDelay > 0) continue;
@@ -381,10 +452,13 @@ export class EnemySystem {
         positions.set(enemy.id, position);
         entries.push(entry);
         if (enemy.type === 'commander') commanders.push(entry);
+        const auraDefinition = ENEMY_DEFINITIONS[enemy.type] ?? {};
+        if ((auraDefinition.speedAura ?? auraDefinition.commanderAura ?? 0) > 0) speedAuras.push(entry);
       }
       spatial = {
         positions,
         commanders,
+        speedAuras,
         query(point, range) {
           const limit = range * range;
           return entries.filter(entry => {

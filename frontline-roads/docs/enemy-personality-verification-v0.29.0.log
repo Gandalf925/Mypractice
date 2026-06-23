@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: civilization generations contain expanded valid enemy variants with explicit personalities
+ok 1 - civilization generations contain expanded valid enemy variants with explicit personalities
+  ---
+  duration_ms: 1.050353
+  type: 'test'
+  ...
+# Subtest: flanking enemies choose a bounded longer side road while direct infantry uses the shortest road
+ok 2 - flanking enemies choose a bounded longer side road while direct infantry uses the shortest road
+  ---
+  duration_ms: 2.410035
+  type: 'test'
+  ...
+# Subtest: marauder personality prioritizes a field base over an equally reachable city
+ok 3 - marauder personality prioritizes a field base over an equally reachable city
+  ---
+  duration_ms: 1.364129
+  type: 'test'
+  ...
+# Subtest: squad hunter plans toward an active friendly squad and damages it after contact
+ok 4 - squad hunter plans toward an active friendly squad and damages it after contact
+  ---
+  duration_ms: 0.871226
+  type: 'test'
+  ...
+# Subtest: war drummer speed aura accelerates nearby allies without accelerating itself
+ok 5 - war drummer speed aura accelerates nearby allies without accelerating itself
+  ---
+  duration_ms: 0.630468
+  type: 'test'
+  ...
+# Subtest: civilization level four rotates doctrines and introduces the new generation across repeated waves
+ok 6 - civilization level four rotates doctrines and introduces the new generation across repeated waves
+  ---
+  duration_ms: 2.62182
+  type: 'test'
+  ...
+# Subtest: personality route and doctrine metadata survive the unchanged save schema
+ok 7 - personality route and doctrine metadata survive the unchanged save schema
+  ---
+  duration_ms: 1.542815
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 148.207861

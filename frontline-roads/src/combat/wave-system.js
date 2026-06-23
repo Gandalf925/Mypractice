@@ -1,8 +1,9 @@
 import { stableId } from '../core/utilities.js';
-import { ENEMY_BASE_DEFINITIONS, ENEMY_GENERATIONS } from './definitions.js';
+import { ENEMY_BASE_DEFINITIONS, ENEMY_DEFINITIONS, ENEMY_GENERATIONS } from './definitions.js';
 import { spawnEnemy } from './enemy-system.js';
 import { enemyBaseLevelForState, waveIntervalForBase } from './enemy-scaling.js';
 import { INITIAL_BASE_TYPES, selectEnemyBaseNode } from './enemy-base-placement.js';
+import { enemyBehaviorForDefinition, waveDoctrineDefinition } from './enemy-personalities.js';
 
 export { INITIAL_BASE_TYPES } from './enemy-base-placement.js';
 
@@ -10,6 +11,24 @@ function deterministicIndex(text, length) {
   let hash = 2166136261;
   for (const character of text) { hash ^= character.charCodeAt(0); hash = Math.imul(hash, 16777619); }
   return length ? (hash >>> 0) % length : 0;
+}
+
+export function waveDoctrineForBase(state, base, guard = false) {
+  if (guard) return waveDoctrineDefinition('guard');
+  const level = Math.max(0, Math.floor(Number(state.civilization?.level) || 0));
+  const available = ['frontal'];
+  if (level >= 1) available.push('flank', 'raid');
+  if (level >= 2) available.push('breach');
+  if (level >= 3) available.push('support');
+  if (level >= 4) available.push('hunt');
+  const key = available[deterministicIndex(`${base.id}:${base.wavesSent}:doctrine:${level}`, available.length)];
+  return waveDoctrineDefinition(key);
+}
+
+function doctrinePool(pool, doctrine) {
+  const preferred = new Set(doctrine.preferredPersonalities ?? []);
+  const matching = pool.filter(type => preferred.has(enemyBehaviorForDefinition(ENEMY_DEFINITIONS[type]).personalityKey));
+  return matching.length ? matching : pool;
 }
 
 export function enemyGenerationMix(state) {
@@ -44,12 +63,13 @@ function levelWave(definition, base) {
   return wave;
 }
 
-export function waveForBase(state, base) {
+export function waveForBase(state, base, doctrineKey = null) {
   const definition = ENEMY_BASE_DEFINITIONS[base.type];
   if (!definition) return [];
   const wave = levelWave(definition, base);
   if (definition.isResourceBase) return wave;
 
+  const doctrine = doctrineKey ? waveDoctrineDefinition(doctrineKey) : waveDoctrineForBase(state, base);
   const mix = enemyGenerationMix(state);
   if (mix.generation <= 0 || wave.length === 0) return wave;
   const current = ENEMY_GENERATIONS[mix.generation] ?? [];
@@ -57,12 +77,13 @@ export function waveForBase(state, base) {
     .filter(([generation]) => Number(generation) > 0 && Number(generation) < mix.generation)
     .flatMap(([, values]) => values);
   if (mix.probability <= 0 && previous.length === 0) return wave;
-  const replacementSlots = base.level >= 4 ? 2 : 1;
+  const replacementSlots = Math.min(wave.length, 1 + Math.floor(Math.max(1, Number(base.level) || 1) / 2));
   for (let index = 0; index < Math.min(replacementSlots, wave.length); index += 1) {
     const roll = deterministicIndex(`${base.id}:${base.wavesSent}:${index}:roll`, 1000) / 1000;
-    const pool = current.length && roll < mix.probability ? current : previous;
+    const rawPool = current.length && roll < mix.probability ? current : previous;
+    const pool = doctrinePool(rawPool, doctrine);
     if (!pool.length) continue;
-    const type = pool[deterministicIndex(`${base.id}:${base.wavesSent}:${index}:type`, pool.length)];
+    const type = pool[deterministicIndex(`${base.id}:${base.wavesSent}:${index}:${doctrine.key}:type`, pool.length)];
     wave[wave.length - 1 - index] = type;
   }
   return wave;
@@ -107,18 +128,24 @@ export class WaveSystem {
   constructor(events) { this.events = events; }
 
   spawnWave(state, base, guard = false) {
-    const wave = waveForBase(state, base);
+    const doctrine = waveDoctrineForBase(state, base, guard);
+    const wave = waveForBase(state, base, doctrine.key);
     state.combat.waves.active ??= {};
     const waveId = stableId('wave', base.id, base.wavesSent, state.runtime?.worldTimeMs ?? Date.now());
     let spawned = 0;
-    wave.forEach((type, index) => { if (spawnEnemy(state, base, type, index * (guard ? 3 : 8), waveId)) spawned += 1; });
+    wave.forEach((type, index) => {
+      if (spawnEnemy(state, base, type, index * (guard ? 3 : 8), waveId, doctrine.key)) spawned += 1;
+    });
     if (spawned > 0) {
-      state.combat.waves.active[waveId] = { id: waveId, baseId: base.id, remaining: spawned, breached: false, guard, startedAt: state.runtime?.worldTimeMs ?? Date.now() };
-      this.events?.emit('combat:wave-launched', { baseId: base.id, waveId, count: spawned, guard, level: base.level ?? 1 });
+      state.combat.waves.active[waveId] = {
+        id: waveId, baseId: base.id, remaining: spawned, breached: false, guard,
+        doctrineKey: doctrine.key, startedAt: state.runtime?.worldTimeMs ?? Date.now()
+      };
+      this.events?.emit('combat:wave-launched', { baseId: base.id, waveId, count: spawned, guard, doctrineKey: doctrine.key, level: base.level ?? 1 });
     }
     if (!guard) {
       base.wavesSent += 1;
-      this.events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[base.type].name} Lv.${base.level ?? 1}から敵部隊が出撃しました。` });
+      this.events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[base.type].name} Lv.${base.level ?? 1}が「${doctrine.label}」を開始しました。` });
     }
     return spawned;
   }

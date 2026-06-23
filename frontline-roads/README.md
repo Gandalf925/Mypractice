@@ -1,10 +1,24 @@
-# FRONTLINE ROADS — modular source v0.28.4 UI and cache correction
+# FRONTLINE ROADS — modular source v0.29.0 enemy personalities
 
 FRONTLINE ROADS is a location-based, continuously progressing road-defense strategy game. This directory is the canonical modular development source.
 
+## Enemy personalities and civilization variants v0.29.0
+
+This release turns the existing route and target flags into a coherent enemy-behavior layer and expands every civilization generation.
+
+- Every enemy now resolves through an explicit personality: direct, evasive, flanker, breacher, saboteur, marauder, hunter, support, guardian or commander.
+- True flanking units use a bounded alternative-road search. They may accept a longer route only when it remains inside their configured detour ratio and produces meaningful lateral separation from the shortest line.
+- Civilization Lv.1 adds Pathfinder Scouts and Marauders; Lv.2 adds Sappers and Pillagers; Lv.3 adds Flank Riders and War Drummers; Lv.4 adds Squad Hunters, Iron Saboteurs and Iron Guards.
+- Waves receive deterministic doctrines such as frontal assault, flank attack, raid, siege breach, coordinated advance and squad hunt. Doctrine affects which civilization-generation specialists replace the base formation.
+- Marauders can prioritize simple bases, saboteurs target support and fire facilities, squad hunters dynamically track friendly road units, and War Drummers/commanders provide non-stacking speed support.
+- Selecting an enemy now displays its personality, wave doctrine, actual route mode, detour percentage and current objective.
+- Existing saves remain compatible; missing personality, doctrine and target fields are inferred from the enemy type at runtime.
+
+Implementation details and verification boundaries are documented in `docs/enemy-personalities-v0.29.0.md`.
 
 
-## UI and cache correction v0.28.4
+
+## Context panel stability v0.28.5
 
 This release uses repeated deterministic playthroughs to correct progression blockers and strategy dominance without adding a parallel rules layer.
 

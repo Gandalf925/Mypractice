@@ -1,4 +1,4 @@
-const RELEASE_ID = '0.28.4-ui-cache-correction';
+const RELEASE_ID = '0.29.0-enemy-personalities';
 const RELEASE_KEY = 'frontline_roads_asset_release';
 
 function readReleaseMarker() {
@@ -28,18 +28,18 @@ async function clearPreviousRelease() {
 
 async function startCurrentRelease() {
   const url = new URL(globalThis.location.href);
-  const refreshedUrl = url.searchParams.get('release') === '0.28.4';
+  const refreshedUrl = url.searchParams.get('release') === '0.29.0';
   if (readReleaseMarker() !== RELEASE_ID && !refreshedUrl) {
     writeReleaseMarker();
     await clearPreviousRelease();
-    url.searchParams.set('release', '0.28.4');
+    url.searchParams.set('release', '0.29.0');
     globalThis.location.replace(url.toString());
     return;
   }
-  await import('./bootstrap.js?v=0.28.4');
+  await import('./bootstrap.js?v=0.29.0');
 }
 
 startCurrentRelease().catch(async error => {
   console.warn('Release refresh failed; starting current bundle directly.', error);
-  await import('./bootstrap.js?v=0.28.4');
+  await import('./bootstrap.js?v=0.29.0');
 });

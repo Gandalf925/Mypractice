@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.28.4-ui-cache-correction';
+export const APP_VERSION = '0.29.0-enemy-personalities';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 

@@ -1,4 +1,5 @@
 import { enemyPosition } from './enemy-system.js';
+import { ENEMY_DEFINITIONS } from './definitions.js';
 
 function cellKey(x, y, size) {
   return `${Math.floor(x / size)},${Math.floor(y / size)}`;
@@ -9,6 +10,7 @@ export function buildCombatSpatialIndex(state, cellSize = 48) {
   const entries = [];
   const positions = new Map();
   const commanders = [];
+  const speedAuras = [];
   const shields = [];
   for (const enemy of state.combat.enemies ?? []) {
     if (enemy.hp <= 0 || enemy.departDelay > 0) continue;
@@ -20,7 +22,9 @@ export function buildCombatSpatialIndex(state, cellSize = 48) {
     if (!cells.has(key)) cells.set(key, []);
     cells.get(key).push(entry);
     if (enemy.type === 'commander') commanders.push(entry);
-    if (enemy.type === 'shield' || enemy.type === 'bronzeShield') shields.push(entry);
+    const definition = ENEMY_DEFINITIONS[enemy.type] ?? {};
+    if ((definition.speedAura ?? definition.commanderAura ?? 0) > 0) speedAuras.push(entry);
+    if ((definition.shieldAura ?? 0) > 0) shields.push(entry);
   }
 
   function query(point, range) {
@@ -42,5 +46,5 @@ export function buildCombatSpatialIndex(state, cellSize = 48) {
     return result;
   }
 
-  return { cellSize, cells, entries, positions, commanders, shields, query };
+  return { cellSize, cells, entries, positions, commanders, speedAuras, shields, query };
 }
