@@ -44,3 +44,9 @@
 - Added unified enemy personalities, bounded flanking routes, deterministic wave doctrines and nine civilization-linked enemy variants.
 - Added simple-base raiding, friendly-squad hunting, support speed auras and expanded enemy-selection diagnostics.
 - Save schema remains unchanged.
+## v0.29.1 Display recovery
+
+- Removed destructive pre-boot cache deletion and forced reload.
+- Added stylesheet-first startup, versioned module retry, canonical path fallback, `.nojekyll` markers and `/fr/` compatibility redirect.
+- All v0.29.0 gameplay systems and save compatibility remain unchanged.
+

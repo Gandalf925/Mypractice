@@ -8,7 +8,52 @@
   <link rel="icon" href="./icon-192.png">
   <link rel="apple-touch-icon" href="./icon-192.png">
   <title>FRONTLINE ROADS</title>
-  <link rel="stylesheet" href="./src/styles/app.css">
+  <style id="criticalStyles">
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #010807; color: #dffdf4; font-family: ui-monospace, monospace; }
+    [hidden] { display: none !important; }
+    #assetRecovery { position: fixed; z-index: 9999; inset: 0; display: grid; place-items: center; padding: 24px; background: #010807; color: #dffdf4; }
+    #assetRecovery[hidden] { display: none !important; }
+    #assetRecovery > div { width: min(520px, 100%); padding: 18px; border: 1px solid rgba(101,255,208,.58); background: #03110e; }
+    #assetRecovery strong { display: block; color: #65ffd0; font-size: 18px; }
+    #assetRecovery p { margin: 10px 0 0; color: #9fcfc2; line-height: 1.55; }
+  </style>
+  <script>
+    globalThis.__FRONTLINE_RELEASE__ = Object.freeze({ version: '0.29.1', directory: 'frontline-roads' });
+    globalThis.__FRONTLINE_STYLES_READY__ = (() => {
+      const release = globalThis.__FRONTLINE_RELEASE__;
+      const projectSegment = location.pathname.split('/').filter(Boolean)[0] ?? '';
+      const projectRoot = projectSegment ? `/${projectSegment}/` : '/';
+      const baseCandidates = [
+        new URL('./src/styles/app.css', location.href),
+        new URL(`${projectRoot}${release.directory}/src/styles/app.css`, location.origin)
+      ];
+      const unique = [...new Map(baseCandidates.map(url => [url.href, url])).values()];
+      const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+      const load = url => new Promise((resolve, reject) => {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.dataset.frontlineStyles = 'true';
+        link.onload = () => resolve(link);
+        link.onerror = () => { link.remove(); reject(new Error(`Stylesheet failed: ${url}`)); };
+        link.href = url;
+        document.head.appendChild(link);
+      });
+      return (async () => {
+        let lastError = null;
+        for (let round = 0; round < 2; round += 1) {
+          for (const candidate of unique) {
+            const url = new URL(candidate.href);
+            url.searchParams.set('v', release.version);
+            if (round > 0) url.searchParams.set('retry', String(Date.now()));
+            try { return await load(url.href); }
+            catch (error) { lastError = error; }
+          }
+          await delay(1200);
+        }
+        throw lastError ?? new Error('Stylesheet could not be loaded.');
+      })();
+    })();
+  </script>
 </head>
 <body>
   <main id="app">
@@ -130,6 +175,40 @@
     <div id="notification" class="notification" role="status"></div>
     <footer>開発版 <span id="versionText"></span></footer>
   </main>
-  <script type="module" src="./src/app/release-loader.js"></script>
+  <aside id="assetRecovery" hidden role="alert">
+    <div><strong>表示データを読み込めませんでした</strong><p>通信状態を確認して再読み込みしてください。ゲームのセーブデータは削除されません。</p></div>
+  </aside>
+  <script type="module">
+    const release = globalThis.__FRONTLINE_RELEASE__;
+    const projectSegment = location.pathname.split('/').filter(Boolean)[0] ?? '';
+    const projectRoot = projectSegment ? `/${projectSegment}/` : '/';
+    const baseCandidates = [
+      new URL('./src/app/bootstrap.js', location.href),
+      new URL(`${projectRoot}${release.directory}/src/app/bootstrap.js`, location.origin)
+    ];
+    const unique = [...new Map(baseCandidates.map(url => [url.href, url])).values()];
+    const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+    async function importApplication() {
+      let lastError = null;
+      for (let round = 0; round < 2; round += 1) {
+        for (const candidate of unique) {
+          const url = new URL(candidate.href);
+          url.searchParams.set('v', release.version);
+          if (round > 0) url.searchParams.set('retry', String(Date.now()));
+          try { return await import(url.href); }
+          catch (error) { lastError = error; }
+        }
+        await delay(1200);
+      }
+      throw lastError ?? new Error('Application module could not be loaded.');
+    }
+    try {
+      await globalThis.__FRONTLINE_STYLES_READY__;
+      await importApplication();
+    } catch (error) {
+      console.error('FRONTLINE ROADS asset recovery failed', error);
+      document.querySelector('#assetRecovery')?.removeAttribute('hidden');
+    }
+  </script>
 </body>
 </html>

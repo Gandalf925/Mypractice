@@ -1,7 +1,8 @@
 export async function registerPwa({
   navigatorRef = globalThis.navigator,
   locationRef = globalThis.location,
-  globalRef = globalThis
+  globalRef = globalThis,
+  moduleUrl = import.meta.url
 } = {}) {
   const hostname = locationRef?.hostname ?? '';
   const protocol = locationRef?.protocol ?? '';
@@ -12,7 +13,9 @@ export async function registerPwa({
   if (!navigatorRef?.serviceWorker?.register) return null;
   if (protocol !== 'https:' && !localHost) return null;
   try {
-    return await navigatorRef.serviceWorker.register('./sw.js', { scope: './', updateViaCache: 'none' });
+    const appRoot = new URL('../../', moduleUrl);
+    const workerUrl = new URL('sw.js', appRoot);
+    return await navigatorRef.serviceWorker.register(workerUrl.href, { scope: appRoot.href, updateViaCache: 'none' });
   } catch (error) {
     console.warn('Service worker registration failed', error);
     return null;

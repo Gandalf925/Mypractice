@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.29.0-enemy-personalities';
+export const APP_VERSION = '0.29.1-display-recovery';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 

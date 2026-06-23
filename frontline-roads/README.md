@@ -1,6 +1,16 @@
-# FRONTLINE ROADS — modular source v0.29.0 enemy personalities
+# FRONTLINE ROADS — modular source v0.29.1 display recovery
 
 FRONTLINE ROADS is a location-based, continuously progressing road-defense strategy game. This directory is the canonical modular development source.
+
+## Display recovery v0.29.1
+
+- Removes the destructive release loader that deleted working caches before the new GitHub Pages assets were confirmed available.
+- Loads the full stylesheet before application startup and retries both the current deployment path and the canonical `frontline-roads` path.
+- Uses a versioned module import with a retry path instead of unregistering the active Service Worker.
+- Adds `.nojekyll` markers and an `/fr/` compatibility redirect.
+- Preserves all v0.29.0 enemy personality and civilization-variant behavior.
+
+Implementation notes are in `docs/display-recovery-v0.29.1.md`.
 
 ## Enemy personalities and civilization variants v0.29.0
 

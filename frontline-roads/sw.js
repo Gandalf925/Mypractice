@@ -1,6 +1,6 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const CACHE_NAME = `${CACHE_PREFIX}v0-29-0-enemy-personalities`;
+const CACHE_NAME = `${CACHE_PREFIX}v0-29-1-display-recovery`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -8,7 +8,6 @@ const APP_SHELL = [
   './icon-192.png',
   './icon-512.png',
   './src/app/bootstrap.js',
-  './src/app/release-loader.js',
   './src/app/development-fixture.js',
   './src/app/game-loop.js',
   './src/app/performance-profile.js',
@@ -124,7 +123,7 @@ self.addEventListener('fetch', event => {
       caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
     }
     return response;
-  }).catch(() => caches.match(event.request).then(cached => {
+  }).catch(() => caches.match(event.request, { ignoreSearch: true }).then(cached => {
     if (cached) return cached;
     if (event.request.mode === 'navigate') return caches.match('./index.html');
     return Response.error();
