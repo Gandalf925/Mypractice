@@ -39,7 +39,7 @@ test('twelve-hour simulation remains bounded, serializable and within enemy cap'
   });
   const summary = simulator.simulate(state, 12 * 60 * 60);
   assert.ok(Math.abs(summary.simulatedSeconds - 12 * 60 * 60) < 0.001);
-  assert.ok(summary.iterations <= 12000);
+  assert.ok(summary.iterations <= 200000);
   assert.ok(state.combat.enemies.length <= MAX_ENEMIES);
   assert.ok(Number.isFinite(state.world.city.hp));
   assert.ok(Number.isFinite(state.runtime.worldTimeMs));

@@ -1,6 +1,6 @@
 import { distance, stableId } from '../core/utilities.js';
 import { graphElementsNearPoint } from '../roads/road-graph.js';
-import { activePlayerBases, ensurePlayerBaseState } from './player-bases.js';
+import { activePlayerBases, playerBasesView } from './player-bases.js';
 import { consumeBundle, missingBundle } from '../civilization/inventory-system.js';
 import {
   FIELD_BASE_ENEMY_EXCLUSION_METERS,
@@ -9,7 +9,6 @@ import {
   FIELD_BASE_BUILD_RANGE_METERS,
   FIELD_BASE_PLACEMENT_RANGE_METERS,
   activeFieldBases,
-  ensureFieldBaseState,
   fieldBaseById,
   fieldBaseLimitForCivilization,
   fieldBaseSlotsUsed,
@@ -59,7 +58,6 @@ function nearestAliveEnemyBase(state, point) {
 }
 
 export function previewFieldBasePlacement(state, now = Date.now()) {
-  ensureFieldBaseState(state);
   const limit = fieldBaseLimitForCivilization(state.civilization?.level);
   const used = fieldBaseSlotsUsed(state);
   const cost = fieldBasePlacementCost(state);
@@ -124,13 +122,13 @@ function greedyFieldBaseCandidates(state, candidates, occupied, limit, order) {
  * planning diagnostic, not a placement authorization.
  */
 export function diagnoseFieldBaseNetwork(state, required = fieldBaseLimitForCivilization(state.civilization?.level)) {
-  const fieldBases = ensureFieldBaseState(state);
+  const fieldBases = state.world?.fieldBases ?? [];
   const active = activeFieldBases(state).length;
   const destroyed = Math.max(0, fieldBases.length - active);
   const limit = fieldBaseLimitForCivilization(state.civilization?.level);
   const target = Math.max(0, Math.min(limit, Math.floor(Number(required) || 0)));
   const availableSlots = Math.max(0, limit - fieldBases.length);
-  const occupied = [...ensurePlayerBaseState(state), ...fieldBases]
+  const occupied = [...playerBasesView(state), ...fieldBases]
     .filter(point => Number.isFinite(Number(point?.x)) && Number.isFinite(Number(point?.y)));
   const graph = state.world.roadGraph;
   const candidates = (graph?.nodes ?? []).filter(node => candidateAllowed(state, node, occupied));
@@ -175,7 +173,6 @@ export function diagnoseFieldBaseNetwork(state, required = fieldBaseLimitForCivi
 }
 
 export function previewFieldBaseRebuild(state, baseId, now = Date.now()) {
-  ensureFieldBaseState(state);
   const cost = { ...FIELD_BASE_REBUILD_COST };
   const base = fieldBaseById(state, baseId, { includeDestroyed: true });
   if (!base) return { ok: false, reason: '簡易拠点が見つかりません。', cost };
@@ -223,7 +220,7 @@ export class FieldBaseSystem {
     if (!preview.ok) return preview;
     if (!consumeBundle(state, preview.cost)) return { ok: false, reason: '簡易拠点の設置直前に資源が不足しました。', missing: missingBundle(state, preview.cost), cost: preview.cost };
     const establishedAt = state.runtime?.worldTimeMs ?? now;
-    const sequence = ensureFieldBaseState(state).length + 1;
+    const sequence = (state.world?.fieldBases?.length ?? 0) + 1;
     const base = {
       id: stableId('field_base', preview.node.id, establishedAt, sequence),
       kind: 'FIELD',

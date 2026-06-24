@@ -1,6 +1,6 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const CACHE_NAME = `${CACHE_PREFIX}v0-31-0-gameplay-stabilization`;
+const CACHE_NAME = `${CACHE_PREFIX}v0-32-0-state-foundation`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -54,6 +54,8 @@ const APP_SHELL = [
   './src/core/event-bus.js',
   './src/core/state-schema.js',
   './src/core/state-store.js',
+  './src/core/runtime-state.js',
+  './src/core/state-normalizer.js',
   './src/core/utilities.js',
   './src/exploration/frontier-system.js',
   './src/exploration/exploration-system.js',

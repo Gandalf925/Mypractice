@@ -14,11 +14,12 @@ function resourceDelta(before, after) {
 }
 
 export class OfflineSimulator {
-  constructor({ combatSystem, civilizationSystem = null, maximumSeconds = 12 * 60 * 60, maximumIterations = 12000 } = {}) {
+  constructor({ combatSystem, civilizationSystem = null, maximumSeconds = 12 * 60 * 60, maximumIterations = 200000, maximumStepSeconds = 0.25 } = {}) {
     this.combatSystem = combatSystem;
     this.civilizationSystem = civilizationSystem;
     this.maximumSeconds = maximumSeconds;
     this.maximumIterations = maximumIterations;
+    this.maximumStepSeconds = Math.max(0.05, Number(maximumStepSeconds) || 0.25);
   }
 
   simulate(state, elapsedSeconds) {
@@ -34,7 +35,7 @@ export class OfflineSimulator {
       civilizationLevel: state.civilization?.level ?? 0
     };
 
-    const step = Math.max(0.25, Math.min(5, simulatedSeconds / this.maximumIterations));
+    const step = Math.min(this.maximumStepSeconds, simulatedSeconds);
     let remaining = simulatedSeconds;
     let iterations = 0;
     while (remaining > 0.0001 && iterations < this.maximumIterations) {

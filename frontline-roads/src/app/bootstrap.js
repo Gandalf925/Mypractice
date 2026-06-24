@@ -2,6 +2,7 @@ import { APP_VERSION, LifecycleState } from '../core/constants.js';
 import { EventBus } from '../core/event-bus.js';
 import { createInitialState } from '../core/state-schema.js';
 import { StateStore } from '../core/state-store.js';
+import { cloneRuntimeState } from '../core/runtime-state.js';
 import { LifecycleController } from './lifecycle.js';
 import { GeolocationService } from '../location/geolocation-service.js';
 import { latLonToXY } from '../location/location-privacy.js';
@@ -9,7 +10,7 @@ import { OverpassClient } from '../roads/overpass-client.js';
 import { RoadService } from '../roads/road-service.js';
 import { RoadWorldManager } from '../roads/road-world-manager.js';
 import { createRoadChunkState, ensureRoadChunkState } from '../roads/world-chunk-grid.js';
-import { attachGraphIndexes } from '../roads/road-graph.js';
+import { normalizeRuntimeState } from '../core/state-normalizer.js';
 import { BasePlacementService } from '../base/base-placement-service.js';
 import { hasEstablishedHomeBase } from '../base/base-state.js';
 import { SaveRepository } from '../persistence/save-repository.js';
@@ -21,7 +22,7 @@ import { BasePlacementScreen } from '../ui/base-placement-screen.js';
 import { Notifications } from '../ui/notifications.js';
 import { queryRequired, setVisible } from '../ui/dom.js';
 import { createDevelopmentDependencies } from './development-fixture.js';
-import { initializeCombatState, ensureCombatInitialized } from '../combat/combat-initializer.js';
+import { initializeCombatState } from '../combat/combat-initializer.js';
 import { CombatSystem } from '../combat/combat-system.js';
 import { BuildSystem } from '../combat/build-system.js';
 import { CombatUi } from '../ui/combat-ui.js';
@@ -32,7 +33,7 @@ import { MenuUi } from '../ui/menu-ui.js';
 import { RadarPreferences } from '../ui/radar-preferences.js';
 import { GameLoop } from './game-loop.js';
 import { OfflineSimulator } from '../persistence/offline-simulator.js';
-import { CivilizationSystem, ensureCivilizationState } from '../civilization/civilization-system.js';
+import { CivilizationSystem } from '../civilization/civilization-system.js';
 import { RESOURCE_LABELS } from '../civilization/data.js';
 import { TabCoordinator } from '../persistence/tab-coordinator.js';
 import { registerPwa } from './pwa.js';
@@ -41,20 +42,20 @@ class FrontlineRoadsApp {
   constructor() {
     this.events = new EventBus();
     this.saveRepository = new SaveRepository();
-    this.store = new StateStore(createInitialState(), this.events);
+    this.store = new StateStore(createInitialState(), this.events, { cloneState: cloneRuntimeState });
     this.lifecycle = new LifecycleController(this.store);
     const fixtureRequested = new URLSearchParams(location.search).get('devFixture') === '1';
     const localFixtureAllowed = ['localhost', '127.0.0.1', '::1'].includes(location.hostname) || location.protocol === 'file:' || globalThis.__FRONTLINE_TEST_FIXTURE__ === true;
     const developmentMode = fixtureRequested && localFixtureAllowed;
     const development = developmentMode ? createDevelopmentDependencies() : null;
     this.geolocation = development?.geolocation ?? new GeolocationService();
-    this.roadService = new RoadService(new OverpassClient(development
-      ? { fetchImpl: development.fetchImpl, jsonpImpl: null }
-      : { fetchImpl: globalThis.fetch }));
+    this.roadService = new RoadService(new OverpassClient({
+      fetchImpl: development?.fetchImpl ?? globalThis.fetch
+    }));
     this.roadChunkCache = new RoadChunkCache();
     this.camera = new Camera();
     this.renderer = new Renderer(queryRequired('#mapCanvas'), this.camera);
-    this.renderer.setStateProvider(() => this.store.select(state => state));
+    this.renderer.setStateProvider(() => this.store.renderView());
     this.renderer.bindEvents(this.events);
     this.radarPreferences = new RadarPreferences({ onChange: preferences => this.renderer.setPreferences(preferences) });
     this.baseScreen = new BasePlacementScreen();
@@ -88,7 +89,7 @@ class FrontlineRoadsApp {
       store: this.store,
       renderer: this.renderer,
       onGraphChanged: () => {
-        this.store.mutate(state => {
+        this.store.transaction(state => {
           this.combatSystem.frontierSystem.reconcile(state);
           this.combatSystem.explorationSystem.reconcile(state);
         }, 'world:graph-expanded');
@@ -131,10 +132,11 @@ class FrontlineRoadsApp {
       renderer: this.renderer,
       saveRepository: this.saveRepository,
       onUiUpdate: () => {
-        this.combatUi.update();
-        this.deploymentUi.update();
-        this.baseCommandUi.update();
-        this.civilizationUi.update();
+        const view = this.store.snapshot();
+        this.combatUi.update(view);
+        this.deploymentUi.update(view);
+        this.baseCommandUi.update(view);
+        this.civilizationUi.update(view);
         this.roadWorld.considerSurveyFacilities();
       },
       onError: error => this.notifications.show(error?.message ?? '保存に失敗しました。'),
@@ -208,41 +210,73 @@ class FrontlineRoadsApp {
     const loadWarning = this.saveRepository.consumeWarning();
     const saved = this.saveRepository.load();
     if (saved && hasEstablishedHomeBase(saved) && saved.world.roadGraph) {
-      try {
-        saved.lifecycle = LifecycleState.LOAD_SAVE;
-        this.store.replace(saved, 'save:loaded');
-        this.store.mutate(draft => {
-          attachGraphIndexes(draft.world.roadGraph);
-          ensureRoadChunkState(draft.world);
-          ensureCivilizationState(draft);
-          ensureCombatInitialized(draft);
-        }, 'save:rehydrated', { validate: true });
-        await this.roadWorld.restoreCachedChunks();
-        let offlineSummary = null;
-        if (this.tabCoordinator.isPrimary()) {
-          const elapsedSeconds = Math.max(0, (Date.now() - (saved.runtime.lastSavedAt || Date.now())) / 1000);
-          this.store.mutate(draft => {
-            offlineSummary = this.offlineSimulator.simulate(draft, elapsedSeconds);
-          }, 'offline:simulated', { validate: true });
-        }
-        this.store.transition(LifecycleState.PLAYING);
-        if (this.tabCoordinator.isPrimary()) this.persist({ notify: false });
-        this.openSavedGame();
-        this.showOfflineSummary(offlineSummary);
-        if (loadWarning) this.notifications.show(loadWarning, 6500);
-        return;
-      } catch (error) {
-        this.saveRepository.quarantineCurrent('保存データを復元できなかったため、新しいゲームとして開始します。破損データは無効化しました。');
-        this.store.replace(createInitialState(), 'save:recovery-reset');
-        this.lifecycle = new LifecycleController(this.store);
-        this.lifecycle.boot();
-        this.notifications.show('保存データを復元できなかったため、新しいゲームとして開始します。', 6500);
-      }
+      const handled = await this.restoreSavedGame(saved, loadWarning);
+      if (handled) return;
     }
     this.lifecycle.requireLocation();
     await this.startNewGame();
     const warning = loadWarning ?? this.saveRepository.consumeWarning();
     if (warning) this.notifications.show(warning, 6500);
+  }
+
+  restoreValidatedSave(saved) {
+    saved.lifecycle = LifecycleState.LOAD_SAVE;
+    this.store.replace(saved, 'save:loaded');
+    this.store.transaction(draft => normalizeRuntimeState(draft), 'save:rehydrated', { validate: true });
+  }
+
+  resetAfterInvalidSave() {
+    this.saveRepository.quarantineCurrent('保存データを復元できなかったため、新しいゲームとして開始します。破損データは無効化しました。');
+    this.store.replace(createInitialState(), 'save:recovery-reset');
+    this.lifecycle = new LifecycleController(this.store);
+    this.lifecycle.boot();
+    this.notifications.show('保存データを復元できなかったため、新しいゲームとして開始します。', 6500);
+  }
+
+  async restoreSavedGame(saved, loadWarning = null) {
+    try {
+      this.restoreValidatedSave(saved);
+    } catch (error) {
+      console.error('Save validation failed', error);
+      this.resetAfterInvalidSave();
+      return false;
+    }
+
+    try {
+      await this.roadWorld.restoreCachedChunks();
+    } catch (error) {
+      console.warn('Optional road cache restore failed', error);
+      this.notifications.show('道路キャッシュを復元できませんでした。保存済みの進行データで続行します。', 5000);
+    }
+
+    let offlineSummary = null;
+    if (this.tabCoordinator.isPrimary()) {
+      const beforeOffline = this.store.snapshot();
+      const lastSavedAt = this.store.read(state => state.runtime.lastSavedAt || Date.now());
+      const elapsedSeconds = Math.max(0, (Date.now() - lastSavedAt) / 1000);
+      try {
+        this.store.transaction(draft => {
+          offlineSummary = this.offlineSimulator.simulate(draft, elapsedSeconds);
+        }, 'offline:simulated', { validate: true });
+      } catch (error) {
+        console.error('Offline simulation failed', error);
+        this.store.replace(beforeOffline, 'offline:rollback');
+        this.notifications.show('不在中の進行計算を適用できませんでした。保存時点から再開します。', 6000);
+      }
+    }
+
+    try {
+      this.store.transition(LifecycleState.PLAYING);
+      if (this.tabCoordinator.isPrimary()) this.persist({ notify: false });
+      this.openSavedGame();
+      this.showOfflineSummary(offlineSummary);
+      if (loadWarning) this.notifications.show(loadWarning, 6500);
+      return true;
+    } catch (error) {
+      console.error('Saved game UI startup failed', error);
+      this.handleFatal(error);
+      return true;
+    }
   }
 
   async startNewGame() {
@@ -258,13 +292,13 @@ class FrontlineRoadsApp {
     this.baseScreen.showLoading('位置情報を取得しています…');
 
     try {
-      const lifecycle = this.store.select(state => state.lifecycle);
+      const lifecycle = this.store.read(state => state.lifecycle);
       if ([LifecycleState.ERROR, LifecycleState.ROAD_LOADING, LifecycleState.BASE_SELECTION].includes(lifecycle)) {
         this.store.transition(LifecycleState.LOCATION_REQUIRED);
       }
       const currentLocation = await this.geolocation.getCurrentPosition();
       if (generation !== this.startupGeneration) return;
-      this.store.update(draft => {
+      this.store.transaction(draft => {
         draft.player.currentPosition = { lat: currentLocation.lat, lon: currentLocation.lon };
         draft.player.locationAccuracy = currentLocation.accuracy;
         draft.player.locationUpdatedAt = currentLocation.timestamp ?? Date.now();
@@ -278,7 +312,7 @@ class FrontlineRoadsApp {
         onAttempt: ({ index, total, transport, attempt, totalAttempts }) => this.baseScreen.showLoading(`道路サーバーへ接続しています… ${transport} (${index}/${total}, 試行 ${attempt}/${totalAttempts})`)
       });
       if (generation !== this.startupGeneration) return;
-      this.store.update(draft => {
+      this.store.transaction(draft => {
         draft.world.roadGraph = graph;
         draft.world.roadChunks = createRoadChunkState();
       }, 'roads:loaded');
@@ -296,7 +330,7 @@ class FrontlineRoadsApp {
   }
 
   handleMapTap(worldPoint) {
-    const lifecycle = this.store.select(state => state.lifecycle);
+    const lifecycle = this.store.read(state => state.lifecycle);
     if (lifecycle === LifecycleState.PLAYING) {
       this.combatUi.handleMapTap(worldPoint);
       return;
@@ -319,7 +353,7 @@ class FrontlineRoadsApp {
     try {
       this.lifecycle.startInitialization();
       const { graph, homeBase } = this.basePlacement.establishHomeBase(this.selection);
-      this.store.update(draft => {
+      this.store.transaction(draft => {
         draft.world.roadGraph = graph;
         draft.world.roadChunks = ensureRoadChunkState(draft.world);
         draft.world.homeBase = homeBase;
@@ -346,7 +380,7 @@ class FrontlineRoadsApp {
   }
 
   openSavedGame() {
-    const state = this.store.select(value => value);
+    const state = this.store.snapshot();
     const graph = state.world.roadGraph;
     this.renderer.setGraph(graph);
     this.renderer.setHomeBase(state.world.homeBase);
@@ -361,8 +395,8 @@ class FrontlineRoadsApp {
   }
 
   recenterMap() {
-    const lifecycle = this.store.select(state => state.lifecycle);
-    const player = this.store.select(state => state.player.worldPosition);
+    const lifecycle = this.store.read(state => state.lifecycle);
+    const player = this.store.read(state => state.player.worldPosition);
     if (lifecycle === LifecycleState.PLAYING && player) {
       this.renderer.centerOn(player);
       return;
@@ -373,7 +407,7 @@ class FrontlineRoadsApp {
   startLocationTracking() {
     this.stopLocationWatch?.();
     this.stopLocationWatch = this.geolocation.watchPosition(locationValue => {
-      this.store.mutate(state => {
+      this.store.transaction(state => {
         state.player.currentPosition = { lat: locationValue.lat, lon: locationValue.lon };
         state.player.locationAccuracy = locationValue.accuracy;
         state.player.locationUpdatedAt = locationValue.timestamp ?? Date.now();
@@ -407,8 +441,8 @@ class FrontlineRoadsApp {
       return false;
     }
     try {
-      const savedAt = this.saveRepository.save(this.store.getState());
-      this.store.mutate(state => { state.runtime.lastSavedAt = savedAt; }, 'save:timestamp');
+      const savedAt = this.saveRepository.saveDetachedState(this.store.snapshot());
+      this.store.transaction(state => { state.runtime.lastSavedAt = savedAt; }, 'save:timestamp');
       this.updateStorageUi();
       return true;
     } catch (error) {
@@ -420,17 +454,17 @@ class FrontlineRoadsApp {
 
   startRuntime() {
     if (!this.tabCoordinator.isPrimary()) {
-      if (this.store.select(state => state.lifecycle) === LifecycleState.PLAYING) {
+      if (this.store.read(state => state.lifecycle) === LifecycleState.PLAYING) {
         this.lifecycle.pause();
-        this.store.mutate(state => { state.runtime.pauseReason = 'tab'; }, 'runtime:pause-tab');
+        this.store.transaction(state => { state.runtime.pauseReason = 'tab'; }, 'runtime:pause-tab');
       }
       this.notifications.show('別のタブが進行を担当しています。このタブは閲覧専用です。');
       return;
     }
     if (document.hidden) {
-      if (this.store.select(state => state.lifecycle) === LifecycleState.PLAYING) {
+      if (this.store.read(state => state.lifecycle) === LifecycleState.PLAYING) {
         this.lifecycle.pause();
-        this.store.mutate(state => { state.runtime.pauseReason = 'visibility'; }, 'runtime:pause-visibility');
+        this.store.transaction(state => { state.runtime.pauseReason = 'visibility'; }, 'runtime:pause-visibility');
       }
       return;
     }
@@ -439,9 +473,9 @@ class FrontlineRoadsApp {
   }
 
   pauseRuntime(reason, { save = true } = {}) {
-    const lifecycle = this.store.select(state => state.lifecycle);
+    const lifecycle = this.store.read(state => state.lifecycle);
     if (lifecycle === LifecycleState.PLAYING) this.lifecycle.pause();
-    this.store.mutate(state => { state.runtime.pauseReason = reason; }, `runtime:pause-${reason}`);
+    this.store.transaction(state => { state.runtime.pauseReason = reason; }, `runtime:pause-${reason}`);
     this.gameLoop.stop({ save: save && this.tabCoordinator.isPrimary() });
     this.stopLocationWatch?.();
     this.stopLocationWatch = null;
@@ -453,14 +487,12 @@ class FrontlineRoadsApp {
     saved.lifecycle = LifecycleState.PAUSED;
     saved.runtime.pauseReason = 'tab';
     this.store.replace(saved, 'tab:fresh-save-loaded');
-    this.store.mutate(state => {
-      attachGraphIndexes(state.world.roadGraph);
-      ensureRoadChunkState(state.world);
-      ensureCivilizationState(state);
-      ensureCombatInitialized(state);
+    this.store.transaction(state => {
+      normalizeRuntimeState(state);
     }, 'tab:fresh-save-rehydrated', { validate: true });
-    this.renderer.setGraph(saved.world.roadGraph);
-    this.renderer.setHomeBase(saved.world.homeBase);
+    const runtimeState = this.store.snapshot();
+    this.renderer.setGraph(runtimeState.world.roadGraph);
+    this.renderer.setHomeBase(runtimeState.world.homeBase);
     this.combatUi.update();
     this.baseCommandUi.update();
     this.civilizationUi.updateSummary();
@@ -468,19 +500,19 @@ class FrontlineRoadsApp {
   }
 
   resumeRuntime(reason) {
-    let lifecycle = this.store.select(state => state.lifecycle);
-    let pauseReason = this.store.select(state => state.runtime.pauseReason);
+    let lifecycle = this.store.read(state => state.lifecycle);
+    let pauseReason = this.store.read(state => state.runtime.pauseReason);
     if (lifecycle !== LifecycleState.PAUSED || pauseReason !== reason || document.hidden || !this.tabCoordinator.isPrimary()) return false;
     if (reason === 'tab') {
       this.refreshFromSavedStateForTakeover();
-      lifecycle = this.store.select(state => state.lifecycle);
-      pauseReason = this.store.select(state => state.runtime.pauseReason);
+      lifecycle = this.store.read(state => state.lifecycle);
+      pauseReason = this.store.read(state => state.runtime.pauseReason);
       if (lifecycle !== LifecycleState.PAUSED || pauseReason !== 'tab') return false;
     }
-    const lastSavedAt = this.store.select(state => state.runtime.lastSavedAt || Date.now());
+    const lastSavedAt = this.store.read(state => state.runtime.lastSavedAt || Date.now());
     const elapsed = Math.max(0, (Date.now() - lastSavedAt) / 1000);
     let summary = null;
-    this.store.mutate(state => {
+    this.store.transaction(state => {
       summary = this.offlineSimulator.simulate(state, elapsed);
       state.runtime.pauseReason = null;
     }, `runtime:resume-${reason}`);
@@ -493,24 +525,24 @@ class FrontlineRoadsApp {
   }
 
   handlePrimaryChange(primary) {
-    const lifecycle = this.store.select(state => state.lifecycle);
+    const lifecycle = this.store.read(state => state.lifecycle);
     if (!primary && lifecycle === LifecycleState.PLAYING) {
       this.pauseRuntime('tab', { save: false });
       this.notifications.show('別のタブが進行を引き継ぎました。');
       return;
     }
-    if (primary && [LifecycleState.LOCATION_REQUIRED, LifecycleState.ERROR].includes(lifecycle) && !this.store.select(state => state.world.homeBase)) {
+    if (primary && [LifecycleState.LOCATION_REQUIRED, LifecycleState.ERROR].includes(lifecycle) && !this.store.read(state => state.world.homeBase)) {
       this.startNewGame();
       return;
     }
     if (primary && lifecycle === LifecycleState.PAUSED) {
-      const reason = this.store.select(state => state.runtime.pauseReason);
+      const reason = this.store.read(state => state.runtime.pauseReason);
       if (this.resumeRuntime(reason)) this.notifications.show('このタブで進行を再開しました。');
     }
   }
 
   handleVisibilityChange() {
-    const lifecycle = this.store.select(state => state.lifecycle);
+    const lifecycle = this.store.read(state => state.lifecycle);
     if (![LifecycleState.PLAYING, LifecycleState.PAUSED].includes(lifecycle)) return;
     if (document.hidden && lifecycle === LifecycleState.PLAYING) {
       this.pauseRuntime('visibility', { save: true });
@@ -525,6 +557,7 @@ class FrontlineRoadsApp {
     this.tabCoordinator.release();
     this.startupGeneration += 1;
     this.roadLoadController?.abort();
+    this.roadWorld.abort();
     await this.roadWorld.clearCurrentWorld();
     const cleared = this.saveRepository.clear();
     if (!cleared && this.saveRepository.isAvailable()) {

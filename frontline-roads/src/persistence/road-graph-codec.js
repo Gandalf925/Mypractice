@@ -56,6 +56,3 @@ export function decodeRoadGraph(value) {
   };
 }
 
-export function isEncodedRoadGraph(value) {
-  return value?.format === ROAD_GRAPH_FORMAT;
-}

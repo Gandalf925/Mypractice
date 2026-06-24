@@ -376,11 +376,15 @@ export class EnemySystem {
   }
 
   updateEnemy(state, enemy, deltaSeconds, frame) {
+    let remainingSeconds = Math.max(0, Number(deltaSeconds) || 0);
     if (enemy.departDelay > 0) {
-      enemy.departDelay = Math.max(0, enemy.departDelay - deltaSeconds);
-      return false;
+      const waitingSeconds = Math.min(enemy.departDelay, remainingSeconds);
+      enemy.departDelay = Math.max(0, enemy.departDelay - waitingSeconds);
+      enemy.slowTimer = Math.max(0, (enemy.slowTimer ?? 0) - waitingSeconds);
+      remainingSeconds -= waitingSeconds;
+      if (remainingSeconds <= 1e-9) return false;
     }
-    enemy.slowTimer = Math.max(0, enemy.slowTimer - deltaSeconds);
+
     const baseDefinition = ENEMY_DEFINITIONS[enemy.type] ?? ENEMY_DEFINITIONS.infantry;
     enemy.radius = Math.max(1, Number(enemy.radius) || Number(baseDefinition.radius) || 5);
     enemy.doctrineKey ??= 'frontal';
@@ -388,112 +392,154 @@ export class EnemySystem {
     enemy.targetFieldBaseId ??= null;
     enemy.targetPlayerBaseId ??= null;
     enemy.targetSquadId ??= null;
-    const definition = scaleEnemyDefinition(ENEMY_DEFINITIONS[enemy.type] ?? ENEMY_DEFINITIONS.infantry, enemy.level ?? 1);
+    const definition = scaleEnemyDefinition(baseDefinition, enemy.level ?? 1);
 
     acquireHuntEngagement(state, enemy, definition);
-    if (attackFriendlySquad(state, enemy, definition, deltaSeconds, this.events)) return false;
-    if (attackTargetFacility(state, enemy, definition, deltaSeconds, this.events)) return false;
-    if (!ensurePath(state, enemy) || !enemy.edgeId) return false;
+    if (attackFriendlySquad(state, enemy, definition, remainingSeconds, this.events)) {
+      enemy.slowTimer = Math.max(0, (enemy.slowTimer ?? 0) - remainingSeconds);
+      return false;
+    }
+    if (attackTargetFacility(state, enemy, definition, remainingSeconds, this.events)) {
+      enemy.slowTimer = Math.max(0, (enemy.slowTimer ?? 0) - remainingSeconds);
+      return false;
+    }
 
-    const graph = state.world.roadGraph;
-    const edge = graph.edgeById.get(enemy.edgeId);
-    if (!edge) { enemy.path = null; return false; }
+    let transitions = 0;
+    while (remainingSeconds > 1e-9 && transitions < 4096) {
+      if (!ensurePath(state, enemy) || !enemy.edgeId) {
+        enemy.slowTimer = Math.max(0, (enemy.slowTimer ?? 0) - remainingSeconds);
+        return false;
+      }
+      const graph = state.world.roadGraph;
+      const edge = graph.edgeById.get(enemy.edgeId);
+      if (!edge) { enemy.path = null; return false; }
 
-    const barrier = frame.barriers.get(edge.id) ?? null;
-    const barrierPosition = edge.length * 0.5;
-    if (barrier && enemy.edgeProgress >= barrierPosition - 1 && enemy.edgeProgress <= barrierPosition + 2) {
-      enemy.attackClock += deltaSeconds;
-      if (enemy.attackClock >= 0.5) {
+      const barrier = frame.barriers.get(edge.id) ?? null;
+      const barrierPosition = edge.length * 0.5;
+      const atBarrier = barrier && enemy.edgeProgress >= barrierPosition - 1 && enemy.edgeProgress <= barrierPosition + 2;
+      if (atBarrier) {
+        const timeToStrike = Math.max(0, 0.5 - (Number(enemy.attackClock) || 0));
+        if (remainingSeconds + 1e-9 < timeToStrike) {
+          enemy.attackClock = (Number(enemy.attackClock) || 0) + remainingSeconds;
+          enemy.slowTimer = Math.max(0, (enemy.slowTimer ?? 0) - remainingSeconds);
+          return false;
+        }
+        remainingSeconds = Math.max(0, remainingSeconds - timeToStrike);
+        enemy.slowTimer = Math.max(0, (enemy.slowTimer ?? 0) - timeToStrike);
         enemy.attackClock = 0;
         barrier.hp -= definition.barrierDps * 0.5;
-        if (barrier.hp <= 0) {
-          barrier.hp = 0;
-          barrier.ruined = true;
-          this.invalidateAllPaths(state);
-          const a = graph.nodeById.get(edge.a);
-          const b = graph.nodeById.get(edge.b);
-          this.events?.emit('combat:defense-destroyed', { defenseId: barrier.id, position: a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : null });
-          this.events?.emit('message', { text: '防壁が破壊され、敵の流れが変わりました。' });
+        if (barrier.hp > 0) continue;
+        barrier.hp = 0;
+        barrier.ruined = true;
+        frame.barriers.delete(edge.id);
+        this.invalidateAllPaths(state);
+        const a = graph.nodeById.get(edge.a);
+        const b = graph.nodeById.get(edge.b);
+        this.events?.emit('combat:defense-destroyed', { defenseId: barrier.id, position: a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : null });
+        this.events?.emit('message', { text: '防壁が破壊され、敵の流れが変わりました。' });
+        continue;
+      }
+
+      let commandMultiplier = 1;
+      const position = enemyPosition(state, enemy);
+      for (const entry of frame.spatial.speedAuras ?? frame.spatial.commanders ?? []) {
+        if (entry.enemy.id === enemy.id || entry.enemy.hp <= 0) continue;
+        const auraDefinition = ENEMY_DEFINITIONS[entry.enemy.type] ?? {};
+        const aura = Math.max(0, Number(auraDefinition.speedAura ?? auraDefinition.commanderAura) || 0);
+        const range = Math.max(1, Number(auraDefinition.auraRange) || 35);
+        if (aura > 0 && distance(entry.position, position) <= range) commandMultiplier = Math.max(commandMultiplier, 1 + aura);
+      }
+      const slowBase = enemy.slowMultiplier ?? 0.52;
+      const slowMultiplier = enemy.slowTimer > 0
+        ? 1 - (1 - slowBase) * (1 - (definition.slowResistance ?? 0))
+        : 1;
+      const movementSpeed = Math.max(0.001, definition.speed * commandMultiplier * slowMultiplier);
+      const slowWindow = enemy.slowTimer > 0 ? Math.min(remainingSeconds, enemy.slowTimer) : remainingSeconds;
+
+      if (barrier && enemy.edgeProgress < barrierPosition - 1) {
+        const distanceToBarrier = barrierPosition - 1 - enemy.edgeProgress;
+        const timeToBarrier = distanceToBarrier / movementSpeed;
+        if (timeToBarrier <= slowWindow + 1e-9) {
+          enemy.edgeProgress = barrierPosition - 1;
+          remainingSeconds = Math.max(0, remainingSeconds - timeToBarrier);
+          enemy.slowTimer = Math.max(0, (enemy.slowTimer ?? 0) - timeToBarrier);
+          continue;
         }
       }
-      return false;
-    }
 
-    let commandMultiplier = 1;
-    const position = frame.spatial.positions.get(enemy.id) ?? enemyPosition(state, enemy);
-    for (const entry of frame.spatial.speedAuras ?? frame.spatial.commanders ?? []) {
-      if (entry.enemy.id === enemy.id || entry.enemy.hp <= 0) continue;
-      const auraDefinition = ENEMY_DEFINITIONS[entry.enemy.type] ?? {};
-      const aura = Math.max(0, Number(auraDefinition.speedAura ?? auraDefinition.commanderAura) || 0);
-      const range = Math.max(1, Number(auraDefinition.auraRange) || 35);
-      if (aura > 0 && distance(entry.position, position) <= range) commandMultiplier = Math.max(commandMultiplier, 1 + aura);
-    }
-    const slowBase = enemy.slowMultiplier ?? 0.52;
-    const slowMultiplier = enemy.slowTimer > 0
-      ? 1 - (1 - slowBase) * (1 - (definition.slowResistance ?? 0))
-      : 1;
-    enemy.edgeProgress += definition.speed * commandMultiplier * slowMultiplier * deltaSeconds;
+      const distanceToNode = Math.max(0, edge.length - enemy.edgeProgress);
+      const timeToNode = distanceToNode / movementSpeed;
+      if (timeToNode > slowWindow + 1e-9) {
+        enemy.edgeProgress += movementSpeed * slowWindow;
+        remainingSeconds = Math.max(0, remainingSeconds - slowWindow);
+        enemy.slowTimer = Math.max(0, (enemy.slowTimer ?? 0) - slowWindow);
+        continue;
+      }
 
-    if (enemy.edgeProgress < edge.length) return false;
-    enemy.nodeId = enemy.path.nodeIds[enemy.pathIndex + 1];
-    enemy.pathIndex += 1;
-    enemy.edgeProgress = 0;
+      enemy.edgeProgress = edge.length;
+      remainingSeconds = Math.max(0, remainingSeconds - timeToNode);
+      enemy.slowTimer = Math.max(0, (enemy.slowTimer ?? 0) - timeToNode);
+      enemy.nodeId = enemy.path.nodeIds[enemy.pathIndex + 1];
+      enemy.pathIndex += 1;
+      enemy.edgeProgress = 0;
+      transitions += 1;
 
-    if (enemy.reroutePending && enemy.nodeId !== enemy.path.targetId) {
-      enemy.path = null;
-      enemy.pathIndex = 0;
-      enemy.edgeId = null;
-      enemy.reroutePending = false;
-      return false;
-    }
+      if (enemy.reroutePending && enemy.nodeId !== enemy.path.targetId) {
+        enemy.path = null;
+        enemy.pathIndex = 0;
+        enemy.edgeId = null;
+        enemy.reroutePending = false;
+        continue;
+      }
 
-    if (enemy.nodeId === enemy.path.targetId && enemy.targetPlayerBaseId) {
-      const majorBase = playerBaseById(state, enemy.targetPlayerBaseId, { includeDestroyed: false });
-      if (majorBase && majorBase.nodeId === enemy.path.targetId) {
-        majorBase.hp = Math.max(0, majorBase.hp - definition.cityDamage);
-        this.events?.emit('combat:player-base-hit', { baseId: majorBase.id, damage: definition.cityDamage, enemyId: enemy.id });
-        if (majorBase.hp <= 0) destroyPlayerBase(state, majorBase, this.events, { enemyId: enemy.id });
+      if (enemy.nodeId === enemy.path.targetId && enemy.targetPlayerBaseId) {
+        const majorBase = playerBaseById(state, enemy.targetPlayerBaseId, { includeDestroyed: false });
+        if (majorBase && majorBase.nodeId === enemy.path.targetId) {
+          majorBase.hp = Math.max(0, majorBase.hp - definition.cityDamage);
+          this.events?.emit('combat:player-base-hit', { baseId: majorBase.id, damage: definition.cityDamage, enemyId: enemy.id });
+          if (majorBase.hp <= 0) destroyPlayerBase(state, majorBase, this.events, { enemyId: enemy.id });
+          resolveWaveEnemy(state, enemy, true);
+          return true;
+        }
+        enemy.targetPlayerBaseId = null;
+        enemy.path = null;
+        enemy.edgeId = null;
+        continue;
+      }
+
+      if (enemy.nodeId === enemy.path.targetId && enemy.targetFieldBaseId) {
+        const fieldBase = activeFieldBaseById(state, enemy.targetFieldBaseId);
+        if (fieldBase && fieldBase.nodeId === enemy.path.targetId) {
+          fieldBase.hp = Math.max(0, fieldBase.hp - definition.cityDamage);
+          this.events?.emit('combat:field-base-hit', { baseId: fieldBase.id, damage: definition.cityDamage, enemyId: enemy.id });
+          if (fieldBase.hp <= 0) destroyFieldBase(state, fieldBase, this.events, { enemyId: enemy.id });
+          resolveWaveEnemy(state, enemy, true);
+          return true;
+        }
+        enemy.targetFieldBaseId = null;
+        enemy.path = null;
+        enemy.edgeId = null;
+        continue;
+      }
+
+      if (enemy.nodeId === enemy.path.targetId && enemy.path.targetId === state.world.city.nodeId) {
+        state.world.city.hp = Math.max(0, state.world.city.hp - definition.cityDamage);
+        state.combat.cityRecoveryCooldown = CITY_RECOVERY_DELAY_SECONDS;
+        if ((definition.settlementDamage ?? 0) > 0) {
+          state.combat.pendingSettlementDamage ??= [];
+          state.combat.pendingSettlementDamage.push({ enemyId: enemy.id, enemyType: enemy.type, damage: definition.settlementDamage });
+        }
         resolveWaveEnemy(state, enemy, true);
+        this.events?.emit('combat:city-hit', { damage: definition.cityDamage, enemyId: enemy.id });
         return true;
       }
-      enemy.targetPlayerBaseId = null;
-      enemy.path = null;
-      enemy.edgeId = null;
-      return false;
-    }
 
-    if (enemy.nodeId === enemy.path.targetId && enemy.targetFieldBaseId) {
-      const fieldBase = activeFieldBaseById(state, enemy.targetFieldBaseId);
-      if (fieldBase && fieldBase.nodeId === enemy.path.targetId) {
-        fieldBase.hp = Math.max(0, fieldBase.hp - definition.cityDamage);
-        this.events?.emit('combat:field-base-hit', { baseId: fieldBase.id, damage: definition.cityDamage, enemyId: enemy.id });
-        if (fieldBase.hp <= 0) destroyFieldBase(state, fieldBase, this.events, { enemyId: enemy.id });
-        resolveWaveEnemy(state, enemy, true);
-        return true;
+      if (enemy.pathIndex >= enemy.path.edgeIds.length) {
+        enemy.edgeId = null;
+        return false;
       }
-      enemy.targetFieldBaseId = null;
-      enemy.path = null;
-      enemy.edgeId = null;
-      return false;
+      enemy.edgeId = enemy.path.edgeIds[enemy.pathIndex];
     }
-
-    if (enemy.nodeId === enemy.path.targetId && enemy.path.targetId === state.world.city.nodeId) {
-      state.world.city.hp = Math.max(0, state.world.city.hp - definition.cityDamage);
-      state.combat.cityRecoveryCooldown = CITY_RECOVERY_DELAY_SECONDS;
-      if ((definition.settlementDamage ?? 0) > 0) {
-        state.combat.pendingSettlementDamage ??= [];
-        state.combat.pendingSettlementDamage.push({ enemyId: enemy.id, enemyType: enemy.type, damage: definition.settlementDamage });
-      }
-      resolveWaveEnemy(state, enemy, true);
-      this.events?.emit('combat:city-hit', { damage: definition.cityDamage, enemyId: enemy.id });
-      return true;
-    }
-
-    if (enemy.pathIndex >= enemy.path.edgeIds.length) {
-      enemy.edgeId = null;
-      return false;
-    }
-    enemy.edgeId = enemy.path.edgeIds[enemy.pathIndex];
     return false;
   }
 

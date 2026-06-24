@@ -87,7 +87,7 @@ export function recoveryItemPresentation(item) {
 }
 
 export function reserveRecoveryItem(state, itemId, squadId) {
-  const item = ensureRecoveryState(state).find(value => value.id === itemId);
+  const item = (state.world?.recoveryItems ?? []).find(value => value.id === itemId);
   if (!item || item.status !== RECOVERY_ITEM_STATUS.AVAILABLE) return { ok: false, reason: 'この回収物は現在利用できません。' };
   if (state.world.recoveryCollection?.itemId === itemId) return { ok: false, reason: 'プレイヤーが現地回収を開始しています。' };
   item.status = RECOVERY_ITEM_STATUS.RESERVED;
@@ -96,7 +96,7 @@ export function reserveRecoveryItem(state, itemId, squadId) {
 }
 
 export function markRecoveryItemCarried(state, itemId, squadId) {
-  const item = ensureRecoveryState(state).find(value => value.id === itemId);
+  const item = (state.world?.recoveryItems ?? []).find(value => value.id === itemId);
   if (!item || item.assignedSquadId !== squadId || item.status !== RECOVERY_ITEM_STATUS.RESERVED) return { ok: false, reason: '回収物の予約状態が失われています。' };
   item.status = RECOVERY_ITEM_STATUS.CARRIED;
   item.pickedUpAt = state.runtime?.worldTimeMs ?? Date.now();
@@ -104,7 +104,7 @@ export function markRecoveryItemCarried(state, itemId, squadId) {
 }
 
 export function releaseRecoveryItem(state, itemId, squadId, placement = null) {
-  const item = ensureRecoveryState(state).find(value => value.id === itemId);
+  const item = (state.world?.recoveryItems ?? []).find(value => value.id === itemId);
   if (!item || (item.assignedSquadId && item.assignedSquadId !== squadId)) return { ok: false, reason: '回収物を解放できません。' };
   item.status = RECOVERY_ITEM_STATUS.AVAILABLE;
   item.assignedSquadId = null;
@@ -118,7 +118,7 @@ export function releaseRecoveryItem(state, itemId, squadId, placement = null) {
 }
 
 function awardRecoveryItem(state, item) {
-  const index = state.world.recoveryItems.findIndex(value => value.id === item.id);
+  const index = (state.world?.recoveryItems ?? []).findIndex(value => value.id === item.id);
   if (index < 0) return { ok: false, reason: '回収物が見つかりません。' };
   state.world.recoveryItems.splice(index, 1);
   item.status = RECOVERY_ITEM_STATUS.COLLECTED;
@@ -131,7 +131,7 @@ function awardRecoveryItem(state, item) {
 }
 
 export function deliverRecoveryItem(state, itemId, squadId) {
-  const item = ensureRecoveryState(state).find(value => value.id === itemId);
+  const item = (state.world?.recoveryItems ?? []).find(value => value.id === itemId);
   if (!item || item.status !== RECOVERY_ITEM_STATUS.CARRIED || item.assignedSquadId !== squadId) return { ok: false, reason: '部隊が回収物を所持していません。' };
   return awardRecoveryItem(state, item);
 }
@@ -154,7 +154,7 @@ export class RecoverySystem {
   constructor(events = null) { this.events = events; }
 
   beginCollection(state, itemId, now = Date.now()) {
-    const item = ensureRecoveryState(state).find(value => value.id === itemId);
+    const item = (state.world?.recoveryItems ?? []).find(value => value.id === itemId);
     const eligibility = recoveryEligibility(state, item, now);
     if (!eligibility.ok) return eligibility;
     if (state.world.recoveryCollection?.itemId === itemId) return { ok: true, active: true, item };
@@ -183,7 +183,6 @@ export class RecoverySystem {
   }
 
   update(state, deltaSeconds, now = Date.now()) {
-    ensureRecoveryState(state);
     const active = state.world.recoveryCollection;
     if (!active) return null;
     const item = state.world.recoveryItems.find(value => value.id === active.itemId);

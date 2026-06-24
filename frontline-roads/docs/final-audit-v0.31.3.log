@@ -1,0 +1,66 @@
+FRONTLINE ROADS v0.31.3 COMMAND CAPACITY / FACILITY GUIDANCE / RESOURCE HUD AUDIT
+
+Release: 0.31.3-command-capacity-resource-hud
+Save key: unchanged (frontline_roads_refactor_v2)
+Schema version: unchanged (2)
+
+PHASE 1 — BASE SQUAD CAPACITY
+- Removed the fixed one-squad-per-base constant.
+- Major-base capacity is derived as 2 + civilization level.
+- Field-base capacity is derived as 2 + floor(civilization level / 2).
+- Active, recovering and ready squads each occupy one persistent slot.
+- A recovering squad no longer blocks unrelated free slots.
+- Same-type ready squads retain free redeployment.
+- Different-type ready squads are replaced only when all slots are occupied.
+- Coordinated deployment reserves squad slots, not whole bases, so one base may launch several formation members.
+- Capacity is derived at runtime; no save migration or duplicated stored capacity value was added.
+
+PHASE 2 — SETTLEMENT FACILITY GUIDANCE
+- Every settlement building has a concise description.
+- Catalog cards show purpose before construction.
+- Production cards keep the same explanation after construction.
+- Descriptions state production/storage effect and the principal downstream use.
+
+PHASE 3 — RESOURCE HUD
+- Removed the hand-picked seven-resource summary list.
+- HUD now iterates canonical RESOURCE_KEYS.
+- Wood, stone and fiber are always present.
+- Every owned or overflowed advanced resource appears as an independent chip.
+- The dock uses two fixed-height rows with horizontal scrolling.
+- Portrait controls, resource dock, base summary and warning use separate vertical bands.
+- Low-height landscape uses a one-row resource dock beneath the action row.
+
+GAMEPLAY / COMPATIBILITY CHECKS
+- Major-base capacity progression: 2, 3, 4, 5, 6 for Civilization Lv.0–4.
+- Field-base capacity progression: 2, 2, 3, 3, 4 for Civilization Lv.0–4.
+- Multiple assault squads can leave one base until capacity is full.
+- Recovery occupies one slot while other slots remain deployable.
+- Field bases can launch multiple approved light squads.
+- Coordinated formations may use several slots from the nearest suitable base.
+- Conservative opening strategy still reaches Civilization Lv.1 on line, cross and grid networks without city defeat or squad loss.
+- Attack-only opening still incurs meaningful material losses.
+- Existing save/restore, recovery, retrieval, tactical-order and long-run tests remain valid.
+
+AUTOMATED VERIFICATION
+- Normal regression execution (concurrency 4): 356 passed, 0 failed.
+- Serial regression batch 1: 219 passed, 0 failed.
+- Serial regression batch 2: 137 passed, 0 failed.
+- Total serial regression: 356 passed, 0 failed.
+- Re-extracted package regression: 356 passed, 0 failed.
+- Re-extracted package syntax checks: passed.
+- JavaScript syntax checks: passed.
+- Production JavaScript modules: 96.
+- Reachable from bootstrap: 96.
+- Unreachable production modules: 0.
+- Missing relative imports: 0.
+- Import cycles: 0.
+- Duplicate HTML IDs: 0.
+- CSS brace delta: 0.
+- Missing PWA runtime entries: 0.
+- Unlisted production modules in PWA shell: 0.
+- Empty source or test files: 0.
+
+HTTP / BROWSER BOUNDARY
+- Outer entry, application entry, stylesheet, bootstrap, friendly-force module, civilization UI and service worker returned HTTP 200.
+- Chromium launched, but the execution environment denied localhost and local-file navigation with ERR_BLOCKED_BY_ADMINISTRATOR before DOM execution.
+- Real-device GPS, touch, safe-area rendering and installed-PWA update behavior remain deployment checks.

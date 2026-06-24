@@ -57,8 +57,8 @@ test('map tap only selects a build candidate and confirmation performs the mutat
   const state = makeState();
   const placements = [];
   const store = {
-    select(selector) { return selector(state); },
-    mutate(mutator) { mutator(state); }
+    snapshot() { return state; }, read(selector) { return selector(state); },
+    transaction(mutator) { return mutator(state); }
   };
   const ui = new CombatUi({
     store,
@@ -103,8 +103,8 @@ test('an invalid second tap clears the previous candidate to prevent confirming 
     const { CombatUi } = await import('../src/ui/combat-ui.js');
     const state = makeState();
     const store = {
-      select(selector) { return selector(state); },
-      mutate(mutator) { mutator(state); }
+      snapshot() { return state; }, read(selector) { return selector(state); },
+      transaction(mutator) { return mutator(state); }
     };
     const ui = new CombatUi({
       store,
@@ -137,8 +137,8 @@ test('build confirmation is disabled while the selected facility is unaffordable
     const state = makeState();
     state.inventory.resources.wood = 0;
     const store = {
-      select(selector) { return selector(state); },
-      mutate(mutator) { mutator(state); }
+      snapshot() { return state; }, read(selector) { return selector(state); },
+      transaction(mutator) { return mutator(state); }
     };
     const ui = new CombatUi({
       store,
@@ -169,8 +169,8 @@ test('context explanations are collapsed by default and metrics remain visible',
     const { CombatUi } = await import('../src/ui/combat-ui.js');
     const state = makeState();
     const store = {
-      select(selector) { return selector(state); },
-      mutate(mutator) { mutator(state); }
+      snapshot() { return state; }, read(selector) { return selector(state); },
+      transaction(mutator) { return mutator(state); }
     };
     const ui = new CombatUi({
       store,
@@ -202,8 +202,8 @@ test('an opened context explanation remains open after the live HUD rerenders', 
     const { CombatUi } = await import('../src/ui/combat-ui.js');
     const state = makeState();
     const store = {
-      select(selector) { return selector(state); },
-      mutate(mutator) { mutator(state); }
+      snapshot() { return state; }, read(selector) { return selector(state); },
+      transaction(mutator) { return mutator(state); }
     };
     const ui = new CombatUi({
       store,
@@ -246,8 +246,8 @@ test('defense removal requires a second confirmation and then clears the selecte
     let persisted = 0;
     let focus = null;
     const store = {
-      select(selector) { return selector(state); },
-      mutate(mutator) { mutator(state); }
+      snapshot() { return state; }, read(selector) { return selector(state); },
+      transaction(mutator) { return mutator(state); }
     };
     const ui = new CombatUi({
       store,
@@ -292,7 +292,7 @@ test('tapping the selected facility again closes the compact context panel', asy
     });
     let focus = 'unset';
     const ui = new CombatUi({
-      store: { select(selector) { return selector(state); }, mutate(mutator) { mutator(state); } },
+      store: { snapshot() { return state; }, read(selector) { return selector(state); }, transaction(mutator) { return mutator(state); } },
       buildSystem: new BuildSystem(),
       civilizationSystem: { progression: {} },
       camera: { scale: 1 },

@@ -299,19 +299,45 @@ footer::before { content: "RADAR BUILD // "; }
 .resourceSummary {
   position: absolute;
   left: 10px;
-  right: 88px;
-  top: calc(var(--safe-top) + 81px);
-  min-height: 27px;
-  padding: 6px 8px;
+  right: 10px;
+  top: calc(var(--safe-top) + 82px);
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(2, minmax(23px, auto));
+  grid-auto-columns: minmax(82px, max-content);
+  gap: 4px;
+  min-height: 58px;
+  max-height: 58px;
+  padding: 5px;
+  overflow-x: auto;
+  overflow-y: hidden;
   color: #a8d9cc;
-  font-size: 11px;
-  line-height: 1.45;
+  pointer-events: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(101,255,208,.28) transparent;
 }
+.resourceSummary::-webkit-scrollbar { height: 4px; }
+.resourceSummary::-webkit-scrollbar-thumb { background: rgba(101,255,208,.28); }
+.resourceChip {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 6px;
+  padding: 3px 6px;
+  border: 1px solid rgba(101,255,208,.12);
+  background: rgba(1,14,12,.78);
+  white-space: nowrap;
+}
+.resourceChip small { overflow: hidden; color: #79aa9f; font-size: 9px; text-overflow: ellipsis; }
+.resourceChip strong { color: #effffb; font-size: 12px; }
+.resourceChip em { grid-column: 1 / -1; color: #ffd982; font-size: 8px; font-style: normal; }
 .baseSummary {
   position: absolute;
   left: 10px;
-  top: calc(var(--safe-top) + 113px);
-  max-width: 70vw;
+  right: 10px;
+  top: calc(var(--safe-top) + 146px);
+  max-width: none;
   padding: 5px 8px;
   color: #658f84;
   font-size: 10px;
@@ -321,6 +347,7 @@ footer::before { content: "RADAR BUILD // "; }
   right: 10px;
   top: calc(var(--safe-top) + 44px);
   display: grid;
+  grid-template-columns: repeat(3, auto);
   gap: 6px;
   pointer-events: auto;
 }
@@ -532,11 +559,13 @@ footer::before { content: "RADAR BUILD // "; }
 .catalogCard strong,
 .catalogCard small { display: block; }
 .catalogCard strong { color: #dffff7; font-size: 13px; }
+.catalogCard p { margin: 3px 0 0; color: #8dbdb1; font-size: 10px; line-height: 1.4; }
 .catalogCard small { margin-top: 3px; color: var(--muted); font-size: 10px; line-height: 1.35; }
 .productionCard { margin-bottom: 8px; padding: 10px; }
 .productionCard > strong,
 .productionCard > small { display: block; }
 .productionCard > small { color: var(--muted); font-size: 10px; }
+.buildingDescription { margin: 4px 0 5px; color: #8dbdb1; font-size: 10px; line-height: 1.45; }
 .recipeButtons { display: flex; gap: 6px; overflow-x: auto; margin-top: 7px; }
 .recipeButtons button { min-width: 105px; padding: 7px 8px; font-size: 11px; }
 .recipeButtons button small { display: block; margin-top: 3px; color: var(--warn); font-size: 9px; }
@@ -548,8 +577,8 @@ footer::before { content: "RADAR BUILD // "; }
 .storageWarning {
   position: absolute;
   left: 10px;
-  right: 88px;
-  top: calc(var(--safe-top) + 145px);
+  right: 10px;
+  top: calc(var(--safe-top) + 174px);
   padding: 7px 9px;
   border-color: rgba(255,200,87,0.42);
   background: rgba(65, 43, 10, 0.88);
@@ -590,19 +619,35 @@ footer::before { content: "RADAR BUILD // "; }
   .panelFooter small { font-size: 10px; }
   .mapControls { top: 50%; right: calc(39% + 8px); transform: translateY(-50%); }
   .mapControls button { width: 38px; height: 38px; }
-  .combatStats { top: calc(var(--safe-top) + 36px); }
-  .resourceSummary { top: calc(var(--safe-top) + 70px); right: 150px; }
-  .baseSummary { top: calc(var(--safe-top) + 100px); }
-  .storageWarning { top: calc(var(--safe-top) + 126px); right: 150px; }
-  .topActions { top: calc(var(--safe-top) + 36px); grid-template-columns: repeat(2, auto); }
+  .combatStats { top: calc(var(--safe-top) + 36px); right: auto; }
+  .resourceSummary { top: calc(var(--safe-top) + 72px); right: 10px; grid-template-rows: minmax(23px, auto); min-height: 31px; max-height: 31px; }
+  .baseSummary { top: calc(var(--safe-top) + 108px); right: 10px; }
+  .storageWarning { top: calc(var(--safe-top) + 135px); right: 10px; }
+  .topActions { left: auto; right: 10px; top: calc(var(--safe-top) + 36px); grid-template-columns: repeat(3, auto); }
   .combatTools { left: 48%; padding-top: 8px; }
   .contextPanel { left: 48%; bottom: calc(var(--safe-bottom) + 86px); }
 }
 
 /* v0.14.1 narrow-screen audit fixes */
 @media (max-width: 620px) and (orientation: portrait) {
-  .baseSummary { max-width: 50vw; }
-  .storageWarning { top: calc(var(--safe-top) + 151px); }
+  .combatStats {
+    left: 10px;
+    right: 10px;
+    top: calc(var(--safe-top) + 44px);
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .combatStats span { min-width: 0; text-align: center; }
+  .topActions {
+    left: 10px;
+    right: 10px;
+    top: calc(var(--safe-top) + 81px);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .topActions button { min-width: 0; }
+  .resourceSummary { top: calc(var(--safe-top) + 119px); }
+  .baseSummary { top: calc(var(--safe-top) + 183px); max-width: none; }
+  .storageWarning { top: calc(var(--safe-top) + 211px); }
 }
 
 /* v0.16 terminal HUD and visual preferences */
@@ -640,7 +685,6 @@ html[data-radar-motion="off"] #lifecycleText::before,
 @media (max-width: 620px) {
   .contextMetricGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .radarSettingButtons { grid-template-columns: 1fr; }
-  .storageWarning { top: calc(var(--safe-top) + 172px); }
 }
 @media (orientation: landscape) and (max-height: 520px) {
   .threatMetrics { display: none; }
@@ -649,7 +693,6 @@ html[data-radar-motion="off"] #lifecycleText::before,
 
 /* v0.16.2 final layout audit */
 @media (max-width: 620px) and (orientation: portrait) {
-  .storageWarning { top: calc(var(--safe-top) + 188px); }
 }
 
 /* v0.16.2 browser visual audit */
@@ -696,6 +739,8 @@ html[data-lifecycle="BASE_SELECTION"] #mapCanvas {
     var(--base-map-bottom, 0px)
     var(--base-map-left, 0px)
   );
+  opacity: 1;
+  filter: saturate(1.08) brightness(1.08) contrast(1.08);
 }
 html[data-lifecycle="LOCATION_REQUIRED"] #mapCanvas,
 html[data-lifecycle="ROAD_LOADING"] #mapCanvas,
@@ -705,7 +750,7 @@ html[data-lifecycle="ERROR"] #mapCanvas {
   pointer-events: none;
 }
 #basePlacementOverlay {
-  background: rgba(0, 7, 6, 0.32);
+  background: rgba(0, 7, 6, 0.18);
 }
 #basePlacementOverlay .panel {
   display: grid;
@@ -725,12 +770,12 @@ html[data-lifecycle="ERROR"] #mapCanvas {
 .baseMapViewport {
   position: relative;
   z-index: 1;
-  min-height: 180px;
+  min-height: clamp(240px, 38vh, 360px);
   overflow: hidden;
   border-top: 1px solid rgba(101,255,208,0.34);
   border-bottom: 1px solid rgba(101,255,208,0.34);
-  background: rgba(0, 12, 10, 0.12);
-  box-shadow: inset 0 0 36px rgba(0,0,0,0.38), inset 0 0 18px rgba(101,255,208,0.035);
+  background: rgba(0, 16, 14, 0.08);
+  box-shadow: inset 0 0 24px rgba(0,0,0,0.18), inset 0 0 12px rgba(101,255,208,0.05);
   pointer-events: none;
 }
 .baseMapViewport::before,
@@ -880,7 +925,7 @@ html[data-lifecycle="ERROR"] #mapCanvas {
 .baseCommandCard header>span{padding:4px 6px;border:1px solid rgba(101,255,208,.25);color:#65ffd0;font-size: 10px}.baseCommandCard header>span[data-alert="danger"]{border-color:rgba(255,82,104,.45);color:#ff788d}
 .baseRecoveryNotice{margin:0;padding:6px 8px;border-left:2px solid #ffd166;background:rgba(255,209,102,.07);color:#ffe5a0;font-size: 11px}
 .baseEstablishSection{padding:12px;border:1px solid rgba(101,255,208,.16);background:rgba(0,14,12,.55)}
-@media(max-width:560px){.topActions{display:grid;grid-template-columns:repeat(2,1fr)}.baseCommandOverview{grid-template-columns:1fr}.baseCommandGrid{grid-template-columns:1fr}}
+@media(max-width:560px){.baseCommandOverview{grid-template-columns:1fr}.baseCommandGrid{grid-template-columns:1fr}}
 
 
 /* v0.21.1 readable typography */
@@ -1047,7 +1092,7 @@ button, input, select, textarea { font-size: inherit; }
 }
 
 @media (max-width: 520px) {
-  .topActions { display: grid; grid-template-columns: 1fr; }
+  .topActions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .contextPanel.is-target-mode {
     max-height: min(25vh, 205px);
   }
@@ -1282,3 +1327,5 @@ button, input, select, textarea { font-size: inherit; }
   .formationAssignments li { align-items: flex-start; flex-direction: column; }
   .formationAssignments span { text-align: left; }
 }
+
+.baseCommandOverview small { display: block; margin-top: 3px; color: #719f94; font-size: 9px; }

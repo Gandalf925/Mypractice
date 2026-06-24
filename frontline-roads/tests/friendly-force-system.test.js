@@ -59,7 +59,12 @@ test('deployment preview is non-destructive and dispatch spends the assault cost
   assert.equal(result.ok, true);
   assert.equal(state.combat.friendlySquads.length, 1);
   assert.equal(state.inventory.resources.wood, before.wood - result.cost.wood);
-  assert.equal(dispatchAssaultSquad(state, 'home-base', 'enemy-base').ok, false);
+  const second = dispatchAssaultSquad(state, 'home-base', 'enemy-base');
+  assert.equal(second.ok, true);
+  assert.equal(state.combat.friendlySquads.length, 2);
+  const full = dispatchAssaultSquad(state, 'home-base', 'enemy-base');
+  assert.equal(full.ok, false);
+  assert.match(full.reason, /部隊枠が満員/);
 });
 
 test('friendly squad stops to fight enemies and both sides exchange damage', () => {

@@ -1,0 +1,43 @@
+FRONTLINE ROADS v0.32.0 STATE FOUNDATION FINAL AUDIT
+
+Release: 0.32.0-state-foundation
+Schema: 2 (unchanged)
+
+Verification
+- Standard regression: 366 passed, 0 failed
+- Serial regression: 366 passed, 0 failed
+- JavaScript syntax: passed
+- Production JavaScript modules: 98
+- Modules reachable from bootstrap: 98
+- Unreachable production modules: 0
+- Missing relative imports: 0
+- Circular dependencies: 0
+- Duplicate HTML IDs: 0
+- CSS brace imbalance: 0
+- Service-worker runtime omissions: 0
+- Legacy Store APIs in production: 0
+- UI normalization calls: 0
+- Runtime JSONP references: 0
+- Slow-frame discard pattern: absent
+- Detached autosave path: active
+- File manifest entries: 372
+
+State safety regressions
+- Failed command rollback: passed
+- Invalid-state rollback: passed
+- Buffered event rollback: passed
+- Async mutator rejection: passed
+- Event-listener fault isolation: passed
+- Detached read protection: passed
+- UI-open state immutability: passed
+- Shared periodic UI snapshot: passed
+
+Startup and roads
+- Optional cache failure boundary: covered
+- Offline rollback boundary: covered
+- UI startup does not quarantine save: covered
+- Reset aborts roads before cache deletion: covered
+- Late road response after abort is ignored: passed
+
+Browser limitation
+The container did not permit local HTTP/Chromium DOM generation. See docs/browser-test-v0.32.0.md. No claim of GPS, touch, or service-worker runtime verification is made from this environment.

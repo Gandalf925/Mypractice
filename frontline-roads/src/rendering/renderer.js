@@ -134,35 +134,35 @@ export class Renderer {
     this.render();
   }
 
-  staticLayerSignature(center) {
+  staticLayerSignature(center, scenePreferences = this.preferences) {
     return [
-      this.cssWidth, this.cssHeight, this.dpr, this.preferences.quality,
+      this.cssWidth, this.cssHeight, this.dpr, scenePreferences.quality, scenePreferences.sceneMode ?? 'default',
       this.camera.x.toFixed(3), this.camera.y.toFixed(3), this.camera.scale.toFixed(5),
       center.x.toFixed(2), center.y.toFixed(2), this.selection?.edgeId ?? '',
       this.graph?.nodes?.length ?? 0, this.graph?.edges?.length ?? 0
     ].join('|');
   }
 
-  rebuildStaticLayers(center, timeMs) {
-    const signature = this.staticLayerSignature(center);
+  rebuildStaticLayers(center, timeMs, scenePreferences = this.preferences) {
+    const signature = this.staticLayerSignature(center, scenePreferences);
     if (!this.staticDirty && signature === this.staticSignature) return;
     this.staticSignature = signature;
     this.staticDirty = false;
 
     if (this.backgroundContext) {
       this.backgroundContext.clearRect(0, 0, this.cssWidth, this.cssHeight);
-      drawRadarStaticBackdrop(this.backgroundContext, this.cssWidth, this.cssHeight, center, this.preferences);
+      drawRadarStaticBackdrop(this.backgroundContext, this.cssWidth, this.cssHeight, center, scenePreferences);
       if (this.graph) {
         drawRoadGraph(this.backgroundContext, this.graph, this.camera, {
           selectedEdgeId: this.selection?.edgeId ?? null,
           timeMs,
-          preferences: this.preferences
+          preferences: scenePreferences
         });
       }
     }
     if (this.overlayContext) {
       this.overlayContext.clearRect(0, 0, this.cssWidth, this.cssHeight);
-      drawRadarStaticOverlay(this.overlayContext, this.cssWidth, this.cssHeight, this.preferences);
+      drawRadarStaticOverlay(this.overlayContext, this.cssWidth, this.cssHeight, scenePreferences);
     }
   }
 
@@ -172,37 +172,43 @@ export class Renderer {
     return true;
   }
 
+  scenePreferences(state) {
+    if (state?.lifecycle === 'BASE_SELECTION') return { ...this.preferences, sceneMode: 'base-selection', motion: false };
+    return { ...this.preferences, sceneMode: 'combat' };
+  }
+
   render(timeMs = globalThis.performance?.now?.() ?? Date.now()) {
     const state = this.stateProvider?.();
     const anchor = state?.world?.city
       ? state.world.roadGraph?.nodeById?.get(state.world.city.nodeId)
       : this.selection?.point ?? this.homeBase;
     const center = radarCenter(this.camera, anchor);
-    const visualTime = this.preferences.motion ? timeMs : 0;
-    const sweepAngle = radarSweepAngle(visualTime, this.preferences);
-    this.rebuildStaticLayers(center, timeMs);
+    const scenePreferences = this.scenePreferences(state);
+    const visualTime = scenePreferences.motion ? timeMs : 0;
+    const sweepAngle = radarSweepAngle(visualTime, scenePreferences);
+    this.rebuildStaticLayers(center, timeMs, scenePreferences);
 
     this.context.clearRect(0, 0, this.cssWidth, this.cssHeight);
     if (!this.drawCachedLayer(this.backgroundLayer)) {
-      drawRadarStaticBackdrop(this.context, this.cssWidth, this.cssHeight, center, this.preferences);
-      if (this.graph) drawRoadGraph(this.context, this.graph, this.camera, { selectedEdgeId: this.selection?.edgeId ?? null, timeMs, preferences: this.preferences });
+      drawRadarStaticBackdrop(this.context, this.cssWidth, this.cssHeight, center, scenePreferences);
+      if (this.graph) drawRoadGraph(this.context, this.graph, this.camera, { selectedEdgeId: this.selection?.edgeId ?? null, timeMs, preferences: scenePreferences });
     }
-    drawRadarSweep(this.context, this.cssWidth, this.cssHeight, center, visualTime, this.preferences);
+    drawRadarSweep(this.context, this.cssWidth, this.cssHeight, center, visualTime, scenePreferences);
 
     if (this.graph && ACTIVE_GAME_STATES.has(state?.lifecycle)) {
-      drawFrontierSignals(this.context, state, this.camera, visualTime, this.preferences);
-      drawExplorationSites(this.context, state, this.camera, visualTime, this.preferences);
-      drawThreatRoutes(this.context, state, this.camera, this.focus, this.preferences);
-      drawCombatState(this.context, state, this.camera, { center, sweepAngle, timeMs: visualTime, preferences: this.preferences });
+      drawFrontierSignals(this.context, state, this.camera, visualTime, scenePreferences);
+      drawExplorationSites(this.context, state, this.camera, visualTime, scenePreferences);
+      drawThreatRoutes(this.context, state, this.camera, this.focus, scenePreferences);
+      drawCombatState(this.context, state, this.camera, { center, sweepAngle, timeMs: visualTime, preferences: scenePreferences });
       drawTacticalFocus(this.context, state, this.camera, this.focus, visualTime, this.preferences);
-      this.effects.draw(this.context, this.camera, state, timeMs, this.cssWidth, this.cssHeight, this.preferences);
-      drawBuildPlacement(this.context, this.camera, this.buildPlacement, visualTime, this.preferences);
+      this.effects.draw(this.context, this.camera, state, timeMs, this.cssWidth, this.cssHeight, scenePreferences);
+      drawBuildPlacement(this.context, this.camera, this.buildPlacement, visualTime, scenePreferences);
       drawFriendlyOrderPlanning(this.context, state, this.camera, this.friendlyOrderPlanning, visualTime);
     }
 
     const marker = this.selection?.point ?? this.homeBase;
     if (marker) this.drawMarker(marker, visualTime);
-    if (!this.drawCachedLayer(this.overlayLayer)) drawRadarStaticOverlay(this.context, this.cssWidth, this.cssHeight, this.preferences);
+    if (!this.drawCachedLayer(this.overlayLayer)) drawRadarStaticOverlay(this.context, this.cssWidth, this.cssHeight, scenePreferences);
   }
 
   drawMarker(marker, timeMs) {

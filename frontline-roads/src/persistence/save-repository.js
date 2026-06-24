@@ -20,8 +20,8 @@ function sanitizeGraph(graph) {
   return encodeRoadGraph(graph);
 }
 
-function sanitizeState(state) {
-  const copy = deepClone(state);
+function sanitizeState(state, { detached = false } = {}) {
+  const copy = detached ? state : deepClone(state);
   const timestamp = Date.now();
   copy.runtime.lastSavedAt = timestamp;
   copy.player.currentPosition = null;
@@ -141,9 +141,17 @@ export class SaveRepository {
   }
 
   save(state) {
+    return this.saveState(state, { detached: false });
+  }
+
+  saveDetachedState(state) {
+    return this.saveState(state, { detached: true });
+  }
+
+  saveState(state, { detached }) {
     if (!this.storage) throw new AppError(ErrorCode.STORAGE_UNAVAILABLE, 'ブラウザの保存領域を利用できません。');
     try {
-      const { copy, timestamp } = sanitizeState(state);
+      const { copy, timestamp } = sanitizeState(state, { detached });
       const serialized = JSON.stringify(copy);
       if (new TextEncoder().encode(serialized).length > MAX_SAVE_BYTES) {
         throw new Error('save data exceeds safe browser storage size');

@@ -116,12 +116,13 @@ function coordinatedFixture() {
   return state;
 }
 
-test('coordinated deployment uses unique bases and synchronizes mixed squads to one arrival time', () => {
+test('coordinated deployment can use multiple slots from one base and synchronizes mixed squads to one arrival time', () => {
   const state = coordinatedFixture();
   const requested = ['assault', 'siege', 'heavy'];
   const preview = previewCoordinatedDeployment(state, 'target', requested);
   assert.equal(preview.ok, true);
-  assert.equal(new Set(preview.assignments.map(item => item.origin.id)).size, 3);
+  const assignmentCounts = preview.assignments.reduce((counts, item) => counts.set(item.origin.id, (counts.get(item.origin.id) ?? 0) + 1), new Map());
+  assert.ok(Math.max(...assignmentCounts.values()) >= 2);
   assert.equal(preview.slowestSpeed, 0.7);
   const arrivals = preview.assignments.map(item => item.departDelay + item.routeDistance / item.definition.speed);
   assert.ok(arrivals.every(value => Math.abs(value - arrivals[0]) < 1e-6));

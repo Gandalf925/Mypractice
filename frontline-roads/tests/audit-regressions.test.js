@@ -162,8 +162,10 @@ test('production source only enables dev fixture on local or explicit test origi
 });
 
 
-test('development fixture disables browser JSONP and uses injected road data', async () => {
+test('road loading uses the injected fetch implementation without a script transport', async () => {
   const { readFile } = await import('node:fs/promises');
-  const source = await readFile(new URL('../src/app/bootstrap.js', import.meta.url), 'utf8');
-  assert.match(source, /development\.fetchImpl, jsonpImpl: null/);
+  const bootstrap = await readFile(new URL('../src/app/bootstrap.js', import.meta.url), 'utf8');
+  const client = await readFile(new URL('../src/roads/overpass-client.js', import.meta.url), 'utf8');
+  assert.match(bootstrap, /fetchImpl: development\?\.fetchImpl \?\? globalThis\.fetch/);
+  assert.doesNotMatch(client, /JSONP|jsonp|createElement\(['"]script/);
 });

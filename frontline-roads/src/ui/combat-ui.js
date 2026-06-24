@@ -86,8 +86,7 @@ export class CombatUi {
       .join('|');
   }
 
-  renderTools() {
-    const state = this.store.select(value => value);
+  renderTools(state = this.store.snapshot()) {
     this.toolAffordabilitySignature = this.affordabilitySignature(state);
     this.tools.textContent = '';
     const entries = [['select', { name: '選択', icon: '☝', cost: null }], ...Object.entries(DEFENSE_DEFINITIONS)];
@@ -150,12 +149,11 @@ export class CombatUi {
     ].join('|');
   }
 
-  refreshBuildPlacement(force = false) {
+  refreshBuildPlacement(force = false, state = this.store.snapshot()) {
     if (this.selectedTool === 'select') {
       this.renderer.setBuildPlacement(null);
       return;
     }
-    const state = this.store.select(value => value);
     const signature = this.placementSignature(state);
     if (!force && signature === this.buildPlacementSignature) return;
 
@@ -219,7 +217,7 @@ export class CombatUi {
     return candidates[0]?.distance <= tolerance ? candidates[0] : null;
   }
 
-  selectedFriendlySquad(state = this.store.select(value => value)) {
+  selectedFriendlySquad(state = this.store.snapshot()) {
     if (this.selectedObject?.kind !== 'friendlySquad') return null;
     return (state.combat.friendlySquads ?? []).find(squad => squad.id === this.selectedObject.id && squad.hp > 0) ?? null;
   }
@@ -235,9 +233,8 @@ export class CombatUi {
     } : null);
   }
 
-  rebuildOrderRoutes() {
+  rebuildOrderRoutes(state = this.store.snapshot()) {
     if (!this.orderPlanning) return;
-    const state = this.store.select(value => value);
     const squad = (state.combat.friendlySquads ?? []).find(item => item.id === this.orderPlanning.squadId && item.hp > 0);
     if (!squad) { this.cancelOrderPlanning(); return; }
     this.orderPlanning.startNodeId = commandStartNodeId(state, squad);
@@ -252,7 +249,7 @@ export class CombatUi {
   }
 
   beginOrderPlanning(mode) {
-    const state = this.store.select(value => value);
+    const state = this.store.snapshot();
     const squad = this.selectedFriendlySquad(state);
     if (!squad) return;
     const destinationNodeId = orderDestinationNodeId(state, squad, mode);
@@ -281,7 +278,7 @@ export class CombatUi {
   }
 
   handleOrderPlanningTap(worldPoint) {
-    const state = this.store.select(value => value);
+    const state = this.store.snapshot();
     const squad = this.selectedFriendlySquad(state);
     if (!this.orderPlanning || !squad) return;
     if (this.orderPlanning.destinationNodeId && this.orderPlanning.routes.length) {
@@ -361,7 +358,7 @@ export class CombatUi {
     this.orderPlanning.selectedRouteIndex = Math.min(priorIndex, Math.max(0, this.orderPlanning.routes.length - 1));
     const route = this.orderPlanning.routes[this.orderPlanning.selectedRouteIndex];
     if (!route) { this.notifications.show('実行可能な道路経路がありません。'); return; }
-    const currentState = this.store.select(value => value);
+    const currentState = this.store.snapshot();
     const currentSquad = (currentState.combat.friendlySquads ?? []).find(item => item.id === this.orderPlanning.squadId);
     const order = this.orderPlanning.mode === FRIENDLY_ORDER_MODE.RETREAT
       ? FRIENDLY_SQUAD_ORDER.RETREAT
@@ -371,7 +368,7 @@ export class CombatUi {
           ? FRIENDLY_SQUAD_ORDER.RETREAT
           : FRIENDLY_SQUAD_ORDER.ADVANCE;
     let result;
-    this.store.mutate(state => {
+    this.store.transaction(state => {
       result = this.friendlyForceSystem.issueRouteOrder(state, this.orderPlanning.squadId, {
         order,
         path: route.path,
@@ -390,7 +387,7 @@ export class CombatUi {
     const squad = this.selectedFriendlySquad();
     if (!squad) return;
     let result;
-    this.store.mutate(state => { result = this.friendlyForceSystem.hold(state, squad.id); }, 'friendly:hold', { emit: true, validate: true });
+    this.store.transaction(state => { result = this.friendlyForceSystem.hold(state, squad.id); }, 'friendly:hold', { emit: true, validate: true });
     this.notifications.show(result?.ok ? '部隊を停止させました。' : result?.reason ?? '停止できません。');
     if (result?.ok) this.persist?.();
     this.renderContext();
@@ -438,7 +435,7 @@ export class CombatUi {
       return;
     }
     if (this.selectedTool === 'select') {
-      const state = this.store.select(value => value);
+      const state = this.store.snapshot();
       const nextObject = this.nearestObject(state, worldPoint, 24 / this.camera.scale);
       const sameObject = nextObject
         && this.selectedObject
@@ -457,7 +454,7 @@ export class CombatUi {
       return;
     }
 
-    const state = this.store.select(value => value);
+    const state = this.store.snapshot();
     const result = this.buildSystem.previewAt(state, this.selectedTool, worldPoint, 24 / this.camera.scale);
     if (!result.ok) {
       this.buildCandidate = null;
@@ -474,7 +471,7 @@ export class CombatUi {
 
   confirmBuildCandidate() {
     if (!this.buildCandidate || this.selectedTool === 'select') return;
-    const state = this.store.select(value => value);
+    const state = this.store.snapshot();
     const validation = this.buildSystem.validateCandidate(state, this.buildCandidate, { checkResources: true });
     if (!validation.ok) {
       this.notifications.show(validation.reason ?? '建設できません。');
@@ -484,7 +481,7 @@ export class CombatUi {
     }
 
     let result = null;
-    this.store.mutate(draft => {
+    this.store.transaction(draft => {
       result = this.buildSystem.buildCandidate(draft, validation.candidate);
     }, 'combat:build', { emit: true, validate: true });
     if (!result?.ok) {
@@ -671,7 +668,7 @@ export class CombatUi {
 
   mutateAction(action, reason) {
     let result;
-    this.store.mutate(state => { result = action(state); }, reason, { emit: true, validate: true });
+    this.store.transaction(state => { result = action(state); }, reason, { emit: true, validate: true });
     this.notifications.show(result?.ok ? result?.message ?? '操作を実行しました。' : result?.reason ?? '操作できません。');
     this.renderContext();
     this.renderer.render();
@@ -686,7 +683,7 @@ export class CombatUi {
     }
 
     let result;
-    this.store.mutate(state => { result = this.buildSystem.removeDefense(state, defenseId); }, 'defense:remove', { emit: true, validate: true });
+    this.store.transaction(state => { result = this.buildSystem.removeDefense(state, defenseId); }, 'defense:remove', { emit: true, validate: true });
     this.pendingDefenseRemovalId = null;
     if (!result?.ok) {
       this.notifications.show(result?.reason ?? '設備を撤去できません。');
@@ -706,8 +703,7 @@ export class CombatUi {
     this.renderContext();
   }
 
-  renderBuildContext() {
-    const state = this.store.select(value => value);
+  renderBuildContext(state = this.store.snapshot()) {
     const definition = DEFENSE_DEFINITIONS[this.selectedTool];
     const presentation = defensePresentation(this.selectedTool, definition);
     if (!definition || !presentation) {
@@ -754,9 +750,9 @@ export class CombatUi {
     setVisible(this.context, true);
   }
 
-  renderContext() {
+  renderContext(state = this.store.snapshot()) {
     if (this.selectedTool !== 'select') {
-      this.renderBuildContext();
+      this.renderBuildContext(state);
       return;
     }
     this.context.classList?.remove('is-build-mode', 'has-candidate', 'is-order-mode', 'is-defense-mode', 'is-defense-summary', 'is-defense-details', 'is-defense-upgrade', 'is-target-mode');
@@ -764,7 +760,6 @@ export class CombatUi {
       setVisible(this.context, false);
       return;
     }
-    const state = this.store.select(value => value);
     this.contextActions.textContent = '';
     const selected = this.selectedObject;
     if (this.orderPlanning) {
@@ -1031,20 +1026,19 @@ export class CombatUi {
     setVisible(this.context, true);
   }
 
-  update() {
-    const state = this.store.select(value => value);
+  update(state = this.store.snapshot()) {
     this.cityHp.textContent = Math.ceil(state.world.city?.hp ?? 0);
     this.enemyCount.textContent = state.combat.enemies.length;
     this.civilizationLevel.textContent = state.civilization.level;
     const affordability = this.affordabilitySignature(state);
-    if (affordability !== this.toolAffordabilitySignature) this.renderTools();
-    if (this.selectedTool !== 'select') this.refreshBuildPlacement();
+    if (affordability !== this.toolAffordabilitySignature) this.renderTools(state);
+    if (this.selectedTool !== 'select') this.refreshBuildPlacement(false, state);
     if (this.orderPlanning) {
       const squad = this.selectedFriendlySquad(state);
       const startNodeId = squad ? commandStartNodeId(state, squad) : null;
       if (!squad) this.cancelOrderPlanning();
-      else if (startNodeId !== this.orderPlanning.startNodeId) this.rebuildOrderRoutes();
+      else if (startNodeId !== this.orderPlanning.startNodeId) this.rebuildOrderRoutes(state);
     }
-    if (!this.context.hidden) this.renderContext();
+    if (!this.context.hidden) this.renderContext(state);
   }
 }

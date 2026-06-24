@@ -1,6 +1,8 @@
 import { deploymentBases, ownedBaseById } from '../base/field-bases.js';
 import { ENEMY_BASE_DEFINITIONS } from '../combat/definitions.js';
-import { FRIENDLY_SQUAD_DEFINITIONS, FRIENDLY_SQUAD_TYPES } from '../combat/friendly-force-system.js';
+import {
+  FRIENDLY_SQUAD_DEFINITIONS, FRIENDLY_SQUAD_TYPES, friendlySquadCapacityStatus
+} from '../combat/friendly-force-system.js';
 import { bundleText } from '../civilization/inventory-system.js';
 import { RECOVERY_ITEM_STATUS, recoveryItemPresentation } from '../exploration/recovery-system.js';
 import { queryRequired, setVisible } from './dom.js';
@@ -21,10 +23,6 @@ function durationText(seconds) {
   const minutes = Math.floor(value / 60);
   const remainder = value % 60;
   return minutes ? `約${minutes}分${remainder ? `${remainder}秒` : ''}` : `約${remainder}秒`;
-}
-
-function squadStatusLabel(status) {
-  return ({ OUTBOUND: '進軍中', ENGAGED: '交戦中', ATTACKING_BASE: '基地攻撃中', COLLECTING_ITEM: '現地回収中', HALTED: '停止中', RETREATING: '後退中', WITHDRAWING: '撤退中', RETURNING: '帰還中', STRANDED: '経路再計算中', RECOVERING: '回復・再編成中', READY: '再出撃可能' })[status] ?? status;
 }
 
 function baseKindLabel(base) {
@@ -74,12 +72,13 @@ export class DeploymentUi {
   openTarget(targetId) {
     this.targetId = targetId;
     this.originBaseId = null;
-    this.normalizeSelection();
-    if (!this.currentTarget()) {
+    const state = this.store.snapshot();
+    this.normalizeSelection(state);
+    if (!this.currentTarget(state)) {
       this.notifications.show(this.missionKind === MISSION_KIND.RECOVERY ? 'この回収物は現在派遣対象にできません。' : 'この敵拠点は現在攻撃対象にできません。');
       return false;
     }
-    this.render();
+    this.render(state);
     setVisible(this.panel, true);
     return true;
   }
@@ -88,13 +87,13 @@ export class DeploymentUi {
     setVisible(this.panel, false);
   }
 
-  update() {
+  update(state = this.store.snapshot()) {
     if (!this.panel.hidden && Date.now() - this.lastRenderAt >= 1000) {
-      if (!this.currentTarget()) {
+      if (!this.currentTarget(state)) {
         this.close();
         return;
       }
-      this.render();
+      this.render(state);
     }
   }
 
@@ -102,11 +101,11 @@ export class DeploymentUi {
     return FRIENDLY_SQUAD_TYPES.filter(type => this.missionKind === MISSION_KIND.RECOVERY ? isRecoveryType(type) : !isRecoveryType(type));
   }
 
-  unlockedAttackTypes(state = this.store.select(value => value)) {
+  unlockedAttackTypes(state = this.store.snapshot()) {
     return this.availableTypes().filter(type => (state.civilization?.level ?? 0) >= FRIENDLY_SQUAD_DEFINITIONS[type].unlockLevel);
   }
 
-  currentTarget(state = this.store.select(value => value)) {
+  currentTarget(state = this.store.snapshot()) {
     if (this.missionKind === MISSION_KIND.RECOVERY) {
       return (state.world.recoveryItems ?? []).find(item => item.id === this.targetId && item.status === RECOVERY_ITEM_STATUS.AVAILABLE) ?? null;
     }
@@ -114,7 +113,7 @@ export class DeploymentUi {
   }
 
   resetGroupSelection() {
-    const state = this.store.select(value => value);
+    const state = this.store.snapshot();
     const types = this.unlockedAttackTypes(state);
     this.groupCounts = Object.create(null);
     const first = types.includes('assault') ? 'assault' : types[0];
@@ -125,8 +124,7 @@ export class DeploymentUi {
     return this.availableTypes().flatMap(type => Array.from({ length: Math.max(0, Math.floor(this.groupCounts[type] ?? 0)) }, () => type));
   }
 
-  normalizeSelection() {
-    const state = this.store.select(value => value);
+  normalizeSelection(state = this.store.snapshot()) {
     const availableTypes = this.availableTypes();
     const selectedDefinition = FRIENDLY_SQUAD_DEFINITIONS[this.squadType];
     if (!availableTypes.includes(this.squadType) || !selectedDefinition || (state.civilization?.level ?? 0) < selectedDefinition.unlockLevel) {
@@ -148,7 +146,7 @@ export class DeploymentUi {
       if (this.mode === DEPLOYMENT_MODE.COORDINATED && this.groupSquadTypes().length === 0) this.resetGroupSelection();
     }
     if (action === 'select-unit' && squadType) {
-      const state = this.store.select(value => value);
+      const state = this.store.snapshot();
       const definition = FRIENDLY_SQUAD_DEFINITIONS[squadType];
       if (!definition || !this.availableTypes().includes(squadType) || (state.civilization?.level ?? 0) < definition.unlockLevel) return;
       this.squadType = squadType;
@@ -164,7 +162,7 @@ export class DeploymentUi {
     if (action === 'select-origin') this.originBaseId = baseId;
     if (action === 'dispatch') {
       let result;
-      this.store.mutate(state => { result = this.system.dispatch(state, this.originBaseId, this.targetId, this.squadType); }, 'friendly:dispatch', { emit: true, validate: true });
+      this.store.transaction(state => { result = this.system.dispatch(state, this.originBaseId, this.targetId, this.squadType); }, 'friendly:dispatch', { emit: true, validate: true });
       if (!result?.ok) this.notifications.show(result?.reason ?? '派兵できません。');
       else {
         this.notifications.show(`${FRIENDLY_SQUAD_DEFINITIONS[this.squadType].name}を派兵しました。`);
@@ -176,7 +174,7 @@ export class DeploymentUi {
     if (action === 'dispatch-group') {
       let result;
       const squadTypes = this.groupSquadTypes();
-      this.store.mutate(state => { result = this.system.dispatchCoordinated(state, this.targetId, squadTypes); }, 'friendly:coordinated-dispatch', { emit: true, validate: true });
+      this.store.transaction(state => { result = this.system.dispatchCoordinated(state, this.targetId, squadTypes); }, 'friendly:coordinated-dispatch', { emit: true, validate: true });
       if (!result?.ok) this.notifications.show(result?.reason ?? '連携出撃できません。');
       else {
         this.notifications.show(`${result.squads.length}部隊が到着時刻を合わせて連携出撃しました。`);
@@ -233,17 +231,20 @@ export class DeploymentUi {
       ? this.system.previewDeployment(state, this.originBaseId, this.targetId, this.squadType)
       : { ok: false, reason: '出撃元を選択してください。' };
     const originCards = bases.map(base => {
-      const squadsAtBase = state.combat.friendlySquads.filter(squad => squad.originBaseId === base.id && squad.hp > 0);
-      const stationed = squadsAtBase.find(squad => ['RECOVERING', 'READY'].includes(squad.status));
-      const active = squadsAtBase.filter(squad => !['RECOVERING', 'READY'].includes(squad.status)).length;
-      const stationedText = stationed ? `${squadStatusLabel(stationed.status)}：${FRIENDLY_SQUAD_DEFINITIONS[stationed.type]?.name ?? '部隊'} HP ${Math.ceil(stationed.hp)}/${stationed.maxHp}` : `派兵中 ${active}`;
-      return `<button class="deploymentCard ${base.id === this.originBaseId ? 'selected' : ''}" data-action="select-origin" data-base-id="${base.id}"><strong>${base.name}</strong><span>${baseKindLabel(base)}・HP ${Math.ceil(base.hp)}/${base.maxHp}</span><small>${stationedText}</small></button>`;
+      const capacity = friendlySquadCapacityStatus(state, base);
+      const statusParts = [
+        `部隊枠 ${capacity.assigned}/${capacity.capacity}`,
+        `派兵中 ${capacity.active}`,
+        capacity.recovering ? `回復 ${capacity.recovering}` : null,
+        capacity.ready ? `待機 ${capacity.ready}` : null
+      ].filter(Boolean).join('・');
+      return `<button class="deploymentCard ${base.id === this.originBaseId ? 'selected' : ''}" data-action="select-origin" data-base-id="${base.id}"><strong>${base.name}</strong><span>${baseKindLabel(base)}・HP ${Math.ceil(base.hp)}/${base.maxHp}</span><small>${statusParts}</small></button>`;
     }).join('') || `<p class="emptyText">${definition.name}を出撃できる拠点がありません。</p>`;
     const origin = ownedBaseById(state, this.originBaseId, { includeDestroyed: true });
     return `<section><h2>部隊種類</h2><div class="deploymentGrid deploymentUnitGrid">${this.unitCardsMarkup(state)}</div></section>
       <section><h2>出撃元</h2><div class="deploymentGrid">${originCards}</div></section>
       <section class="deploymentOrder"><h2>派兵確認</h2>
-        <div class="contextMetricGrid"><span><small>FROM</small><strong>${origin?.name ?? '未選択'}</strong></span><span><small>UNIT</small><strong>${definition.name}</strong></span><span><small>ROUTE</small><strong>${routeText(preview.routeDistance)}</strong></span><span><small>COST</small><strong>${preview.reuseReadySquad ? '不要' : bundleText(definition.cost)}</strong></span></div>
+        <div class="contextMetricGrid"><span><small>FROM</small><strong>${origin?.name ?? '未選択'}</strong></span><span><small>UNIT</small><strong>${definition.name}</strong></span><span><small>ROUTE</small><strong>${routeText(preview.routeDistance)}</strong></span><span><small>SLOT</small><strong>${preview.capacity ? `${preview.assignedSquads ?? 0}/${preview.capacity}` : '—'}</strong></span><span><small>COST</small><strong>${preview.reuseReadySquad ? '不要' : bundleText(definition.cost)}</strong></span></div>
         <p class="sectionNote">${preview.ok ? preview.reuseReadySquad ? '回復・再編成済みの同じ部隊を、追加費用なしで再出撃させます。' : preview.replaceReadySquad ? '待機中の別部隊を解散し、新しい部隊を編成します。' : definition.description : preview.reason}</p>
         <button class="primary wideButton" data-action="dispatch" ${preview.ok ? '' : 'disabled'}>${preview.reuseReadySquad ? `${definition.name}を再出撃` : preview.replaceReadySquad ? `${definition.name}へ再編成` : recoveryMission ? `${definition.name}を派遣` : `この敵拠点へ${definition.name}を派兵`}</button>
       </section>`;
@@ -253,7 +254,7 @@ export class DeploymentUi {
     const squadTypes = this.groupSquadTypes();
     const preview = this.system.previewCoordinatedDeployment(state, this.targetId, squadTypes);
     const assignments = (preview.assignments ?? []).map(assignment => `<li><strong>${assignment.definition.name}</strong><span>${assignment.origin.name}・${routeText(assignment.routeDistance)}・待機 ${durationText(assignment.departDelay)}</span></li>`).join('');
-    return `<section><h2>連携編成 <small>${squadTypes.length}/${MAX_COORDINATED_SQUADS}部隊</small></h2><p class="sectionNote">複数の空き拠点を自動選択し、各部隊の本来速度を維持したまま出発時刻を調整して、目標への到着時刻を揃えます。</p><div class="deploymentGrid coordinatedUnitGrid">${this.groupCardsMarkup(state)}</div></section>
+    return `<section><h2>連携編成 <small>${squadTypes.length}/${MAX_COORDINATED_SQUADS}部隊</small></h2><p class="sectionNote">各拠点の空き部隊枠を自動で割り当てます。同じ拠点から複数部隊を出撃でき、部隊ごとの速度を保ったまま出発時刻を調整して到着を揃えます。</p><div class="deploymentGrid coordinatedUnitGrid">${this.groupCardsMarkup(state)}</div></section>
       <section class="deploymentOrder coordinatedOrder"><h2>連携出撃確認</h2>
         <div class="contextMetricGrid"><span><small>SQUADS</small><strong>${squadTypes.length}</strong></span><span><small>PACE</small><strong>${preview.assignments?.length ? '自然速度' : '—'}</strong></span><span><small>ARRIVAL</small><strong>${durationText(preview.estimatedArrivalSeconds)}</strong></span><span><small>COST</small><strong>${bundleText(preview.cost ?? {})}</strong></span></div>
         ${assignments ? `<ol class="formationAssignments">${assignments}</ol>` : ''}
@@ -262,10 +263,9 @@ export class DeploymentUi {
       </section>`;
   }
 
-  render() {
-    const state = this.store.select(value => value);
+  render(state = this.store.snapshot()) {
     this.lastRenderAt = Date.now();
-    this.normalizeSelection();
+    this.normalizeSelection(state);
     const target = this.currentTarget(state);
     if (!target) return;
     const recoveryMission = this.missionKind === MISSION_KIND.RECOVERY;

@@ -1,14 +1,58 @@
-# FRONTLINE ROADS — modular source v0.31.0 gameplay stabilization
+# FRONTLINE ROADS — modular source v0.32.0 state foundation
+
+## State foundation v0.32.0
+
+- UI rendering uses detached snapshots and cannot normalize or mutate the committed game state.
+- State commands run transactionally: validation or command failures leave the committed state and queued events unchanged.
+- Legacy direct state APIs were removed instead of retained as compatibility layers.
+- Save validation, optional road-cache restoration, offline simulation, and UI startup now have separate failure boundaries.
+- Periodic HUD refresh shares one snapshot across the visible UI systems.
+- Road acquisition uses generation cancellation so late responses cannot repopulate a reset world.
+- Live simulation preserves slow-frame backlog instead of silently discarding elapsed time.
+- Autosave sanitizes one detached snapshot instead of cloning the complete world twice.
+- Overpass requests use POST only; the obsolete JSONP script transport was removed.
+- Duplicate normalization calls and five confirmed unused exports were removed.
+
+Implementation and verification are documented in `docs/state-foundation-v0.32.0.md`.
 
 FRONTLINE ROADS is a location-based, continuously progressing road-defense strategy game. This directory is the canonical modular development source.
 
+## Command capacity, facility guidance and resource HUD v0.31.3
+
+- Replaces the fixed one-squad-per-base rule with civilization-scaled command capacity.
+- Major bases provide `2 + civilization level` squad slots; field bases provide `2 + floor(civilization level / 2)` slots.
+- Active, recovering and ready squads each occupy one persistent base slot. A free slot remains usable while another squad recovers.
+- Coordinated deployment may assign several squads to the same base when it has enough slots.
+- Every settlement building now has a concise description covering its output or storage purpose and primary use.
+- The default resource display renders every owned resource as an independent chip in a two-row horizontal dock, avoiding omission and overlap with top controls.
+- Save schema and save key remain unchanged because command capacity is derived from civilization level.
+
+Implementation and verification are documented in `docs/command-capacity-resource-hud-v0.31.3.md`.
+
+## Base-selection visibility v0.31.2
+
+- Uses a dedicated brighter road style during initial base placement.
+- Suppresses the radar sweep and reduces vignette darkness while choosing the first road.
+- Enlarges the portrait map viewport without changing the normal combat renderer.
+
+Implementation is documented in `docs/base-selection-visibility-v0.31.2.md`.
+
+## Offline simulation equivalence v0.31.1
+
+- Replaces adaptive 0.25–5 second offline updates with a canonical maximum 0.25-second step for the full 12-hour cap.
+- Preserves reload overrun, disabled-time overlap, departure-delay remainder and movement distance across multiple road edges.
+- Preserves half-second barrier attack cadence, slow-expiration timing and 30-second enemy-base reconciliation remainder.
+- Adds direct 20 Hz versus offline equivalence tests and 30-minute, 1-hour, 4-hour and 12-hour comparison evidence.
+- Keeps the existing save key and schema version.
+
+Implementation and verification are documented in `docs/offline-equivalence-v0.31.1.md`.
 
 ## Gameplay stabilization v0.31.0
 
 - Adds 1, 5, 10 and maximum-quantity production reservations while preventing queued recipes from double-spending the same inputs.
 - Adds safe civilization contribution that preserves a level-specific construction and repair reserve; full contribution remains an explicit option.
 - Gives the opening civilization a fifteen-minute pressure ramp and a less destructive recovery after city defeat without weakening later civilizations.
-- Adds coordinated deployment for two to six attack squads. It assigns separate bases and delays departures while retaining each squad's natural speed so mixed formations reach the target together.
+- Adds coordinated deployment for two to six attack squads. It uses available per-base squad slots and delays departures while retaining each squad's natural speed so mixed formations reach the target together.
 - Adds a road-network feasibility diagnosis for the three simple bases required by Civilization Lv.4.
 - Corrects dense-road barrier candidates so every listed placement point is also valid under the final build-range check. The one-time Civilization Lv.1 barrier requirement no longer reverses when that barrier is later destroyed.
 - Repeated opening tests now reach Civilization Lv.1 in all 72 line, cross and dense-grid scenarios without a city defeat.

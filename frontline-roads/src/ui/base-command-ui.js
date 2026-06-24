@@ -1,8 +1,7 @@
 import { distance } from '../core/utilities.js';
-import { activePlayerBases, baseLimitForCivilization, ensurePlayerBaseState, playerBaseSlotsUsed } from '../base/player-bases.js';
+import { activePlayerBases, baseLimitForCivilization, playerBaseSlotsUsed } from '../base/player-bases.js';
 import {
   activeFieldBases,
-  ensureFieldBaseState,
   fieldBaseLimitForCivilization,
   fieldBaseSlotsUsed
 } from '../base/field-bases.js';
@@ -11,6 +10,7 @@ import { edgeMidpoint } from '../combat/combat-geometry.js';
 import { queryRequired, setVisible } from './dom.js';
 import { bundleText } from '../civilization/inventory-system.js';
 import { diagnoseFieldBaseNetwork } from '../base/field-base-system.js';
+import { friendlySquadCapacityForBase } from '../combat/friendly-force-system.js';
 
 const BASE_STATUS_RADIUS_METERS = 300;
 const FACILITY_RADIUS_METERS = 120;
@@ -31,11 +31,13 @@ export function summarizePlayerBase(state, base) {
   const readySquads = baseSquads.filter(squad => squad.status === 'READY').length;
   const activeSquads = baseSquads.length - recoveringSquads - readySquads;
   const squads = baseSquads.length;
+  const squadCapacity = friendlySquadCapacityForBase(state, base);
   const recoveryItems = (state.world.recoveryItems ?? []).filter(item => item.status === 'AVAILABLE' && distance(base, state.world.roadGraph?.nodeById?.get(item.nodeId) ?? item) <= BASE_STATUS_RADIUS_METERS).length;
   return {
     nearbyEnemies,
     facilities,
     squads,
+    squadCapacity,
     activeSquads,
     recoveringSquads,
     readySquads,
@@ -55,9 +57,9 @@ function baseCard(state, base, { selected, label, field = false, rebuild = null,
   const destroyed = base.status === 'DESTROYED' || base.hp <= 0;
   return `<article class="baseCommandCard ${selected ? 'selected' : ''} ${destroyed ? 'destroyed' : ''}">
     <header><div><small>${label}</small><strong>${base.name}</strong></div><span data-alert="${destroyed || status.nearbyEnemies > 0 ? 'danger' : 'clear'}">${status.alert}</span></header>
-    <div class="contextMetricGrid"><span><small>HP</small><b>${Math.ceil(base.hp)}/${base.maxHp}</b></span><span><small>ENEMY</small><b>${status.nearbyEnemies}</b></span><span><small>DEF</small><b>${status.facilities}</b></span><span><small>SQUAD</small><b>${status.activeSquads}/${status.squads}</b></span></div>
+    <div class="contextMetricGrid"><span><small>HP</small><b>${Math.ceil(base.hp)}/${base.maxHp}</b></span><span><small>ENEMY</small><b>${status.nearbyEnemies}</b></span><span><small>DEF</small><b>${status.facilities}</b></span><span><small>SQUAD</small><b>${status.squads}/${status.squadCapacity}</b></span></div>
     ${field ? '<p class="sectionNote">建設範囲50m・突撃／遊撃／回収部隊を派兵可能</p>' : ''}
-    ${status.recoveringSquads || status.readySquads ? `<p class="baseSquadNotice">回復中 ${status.recoveringSquads}・再出撃待機 ${status.readySquads}</p>` : ''}
+    <p class="baseSquadNotice">派兵中 ${status.activeSquads}・回復中 ${status.recoveringSquads}・再出撃待機 ${status.readySquads}</p>
     ${status.recoveryItems ? `<p class="baseRecoveryNotice">周辺に未回収アイテム ${status.recoveryItems}</p>` : ''}
     <button class="primary wideButton" data-action="focus-base" data-base-id="${base.id}" data-base-kind="${field ? 'field' : 'major'}">この拠点をMAP表示</button>
     ${destroyed && rebuildKind ? `<button class="secondary wideButton" data-action="rebuild-${rebuildKind}-base" data-base-id="${base.id}" ${rebuild?.ok ? '' : 'disabled'}>現地で${rebuildKind === 'field' ? '簡易拠点' : '主要拠点'}を再建</button><p class="sectionNote">費用 ${bundleText(rebuild?.cost)}・${rebuild?.ok ? '現在地から再建できます。' : rebuild?.reason ?? '現地へ移動してください。'}</p>` : ''}
@@ -84,32 +86,31 @@ export class BaseCommandUi {
   }
 
   availableBases(state) {
-    return [...ensurePlayerBaseState(state), ...ensureFieldBaseState(state)];
+    return [...(state.world?.playerBases ?? []), ...(state.world?.fieldBases ?? [])];
   }
 
   open() {
-    const state = this.store.select(value => value);
+    const state = this.store.snapshot();
     const bases = this.availableBases(state);
     if (!bases.some(base => base.id === this.focusedBaseId)) {
       this.focusedBaseId = bases[0]?.id ?? null;
       this.focusedBaseKind = 'major';
     }
-    this.render();
+    this.render(state);
     setVisible(this.panel, true);
   }
 
   close() { setVisible(this.panel, false); }
 
-  update() {
-    this.updateSummary();
-    if (!this.panel.hidden && Date.now() - this.lastRenderAt >= 1000) this.render();
+  update(state = this.store.snapshot()) {
+    this.updateSummary(state);
+    if (!this.panel.hidden && Date.now() - this.lastRenderAt >= 1000) this.render(state);
   }
 
-  updateSummary() {
-    const state = this.store.select(value => value);
+  updateSummary(state = this.store.snapshot()) {
     const major = activePlayerBases(state);
     const majorSlots = playerBaseSlotsUsed(state);
-    const field = ensureFieldBaseState(state);
+    const field = state.world?.fieldBases ?? [];
     const focused = [...major, ...field].find(base => base.id === this.focusedBaseId);
     this.summary.textContent = `主要 ${major.length}稼働・${majorSlots}/${baseLimitForCivilization(state.civilization?.level)}・簡易 ${fieldBaseSlotsUsed(state)}/${fieldBaseLimitForCivilization(state.civilization?.level)}${focused ? `・表示 ${focused.name}` : ''}`;
   }
@@ -119,8 +120,8 @@ export class BaseCommandUi {
     if (!button) return;
     const { action, baseId, baseKind } = button.dataset;
     if (action === 'focus-base') {
-      const state = this.store.select(value => value);
-      const pool = baseKind === 'field' ? ensureFieldBaseState(state) : ensurePlayerBaseState(state);
+      const state = this.store.snapshot();
+      const pool = baseKind === 'field' ? (state.world?.fieldBases ?? []) : (state.world?.playerBases ?? []);
       const base = pool.find(value => value.id === baseId);
       if (!base) return;
       this.focusedBaseId = base.id;
@@ -132,7 +133,7 @@ export class BaseCommandUi {
     }
     if (action === 'establish-base') {
       let result;
-      this.store.mutate(state => { result = this.system.establishAtCurrentLocation(state); }, 'base:player-established', { emit: true, validate: true });
+      this.store.transaction(state => { result = this.system.establishAtCurrentLocation(state); }, 'base:player-established', { emit: true, validate: true });
       if (!result?.ok) this.notifications.show(result?.reason ?? '拠点を設置できません。');
       else {
         this.focusedBaseId = result.base.id;
@@ -148,7 +149,7 @@ export class BaseCommandUi {
     if (action === 'establish-field-base') {
       if (!this.fieldSystem) return;
       let result;
-      this.store.mutate(state => { result = this.fieldSystem.establishAtCurrentLocation(state); }, 'base:field-established', { emit: true, validate: true });
+      this.store.transaction(state => { result = this.fieldSystem.establishAtCurrentLocation(state); }, 'base:field-established', { emit: true, validate: true });
       if (!result?.ok) this.notifications.show(result?.reason ?? '簡易拠点を設置できません。');
       else {
         this.focusedBaseId = result.base.id;
@@ -163,7 +164,7 @@ export class BaseCommandUi {
     }
     if (action === 'rebuild-major-base') {
       let result;
-      this.store.mutate(state => { result = this.system.rebuild(state, baseId); }, 'base:player-rebuilt', { emit: true, validate: true });
+      this.store.transaction(state => { result = this.system.rebuild(state, baseId); }, 'base:player-rebuilt', { emit: true, validate: true });
       if (!result?.ok) this.notifications.show(result?.reason ?? '主要拠点を再建できません。');
       else {
         this.renderer.invalidateStatic();
@@ -177,7 +178,7 @@ export class BaseCommandUi {
     if (action === 'rebuild-field-base') {
       if (!this.fieldSystem) return;
       let result;
-      this.store.mutate(state => { result = this.fieldSystem.rebuild(state, baseId); }, 'base:field-rebuilt', { emit: true, validate: true });
+      this.store.transaction(state => { result = this.fieldSystem.rebuild(state, baseId); }, 'base:field-rebuilt', { emit: true, validate: true });
       if (!result?.ok) this.notifications.show(result?.reason ?? '簡易拠点を再建できません。');
       else {
         this.renderer.invalidateStatic();
@@ -189,11 +190,10 @@ export class BaseCommandUi {
     }
   }
 
-  render() {
-    const state = this.store.select(value => value);
+  render(state = this.store.snapshot()) {
     this.lastRenderAt = Date.now();
-    const majorBases = ensurePlayerBaseState(state);
-    const fieldBases = ensureFieldBaseState(state);
+    const majorBases = state.world?.playerBases ?? [];
+    const fieldBases = state.world?.fieldBases ?? [];
     const majorLimit = baseLimitForCivilization(state.civilization?.level);
     const fieldLimit = fieldBaseLimitForCivilization(state.civilization?.level);
     const all = [...majorBases, ...fieldBases];
@@ -216,11 +216,11 @@ export class BaseCommandUi {
       rebuildKind: 'field'
     })).join('') || '<p class="emptyText">簡易拠点はまだありません。</p>';
 
-    this.body.innerHTML = `<section class="baseCommandOverview"><div><span>主要拠点</span><strong>${majorBases.length}/${majorLimit}</strong></div><div><span>簡易拠点</span><strong>${fieldBaseSlotsUsed(state)}/${fieldLimit}</strong></div><div><span>文明レベル</span><strong>Lv.${state.civilization.level}</strong></div></section>
+    this.body.innerHTML = `<section class="baseCommandOverview"><div><span>主要拠点</span><strong>${majorBases.length}/${majorLimit}</strong><small>各 ${friendlySquadCapacityForBase(state, { kind: 'MAJOR' })}部隊枠</small></div><div><span>簡易拠点</span><strong>${fieldBaseSlotsUsed(state)}/${fieldLimit}</strong><small>各 ${friendlySquadCapacityForBase(state, { kind: 'FIELD' })}部隊枠</small></div><div><span>文明レベル</span><strong>Lv.${state.civilization.level}</strong><small>発展で部隊枠増加</small></div></section>
       <section><h2>主要拠点</h2><div class="baseCommandGrid">${majorCards}</div></section>
       <section><h2>簡易拠点</h2><div class="baseCommandGrid">${fieldCards}</div></section>
       <section class="baseEstablishSection"><h2>現在地に主要拠点</h2><p class="sectionNote">主要拠点は建設範囲85mで、すべての部隊を派兵できます。</p><button class="primary wideButton" data-action="establish-base" ${majorPlacement.ok ? '' : 'disabled'}>現在地に主要拠点を設置</button><p class="sectionNote">費用 ${bundleText(majorPlacement.cost)}・${majorPlacement.ok ? `設置可能・道路まで約${Math.round(majorPlacement.distanceToRoad)}m` : majorPlacement.reason}</p></section>
       <section class="baseEstablishSection"><h2>現在地に簡易拠点</h2><p class="sectionNote">文明Lv.1で解禁。取得済み道路の交差点から100m以内で設置できます。HP40、建設範囲50m、突撃／遊撃／回収部隊を派兵できます。破壊後は現地で再建が必要です。</p><div class="fieldBaseDiagnostic ${fieldDiagnostic.sufficient ? 'is-sufficient' : 'is-insufficient'}"><strong>道路網診断：${fieldDiagnostic.active}/${fieldDiagnostic.required}基稼働</strong><span>追加候補 ${fieldDiagnostic.confirmedAdditional}基・破壊済み ${fieldDiagnostic.destroyed}基</span><small>${fieldDiagnostic.guidance}</small></div><button class="primary wideButton" data-action="establish-field-base" ${fieldPlacement.ok ? '' : 'disabled'}>現在地に簡易拠点を設置</button><p class="sectionNote">費用 ${bundleText(fieldPlacement.cost)}・${fieldPlacement.ok ? `設置可能・道路まで約${Math.round(fieldPlacement.distanceToRoad)}m` : fieldPlacement.reason}</p></section>`;
-    this.updateSummary();
+    this.updateSummary(state);
   }
 }

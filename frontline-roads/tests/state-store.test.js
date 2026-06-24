@@ -17,7 +17,7 @@ test('lifecycle follows the new startup sequence', () => {
   store.transition(LifecycleState.BASE_SELECTION);
   store.transition(LifecycleState.INITIALIZING);
   store.transition(LifecycleState.PLAYING);
-  assert.equal(store.select(state => state.lifecycle), LifecycleState.PLAYING);
+  assert.equal(store.read(state => state.lifecycle), LifecycleState.PLAYING);
 });
 
 test('invalid transition is rejected', () => {
@@ -27,7 +27,71 @@ test('invalid transition is rejected', () => {
 
 test('state snapshots cannot mutate the store', () => {
   const store = createStore();
-  const snapshot = store.getState();
+  const snapshot = store.snapshot();
   snapshot.statistics.kills = 99;
-  assert.equal(store.select(state => state.statistics.kills), 0);
+  assert.equal(store.read(state => state.statistics.kills), 0);
+});
+
+test('failed transactions leave the committed state untouched', () => {
+  const events = new EventBus();
+  const store = new StateStore(createInitialState(), events);
+  const before = store.snapshot();
+  assert.throws(() => store.transaction(draft => {
+    draft.statistics.kills = 17;
+    draft.schemaVersion = -1;
+  }, 'invalid:transaction'), /Invalid state|schemaVersion/i);
+  assert.deepEqual(store.snapshot(), before);
+});
+
+test('mutator exceptions roll back state and buffered domain events', () => {
+  const events = new EventBus();
+  const store = new StateStore(createInitialState(), events);
+  const messages = [];
+  events.on('message', value => messages.push(value));
+  assert.throws(() => store.transaction(draft => {
+    draft.statistics.kills = 9;
+    events.emit('message', { text: 'should not escape' });
+    throw new Error('command failed');
+  }), /command failed/);
+  assert.equal(store.read(state => state.statistics.kills), 0);
+  assert.deepEqual(messages, []);
+});
+
+test('read returns detached object values and old mutation APIs are absent', () => {
+  const store = createStore();
+  const performance = store.read(state => state.runtime.performance);
+  performance.frames = 999;
+  assert.equal(store.read(state => state.runtime.performance.frames), 0);
+  assert.equal('select' in store, false);
+  assert.equal('mutate' in store, false);
+  assert.equal('update' in store, false);
+  assert.equal('getState' in store, false);
+});
+
+
+test('asynchronous mutators are rejected before they can commit a draft', () => {
+  const store = createStore();
+  assert.throws(() => store.transaction(async draft => {
+    draft.statistics.kills = 4;
+  }), /must be synchronous/);
+  assert.equal(store.read(state => state.statistics.kills), 0);
+});
+
+test('listener failures are isolated after a successful committed transaction', () => {
+  const events = new EventBus();
+  const store = new StateStore(createInitialState(), events);
+  const originalError = console.error;
+  const errors = [];
+  console.error = (...values) => errors.push(values);
+  events.on('message', () => { throw new Error('broken listener'); });
+  try {
+    assert.doesNotThrow(() => store.transaction(draft => {
+      draft.statistics.kills = 3;
+      events.emit('message', { text: 'committed' });
+    }));
+  } finally {
+    console.error = originalError;
+  }
+  assert.equal(store.read(state => state.statistics.kills), 3);
+  assert.equal(errors.length, 1);
 });

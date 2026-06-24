@@ -45,20 +45,20 @@ export const PRODUCTION_RECIPES = Object.freeze({
 });
 
 export const SETTLEMENT_BUILDINGS = Object.freeze({
-  storehouse1: { name: '簡易倉庫', level: 1, cost: { timber: 8, rope: 3, stone: 20 }, capacityBonus: { base: 400, processed: 100 } },
-  carpentry: { name: '木工場', level: 1, cost: { wood: 80, stone: 30, fiber: 20 } },
-  ropeworks: { name: '縄工房', level: 1, cost: { wood: 50, stone: 20, fiber: 50 } },
-  stonecutter: { name: '石切場', level: 1, cost: { wood: 45, stone: 70, fiber: 15 } },
-  storehouse2: { name: '石造倉庫', level: 2, cost: { timber: 15, cutStone: 25, rope: 5 }, capacityBonus: { base: 800, processed: 300, ore: 150, metal: 100 } },
-  charcoalKiln: { name: '炭焼き窯', level: 2, cost: { cutStone: 12, timber: 6, rope: 2 } },
-  copperFurnace: { name: '銅炉', level: 2, cost: { cutStone: 18, timber: 8, charcoal: 10 } },
-  tinFurnace: { name: '錫炉', level: 2, cost: { cutStone: 16, timber: 7, charcoal: 8 } },
-  trialBronzeFurnace: { name: '試験青銅炉', level: 2, cost: { cutStone: 15, timber: 8, charcoal: 10 }, limit: 1 },
-  storehouse3: { name: '青銅倉庫', level: 3, cost: { cutStone: 30, timber: 18, bronzeIngot: 12 }, capacityBonus: { base: 1500, processed: 500, ore: 250, metal: 250 } },
-  bronzeWorkshop: { name: '青銅工房', level: 3, cost: { cutStone: 24, timber: 14, bronzeIngot: 10 } },
-  bloomery: { name: '塊鉄炉', level: 3, cost: { cutStone: 30, timber: 12, bronzeIngot: 8, charcoal: 20 } },
-  forge: { name: '鍛冶場', level: 3, cost: { cutStone: 26, timber: 16, bronzeIngot: 10, charcoal: 15 } },
-  storehouse4: { name: '鉄器倉庫', level: 4, cost: { cutStone: 45, timber: 24, wroughtIron: 16 }, capacityBonus: { base: 3000, processed: 1000, ore: 500, metal: 500 } }
+  storehouse1: { name: '簡易倉庫', description: '木材・石材・繊維と初期加工資材の保管上限を増やします。', level: 1, cost: { timber: 8, rope: 3, stone: 20 }, capacityBonus: { base: 400, processed: 100 } },
+  carpentry: { name: '木工場', description: '木材を加工木材へ変換します。加工木材は施設や防衛設備の建設・強化に使います。', level: 1, cost: { wood: 80, stone: 30, fiber: 20 } },
+  ropeworks: { name: '縄工房', description: '繊維を縄へ加工します。縄は施設建設や部隊・防衛設備の整備に使います。', level: 1, cost: { wood: 50, stone: 20, fiber: 50 } },
+  stonecutter: { name: '石切場', description: '石材を切石へ加工します。切石は石造施設と防衛設備の建設・強化に使います。', level: 1, cost: { wood: 45, stone: 70, fiber: 15 } },
+  storehouse2: { name: '石造倉庫', description: '基礎資源・加工資材・鉱石・金属の保管上限を大きく増やします。', level: 2, cost: { timber: 15, cutStone: 25, rope: 5 }, capacityBonus: { base: 800, processed: 300, ore: 150, metal: 100 } },
+  charcoalKiln: { name: '炭焼き窯', description: '木材を木炭へ加工します。木炭は銅・錫・鉄の精錬に必要です。', level: 2, cost: { cutStone: 12, timber: 6, rope: 2 } },
+  copperFurnace: { name: '銅炉', description: '銅鉱石と木炭から銅塊を精錬します。青銅生産の主材料です。', level: 2, cost: { cutStone: 18, timber: 8, charcoal: 10 } },
+  tinFurnace: { name: '錫炉', description: '錫鉱石と木炭から錫塊を精錬します。銅塊と合わせて青銅を作ります。', level: 2, cost: { cutStone: 16, timber: 7, charcoal: 8 } },
+  trialBronzeFurnace: { name: '試験青銅炉', description: '文明発展用の試験青銅を生産します。建設できるのは1基だけです。', level: 2, cost: { cutStone: 15, timber: 8, charcoal: 10 }, limit: 1 },
+  storehouse3: { name: '青銅倉庫', description: '全資源区分の保管上限を増やし、青銅期の大量生産を支えます。', level: 3, cost: { cutStone: 30, timber: 18, bronzeIngot: 12 }, capacityBonus: { base: 1500, processed: 500, ore: 250, metal: 250 } },
+  bronzeWorkshop: { name: '青銅工房', description: '銅塊と錫塊を青銅塊へ加工します。青銅装備や上位施設に使います。', level: 3, cost: { cutStone: 24, timber: 14, bronzeIngot: 10 } },
+  bloomery: { name: '塊鉄炉', description: '鉄鉱石と木炭から鉄塊を作ります。鍛鉄生産の前工程です。', level: 3, cost: { cutStone: 30, timber: 12, bronzeIngot: 8, charcoal: 20 } },
+  forge: { name: '鍛冶場', description: '鉄塊を鍛鉄へ加工します。鉄器施設と最上位防衛設備に使います。', level: 3, cost: { cutStone: 26, timber: 16, bronzeIngot: 10, charcoal: 15 } },
+  storehouse4: { name: '鉄器倉庫', description: '全資源区分の保管上限を最大級まで増やし、鉄器都市の備蓄を支えます。', level: 4, cost: { cutStone: 45, timber: 24, wroughtIron: 16 }, capacityBonus: { base: 3000, processed: 1000, ore: 500, metal: 500 } }
 });
 
 export const DEFENSE_LINES = Object.freeze({

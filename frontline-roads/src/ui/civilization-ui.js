@@ -8,7 +8,9 @@ import { queryRequired, setVisible } from './dom.js';
 import { baseLimitForCivilization } from '../base/player-bases.js';
 import { fieldBaseLimitForCivilization, fieldBaseSlotsUsed } from '../base/field-bases.js';
 import { diagnoseFieldBaseNetwork } from '../base/field-base-system.js';
-import { FRIENDLY_SQUAD_DEFINITIONS, FRIENDLY_SQUAD_TYPES } from '../combat/friendly-force-system.js';
+import {
+  FRIENDLY_SQUAD_DEFINITIONS, FRIENDLY_SQUAD_TYPES, friendlySquadCapacityForBase
+} from '../combat/friendly-force-system.js';
 
 function formatDuration(seconds) {
   const value = Math.max(0, Math.ceil(seconds));
@@ -91,9 +93,9 @@ export class CivilizationUi {
     setVisible(this.panel, false);
   }
 
-  mutate(action, reason) {
+  transaction(action, reason) {
     let result;
-    this.store.mutate(state => { result = action(state); }, reason, { emit: true, validate: true });
+    this.store.transaction(state => { result = action(state); }, reason, { emit: true, validate: true });
     if (!result?.ok) this.notifications.show(result?.reason ?? '操作できません。');
     else this.persist?.();
     this.render();
@@ -105,20 +107,20 @@ export class CivilizationUi {
     if (!button) return;
     const { action, resource, type, buildingId, recipeId, quantity } = button.dataset;
     if (action === 'contribute-safe') {
-      const result = this.mutate(state => this.system.progression.contributeSafely(state, resource), 'civilization:contribute-safe');
+      const result = this.transaction(state => this.system.progression.contributeSafely(state, resource), 'civilization:contribute-safe');
       if (result?.ok) this.notifications.show(`${RESOURCE_LABELS[resource]}を${result.amount}安全納入しました。`);
     } else if (action === 'contribute-all') {
-      const result = this.mutate(state => this.system.progression.contribute(state, resource), 'civilization:contribute-all');
+      const result = this.transaction(state => this.system.progression.contribute(state, resource), 'civilization:contribute-all');
       if (result?.ok) this.notifications.show(`${RESOURCE_LABELS[resource]}を${result.amount}納入しました。`);
     } else if (action === 'withdraw') {
-      this.mutate(state => this.system.progression.withdraw(state), 'civilization:withdraw');
+      this.transaction(state => this.system.progression.withdraw(state), 'civilization:withdraw');
     } else if (action === 'start-project') {
-      this.mutate(state => this.system.progression.start(state), 'civilization:start-project');
+      this.transaction(state => this.system.progression.start(state), 'civilization:start-project');
     } else if (action === 'build-building') {
-      const result = this.mutate(state => this.system.settlement.build(state, type), 'civilization:build');
+      const result = this.transaction(state => this.system.settlement.build(state, type), 'civilization:build');
       if (result?.ok) this.notifications.show(`${SETTLEMENT_BUILDINGS[type].name}を建設しました。`);
     } else if (action === 'produce') {
-      const result = this.mutate(state => {
+      const result = this.transaction(state => {
         const requested = quantity === 'max'
           ? this.system.production.maximumProducible(state, buildingId, recipeId).quantity
           : Math.max(1, Number(quantity) || 1);
@@ -127,35 +129,42 @@ export class CivilizationUi {
       }, 'civilization:produce');
       if (result?.ok) this.notifications.show(`${PRODUCTION_RECIPES[recipeId].name}を${result.quantity}個、生産予約しました。`);
     } else if (action === 'repair-building') {
-      this.mutate(state => this.system.settlement.repair(state, buildingId), 'civilization:repair-building');
+      this.transaction(state => this.system.settlement.repair(state, buildingId), 'civilization:repair-building');
     } else if (action === 'demolish-building') {
-      this.mutate(state => this.system.settlement.demolish(state, buildingId), 'civilization:demolish-building');
+      this.transaction(state => this.system.settlement.demolish(state, buildingId), 'civilization:demolish-building');
     } else if (action === 'collect-output') {
-      this.mutate(state => this.system.production.collectOutput(state, buildingId), 'civilization:collect-output');
+      this.transaction(state => this.system.production.collectOutput(state, buildingId), 'civilization:collect-output');
     }
   }
 
-  update() {
-    this.updateSummary();
-    if (!this.panel.hidden && Date.now() - this.lastPanelRenderAt >= 1000) this.render();
+  update(state = this.store.snapshot()) {
+    this.updateSummary(state);
+    if (!this.panel.hidden && Date.now() - this.lastPanelRenderAt >= 1000) this.render(state);
   }
 
-  updateSummary() {
-    const state = this.store.select(value => value);
-    const important = ['wood', 'stone', 'fiber', 'timber', 'cutStone', 'bronzeIngot', 'wroughtIron'];
-    this.resourceSummary.textContent = important
-      .filter(key => (state.inventory.resources[key] ?? 0) > 0 || ['wood', 'stone', 'fiber'].includes(key))
-      .map(key => `${RESOURCE_LABELS[key]} ${Math.floor(state.inventory.resources[key] ?? 0)}`)
-      .join('・');
+  updateSummary(state = this.store.snapshot()) {
+    const visibleResources = RESOURCE_KEYS.filter(key =>
+      (state.inventory.resources[key] ?? 0) > 0
+      || (state.inventory.overflow[key]?.amount ?? 0) > 0
+      || ['wood', 'stone', 'fiber'].includes(key)
+    );
+    this.resourceSummary.innerHTML = visibleResources.map(key => {
+      const amount = Math.floor(state.inventory.resources[key] ?? 0);
+      const overflow = Math.floor(state.inventory.overflow[key]?.amount ?? 0);
+      return `<span class="resourceChip" data-resource="${key}"><small>${RESOURCE_LABELS[key]}</small><strong>${amount}</strong>${overflow ? `<em>保留 ${overflow}</em>` : ''}</span>`;
+    }).join('');
+    this.resourceSummary.setAttribute(
+      'aria-label',
+      visibleResources.map(key => `${RESOURCE_LABELS[key]} ${Math.floor(state.inventory.resources[key] ?? 0)}`).join('、')
+    );
   }
 
-  render() {
-    const state = this.store.select(value => value);
-    this.updateSummary();
+  render(state = this.store.snapshot()) {
+    this.updateSummary(state);
     this.lastPanelRenderAt = Date.now();
     const civilization = currentCivilization(state);
     const project = state.civilization.project;
-    const evaluation = evaluateProject(state, { create: false });
+    const evaluation = evaluateProject(state);
     const resources = RESOURCE_KEYS
       .filter(key => (state.inventory.resources[key] ?? 0) > 0 || (state.inventory.overflow[key]?.amount ?? 0) > 0)
       .map(key => {
@@ -193,7 +202,7 @@ export class CivilizationUi {
       .filter(([, definition]) => definition.level <= state.civilization.level)
       .map(([type, definition]) => {
         const count = state.civilization.buildings.filter(building => building.type === type && !building.demolished).length;
-        return `<div class="catalogCard"><div><strong>${definition.name}</strong><small>所有 ${count}・費用 ${bundleText(definition.cost)}</small></div><button data-action="build-building" data-type="${type}">建設</button></div>`;
+        return `<div class="catalogCard"><div><strong>${definition.name}</strong><p>${definition.description}</p><small>所有 ${count}・費用 ${bundleText(definition.cost)}</small></div><button data-action="build-building" data-type="${type}">建設</button></div>`;
       }).join('') || '<p class="emptyText">文明発展後に集落施設が解放されます。</p>';
 
     const production = state.civilization.buildings.filter(building => !building.demolished).map(building => {
@@ -208,7 +217,7 @@ export class CivilizationUi {
         const disabled = building.ruined ? 'disabled' : '';
         return `<div class="productionRecipe"><div><strong>${recipe.name}</strong><small>1個：${bundleText(recipe.input)}・${formatDuration(recipe.seconds)}</small></div><div class="productionQuantity"><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="1" ${disabled}>+1</button><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="5" ${disabled}>+5</button><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="10" ${disabled}>+10</button><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="max" ${disabled || maximum <= 0 ? 'disabled' : ''}>最大 ${maximum}</button></div></div>`;
       }).join('') || '<span>生産レシピなし</span>';
-      return `<div class="productionCard ${building.ruined ? 'is-ruined' : ''}"><strong>${definition.name}</strong><small>耐久 ${Math.ceil(building.hp)}/${building.maxHp}・${current}${summary.pendingUnits ? `・予約残 ${summary.pendingUnits}` : ''}</small>${buffer !== 'なし' ? `<small>保留：${buffer}</small>` : ''}<div class="recipeButtons">${recipeCards}</div><div class="buttonRow">${building.hp < building.maxHp ? `<button data-action="repair-building" data-building-id="${building.id}">修理</button>` : ''}${buffer !== 'なし' ? `<button data-action="collect-output" data-building-id="${building.id}">保留品を回収</button>` : ''}<button data-action="demolish-building" data-building-id="${building.id}">解体</button></div></div>`;
+      return `<div class="productionCard ${building.ruined ? 'is-ruined' : ''}"><strong>${definition.name}</strong><p class="buildingDescription">${definition.description}</p><small>耐久 ${Math.ceil(building.hp)}/${building.maxHp}・${current}${summary.pendingUnits ? `・予約残 ${summary.pendingUnits}` : ''}</small>${buffer !== 'なし' ? `<small>保留：${buffer}</small>` : ''}<div class="recipeButtons">${recipeCards}</div><div class="buttonRow">${building.hp < building.maxHp ? `<button data-action="repair-building" data-building-id="${building.id}">修理</button>` : ''}${buffer !== 'なし' ? `<button data-action="collect-output" data-building-id="${building.id}">保留品を回収</button>` : ''}<button data-action="demolish-building" data-building-id="${building.id}">解体</button></div></div>`;
     }).join('') || '<p class="emptyText">生産施設はまだありません。</p>';
 
 
@@ -217,7 +226,7 @@ export class CivilizationUi {
       <section><h2>資源</h2><div class="resourceGrid">${resources}</div></section>
       <section><h2>文明発展</h2>${projectHtml}</section>
       <section><h2>防衛設備Tier</h2><p class="sectionNote">通常設備はTier 0、測量施設は文明Lv.1でTier 1から建設できます。文明レベルと同じTierまで、MAP上の既設設備を個別に強化できます。</p><div class="defenseTierGrid">${defenseTierCatalog(state)}</div></section>
-      <section><h2>派兵部隊</h2><p class="sectionNote">文明レベルごとに役割の異なる部隊が解禁されます。簡易拠点からは突撃部隊・遊撃部隊・回収部隊を派遣できます。攻城・重装・遠征部隊は主要拠点から出撃します。</p><div class="defenseTierGrid">${friendlyUnitCatalog(state)}</div></section>
+      <section><h2>派兵部隊</h2><p class="sectionNote">文明レベルごとに部隊種類と拠点ごとの部隊枠が増えます。現在は主要拠点 ${friendlySquadCapacityForBase(state, { kind: 'MAJOR' })}枠、簡易拠点 ${friendlySquadCapacityForBase(state, { kind: 'FIELD' })}枠です。簡易拠点からは突撃部隊・遊撃部隊・回収部隊、主要拠点からは全種類を派兵できます。</p><div class="defenseTierGrid">${friendlyUnitCatalog(state)}</div></section>
       <section><h2>集落施設</h2><div class="catalogGrid">${buildingCatalog}</div></section>
       <section><h2>生産</h2>${production}</section>`;
   }

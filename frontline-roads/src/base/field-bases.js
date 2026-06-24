@@ -1,5 +1,5 @@
 import { distance, stableId } from '../core/utilities.js';
-import { activePlayerBases, ensurePlayerBaseState, playerBaseById } from './player-bases.js';
+import { activePlayerBases, playerBaseById, playerBasesView } from './player-bases.js';
 
 export const FIELD_BASE_BUILD_RANGE_METERS = 50;
 export const FIELD_BASE_PLACEMENT_RANGE_METERS = 100;
@@ -51,13 +51,13 @@ export function ensureFieldBaseState(state) {
 }
 
 export function fieldBaseById(state, baseId, { includeDestroyed = true } = {}) {
-  const base = ensureFieldBaseState(state).find(item => item.id === baseId) ?? null;
+  const base = (state.world?.fieldBases ?? []).find(item => item.id === baseId) ?? null;
   if (!base || (!includeDestroyed && (base.status !== 'ESTABLISHED' || base.hp <= 0))) return null;
   return base;
 }
 
 export function activeFieldBases(state) {
-  return ensureFieldBaseState(state).filter(base => base.status === 'ESTABLISHED' && base.hp > 0);
+  return (state.world?.fieldBases ?? []).filter(base => base.status === 'ESTABLISHED' && base.hp > 0);
 }
 
 export function activeOwnedBases(state) {
@@ -81,7 +81,7 @@ export function ownedBaseById(state, baseId, { includeDestroyed = false } = {}) 
 export function nearestOwnedBase(state, point, { includeDestroyed = false } = {}) {
   if (!point) return null;
   const bases = includeDestroyed
-    ? [...ensurePlayerBaseState(state), ...ensureFieldBaseState(state)]
+    ? [...playerBasesView(state), ...(state.world?.fieldBases ?? [])]
     : activeOwnedBases(state);
   return bases
     .map(base => ({ base, gap: distance(base, point) }))
@@ -89,5 +89,5 @@ export function nearestOwnedBase(state, point, { includeDestroyed = false } = {}
 }
 
 export function fieldBaseSlotsUsed(state) {
-  return ensureFieldBaseState(state).length;
+  return Array.isArray(state.world?.fieldBases) ? state.world.fieldBases.length : 0;
 }

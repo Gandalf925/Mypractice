@@ -87,20 +87,6 @@ export function chunksIntersectingCircle(centerPoint, radiusMeters, sizeMeters =
   return result;
 }
 
-export function chunksCoveredByCircle(centerPoint, radiusMeters, sizeMeters = ROAD_CONFIG.chunkSizeMeters) {
-  const min = chunkForWorldPoint({ x: centerPoint.x - radiusMeters, y: centerPoint.y - radiusMeters }, sizeMeters);
-  const max = chunkForWorldPoint({ x: centerPoint.x + radiusMeters, y: centerPoint.y + radiusMeters }, sizeMeters);
-  const diagonal = Math.SQRT2 * sizeMeters / 2;
-  const result = [];
-  for (let y = min.y; y <= max.y; y += 1) {
-    for (let x = min.x; x <= max.x; x += 1) {
-      const chunk = { x, y, id: chunkId(x, y) };
-      const center = chunkCenterWorld(chunk, sizeMeters);
-      if (Math.hypot(center.x - centerPoint.x, center.y - centerPoint.y) + diagonal <= radiusMeters) result.push(chunk);
-    }
-  }
-  return result;
-}
 
 function uniqueChunkIds(values = []) {
   return [...new Set(values.map(String))];

@@ -28,8 +28,8 @@ test('game loop decouples simulation, civilization and rendering rates', () => {
   let renders = 0;
   let uiUpdates = 0;
   const store = {
-    mutate(mutator) { mutator(state); },
-    getState() { return structuredClone(state); }
+    advance(mutator) { return mutator(state); },
+    snapshot() { return structuredClone(state); }
   };
   const loop = new GameLoop({
     store,
@@ -51,6 +51,33 @@ test('game loop decouples simulation, civilization and rendering rates', () => {
   assert.ok(civilizationUpdates >= 3 && civilizationUpdates <= 4, `civilization=${civilizationUpdates}`);
   assert.ok(renders >= 23 && renders <= 25, `renders=${renders}`);
   assert.ok(uiUpdates >= 1 && uiUpdates <= 2, `ui=${uiUpdates}`);
+});
+
+
+
+test('game loop preserves simulation backlog instead of discarding a slow frame', () => {
+  const state = runtimeState();
+  let combatUpdates = 0;
+  const store = {
+    advance(mutator) { mutator(state); },
+    transaction(mutator) { mutator(state); },
+    snapshot() { return structuredClone(state); }
+  };
+  const loop = new GameLoop({
+    store,
+    combatSystem: { update() { combatUpdates += 1; } },
+    renderer: { render() {} },
+    saveRepository: { isAvailable: () => false },
+    onUiUpdate() {},
+    getPerformanceProfile: () => performanceProfile('balanced')
+  });
+  const profile = performanceProfile('balanced');
+  loop.updateSimulation(1, profile);
+  assert.equal(combatUpdates, profile.maxCatchUpSteps);
+  while (loop.simulationAccumulator + 1e-9 >= 1 / profile.simulationHz) loop.updateSimulation(0, profile);
+  assert.equal(combatUpdates, profile.simulationHz);
+  assert.ok(loop.simulationAccumulator < 1 / profile.simulationHz);
+  assert.equal(state.runtime.worldTimeMs, 1000);
 });
 
 test('combat spatial index returns only nearby active enemies', () => {

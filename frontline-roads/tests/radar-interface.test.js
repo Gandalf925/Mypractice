@@ -29,7 +29,7 @@ test('combat and road renderers use radar glyphs and glow rather than emoji labe
   assert.match(combat, /drawEnemyBlip/);
   assert.match(combat, /sweepIntensity/);
   assert.doesNotMatch(combat, /ENEMY_DEFINITIONS|DEFENSE_DEFINITIONS/);
-  assert.match(roads, /globalCompositeOperation = 'screen'/);
+  assert.match(roads, /globalCompositeOperation = baseSelection \? 'source-over' : 'screen'/);
 });
 
 function mockGradient() {

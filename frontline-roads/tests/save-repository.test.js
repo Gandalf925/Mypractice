@@ -54,3 +54,17 @@ test('v0.19 object-form road graphs remain loadable after compact saves are intr
   assert.equal(loaded.world.roadGraph.edges[0].a, 'a');
   assert.equal(loaded.world.roadGraph.format, undefined);
 });
+
+
+test('detached-state save consumes one caller-owned snapshot without mutating the live source state', () => {
+  const storage = new MemoryStorage();
+  const repository = new SaveRepository(storage, 'detached');
+  const source = stateWithGraph();
+  source.player.currentPosition = { lat: 35, lon: 139 };
+  const detached = structuredClone(source);
+  repository.saveDetachedState(detached);
+  assert.deepEqual(source.player.currentPosition, { lat: 35, lon: 139 });
+  assert.equal(detached.player.currentPosition, null);
+  const restored = repository.load();
+  assert.equal(restored.player.currentPosition, null);
+});

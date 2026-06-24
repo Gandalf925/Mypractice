@@ -46,7 +46,7 @@ test('enemy-base deployment opens with the tapped target fixed', async () => {
   try {
     const { DeploymentUi } = await import('../src/ui/deployment-ui.js');
     const ui = new DeploymentUi({
-      store: { select(selector) { return selector(state); }, mutate(mutator) { mutator(state); } },
+      store: { snapshot() { return state; }, read(selector) { return selector(state); }, transaction(mutator) { return mutator(state); } },
       friendlyForceSystem: new FriendlyForceSystem(),
       notifications: { show() {} },
       persist() {}
@@ -80,7 +80,7 @@ test('recovery-item deployment keeps the selected item fixed and only offers ret
   try {
     const { DeploymentUi } = await import('../src/ui/deployment-ui.js');
     const ui = new DeploymentUi({
-      store: { select(selector) { return selector(state); }, mutate(mutator) { mutator(state); } },
+      store: { snapshot() { return state; }, read(selector) { return selector(state); }, transaction(mutator) { return mutator(state); } },
       friendlyForceSystem: new FriendlyForceSystem(),
       notifications: { show() {} },
       persist() {}

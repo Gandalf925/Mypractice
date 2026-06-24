@@ -204,8 +204,8 @@ export class WaveSystem {
   update(state, deltaSeconds) {
     this.processRespawns(state, deltaSeconds);
     state.combat.waves.resourceBaseCheckClock = (state.combat.waves.resourceBaseCheckClock ?? 30) + deltaSeconds;
-    if (state.combat.waves.resourceBaseCheckClock >= 30) {
-      state.combat.waves.resourceBaseCheckClock = 0;
+    while (state.combat.waves.resourceBaseCheckClock >= 30) {
+      state.combat.waves.resourceBaseCheckClock -= 30;
       this.ensureUnlockedBases(state);
     }
     for (const base of state.world.enemyBases) {

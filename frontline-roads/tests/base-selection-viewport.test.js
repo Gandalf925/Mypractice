@@ -11,7 +11,9 @@ test('base placement uses a dedicated map viewport instead of drawing behind con
   assert.match(html, /id=["']baseMapViewport["']/);
   assert.match(html, /MAP \/\/ ROAD SELECTION/);
   assert.match(css, /data-lifecycle=["']BASE_SELECTION["']\] #mapCanvas\s*\{[^}]*clip-path:\s*inset/s);
+  assert.match(css, /data-lifecycle=["']BASE_SELECTION["']\] #mapCanvas\s*\{[^}]*brightness\(1\.08\)/s);
   assert.match(css, /#basePlacementOverlay \.panel\s*\{[^}]*grid-template-rows:/s);
+  assert.match(css, /\.baseMapViewport\s*\{[^}]*min-height:\s*clamp\(240px, 38vh, 360px\)/s);
   assert.match(css, /\.baseMapViewport\s*\{[^}]*pointer-events:\s*none/s);
   assert.match(css, /#basePlacementOverlay \.panelHeader,[\s\S]*background:[^;]*rgba\(2, 22, 18, 0\.995\)/);
 });
@@ -26,4 +28,15 @@ test('base placement screen keeps the canvas clip synchronized with the viewport
   }
   assert.match(source, /ResizeObserver/);
   assert.match(bootstrap, /this\.baseScreen\.destroy\(\)/);
+});
+
+
+test('renderer switches to a brighter static scene for base selection', async () => {
+  const source = await read('src/rendering/renderer.js');
+  const radar = await read('src/rendering/radar-renderer.js');
+  const roads = await read('src/rendering/road-renderer.js');
+  assert.match(source, /scenePreferences\(state\) \{[\s\S]*sceneMode:\s*'base-selection',[\s\S]*motion:\s*false/);
+  assert.match(radar, /sceneMode === 'base-selection'/);
+  assert.match(radar, /if \(preferences\.sceneMode === 'base-selection'\) return;/);
+  assert.match(roads, /preferences\.sceneMode === 'base-selection'/);
 });

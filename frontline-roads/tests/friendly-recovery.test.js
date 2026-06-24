@@ -149,14 +149,16 @@ test('field aid does not heal non-light squads if legacy data places one at a fi
   assert.equal(unit.hp, startingHp);
 });
 
-test('recovering squads block dispatch while a ready squad of the same type redeploys without cost', () => {
+test('a recovering squad occupies one slot while another free slot remains usable', () => {
   const state = fixture();
   const unit = squad('assault', 'home-base', 0.5);
   state.combat.friendlySquads = [unit];
   beginFriendlyRecovery(state, unit, 'home-base');
-  const blocked = previewFriendlyDeployment(state, 'assault', 'home-base', 'enemy-base');
-  assert.equal(blocked.ok, false);
-  assert.match(blocked.reason, /回復・再編成中/);
+  const whileRecovering = previewFriendlyDeployment(state, 'assault', 'home-base', 'enemy-base');
+  assert.equal(whileRecovering.ok, true);
+  assert.equal(whileRecovering.reuseReadySquad, false);
+  assert.equal(whileRecovering.assignedSquads, 1);
+  assert.equal(whileRecovering.capacity, 6);
   for (let second = 0; second < 140; second += 1) updateFriendlyRecovery(state, unit, 1);
   const before = { ...state.inventory.resources };
   const preview = previewFriendlyDeployment(state, 'assault', 'home-base', 'enemy-base');
@@ -170,17 +172,24 @@ test('recovering squads block dispatch while a ready squad of the same type rede
   assert.equal(unit.status, FRIENDLY_SQUAD_STATUS.OUTBOUND);
 });
 
-test('selecting a different type replaces a ready garrison and charges the new formation cost', () => {
+test('selecting a different type replaces a ready garrison only when every squad slot is occupied', () => {
   const state = fixture(2);
   const unit = squad('assault', 'home-base', 1);
   unit.status = FRIENDLY_SQUAD_STATUS.READY;
-  state.combat.friendlySquads = [unit];
+  const active = Array.from({ length: 3 }, (_, index) => ({
+    ...squad('assault', 'home-base', 1),
+    id: `active-${index}`,
+    status: FRIENDLY_SQUAD_STATUS.OUTBOUND,
+    order: 'ADVANCE'
+  }));
+  state.combat.friendlySquads = [unit, ...active];
   const beforeTimber = state.inventory.resources.timber;
   const result = dispatchFriendlySquad(state, 'siege', 'home-base', 'enemy-base');
   assert.equal(result.ok, true);
   assert.equal(result.replaced, true);
-  assert.equal(state.combat.friendlySquads.length, 1);
-  assert.equal(state.combat.friendlySquads[0].type, 'siege');
+  assert.equal(state.combat.friendlySquads.length, 4);
+  assert.equal(state.combat.friendlySquads.some(item => item.id === unit.id), false);
+  assert.equal(state.combat.friendlySquads.some(item => item.type === 'siege'), true);
   assert.equal(state.inventory.resources.timber, beforeTimber - FRIENDLY_SQUAD_DEFINITIONS.siege.cost.timber);
 });
 

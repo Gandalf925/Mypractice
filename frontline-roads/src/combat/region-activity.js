@@ -12,7 +12,7 @@ export const REGION_ACTIVITY_CONFIG = Object.freeze({
   peripheralRadiusMeters: 2400,
   peripheralIntervalSeconds: 2,
   dormantIntervalSeconds: 8,
-  maximumSimulationSubstepSeconds: 1
+  maximumSimulationSubstepSeconds: 0.25
 });
 
 function finitePoint(point) {

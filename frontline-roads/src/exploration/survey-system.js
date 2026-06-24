@@ -5,7 +5,6 @@ import { activePlayerBases } from '../base/player-bases.js';
 import { activeFieldBases } from '../base/field-bases.js';
 
 export const SURVEY_FACILITY_TYPE = 'survey';
-export const SURVEY_INITIAL_TIER = 1;
 
 function hasOperationalAnchor(state, defense) {
   if (defense.buildAnchorKind === 'FIELD') {

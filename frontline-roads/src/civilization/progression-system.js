@@ -71,7 +71,6 @@ function buildingCheckValue(state, key) {
   if (SETTLEMENT_BUILDINGS[key]) return state.civilization.buildings.filter(building => building.type === key && !building.ruined && !building.demolished).length;
   if (key === 'barrier0') {
     const active = defenseCount(state, defense => defense.kind === 'barrier' && (defense.tier ?? 0) >= 0);
-    if (active > 0) state.civilization.progress.barriersBuilt = Math.max(1, Number(state.civilization.progress.barriersBuilt) || 0);
     return Math.max(active, Number(state.civilization.progress.barriersBuilt) || 0);
   }
   if (key === 'single0') return defenseCount(state, defense => defenseLineForType(defense.type) === 'single');
@@ -105,8 +104,25 @@ function progressCheckValue(state, key, requirement) {
   return 0;
 }
 
-export function evaluateProject(state, { create = true } = {}) {
-  const project = create ? ensureProject(state) : state.civilization.project;
+function projectView(state) {
+  const level = Math.max(0, Math.min(4, Math.floor(Number(state.civilization?.level) || 0)));
+  if (level >= 4) return null;
+  const targetLevel = level + 1;
+  const existing = state.civilization?.project;
+  if (existing?.targetLevel === targetLevel) return existing;
+  const definition = CIVILIZATION_PROJECTS[targetLevel];
+  return {
+    targetLevel,
+    status: 'AVAILABLE',
+    contributions: {},
+    durationSec: definition.durationSec,
+    progressedSec: 0,
+    startedAt: null
+  };
+}
+
+export function evaluateProject(state) {
+  const project = projectView(state);
   if (!project) return { complete: true, checks: [] };
   const definition = CIVILIZATION_PROJECTS[project.targetLevel];
   const checks = [];
@@ -169,6 +185,7 @@ export class ProgressionSystem {
   }
 
   start(state) {
+    ensureProject(state);
     const evaluation = evaluateProject(state);
     if (!evaluation.project || !evaluation.complete) return { ok: false, reason: '発展条件を満たしていません。', checks: evaluation.checks };
     evaluation.project.status = 'BUILDING';

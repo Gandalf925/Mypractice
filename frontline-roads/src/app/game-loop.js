@@ -34,8 +34,8 @@ export class GameLoop {
   trySave() {
     if (this.autoSaveDisabled || !this.saveRepository.isAvailable()) return false;
     try {
-      const savedAt = this.saveRepository.save(this.store.getState());
-      this.store.mutate(state => { state.runtime.lastSavedAt = savedAt; }, 'save:timestamp');
+      const savedAt = this.saveRepository.saveDetachedState(this.store.snapshot());
+      this.store.transaction(state => { state.runtime.lastSavedAt = savedAt; }, 'save:timestamp');
       return true;
     } catch (error) {
       this.autoSaveDisabled = true;
@@ -72,9 +72,8 @@ export class GameLoop {
     const steps = Math.min(profile.maxCatchUpSteps, Math.floor(this.simulationAccumulator / simulationStep));
     if (steps <= 0) return false;
     this.simulationAccumulator -= steps * simulationStep;
-    if (this.simulationAccumulator > simulationStep * profile.maxCatchUpSteps) this.simulationAccumulator = simulationStep;
 
-    this.store.mutate(state => {
+    this.store.advance(state => {
       for (let index = 0; index < steps; index += 1) {
         state.runtime.worldTimeMs = (state.runtime.worldTimeMs ?? Date.now()) + simulationStep * 1000;
         this.combatSystem.update(state, simulationStep);
@@ -94,8 +93,7 @@ export class GameLoop {
 
   frame(time) {
     if (!this.running) return;
-    const rawDelta = Math.max(0, (time - this.lastTime) / 1000);
-    const deltaSeconds = Math.min(0.25, rawDelta);
+    const deltaSeconds = Math.max(0, (time - this.lastTime) / 1000);
     this.lastTime = time;
     const profile = this.getPerformanceProfile();
     this.updateSimulation(deltaSeconds, profile);

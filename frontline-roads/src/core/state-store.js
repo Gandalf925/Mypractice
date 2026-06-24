@@ -1,27 +1,64 @@
 import { ALLOWED_TRANSITIONS, LifecycleState } from './constants.js';
 import { AppError, ErrorCode } from './errors.js';
 import { deepClone, now } from './utilities.js';
+import { cloneRuntimeState } from './runtime-state.js';
 import { validateState } from './state-schema.js';
+
+function stateError(errors) {
+  return new AppError(ErrorCode.INVALID_STATE, errors.join(', '), { recoverable: false });
+}
 
 export class StateStore {
   #state;
   #events;
+  #cloneState;
 
-  constructor(initialState, eventBus) {
+  constructor(initialState, eventBus, { cloneState = cloneRuntimeState } = {}) {
     const validation = validateState(initialState);
-    if (!validation.valid) {
-      throw new AppError(ErrorCode.INVALID_STATE, validation.errors.join(', '), { recoverable: false });
-    }
-    this.#state = deepClone(initialState);
+    if (!validation.valid) throw stateError(validation.errors);
+    this.#cloneState = cloneState;
+    this.#state = this.#cloneState(initialState);
     this.#events = eventBus;
   }
 
-  getState() {
-    return deepClone(this.#state);
+  snapshot() {
+    return this.#cloneState(this.#state);
   }
 
-  select(selector) {
-    return selector(this.#state);
+  read(selector) {
+    const value = selector(this.#state);
+    return value && typeof value === 'object' ? deepClone(value) : value;
+  }
+
+  renderView() {
+    return this.#state;
+  }
+
+  transaction(mutator, reason = 'state:transaction', { emit = false, validate = true } = {}) {
+    return this.#events.transaction(() => {
+      const draft = this.#cloneState(this.#state);
+      const result = mutator(draft);
+      if (result && typeof result.then === 'function') throw new TypeError('State transactions must be synchronous');
+      draft.runtime.updatedAt = now();
+      if (validate) {
+        const validation = validateState(draft);
+        if (!validation.valid) throw stateError(validation.errors);
+      }
+      this.#state = draft;
+      if (emit) this.#events.emit('state:changed', { reason, state: this.snapshot() });
+      return result;
+    });
+  }
+
+  advance(mutator, reason = 'state:advance', { emit = false, validate = false } = {}) {
+    const result = mutator(this.#state);
+    this.#state.runtime.updatedAt = now();
+    if (validate) {
+      const validation = validateState(this.#state);
+      if (!validation.valid) throw stateError(validation.errors);
+    }
+    if (emit) this.#events.emit('state:changed', { reason, state: this.snapshot() });
+    return result;
   }
 
   transition(nextLifecycle, metadata = null) {
@@ -34,47 +71,19 @@ export class StateStore {
         { recoverable: false }
       );
     }
-    this.#state.lifecycle = nextLifecycle;
-    this.#state.runtime.updatedAt = now();
+    this.transaction(draft => { draft.lifecycle = nextLifecycle; }, 'lifecycle:transition');
     this.#events.emit('lifecycle:changed', { previous: current, current: nextLifecycle, metadata });
-  }
-
-  update(mutator, reason = 'state:update') {
-    const draft = deepClone(this.#state);
-    mutator(draft);
-    draft.runtime.updatedAt = now();
-    const validation = validateState(draft);
-    if (!validation.valid) {
-      throw new AppError(ErrorCode.INVALID_STATE, validation.errors.join(', '), { recoverable: false });
-    }
-    this.#state = draft;
-    this.#events.emit('state:changed', { reason, state: this.getState() });
-  }
-
-
-  mutate(mutator, reason = 'state:mutate', { emit = false, validate = false } = {}) {
-    mutator(this.#state);
-    this.#state.runtime.updatedAt = now();
-    if (validate) {
-      const validation = validateState(this.#state);
-      if (!validation.valid) {
-        throw new AppError(ErrorCode.INVALID_STATE, validation.errors.join(', '), { recoverable: false });
-      }
-    }
-    if (emit) this.#events.emit('state:changed', { reason, state: this.getState() });
   }
 
   replace(state, reason = 'state:replace') {
     const validation = validateState(state);
-    if (!validation.valid) {
-      throw new AppError(ErrorCode.INVALID_STATE, validation.errors.join(', '), { recoverable: false });
-    }
-    this.#state = deepClone(state);
-    this.#events.emit('state:changed', { reason, state: this.getState() });
+    if (!validation.valid) throw stateError(validation.errors);
+    this.#state = this.#cloneState(state);
+    this.#events.emit('state:changed', { reason, state: this.snapshot() });
   }
 
   setError(error) {
-    this.update(draft => {
+    this.transaction(draft => {
       draft.runtime.lastError = {
         code: error?.code ?? 'UNKNOWN',
         message: error?.message ?? String(error),

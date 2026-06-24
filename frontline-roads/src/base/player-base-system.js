@@ -5,7 +5,6 @@ import {
   PLAYER_BASE_MINIMUM_SEPARATION_METERS,
   PLAYER_BASE_PLACEMENT_RANGE_METERS,
   activePlayerBases,
-  ensurePlayerBaseState,
   playerBaseById,
   playerBaseSlotsUsed,
   PLAYER_BASE_REBUILD_COST,
@@ -30,7 +29,7 @@ function nearestRoadNode(state, point) {
 }
 
 export function previewPlayerBasePlacement(state, now = Date.now()) {
-  const bases = ensurePlayerBaseState(state);
+  const bases = state.world?.playerBases ?? [];
   const limit = baseLimitForCivilization(state.civilization?.level);
   const cost = playerBasePlacementCost(state);
   if (bases.length >= limit) {
@@ -75,7 +74,6 @@ export function previewPlayerBasePlacement(state, now = Date.now()) {
 
 
 export function previewPlayerBaseRebuild(state, baseId, now = Date.now()) {
-  ensurePlayerBaseState(state);
   const cost = { ...PLAYER_BASE_REBUILD_COST };
   const base = playerBaseById(state, baseId, { includeDestroyed: true });
   if (!base || base.primary) return { ok: false, reason: '再建対象の主要拠点が見つかりません。', cost };
@@ -113,7 +111,6 @@ export class PlayerBaseSystem {
   }
 
   previewCurrentLocation(state, now = Date.now()) {
-    ensurePlayerBaseState(state);
     return previewPlayerBasePlacement(state, now);
   }
 
@@ -136,7 +133,6 @@ export class PlayerBaseSystem {
       establishedAt
     };
     state.world.playerBases.push(base);
-    ensurePlayerBaseState(state);
     this.events?.emit('base:player-established', { base });
     this.events?.emit('message', { text: `${base.name}を設置しました。` });
     return { ok: true, base, cost: preview.cost, current: activePlayerBases(state).length, limit: baseLimitForCivilization(state.civilization?.level) };

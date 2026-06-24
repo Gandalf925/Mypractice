@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createInitialState } from '../src/core/state-schema.js';
 import { attachGraphIndexes } from '../src/roads/road-graph.js';
 import { PlayerBaseSystem } from '../src/base/player-base-system.js';
+import { ensurePlayerBaseState } from '../src/base/player-bases.js';
 import { BaseCommandUi, summarizePlayerBase } from '../src/ui/base-command-ui.js';
 
 class FakeElement {
@@ -38,6 +39,7 @@ function fixture() {
   state.world.recoveryItems = [{ id: 'item', nodeId: 'enemy', x: 430, y: 0, status: 'AVAILABLE', artifactType: 'commandSeal' }];
   Object.assign(state.inventory.resources, { timber: 100, rope: 100, cutStone: 100, bronzeIngot: 100, wroughtIron: 100 });
   state.inventory.capacity = { base: 1000, processed: 1000, ore: 1000, metal: 1000 };
+  ensurePlayerBaseState(state);
   return state;
 }
 
@@ -51,7 +53,7 @@ test('base command panel summarizes remote threats, facilities, squads and recov
   const state = fixture();
   state.combat.friendlySquads = [{ id: 'squad', originBaseId: 'remote-base', hp: 100 }];
   const summary = summarizePlayerBase(state, state.world.playerBases[1]);
-  assert.deepEqual(summary, { nearbyEnemies: 1, facilities: 1, squads: 1, activeSquads: 1, recoveringSquads: 0, readySquads: 0, recoveryItems: 1, alert: '交戦警戒' });
+  assert.deepEqual(summary, { nearbyEnemies: 1, facilities: 1, squads: 1, squadCapacity: 4, activeSquads: 1, recoveringSquads: 0, readySquads: 0, recoveryItems: 1, alert: '交戦警戒' });
 });
 
 test('base command UI lists all bases and switches the map camera without moving the player', () => {
@@ -64,7 +66,7 @@ test('base command UI lists all bases and switches the map camera without moving
     const originalPlayer = { ...state.player.worldPosition };
     let centered = null;
     const ui = new BaseCommandUi({
-      store: { select(selector) { return selector(state); }, mutate(mutator) { mutator(state); } },
+      store: { snapshot() { return state; }, read(selector) { return selector(state); }, transaction(mutator) { return mutator(state); } },
       playerBaseSystem: new PlayerBaseSystem(),
       renderer: { centerOn(point) { centered = point; }, invalidateStatic() {}, render() {} },
       notifications: { show() {} }, persist() {}
@@ -93,7 +95,7 @@ test('base command UI establishes an unlocked base at the current road position'
     state.player.locationUpdatedAt = Date.now();
     state.player.locationAccuracy = 8;
     const ui = new BaseCommandUi({
-      store: { select(selector) { return selector(state); }, mutate(mutator) { mutator(state); } },
+      store: { snapshot() { return state; }, read(selector) { return selector(state); }, transaction(mutator) { return mutator(state); } },
       playerBaseSystem: new PlayerBaseSystem(),
       renderer: { centerOn() {}, invalidateStatic() {}, render() {} },
       notifications: { show() {} }, persist() {}
@@ -123,7 +125,7 @@ test('base command UI lists simple bases separately and can focus or rebuild a d
     state.player.locationAccuracy = 8;
     let centered = null;
     const ui = new BaseCommandUi({
-      store: { select(selector) { return selector(state); }, mutate(mutator) { mutator(state); } },
+      store: { snapshot() { return state; }, read(selector) { return selector(state); }, transaction(mutator) { return mutator(state); } },
       playerBaseSystem: new PlayerBaseSystem(),
       fieldBaseSystem: new FieldBaseSystem(),
       renderer: { centerOn(point) { centered = point; }, invalidateStatic() {}, render() {} },

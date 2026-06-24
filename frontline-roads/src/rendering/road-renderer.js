@@ -30,9 +30,12 @@ function visibleWorldBounds(camera, marginPixels = 24) {
 
 export function drawRoadGraph(context, graph, camera, { selectedEdgeId = null, timeMs = 0, preferences = {} } = {}) {
   const quality = preferences.quality ?? 'balanced';
+  const baseSelection = preferences.sceneMode === 'base-selection';
   const visible = graphElementsInBounds(graph, visibleWorldBounds(camera));
   context.save();
-  context.lineCap = 'round'; context.lineJoin = 'round'; context.globalCompositeOperation = 'screen';
+  context.lineCap = 'round';
+  context.lineJoin = 'round';
+  context.globalCompositeOperation = baseSelection ? 'source-over' : 'screen';
   for (const edge of visible.edges) {
     const nodeA = graph.nodeById.get(edge.a);
     const nodeB = graph.nodeById.get(edge.b);
@@ -40,19 +43,32 @@ export function drawRoadGraph(context, graph, camera, { selectedEdgeId = null, t
     const a = camera.worldToScreen(nodeA);
     const b = camera.worldToScreen(nodeB);
     if (!lineVisible(a, b, camera.viewportWidth, camera.viewportHeight)) continue;
-    const baseWidth = Math.max(1, Math.min(quality === 'minimal' ? 5 : 8, edge.roadWidth * camera.scale * 0.25));
+    const widthScale = baseSelection ? 1.28 : 1;
+    const maxWidth = baseSelection ? 10 : (quality === 'minimal' ? 5 : 8);
+    const baseWidth = Math.max(1, Math.min(maxWidth, edge.roadWidth * camera.scale * 0.25 * widthScale));
     const selected = edge.id === selectedEdgeId;
     const pulse = selected ? 0.78 + Math.sin(timeMs * 0.006) * 0.18 : 0;
-    if (quality === 'full' || selected) drawEdge(context, a, b, baseWidth + 4, selected ? `rgba(79,255,205,${0.18 + pulse * 0.14})` : 'rgba(0,103,94,0.17)');
-    drawEdge(context, a, b, baseWidth + (quality === 'minimal' ? 0.5 : 1.5), selected ? '#48ffd0' : 'rgba(17,174,157,0.4)', selected ? '#4affd3' : null, selected ? 10 : 0);
-    if (quality !== 'minimal') drawEdge(context, a, b, Math.max(0.7, baseWidth * 0.38), selected ? '#d4fff2' : 'rgba(113,255,222,0.62)');
+    const haloColor = baseSelection
+      ? (selected ? `rgba(79,255,205,${0.28 + pulse * 0.16})` : 'rgba(18,132,116,0.24)')
+      : (selected ? `rgba(79,255,205,${0.18 + pulse * 0.14})` : 'rgba(0,103,94,0.17)');
+    const bodyColor = baseSelection
+      ? (selected ? '#6dffe2' : 'rgba(76,232,212,0.76)')
+      : (selected ? '#48ffd0' : 'rgba(17,174,157,0.4)');
+    const coreColor = baseSelection
+      ? (selected ? '#f2fffb' : 'rgba(214,255,246,0.88)')
+      : (selected ? '#d4fff2' : 'rgba(113,255,222,0.62)');
+    const shadowColor = selected ? '#4affd3' : (baseSelection ? 'rgba(88,255,227,0.36)' : null);
+    const shadowBlur = selected ? 10 : (baseSelection ? 6 : 0);
+    if (quality === 'full' || selected || baseSelection) drawEdge(context, a, b, baseWidth + (baseSelection ? 5 : 4), haloColor);
+    drawEdge(context, a, b, baseWidth + (quality === 'minimal' ? (baseSelection ? 1.1 : 0.5) : (baseSelection ? 2.25 : 1.5)), bodyColor, shadowColor, shadowBlur);
+    if (quality !== 'minimal' || baseSelection) drawEdge(context, a, b, Math.max(baseSelection ? 1.1 : 0.7, baseWidth * (baseSelection ? 0.52 : 0.38)), coreColor);
   }
-  if (quality === 'full' && camera.scale >= 0.85) {
-    context.fillStyle = 'rgba(112,255,223,0.28)';
+  if ((quality === 'full' && camera.scale >= 0.85) || (baseSelection && camera.scale >= 0.6)) {
+    context.fillStyle = baseSelection ? 'rgba(176,255,235,0.42)' : 'rgba(112,255,223,0.28)';
     for (const node of visible.nodes) {
       const point = camera.worldToScreen(node);
       if (point.x < -4 || point.y < -4 || point.x > camera.viewportWidth + 4 || point.y > camera.viewportHeight + 4) continue;
-      context.beginPath(); context.arc(point.x, point.y, 1, 0, Math.PI * 2); context.fill();
+      context.beginPath(); context.arc(point.x, point.y, baseSelection ? 1.2 : 1, 0, Math.PI * 2); context.fill();
     }
   }
   context.restore();

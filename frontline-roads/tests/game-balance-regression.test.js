@@ -127,7 +127,8 @@ function playBalancedOpening(kind) {
   let readyAt = null;
   for (let elapsed = 0; elapsed < 60 * 60; elapsed += 1) {
     state.runtime.worldTimeMs += 1000;
-    if (elapsed % 5 === 0) dispatchNearest(state);
+    const recovering = state.combat.friendlySquads.some(squad => squad.hp > 0 && squad.status === FRIENDLY_SQUAD_STATUS.RECOVERING);
+    if (elapsed % 5 === 0 && !recovering) dispatchNearest(state);
     if (state.statistics.campsCaptured >= 1) addBarrier(state);
     if (elapsed >= 10 * 60 && state.civilization.totalArtifactsRecovered < 1) collectOneArtifact(state, combat);
     if (elapsed % 10 === 0) {

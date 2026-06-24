@@ -132,7 +132,7 @@ test('survey-loaded roads are recorded separately from physically observed regio
     roadService: { async loadChunk({ chunkId }) { return incomingChunk(chunkId); } }
   });
   await manager.loadChunk(parseChunkId('1:0'), state.world.roadGraph.center, { mode: 'survey', defenseId: 'survey-1' });
-  const next = store.getState();
+  const next = store.snapshot();
   assert.ok(next.world.roadChunks.loaded.includes('1:0'));
   assert.ok(next.world.roadChunks.surveyed.includes('1:0'));
   assert.ok(!next.world.roadChunks.playerObserved.includes('1:0'));
@@ -165,19 +165,19 @@ test('entering a surveyed chunk promotes it to physical observation and reveals 
   }];
   state.player.worldPosition = { x: 900, y: 100 };
   const store = new StateStore(state, new EventBus());
-  store.mutate(draft => attachGraphIndexes(draft.world.roadGraph));
+  store.transaction(draft => attachGraphIndexes(draft.world.roadGraph));
   const manager = new RoadWorldManager({
     store,
     cache: new MemoryRoadChunkCache(),
     roadService: { async loadChunk() { throw new Error('not needed'); } },
-    onGraphChanged: () => store.mutate(draft => {
+    onGraphChanged: () => store.transaction(draft => {
       reconcileFrontiers(draft);
       reconcileExplorationSites(draft);
     })
   });
   manager.considerLocation({ lat: 35, lon: 139 });
   manager.abort();
-  const next = store.getState();
+  const next = store.snapshot();
   assert.ok(next.world.roadChunks.playerObserved.includes('1:0'));
   assert.ok(next.world.explorationSites.some(site => site.sourceId === 'source-1'));
 });
@@ -188,17 +188,17 @@ test('survey scheduler serializes facilities and enforces a global real-time coo
   state.runtime.worldTimeMs = now;
   state.combat.defenses.push({ ...state.combat.defenses[0], id: 'survey-2', nodeId: 'remote', buildAnchorId: 'field:x', surveyNextAt: 1 });
   const store = new StateStore(state, new EventBus());
-  store.mutate(draft => attachGraphIndexes(draft.world.roadGraph));
+  store.transaction(draft => attachGraphIndexes(draft.world.roadGraph));
   const manager = new RoadWorldManager({ store, cache: new MemoryRoadChunkCache(), roadService: {}, now: () => now });
   const queued = [];
   manager.enqueue = (chunk, center, options) => queued.push({ chunk, center, options });
   assert.equal(manager.considerSurveyFacilities().length, 1);
   assert.equal(queued.length, 1);
-  store.mutate(draft => { draft.combat.defenses[1].surveyNextAt = 1; });
+  store.transaction(draft => { draft.combat.defenses[1].surveyNextAt = 1; });
   assert.deepEqual(manager.considerSurveyFacilities(), []);
   now += 30000;
   state.runtime.worldTimeMs = now;
-  store.mutate(draft => { draft.runtime.worldTimeMs = now; });
+  store.transaction(draft => { draft.runtime.worldTimeMs = now; });
   assert.equal(manager.considerSurveyFacilities().length, 1);
   assert.equal(queued.length, 2);
 });

@@ -185,8 +185,8 @@ test('combat UI keeps the normal facility panel compact and opens upgrade detail
     const defense = gunDefense();
     state.combat.defenses.push(defense);
     const store = {
-      select(selector) { return selector(state); },
-      mutate(mutator) { mutator(state); }
+      snapshot() { return state; }, read(selector) { return selector(state); },
+      transaction(mutator) { return mutator(state); }
     };
     const ui = new CombatUi({
       store,
@@ -236,7 +236,7 @@ test('facility explanation replaces the metric view instead of stacking below it
     const defense = gunDefense();
     state.combat.defenses.push(defense);
     const ui = new CombatUi({
-      store: { select(selector) { return selector(state); }, mutate(mutator) { mutator(state); } },
+      store: { snapshot() { return state; }, read(selector) { return selector(state); }, transaction(mutator) { return mutator(state); } },
       buildSystem: new BuildSystem(),
       civilizationSystem: new CivilizationSystem(),
       camera: { scale: 1 },
@@ -265,7 +265,7 @@ test('civilization panel explains the current defense tier ceiling and next unlo
     const { CivilizationUi } = await import('../src/ui/civilization-ui.js');
     const state = makeState();
     state.civilization.level = 2;
-    const store = { select(selector) { return selector(state); }, mutate(mutator) { mutator(state); } };
+    const store = { snapshot() { return state; }, read(selector) { return selector(state); }, transaction(mutator) { return mutator(state); } };
     const ui = new CivilizationUi({ store, civilizationSystem: new CivilizationSystem(), notifications: { show() {} }, persist() {} });
     ui.render();
     const html = document.elements.get('#civilizationBody').innerHTML;
@@ -305,7 +305,7 @@ test('upgraded attack statistics are used by live combat rather than only the UI
   enemy.edgeId = null;
   new DefenseSystem().update(state, 0.1);
   assert.equal(enemy.hp, 43);
-  assert.equal(defense.cooldown, 2);
+  assert.ok(Math.abs(defense.cooldown - 1.9) < 1e-9);
 });
 
 test('defense panel uses a compact capped layout with fixed visible actions', async () => {

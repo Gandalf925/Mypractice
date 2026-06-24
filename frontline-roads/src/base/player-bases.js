@@ -10,8 +10,22 @@ export const PLAYER_BASE_PLACEMENT_COSTS = Object.freeze({
   5: Object.freeze({ timber: 26, rope: 10, cutStone: 28, wroughtIron: 4 })
 });
 
+export function playerBasesView(state) {
+  const bases = Array.isArray(state.world?.playerBases) ? state.world.playerBases : [];
+  if (bases.length > 0) return bases;
+  const home = state.world?.homeBase;
+  if (home?.status !== 'ESTABLISHED') return [];
+  return [{
+    ...home,
+    name: home.name || '本拠地',
+    primary: true,
+    hp: Math.max(0, Number(state.world?.city?.hp ?? home.hp ?? 100)),
+    maxHp: Math.max(1, Number(state.world?.city?.maxHp ?? home.maxHp ?? 100))
+  }];
+}
+
 export function playerBaseSlotsUsed(state) {
-  return ensurePlayerBaseState(state).length;
+  return playerBasesView(state).length;
 }
 
 export function playerBasePlacementCost(state) {
@@ -58,35 +72,28 @@ export function ensurePlayerBaseState(state) {
   if (state.world.playerBases.length) {
     state.world.playerBases.forEach((base, index) => { base.primary = index === 0; });
     const primary = state.world.playerBases[0];
-    state.world.homeBase = { ...state.world.homeBase, ...primary, primary: undefined };
     if (state.world.city) {
       state.world.city.nodeId = primary.nodeId;
-      primary.hp = Math.max(0, Number(state.world.city.hp ?? primary.hp));
       primary.maxHp = Math.max(1, Number(state.world.city.maxHp ?? primary.maxHp));
+      primary.hp = Math.max(0, Math.min(primary.maxHp, Number(state.world.city.hp ?? primary.hp)));
     }
+    state.world.homeBase = { ...state.world.homeBase, ...primary, primary: undefined };
   }
   return state.world.playerBases;
 }
 
 export function playerBaseById(state, baseId, { includeDestroyed = true } = {}) {
-  const base = ensurePlayerBaseState(state).find(item => item.id === baseId) ?? null;
+  const base = playerBasesView(state).find(item => item.id === baseId) ?? null;
   if (!base || (!includeDestroyed && (base.status !== 'ESTABLISHED' || base.hp <= 0))) return null;
   return base;
 }
 
 export function activePlayerBases(state) {
-  return ensurePlayerBaseState(state).filter(base => base.status === 'ESTABLISHED' && base.hp > 0);
-}
-
-export function nearestPlayerBase(state, point) {
-  if (!point) return null;
-  return activePlayerBases(state)
-    .map(base => ({ base, gap: distance(base, point) }))
-    .sort((a, b) => a.gap - b.gap)[0] ?? null;
+  return playerBasesView(state).filter(base => base.status === 'ESTABLISHED' && base.hp > 0);
 }
 
 export function canPlaceAdditionalBase(state, point) {
-  const bases = ensurePlayerBaseState(state);
+  const bases = playerBasesView(state);
   if (bases.length >= baseLimitForCivilization(state.civilization?.level)) {
     return { ok: false, reason: '文明レベルに対する拠点上限へ到達しています。' };
   }

@@ -18,7 +18,7 @@
     #assetRecovery p { margin: 10px 0 0; color: #9fcfc2; line-height: 1.55; }
   </style>
   <script>
-    globalThis.__FRONTLINE_RELEASE__ = Object.freeze({ version: '0.31.0', directory: 'frontline-roads' });
+    globalThis.__FRONTLINE_RELEASE__ = Object.freeze({ version: '0.32.0', directory: 'frontline-roads' });
     globalThis.__FRONTLINE_STYLES_READY__ = (() => {
       const release = globalThis.__FRONTLINE_RELEASE__;
       const projectSegment = location.pathname.split('/').filter(Boolean)[0] ?? '';
@@ -95,7 +95,7 @@
         <span>敵 <strong id="enemyCount">0</strong></span>
         <span>文明 <strong id="civilizationLevel">0</strong></span>
       </div>
-      <div id="resourceSummary" class="resourceSummary">木材 0・石材 0・繊維 0</div>
+      <div id="resourceSummary" class="resourceSummary" role="group" aria-label="保有資材"></div>
       <div id="baseSummary" class="baseSummary">拠点設置済み</div>
       <div id="storageWarning" class="storageWarning" hidden></div>
       <div class="topActions">

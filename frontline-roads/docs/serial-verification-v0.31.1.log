@@ -1,0 +1,2098 @@
+TAP version 13
+# Subtest: HTML references only existing local app resources and required controls exist
+ok 1 - HTML references only existing local app resources and required controls exist
+  ---
+  duration_ms: 18.960353
+  type: 'test'
+  ...
+# Subtest: every required DOM id used by bootstrap exists in HTML
+ok 2 - every required DOM id used by bootstrap exists in HTML
+  ---
+  duration_ms: 9.120264
+  type: 'test'
+  ...
+# Subtest: service worker app shell contains every runtime source file and all paths exist
+ok 3 - service worker app shell contains every runtime source file and all paths exist
+  ---
+  duration_ms: 43.938923
+  type: 'test'
+  ...
+# Subtest: development tree has no premature single-HTML build output
+ok 4 - development tree has no premature single-HTML build output
+  ---
+  duration_ms: 4.927436
+  type: 'test'
+  ...
+# Subtest: service worker only deletes FRONTLINE ROADS caches
+ok 5 - service worker only deletes FRONTLINE ROADS caches
+  ---
+  duration_ms: 3.706816
+  type: 'test'
+  ...
+# Subtest: service worker falls back to HTML only for navigation requests
+ok 6 - service worker falls back to HTML only for navigation requests
+  ---
+  duration_ms: 4.441995
+  type: 'test'
+  ...
+# Subtest: release version is synchronized across package, runtime label, HTML loader and service-worker cache
+ok 7 - release version is synchronized across package, runtime label, HTML loader and service-worker cache
+  ---
+  duration_ms: 7.555982
+  type: 'test'
+  ...
+# Subtest: asset startup does not delete caches or unregister service workers before boot
+ok 8 - asset startup does not delete caches or unregister service workers before boot
+  ---
+  duration_ms: 2.946623
+  type: 'test'
+  ...
+# Subtest: GitHub Pages package includes no-Jekyll markers and the legacy fr redirect
+ok 9 - GitHub Pages package includes no-Jekyll markers and the legacy fr redirect
+  ---
+  duration_ms: 5.377437
+  type: 'test'
+  ...
+# Subtest: obsolete top alert frame is absent from the play HUD
+ok 10 - obsolete top alert frame is absent from the play HUD
+  ---
+  duration_ms: 3.694733
+  type: 'test'
+  ...
+# Subtest: storage denial is detected without crashing construction
+ok 11 - storage denial is detected without crashing construction
+  ---
+  duration_ms: 2.192414
+  type: 'test'
+  ...
+# Subtest: invalid shallow save is quarantined instead of bricking startup
+ok 12 - invalid shallow save is quarantined instead of bricking startup
+  ---
+  duration_ms: 2.241303
+  type: 'test'
+  ...
+# Subtest: saved game removes exact position history and rounds map origin
+ok 13 - saved game removes exact position history and rounds map origin
+  ---
+  duration_ms: 3.785035
+  type: 'test'
+  ...
+# Subtest: state validation rejects malformed saved road graph
+ok 14 - state validation rejects malformed saved road graph
+  ---
+  duration_ms: 0.52041
+  type: 'test'
+  ...
+# Subtest: stone gate conversion cannot be used before civilization level 2
+ok 15 - stone gate conversion cannot be used before civilization level 2
+  ---
+  duration_ms: 1.255265
+  type: 'test'
+  ...
+# Subtest: path invalidation waits for the current edge instead of teleporting backward
+ok 16 - path invalidation waits for the current edge instead of teleporting backward
+  ---
+  duration_ms: 2.875636
+  type: 'test'
+  ...
+# Subtest: grade-separated endpoints are not merged into one intersection
+ok 17 - grade-separated endpoints are not merged into one intersection
+  ---
+  duration_ms: 2.484747
+  type: 'test'
+  ...
+# Subtest: long OSM geometry is subdivided rather than discarded
+ok 18 - long OSM geometry is subdivided rather than discarded
+  ---
+  duration_ms: 3.437687
+  type: 'test'
+  ...
+# Subtest: complete reset clears current, legacy, and backup save keys
+ok 19 - complete reset clears current, legacy, and backup save keys
+  ---
+  duration_ms: 0.793123
+  type: 'test'
+  ...
+# Subtest: production source only enables dev fixture on local or explicit test origins
+ok 20 - production source only enables dev fixture on local or explicit test origins
+  ---
+  duration_ms: 23.300885
+  type: 'test'
+  ...
+# Subtest: development fixture disables browser JSONP and uses injected road data
+ok 21 - development fixture disables browser JSONP and uses injected road data
+  ---
+  duration_ms: 2.729114
+  type: 'test'
+  ...
+# Subtest: tier-zero area and slow defenses use the approved restrained values
+ok 22 - tier-zero area and slow defenses use the approved restrained values
+  ---
+  duration_ms: 2.613592
+  type: 'test'
+  ...
+# Subtest: area defense applies full damage to one target, reduced splash and a hard target cap
+ok 23 - area defense applies full damage to one target, reduced splash and a hard target cap
+  ---
+  duration_ms: 2.598138
+  type: 'test'
+  ...
+# Subtest: slow defense affects only the nearest approved number of targets
+ok 24 - slow defense affects only the nearest approved number of targets
+  ---
+  duration_ms: 0.936528
+  type: 'test'
+  ...
+# Subtest: enemy base growth follows age thresholds and civilization caps
+ok 25 - enemy base growth follows age thresholds and civilization caps
+  ---
+  duration_ms: 0.522648
+  type: 'test'
+  ...
+# Subtest: enemy level multipliers scale durability, attack and speed without runaway speed growth
+ok 26 - enemy level multipliers scale durability, attack and speed without runaway speed growth
+  ---
+  duration_ms: 0.849437
+  type: 'test'
+  ...
+# Subtest: spawned enemies retain the source base level and scaled HP for their lifetime
+ok 27 - spawned enemies retain the source base level and scaled HP for their lifetime
+  ---
+  duration_ms: 1.235248
+  type: 'test'
+  ...
+# Subtest: enemy base levels add exactly one unit per level
+ok 28 - enemy base levels add exactly one unit per level
+  ---
+  duration_ms: 1.232345
+  type: 'test'
+  ...
+# Subtest: new civilization enemy generations phase in at 15, 30, 45 and 60 minutes
+ok 29 - new civilization enemy generations phase in at 15, 30, 45 and 60 minutes
+  ---
+  duration_ms: 0.393208
+  type: 'test'
+  ...
+# Subtest: higher enemy base levels increase pressure gradually rather than all at once
+ok 30 - higher enemy base levels increase pressure gradually rather than all at once
+  ---
+  duration_ms: 0.65399
+  type: 'test'
+  ...
+# Subtest: a level-two mixed wave now reaches a city defended only by tier-zero area and slow facilities
+ok 31 - a level-two mixed wave now reaches a city defended only by tier-zero area and slow facilities
+  ---
+  duration_ms: 32.394
+  type: 'test'
+  ...
+# Subtest: a heavier level-two formation creates meaningful pressure without instantly defeating the city
+ok 32 - a heavier level-two formation creates meaningful pressure without instantly defeating the city
+  ---
+  duration_ms: 23.25609
+  type: 'test'
+  ...
+# Subtest: enemy base level increases emit one visible threat notification
+ok 33 - enemy base level increases emit one visible threat notification
+  ---
+  duration_ms: 2.224282
+  type: 'test'
+  ...
+# Subtest: enemy individual level and scaled HP survive save and restore
+ok 34 - enemy individual level and scaled HP survive save and restore
+  ---
+  duration_ms: 73.258013
+  type: 'test'
+  ...
+# Subtest: a new civilization generation keeps the previous generation during its opening grace window
+ok 35 - a new civilization generation keeps the previous generation during its opening grace window
+  ---
+  duration_ms: 0.997038
+  type: 'test'
+  ...
+# Subtest: enemy system applies the spawned enemy level to movement and city damage
+ok 36 - enemy system applies the spawned enemy level to movement and city damage
+  ---
+  duration_ms: 0.485525
+  type: 'test'
+  ...
+# Subtest: base command panel summarizes remote threats, facilities, squads and recoveries
+ok 37 - base command panel summarizes remote threats, facilities, squads and recoveries
+  ---
+  duration_ms: 7.005225
+  type: 'test'
+  ...
+# Subtest: base command UI lists all bases and switches the map camera without moving the player
+ok 38 - base command UI lists all bases and switches the map camera without moving the player
+  ---
+  duration_ms: 4.721413
+  type: 'test'
+  ...
+# Subtest: base command UI establishes an unlocked base at the current road position
+ok 39 - base command UI establishes an unlocked base at the current road position
+  ---
+  duration_ms: 2.37412
+  type: 'test'
+  ...
+# Subtest: combat renderer includes a distinct marker for secondary player bases
+ok 40 - combat renderer includes a distinct marker for secondary player bases
+  ---
+  duration_ms: 13.617309
+  type: 'test'
+  ...
+# Subtest: base command UI lists simple bases separately and can focus or rebuild a destroyed one
+ok 41 - base command UI lists simple bases separately and can focus or rebuild a destroyed one
+  ---
+  duration_ms: 4.11169
+  type: 'test'
+  ...
+# Subtest: combat renderer includes a distinct marker for simple bases and ruins
+ok 42 - combat renderer includes a distinct marker for simple bases and ruins
+  ---
+  duration_ms: 3.233696
+  type: 'test'
+  ...
+# Subtest: selection snaps to the existing graph and creates a base without refetching
+ok 43 - selection snaps to the existing graph and creates a base without refetching
+  ---
+  duration_ms: 3.264637
+  type: 'test'
+  ...
+# Subtest: a tap outside the road tolerance is rejected
+ok 44 - a tap outside the road tolerance is rejected
+  ---
+  duration_ms: 0.364174
+  type: 'test'
+  ...
+# Subtest: base placement uses a dedicated map viewport instead of drawing behind controls
+ok 45 - base placement uses a dedicated map viewport instead of drawing behind controls
+  ---
+  duration_ms: 13.955056
+  type: 'test'
+  ...
+# Subtest: base placement screen keeps the canvas clip synchronized with the viewport
+ok 46 - base placement screen keeps the canvas clip synchronized with the viewport
+  ---
+  duration_ms: 6.386043
+  type: 'test'
+  ...
+# Subtest: barrier highlighting is clipped to the build-radius portion of a road
+ok 47 - barrier highlighting is clipped to the build-radius portion of a road
+  ---
+  duration_ms: 3.16763
+  type: 'test'
+  ...
+# Subtest: build placement overlay draws valid sites, build radius and candidate effect radius
+ok 48 - build placement overlay draws valid sites, build radius and candidate effect radius
+  ---
+  duration_ms: 1.484801
+  type: 'test'
+  ...
+# Subtest: barrier overlay tolerates a minimal canvas implementation
+ok 49 - barrier overlay tolerates a minimal canvas implementation
+  ---
+  duration_ms: 0.658155
+  type: 'test'
+  ...
+# Subtest: renderer draws construction guidance after combat effects so candidates stay visible
+ok 50 - renderer draws construction guidance after combat effects so candidates stay visible
+  ---
+  duration_ms: 14.64181
+  type: 'test'
+  ...
+# Subtest: existing facilities do not expand construction beyond bases and the player
+ok 51 - existing facilities do not expand construction beyond bases and the player
+  ---
+  duration_ms: 6.272989
+  type: 'test'
+  ...
+# Subtest: previewing a candidate does not consume resources or create a defense
+ok 52 - previewing a candidate does not consume resources or create a defense
+  ---
+  duration_ms: 1.887187
+  type: 'test'
+  ...
+# Subtest: a confirmed candidate consumes resources exactly once and creates the selected defense
+ok 53 - a confirmed candidate consumes resources exactly once and creates the selected defense
+  ---
+  duration_ms: 1.879937
+  type: 'test'
+  ...
+# Subtest: a stale candidate is rejected without spending resources
+ok 54 - a stale candidate is rejected without spending resources
+  ---
+  duration_ms: 1.046045
+  type: 'test'
+  ...
+# Subtest: candidate confirmation rechecks resources that changed after preview
+ok 55 - candidate confirmation rechecks resources that changed after preview
+  ---
+  duration_ms: 1.069422
+  type: 'test'
+  ...
+# Subtest: barrier candidates retain the tapped road position and reject out-of-range points
+ok 56 - barrier candidates retain the tapped road position and reject out-of-range points
+  ---
+  duration_ms: 1.179988
+  type: 'test'
+  ...
+# Subtest: rebuilding a ruined placement at the same world time creates a distinct defense id
+ok 57 - rebuilding a ruined placement at the same world time creates a distinct defense id
+  ---
+  duration_ms: 1.919005
+  type: 'test'
+  ...
+# Subtest: preview skips an occupied nearest intersection when another valid intersection is within the tap tolerance
+ok 58 - preview skips an occupied nearest intersection when another valid intersection is within the tap tolerance
+  ---
+  duration_ms: 0.75729
+  type: 'test'
+  ...
+# Subtest: preview skips an occupied nearest road when another valid road is within the tap tolerance
+ok 59 - preview skips an occupied nearest road when another valid road is within the tap tolerance
+  ---
+  duration_ms: 4.263943
+  type: 'test'
+  ...
+# Subtest: player position creates a second build zone away from the home base
+ok 60 - player position creates a second build zone away from the home base
+  ---
+  duration_ms: 1.699037
+  type: 'test'
+  ...
+# Subtest: a current-location candidate is rejected if the player leaves its build zone before confirmation
+ok 61 - a current-location candidate is rejected if the player leaves its build zone before confirmation
+  ---
+  duration_ms: 0.648374
+  type: 'test'
+  ...
+# Subtest: overlapping home-base and player positions are represented as one build zone
+ok 62 - overlapping home-base and player positions are represented as one build zone
+  ---
+  duration_ms: 0.357847
+  type: 'test'
+  ...
+# Subtest: a remote facility stays outside the build zone until the player physically reaches it
+ok 63 - a remote facility stays outside the build zone until the player physically reaches it
+  ---
+  duration_ms: 0.466693
+  type: 'test'
+  ...
+# Subtest: removing a defense reopens its placement and invalidates enemy routes
+ok 64 - removing a defense reopens its placement and invalidates enemy routes
+  ---
+  duration_ms: 0.780538
+  type: 'test'
+  ...
+# Subtest: removing an unknown defense does not mutate the state
+ok 65 - removing an unknown defense does not mutate the state
+  ---
+  duration_ms: 0.270702
+  type: 'test'
+  ...
+# Subtest: inventory has one canonical resource store and preserves overflow
+ok 66 - inventory has one canonical resource store and preserves overflow
+  ---
+  duration_ms: 6.514705
+  type: 'test'
+  ...
+# Subtest: production reserves inputs once and completes through the civilization update
+ok 67 - production reserves inputs once and completes through the civilization update
+  ---
+  duration_ms: 3.748943
+  type: 'test'
+  ...
+# Subtest: removed resource outpost subsystem is absent from civilization runtime
+ok 68 - removed resource outpost subsystem is absent from civilization runtime
+  ---
+  duration_ms: 0.241627
+  type: 'test'
+  ...
+# Subtest: settlement damage ruins a building and disables its production
+ok 69 - settlement damage ruins a building and disables its production
+  ---
+  duration_ms: 1.497892
+  type: 'test'
+  ...
+# Subtest: production overflow stays in the building buffer until collection
+ok 70 - production overflow stays in the building buffer until collection
+  ---
+  duration_ms: 1.57299
+  type: 'test'
+  ...
+# Subtest: every civilization project uses implemented requirements and fits the unlocked settlement slots
+ok 71 - every civilization project uses implemented requirements and fits the unlocked settlement slots
+  ---
+  duration_ms: 0.778084
+  type: 'test'
+  ...
+# Subtest: map tap only selects a build candidate and confirmation performs the mutation
+ok 72 - map tap only selects a build candidate and confirmation performs the mutation
+  ---
+  duration_ms: 94.556925
+  type: 'test'
+  ...
+# Subtest: combat UI no longer calls immediate buildAt from map taps
+ok 73 - combat UI no longer calls immediate buildAt from map taps
+  ---
+  duration_ms: 7.863839
+  type: 'test'
+  ...
+# Subtest: an invalid second tap clears the previous candidate to prevent confirming the wrong location
+ok 74 - an invalid second tap clears the previous candidate to prevent confirming the wrong location
+  ---
+  duration_ms: 2.819004
+  type: 'test'
+  ...
+# Subtest: build confirmation is disabled while the selected facility is unaffordable
+ok 75 - build confirmation is disabled while the selected facility is unaffordable
+  ---
+  duration_ms: 2.815129
+  type: 'test'
+  ...
+# Subtest: context explanations are collapsed by default and metrics remain visible
+ok 76 - context explanations are collapsed by default and metrics remain visible
+  ---
+  duration_ms: 1.815134
+  type: 'test'
+  ...
+# Subtest: an opened context explanation remains open after the live HUD rerenders
+ok 77 - an opened context explanation remains open after the live HUD rerenders
+  ---
+  duration_ms: 1.488687
+  type: 'test'
+  ...
+# Subtest: context metrics use a fixed three-column grid to reduce panel height
+ok 78 - context metrics use a fixed three-column grid to reduce panel height
+  ---
+  duration_ms: 6.280849
+  type: 'test'
+  ...
+# Subtest: defense removal requires a second confirmation and then clears the selected facility
+ok 79 - defense removal requires a second confirmation and then clears the selected facility
+  ---
+  duration_ms: 3.661504
+  type: 'test'
+  ...
+# Subtest: tapping the selected facility again closes the compact context panel
+ok 80 - tapping the selected facility again closes the compact context panel
+  ---
+  duration_ms: 2.551056
+  type: 'test'
+  ...
+# Subtest: combat effect buffer is capped and prunes expired effects
+ok 81 - combat effect buffer is capped and prunes expired effects
+  ---
+  duration_ms: 2.224264
+  type: 'test'
+  ...
+# Subtest: event bus creates transient shot and city warning effects
+ok 82 - event bus creates transient shot and city warning effects
+  ---
+  duration_ms: 5.454521
+  type: 'test'
+  ...
+# Subtest: manual defense upgrade events create a visible pulse
+ok 83 - manual defense upgrade events create a visible pulse
+  ---
+  duration_ms: 0.942518
+  type: 'test'
+  ...
+# Subtest: barrier changes weighted enemy route without creating another graph
+ok 84 - barrier changes weighted enemy route without creating another graph
+  ---
+  duration_ms: 7.182365
+  type: 'test'
+  ...
+# Subtest: enemy position follows path direction rather than edge storage direction
+ok 85 - enemy position follows path direction rather than edge storage direction
+  ---
+  duration_ms: 2.463915
+  type: 'test'
+  ...
+# Subtest: build range is measured from established home base
+ok 86 - build range is measured from established home base
+  ---
+  duration_ms: 4.238607
+  type: 'test'
+  ...
+# Subtest: gun tower damages an enemy in range
+ok 87 - gun tower damages an enemy in range
+  ---
+  duration_ms: 2.724266
+  type: 'test'
+  ...
+# Subtest: enemy reaching the city deals damage and is removed
+ok 88 - enemy reaching the city deals damage and is removed
+  ---
+  duration_ms: 3.350336
+  type: 'test'
+  ...
+# Subtest: repair relay consumes resources and repairs only the most damaged target
+ok 89 - repair relay consumes resources and repairs only the most damaged target
+  ---
+  duration_ms: 1.371686
+  type: 'test'
+  ...
+# Subtest: city recovers after a quiet period and a large update only heals post-cooldown time
+ok 90 - city recovers after a quiet period and a large update only heals post-cooldown time
+  ---
+  duration_ms: 139.223155
+  type: 'test'
+  ...
+# Subtest: city defeat never creates negative resources and reports unpaid emergency recovery honestly
+ok 91 - city defeat never creates negative resources and reports unpaid emergency recovery honestly
+  ---
+  duration_ms: 22.699959
+  type: 'test'
+  ...
+# Subtest: barrier has player-facing role, effect, placement and numeric metrics
+ok 92 - barrier has player-facing role, effect, placement and numeric metrics
+  ---
+  duration_ms: 2.054799
+  type: 'test'
+  ...
+# Subtest: gun has player-facing role, effect, placement and numeric metrics
+ok 93 - gun has player-facing role, effect, placement and numeric metrics
+  ---
+  duration_ms: 0.606222
+  type: 'test'
+  ...
+# Subtest: mortar has player-facing role, effect, placement and numeric metrics
+ok 94 - mortar has player-facing role, effect, placement and numeric metrics
+  ---
+  duration_ms: 0.371202
+  type: 'test'
+  ...
+# Subtest: slow has player-facing role, effect, placement and numeric metrics
+ok 95 - slow has player-facing role, effect, placement and numeric metrics
+  ---
+  duration_ms: 0.193309
+  type: 'test'
+  ...
+# Subtest: relay has player-facing role, effect, placement and numeric metrics
+ok 96 - relay has player-facing role, effect, placement and numeric metrics
+  ---
+  duration_ms: 0.83655
+  type: 'test'
+  ...
+# Subtest: all defense tiers define deterministic durability and sequential upgrade costs
+ok 97 - all defense tiers define deterministic durability and sequential upgrade costs
+  ---
+  duration_ms: 3.117018
+  type: 'test'
+  ...
+# Subtest: defense upgrades are sequential and locked to civilization level
+ok 98 - defense upgrades are sequential and locked to civilization level
+  ---
+  duration_ms: 7.946048
+  type: 'test'
+  ...
+# Subtest: upgrading preserves damage ratio instead of fully healing the facility
+ok 99 - upgrading preserves damage ratio instead of fully healing the facility
+  ---
+  duration_ms: 2.336116
+  type: 'test'
+  ...
+# Subtest: tier synchronization upgrades legacy durability without changing its health percentage
+ok 100 - tier synchronization upgrades legacy durability without changing its health percentage
+  ---
+  duration_ms: 0.773011
+  type: 'test'
+  ...
+# Subtest: destroyed and maximum-tier defenses cannot be upgraded
+ok 101 - destroyed and maximum-tier defenses cannot be upgraded
+  ---
+  duration_ms: 2.851383
+  type: 'test'
+  ...
+# Subtest: gate conversion starts at tier two and preserves the prior health ratio
+ok 102 - gate conversion starts at tier two and preserves the prior health ratio
+  ---
+  duration_ms: 1.327173
+  type: 'test'
+  ...
+# Subtest: combat UI keeps the normal facility panel compact and opens upgrade details only on demand
+ok 103 - combat UI keeps the normal facility panel compact and opens upgrade details only on demand
+  ---
+  duration_ms: 71.128805
+  type: 'test'
+  ...
+# Subtest: facility explanation replaces the metric view instead of stacking below it
+ok 104 - facility explanation replaces the metric view instead of stacking below it
+  ---
+  duration_ms: 2.019916
+  type: 'test'
+  ...
+# Subtest: civilization panel explains the current defense tier ceiling and next unlock
+ok 105 - civilization panel explains the current defense tier ceiling and next unlock
+  ---
+  duration_ms: 15.226838
+  type: 'test'
+  ...
+# Subtest: applying a tier uses the explicit durability table for every facility class
+ok 106 - applying a tier uses the explicit durability table for every facility class
+  ---
+  duration_ms: 1.30515
+  type: 'test'
+  ...
+# Subtest: upgraded attack statistics are used by live combat rather than only the UI
+ok 107 - upgraded attack statistics are used by live combat rather than only the UI
+  ---
+  duration_ms: 3.22615
+  type: 'test'
+  ...
+# Subtest: defense panel uses a compact capped layout with fixed visible actions
+ok 108 - defense panel uses a compact capped layout with fixed visible actions
+  ---
+  duration_ms: 12.964401
+  type: 'test'
+  ...
+# Subtest: asset loader starts with the current application-relative stylesheet
+ok 109 - asset loader starts with the current application-relative stylesheet
+  ---
+  duration_ms: 15.51118
+  type: 'test'
+  ...
+# Subtest: asset loader recovers a legacy fr path through the canonical frontline-roads directory
+ok 110 - asset loader recovers a legacy fr path through the canonical frontline-roads directory
+  ---
+  duration_ms: 10.158969
+  type: 'test'
+  ...
+# Subtest: top HUD no longer exposes a global deployment button
+ok 111 - top HUD no longer exposes a global deployment button
+  ---
+  duration_ms: 10.11867
+  type: 'test'
+  ...
+# Subtest: enemy-base deployment opens with the tapped target fixed
+ok 112 - enemy-base deployment opens with the tapped target fixed
+  ---
+  duration_ms: 18.102561
+  type: 'test'
+  ...
+# Subtest: recovery-item deployment keeps the selected item fixed and only offers retrieval squads
+ok 113 - recovery-item deployment keeps the selected item fixed and only offers retrieval squads
+  ---
+  duration_ms: 1.925094
+  type: 'test'
+  ...
+# Subtest: combat target context exposes direct deployment actions
+ok 114 - combat target context exposes direct deployment actions
+  ---
+  duration_ms: 5.598663
+  type: 'test'
+  ...
+# Subtest: combat renderer includes visible friendly squad markers
+ok 115 - combat renderer includes visible friendly squad markers
+  ---
+  duration_ms: 2.948349
+  type: 'test'
+  ...
+# Subtest: enemy types make different barrier decisions from break time and detour time
+ok 116 - enemy types make different barrier decisions from break time and detour time
+  ---
+  duration_ms: 5.413654
+  type: 'test'
+  ...
+# Subtest: balanced infantry breaches a weakened wall instead of taking a long detour
+ok 117 - balanced infantry breaches a weakened wall instead of taking a long detour
+  ---
+  duration_ms: 0.852169
+  type: 'test'
+  ...
+# Subtest: raider selects repair support before ordinary weapon towers
+ok 118 - raider selects repair support before ordinary weapon towers
+  ---
+  duration_ms: 6.792245
+  type: 'test'
+  ...
+# Subtest: rope cutter selects slowing equipment before repair support
+ok 119 - rope cutter selects slowing equipment before repair support
+  ---
+  duration_ms: 1.291238
+  type: 'test'
+  ...
+# Subtest: specialist damages its selected facility and invalidates shared targets when it is destroyed
+ok 120 - specialist damages its selected facility and invalidates shared targets when it is destroyed
+  ---
+  duration_ms: 1.544182
+  type: 'test'
+  ...
+# Subtest: a newly built priority facility requests rerouting without teleporting an enemy off its current road
+ok 121 - a newly built priority facility requests rerouting without teleporting an enemy off its current road
+  ---
+  duration_ms: 4.357103
+  type: 'test'
+  ...
+# Subtest: civilization generations contain expanded valid enemy variants with explicit personalities
+ok 122 - civilization generations contain expanded valid enemy variants with explicit personalities
+  ---
+  duration_ms: 2.526231
+  type: 'test'
+  ...
+# Subtest: flanking enemies choose a bounded longer side road while direct infantry uses the shortest road
+ok 123 - flanking enemies choose a bounded longer side road while direct infantry uses the shortest road
+  ---
+  duration_ms: 5.542577
+  type: 'test'
+  ...
+# Subtest: marauder personality prioritizes a field base over an equally reachable city
+ok 124 - marauder personality prioritizes a field base over an equally reachable city
+  ---
+  duration_ms: 4.931223
+  type: 'test'
+  ...
+# Subtest: squad hunter plans toward an active friendly squad and damages it after contact
+ok 125 - squad hunter plans toward an active friendly squad and damages it after contact
+  ---
+  duration_ms: 3.860629
+  type: 'test'
+  ...
+# Subtest: war drummer speed aura accelerates nearby allies without accelerating itself
+ok 126 - war drummer speed aura accelerates nearby allies without accelerating itself
+  ---
+  duration_ms: 2.569626
+  type: 'test'
+  ...
+# Subtest: civilization level four rotates doctrines and introduces the new generation across repeated waves
+ok 127 - civilization level four rotates doctrines and introduces the new generation across repeated waves
+  ---
+  duration_ms: 9.45611
+  type: 'test'
+  ...
+# Subtest: personality route and doctrine metadata survive the unchanged save schema
+ok 128 - personality route and doctrine metadata survive the unchanged save schema
+  ---
+  duration_ms: 4.966196
+  type: 'test'
+  ...
+# Subtest: loaded source chunk materializes a persistent enemy-source site
+ok 129 - loaded source chunk materializes a persistent enemy-source site
+  ---
+  duration_ms: 7.206431
+  type: 'test'
+  ...
+# Subtest: player can clear an enemy source on site and stop future frontier waves
+ok 130 - player can clear an enemy source on site and stop future frontier waves
+  ---
+  duration_ms: 7.591936
+  type: 'test'
+  ...
+# Subtest: enemy source interaction requires proximity and a clear local area
+ok 131 - enemy source interaction requires proximity and a clear local area
+  ---
+  duration_ms: 2.001206
+  type: 'test'
+  ...
+# Subtest: loaded chunks are processed once for deterministic ambient discoveries
+ok 132 - loaded chunks are processed once for deterministic ambient discoveries
+  ---
+  duration_ms: 1.98744
+  type: 'test'
+  ...
+# Subtest: exploration renderer draws active sites with a minimal canvas context
+ok 133 - exploration renderer draws active sites with a minimal canvas context
+  ---
+  duration_ms: 1.209462
+  type: 'test'
+  ...
+# Subtest: civilization level provides a separate simple-base limit
+ok 134 - civilization level provides a separate simple-base limit
+  ---
+  duration_ms: 4.718893
+  type: 'test'
+  ...
+# Subtest: simple-base placement requires civilization unlock, fresh GPS, road access and separation
+ok 135 - simple-base placement requires civilization unlock, fresh GPS, road access and separation
+  ---
+  duration_ms: 3.568443
+  type: 'test'
+  ...
+# Subtest: simple-base placement accepts a fresh stationary GPS fix and a road node within the wider placement radius
+ok 136 - simple-base placement accepts a fresh stationary GPS fix and a road node within the wider placement radius
+  ---
+  duration_ms: 0.778417
+  type: 'test'
+  ...
+# Subtest: simple bases require and consume the processed-resource cost for their slot
+ok 137 - simple bases require and consume the processed-resource cost for their slot
+  ---
+  duration_ms: 3.204856
+  type: 'test'
+  ...
+# Subtest: simple base has 40 HP and creates only a 50m construction anchor
+ok 138 - simple base has 40 HP and creates only a 50m construction anchor
+  ---
+  duration_ms: 1.82936
+  type: 'test'
+  ...
+# Subtest: current assault squad can deploy from an active simple base
+ok 139 - current assault squad can deploy from an active simple base
+  ---
+  duration_ms: 2.133283
+  type: 'test'
+  ...
+# Subtest: nearby enemies can destroy a simple base and remove its construction and deployment roles
+ok 140 - nearby enemies can destroy a simple base and remove its construction and deployment roles
+  ---
+  duration_ms: 5.343499
+  type: 'test'
+  ...
+# Subtest: destroyed simple base keeps its slot and can only be rebuilt at the site
+ok 141 - destroyed simple base keeps its slot and can only be rebuilt at the site
+  ---
+  duration_ms: 1.223111
+  type: 'test'
+  ...
+# Subtest: simple-base state survives save and restore without precise location metadata
+ok 142 - simple-base state survives save and restore without precise location metadata
+  ---
+  duration_ms: 4.29798
+  type: 'test'
+  ...
+# Subtest: level-four civilization progress counts active simple bases instead of obsolete outposts
+ok 143 - level-four civilization progress counts active simple bases instead of obsolete outposts
+  ---
+  duration_ms: 1.860215
+  type: 'test'
+  ...
+# Subtest: a distant simple base does not pull attackers away from a much nearer city
+ok 144 - a distant simple base does not pull attackers away from a much nearer city
+  ---
+  duration_ms: 1.102177
+  type: 'test'
+  ...
+# Subtest: standing at a simple base keeps the wider current-location construction zone
+ok 145 - standing at a simple base keeps the wider current-location construction zone
+  ---
+  duration_ms: 0.888998
+  type: 'test'
+  ...
+# Subtest: a major base cannot be placed on top of an active simple base
+ok 146 - a major base cannot be placed on top of an active simple base
+  ---
+  duration_ms: 1.084795
+  type: 'test'
+  ...
+# Subtest: a destroyed simple-base ruin still blocks overlapping major-base placement
+ok 147 - a destroyed simple-base ruin still blocks overlapping major-base placement
+  ---
+  duration_ms: 0.611589
+  type: 'test'
+  ...
+# Subtest: an active simple base anchors regional simulation but a destroyed one does not
+ok 148 - an active simple base anchors regional simulation but a destroyed one does not
+  ---
+  duration_ms: 36.305417
+  type: 'test'
+  ...
+# Subtest: an enemy chooses a nearby simple base when it is meaningfully closer than the city
+ok 149 - an enemy chooses a nearby simple base when it is meaningfully closer than the city
+  ---
+  duration_ms: 1.128449
+  type: 'test'
+  ...
+# Subtest: deployment preview is non-destructive and dispatch spends the assault cost once
+ok 150 - deployment preview is non-destructive and dispatch spends the assault cost once
+  ---
+  duration_ms: 8.488054
+  type: 'test'
+  ...
+# Subtest: friendly squad stops to fight enemies and both sides exchange damage
+ok 151 - friendly squad stops to fight enemies and both sides exchange damage
+  ---
+  duration_ms: 10.741571
+  type: 'test'
+  ...
+# Subtest: squad destroys an enemy base, schedules respawn and returns to its origin
+ok 152 - squad destroys an enemy base, schedules respawn and returns to its origin
+  ---
+  duration_ms: 10.061681
+  type: 'test'
+  ...
+# Subtest: friendly squads survive JSON save and restore without exact base coordinates
+ok 153 - friendly squads survive JSON save and restore without exact base coordinates
+  ---
+  duration_ms: 3.500099
+  type: 'test'
+  ...
+# Subtest: remote friendly squads only advance when the dormant regional interval is due
+ok 154 - remote friendly squads only advance when the dormant regional interval is due
+  ---
+  duration_ms: 35.451635
+  type: 'test'
+  ...
+# Subtest: friendly order overlay draws selectable nodes, routes, destination and waypoints on a minimal canvas
+ok 155 - friendly order overlay draws selectable nodes, routes, destination and waypoints on a minimal canvas
+  ---
+  duration_ms: 7.986997
+  type: 'test'
+  ...
+# Subtest: combat UI exposes stop, retreat, withdraw, resume and two-waypoint route planning
+ok 156 - combat UI exposes stop, retreat, withdraw, resume and two-waypoint route planning
+  ---
+  duration_ms: 11.521653
+  type: 'test'
+  ...
+# Subtest: renderer places squad order guidance above combat and construction layers
+ok 157 - renderer places squad order guidance above combat and construction layers
+  ---
+  duration_ms: 3.519373
+  type: 'test'
+  ...
+# Subtest: stop holds a squad at its exact road position while retaining the mission
+ok 158 - stop holds a squad at its exact road position while retaining the mission
+  ---
+  duration_ms: 10.113079
+  type: 'test'
+  ...
+# Subtest: route command issued mid-edge preserves position and joins the chosen route at the next intersection
+ok 159 - route command issued mid-edge preserves position and joins the chosen route at the next intersection
+  ---
+  duration_ms: 1.873143
+  type: 'test'
+  ...
+# Subtest: retreat reaches the selected node, stops there, and keeps the original attack mission
+ok 160 - retreat reaches the selected node, stops there, and keeps the original attack mission
+  ---
+  duration_ms: 3.871943
+  type: 'test'
+  ...
+# Subtest: withdraw abandons the mission and begins recovery only after it reaches the origin
+ok 161 - withdraw abandons the mission and begins recovery only after it reaches the origin
+  ---
+  duration_ms: 3.61979
+  type: 'test'
+  ...
+# Subtest: stopping a retreat preserves the retreat destination for route-selected resume
+ok 162 - stopping a retreat preserves the retreat destination for route-selected resume
+  ---
+  duration_ms: 1.489009
+  type: 'test'
+  ...
+# Subtest: retreat validation rejects a node closer to the hostile base and accepts an owned base behind the squad
+ok 163 - retreat validation rejects a node closer to the hostile base and accepts an owned base behind the squad
+  ---
+  duration_ms: 1.193818
+  type: 'test'
+  ...
+# Subtest: route planner exposes distinct shortest, enemy-avoidance and friendly-support choices when the road graph allows them
+ok 164 - route planner exposes distinct shortest, enemy-avoidance and friendly-support choices when the road graph allows them
+  ---
+  duration_ms: 4.532266
+  type: 'test'
+  ...
+# Subtest: waypoints force every generated route through the selected intersections
+ok 165 - waypoints force every generated route through the selected intersections
+  ---
+  duration_ms: 1.456677
+  type: 'test'
+  ...
+# Subtest: retreating through a newly encountered enemy does not grant invulnerability
+ok 166 - retreating through a newly encountered enemy does not grant invulnerability
+  ---
+  duration_ms: 46.25575
+  type: 'test'
+  ...
+# Subtest: friendly orders, selected route and history survive save and restore
+ok 167 - friendly orders, selected route and history survive save and restore
+  ---
+  duration_ms: 3.616187
+  type: 'test'
+  ...
+# Subtest: a rejected withdraw route leaves the original mission untouched
+ok 168 - a rejected withdraw route leaves the original mission untouched
+  ---
+  duration_ms: 0.693446
+  type: 'test'
+  ...
+# Subtest: route orders reject paths whose edges do not connect the declared node sequence
+ok 169 - route orders reject paths whose edges do not connect the declared node sequence
+  ---
+  duration_ms: 0.421765
+  type: 'test'
+  ...
+# Subtest: route estimates include the remaining distance on the squad current road segment
+ok 170 - route estimates include the remaining distance on the squad current road segment
+  ---
+  duration_ms: 0.710461
+  type: 'test'
+  ...
+# Subtest: a map tap near a displayed route selects that route instead of becoming a waypoint
+ok 171 - a map tap near a displayed route selects that route instead of becoming a waypoint
+  ---
+  duration_ms: 1.459836
+  type: 'test'
+  ...
+# Subtest: civilization level one unlocks treatment and field aid with the approved progression
+ok 172 - civilization level one unlocks treatment and field aid with the approved progression
+  ---
+  duration_ms: 1.974202
+  type: 'test'
+  ...
+# Subtest: major bases recover a returned squad to full health and keep it ready for redeployment
+ok 173 - major bases recover a returned squad to full health and keep it ready for redeployment
+  ---
+  duration_ms: 6.391158
+  type: 'test'
+  ...
+# Subtest: a treatment facility accelerates healing and reorganization at a major base
+ok 174 - a treatment facility accelerates healing and reorganization at a major base
+  ---
+  duration_ms: 2.49661
+  type: 'test'
+  ...
+# Subtest: a field base without an aid station reorganizes but does not heal a light squad
+ok 175 - a field base without an aid station reorganizes but does not heal a light squad
+  ---
+  duration_ms: 1.760857
+  type: 'test'
+  ...
+# Subtest: a field aid station heals assault and skirmisher squads up to seventy percent
+ok 176 - a field aid station heals assault and skirmisher squads up to seventy percent
+  ---
+  duration_ms: 1.667764
+  type: 'test'
+  ...
+# Subtest: field aid does not heal non-light squads if legacy data places one at a field base
+ok 177 - field aid does not heal non-light squads if legacy data places one at a field base
+  ---
+  duration_ms: 1.427283
+  type: 'test'
+  ...
+# Subtest: recovering squads block dispatch while a ready squad of the same type redeploys without cost
+ok 178 - recovering squads block dispatch while a ready squad of the same type redeploys without cost
+  ---
+  duration_ms: 6.178237
+  type: 'test'
+  ...
+# Subtest: selecting a different type replaces a ready garrison and charges the new formation cost
+ok 179 - selecting a different type replaces a ready garrison and charges the new formation cost
+  ---
+  duration_ms: 1.171038
+  type: 'test'
+  ...
+# Subtest: medical and field aid facilities are restricted to their matching base types and one slot each
+ok 180 - medical and field aid facilities are restricted to their matching base types and one slot each
+  ---
+  duration_ms: 5.7352
+  type: 'test'
+  ...
+# Subtest: destroying a treatment facility immediately falls back to natural base recovery
+ok 181 - destroying a treatment facility immediately falls back to natural base recovery
+  ---
+  duration_ms: 1.10496
+  type: 'test'
+  ...
+# Subtest: recovery state and progress survive save and restore
+ok 182 - recovery state and progress survive save and restore
+  ---
+  duration_ms: 2.904479
+  type: 'test'
+  ...
+# Subtest: a recovering squad evacuates to the nearest major base when its field base is destroyed
+ok 183 - a recovering squad evacuates to the nearest major base when its field base is destroyed
+  ---
+  duration_ms: 7.575865
+  type: 'test'
+  ...
+# Subtest: recovery and ready garrisons reject tactical movement orders
+ok 184 - recovery and ready garrisons reject tactical movement orders
+  ---
+  duration_ms: 0.929866
+  type: 'test'
+  ...
+# Subtest: treatment capacity queues excess squads without losing recovery state
+ok 185 - treatment capacity queues excess squads without losing recovery state
+  ---
+  duration_ms: 0.452844
+  type: 'test'
+  ...
+# Subtest: tier-three treatment facilities process two recovering squads at once
+ok 186 - tier-three treatment facilities process two recovering squads at once
+  ---
+  duration_ms: 0.63222
+  type: 'test'
+  ...
+# Subtest: friendly unit unlock levels and simple-base deployment restrictions are enforced
+ok 187 - friendly unit unlock levels and simple-base deployment restrictions are enforced
+  ---
+  duration_ms: 6.360605
+  type: 'test'
+  ...
+# Subtest: skirmisher damage strongly favors light enemies and is weak against armored enemies
+ok 188 - skirmisher damage strongly favors light enemies and is weak against armored enemies
+  ---
+  duration_ms: 0.596305
+  type: 'test'
+  ...
+# Subtest: siege squad damages enemy bases much faster than the assault squad
+ok 189 - siege squad damages enemy bases much faster than the assault squad
+  ---
+  duration_ms: 6.537483
+  type: 'test'
+  ...
+# Subtest: nearby heavy squad intercepts part of the damage aimed at another friendly squad
+ok 190 - nearby heavy squad intercepts part of the damage aimed at another friendly squad
+  ---
+  duration_ms: 2.732423
+  type: 'test'
+  ...
+# Subtest: expedition squad heals only after its non-combat recovery delay
+ok 191 - expedition squad heals only after its non-combat recovery delay
+  ---
+  duration_ms: 1.106935
+  type: 'test'
+  ...
+# Subtest: all friendly unit types preserve their identity and combat state through save and restore
+ok 192 - all friendly unit types preserve their identity and combat state through save and restore
+  ---
+  duration_ms: 4.664262
+  type: 'test'
+  ...
+# Subtest: skirmisher prioritizes a light specialist over a nearer ordinary infantry target
+ok 193 - skirmisher prioritizes a light specialist over a nearer ordinary infantry target
+  ---
+  duration_ms: 1.99126
+  type: 'test'
+  ...
+# Subtest: mixed friendly unit types remain valid through extended regional combat simulation
+ok 194 - mixed friendly unit types remain valid through extended regional combat simulation
+  ---
+  duration_ms: 235.229575
+  type: 'test'
+  ...
+# Subtest: dead-end roads at unexplored chunk borders become frontier candidates
+ok 195 - dead-end roads at unexplored chunk borders become frontier candidates
+  ---
+  duration_ms: 3.239729
+  type: 'test'
+  ...
+# Subtest: frontier source stays fixed while its entry point advances with map expansion
+ok 196 - frontier source stays fixed while its entry point advances with map expansion
+  ---
+  duration_ms: 3.334878
+  type: 'test'
+  ...
+# Subtest: frontier system launches enemies from a map-edge entry node
+ok 197 - frontier system launches enemies from a map-edge entry node
+  ---
+  duration_ms: 2.501674
+  type: 'test'
+  ...
+# Subtest: frontier identity is hidden until the signal is localized
+ok 198 - frontier identity is hidden until the signal is localized
+  ---
+  duration_ms: 0.328959
+  type: 'test'
+  ...
+# Subtest: frontier renderer tolerates a minimal canvas context
+ok 199 - frontier renderer tolerates a minimal canvas context
+  ---
+  duration_ms: 1.277632
+  type: 'test'
+  ...
+# Subtest: balanced opening reaches civilization level one without collapse on a line road network
+ok 200 - balanced opening reaches civilization level one without collapse on a line road network
+  ---
+  duration_ms: 599.881411
+  type: 'test'
+  ...
+# Subtest: balanced opening reaches civilization level one without collapse on a cross road network
+ok 201 - balanced opening reaches civilization level one without collapse on a cross road network
+  ---
+  duration_ms: 387.926049
+  type: 'test'
+  ...
+# Subtest: balanced opening reaches civilization level one without collapse on a grid road network
+ok 202 - balanced opening reaches civilization level one without collapse on a grid road network
+  ---
+  duration_ms: 300.62087
+  type: 'test'
+  ...
+# Subtest: attack-only opening can suppress the first bases but still causes material losses
+ok 203 - attack-only opening can suppress the first bases but still causes material losses
+  ---
+  duration_ms: 579.338538
+  type: 'test'
+  ...
+# Subtest: batch production queues 1, 5, 10 or the maximum without double-reserving inputs
+ok 204 - batch production queues 1, 5, 10 or the maximum without double-reserving inputs
+  ---
+  duration_ms: 9.991592
+  type: 'test'
+  ...
+# Subtest: project-only production caps queued units, starts the existing order, and cannot overshoot the target
+ok 205 - project-only production caps queued units, starts the existing order, and cannot overshoot the target
+  ---
+  duration_ms: 1.674929
+  type: 'test'
+  ...
+# Subtest: safe civilization contribution keeps the declared defense reserve while explicit full contribution may use it
+ok 206 - safe civilization contribution keeps the declared defense reserve while explicit full contribution may use it
+  ---
+  duration_ms: 3.1648
+  type: 'test'
+  ...
+# Subtest: coordinated deployment uses unique bases and synchronizes mixed squads to one arrival time
+ok 207 - coordinated deployment uses unique bases and synchronizes mixed squads to one arrival time
+  ---
+  duration_ms: 11.540849
+  type: 'test'
+  ...
+# Subtest: simple-base network diagnostic distinguishes sufficient and insufficient acquired roads
+ok 208 - simple-base network diagnostic distinguishes sufficient and insufficient acquired roads
+  ---
+  duration_ms: 2.266926
+  type: 'test'
+  ...
+# Subtest: listed barrier sites use an in-range projection and remain valid for construction on dense roads
+ok 209 - listed barrier sites use an in-range projection and remain valid for construction on dense roads
+  ---
+  duration_ms: 2.647196
+  type: 'test'
+  ...
+# Subtest: gameplay stabilization controls are present in UI source and field-base text includes retrieval squads
+ok 210 - gameplay stabilization controls are present in UI source and field-base text includes retrieval squads
+  ---
+  duration_ms: 19.758149
+  type: 'test'
+  ...
+# Subtest: source module graph has no circular dependencies
+ok 211 - source module graph has no circular dependencies
+  ---
+  duration_ms: 147.712511
+  type: 'test'
+  ...
+# Subtest: twelve-hour simulation remains bounded, serializable and within enemy cap
+ok 212 - twelve-hour simulation remains bounded, serializable and within enemy cap
+  ---
+  duration_ms: 7805.227352
+  type: 'test'
+  ...
+# Subtest: same state and elapsed time produce the same offline game result
+ok 213 - same state and elapsed time produce the same offline game result
+  ---
+  duration_ms: 1669.124387
+  type: 'test'
+  ...
+# Subtest: legacy save is converted once into the clean schema
+ok 214 - legacy save is converted once into the clean schema
+  ---
+  duration_ms: 7.067006
+  type: 'test'
+  ...
+# Subtest: tower reload preserves elapsed remainder and gives the same result at 20 Hz or one coarse update
+ok 215 - tower reload preserves elapsed remainder and gives the same result at 20 Hz or one coarse update
+  ---
+  duration_ms: 9.648859
+  type: 'test'
+  ...
+# Subtest: enemy departure delay and road-edge overflow are consumed in the same update
+ok 216 - enemy departure delay and road-edge overflow are consumed in the same update
+  ---
+  duration_ms: 7.373768
+  type: 'test'
+  ...
+# Subtest: offline 0.25-second simulation matches live 20 Hz for a deterministic defense interval
+ok 217 - offline 0.25-second simulation matches live 20 Hz for a deterministic defense interval
+  ---
+  duration_ms: 139.753709
+  type: 'test'
+  ...
+# Subtest: offline simulation is bounded and reports the applied duration
+ok 218 - offline simulation is bounded and reports the applied duration
+  ---
+  duration_ms: 2.36841
+  type: 'test'
+  ...
+# Subtest: offline simulation advances the canonical world clock
+ok 219 - offline simulation advances the canonical world clock
+  ---
+  duration_ms: 0.614762
+  type: 'test'
+  ...
+# Subtest: default endpoints use current public global instances
+ok 220 - default endpoints use current public global instances
+  ---
+  duration_ms: 3.302801
+  type: 'test'
+  ...
+# Subtest: query filters road classes before download
+ok 221 - query filters road classes before download
+  ---
+  duration_ms: 2.983106
+  type: 'test'
+  ...
+# Subtest: JSONP URL contains encoded query and callback
+ok 222 - JSONP URL contains encoded query and callback
+  ---
+  duration_ms: 0.623201
+  type: 'test'
+  ...
+# Subtest: browser JSONP resolves payload and cleans callback
+ok 223 - browser JSONP resolves payload and cleans callback
+  ---
+  duration_ms: 1.232616
+  type: 'test'
+  ...
+# Subtest: browser mode prefers JSONP and does not call fetch after success
+ok 224 - browser mode prefers JSONP and does not call fetch after success
+  ---
+  duration_ms: 0.790504
+  type: 'test'
+  ...
+# Subtest: JSONP failure falls back to official minimal POST request
+ok 225 - JSONP failure falls back to official minimal POST request
+  ---
+  duration_ms: 1.327029
+  type: 'test'
+  ...
+# Subtest: failed endpoint falls back to the next endpoint
+ok 226 - failed endpoint falls back to the next endpoint
+  ---
+  duration_ms: 0.771833
+  type: 'test'
+  ...
+# Subtest: all failures include endpoint and transport diagnostics
+ok 227 - all failures include endpoint and transport diagnostics
+  ---
+  duration_ms: 1.91847
+  type: 'test'
+  ...
+# Subtest: caller abort stops attempts immediately
+ok 228 - caller abort stops attempts immediately
+  ---
+  duration_ms: 1.476367
+  type: 'test'
+  ...
+# Subtest: development client can disable JSONP and use the injected fetch directly
+ok 229 - development client can disable JSONP and use the injected fetch directly
+  ---
+  duration_ms: 1.152236
+  type: 'test'
+  ...
+# Subtest: balanced profile limits simulation, rendering and DPR
+ok 230 - balanced profile limits simulation, rendering and DPR
+  ---
+  duration_ms: 1.733827
+  type: 'test'
+  ...
+# Subtest: game loop decouples simulation, civilization and rendering rates
+ok 231 - game loop decouples simulation, civilization and rendering rates
+  ---
+  duration_ms: 1.617019
+  type: 'test'
+  ...
+# Subtest: combat spatial index returns only nearby active enemies
+ok 232 - combat spatial index returns only nearby active enemies
+  ---
+  duration_ms: 2.097529
+  type: 'test'
+  ...
+# Subtest: renderer caches static radar and road layers between frames
+ok 233 - renderer caches static radar and road layers between frames
+  ---
+  duration_ms: 5.556292
+  type: 'test'
+  ...
+# Subtest: tactical route choices use spatial snapshots instead of rescanning every enemy and defense per road edge
+ok 234 - tactical route choices use spatial snapshots instead of rescanning every enemy and defense per road edge
+  ---
+  duration_ms: 187.932307
+  type: 'test'
+  ...
+# Subtest: civilization level increases the active player-base limit by one
+ok 235 - civilization level increases the active player-base limit by one
+  ---
+  duration_ms: 1.606585
+  type: 'test'
+  ...
+# Subtest: base placement requires an unlocked slot, fresh position, nearby road and minimum separation
+ok 236 - base placement requires an unlocked slot, fresh position, nearby road and minimum separation
+  ---
+  duration_ms: 3.49936
+  type: 'test'
+  ...
+# Subtest: additional major bases require and consume escalating processed-resource costs
+ok 237 - additional major bases require and consume escalating processed-resource costs
+  ---
+  duration_ms: 4.573063
+  type: 'test'
+  ...
+# Subtest: establishing a base adds a remote construction and simulation anchor
+ok 238 - establishing a base adds a remote construction and simulation anchor
+  ---
+  duration_ms: 2.395655
+  type: 'test'
+  ...
+# Subtest: secondary bases survive save and restore without retaining exact location fields
+ok 239 - secondary bases survive save and restore without retaining exact location fields
+  ---
+  duration_ms: 3.00213
+  type: 'test'
+  ...
+# Subtest: civilization projects require cumulative artifacts recovered in the field
+ok 240 - civilization projects require cumulative artifacts recovered in the field
+  ---
+  duration_ms: 1.715865
+  type: 'test'
+  ...
+# Subtest: destroying a resource enemy base secures its declared reward in one recoverable cache
+ok 241 - destroying a resource enemy base secures its declared reward in one recoverable cache
+  ---
+  duration_ms: 7.369986
+  type: 'test'
+  ...
+# Subtest: resource enemy bases return within the progression window while strategic bases retain long recovery
+ok 242 - resource enemy bases return within the progression window while strategic bases retain long recovery
+  ---
+  duration_ms: 1.016557
+  type: 'test'
+  ...
+# Subtest: legacy resource-outpost data is stripped during runtime normalization
+ok 243 - legacy resource-outpost data is stripped during runtime normalization
+  ---
+  duration_ms: 0.732401
+  type: 'test'
+  ...
+# Subtest: PWA registers the current service worker on HTTPS
+ok 244 - PWA registers the current service worker on HTTPS
+  ---
+  duration_ms: 2.955183
+  type: 'test'
+  ...
+# Subtest: PWA is skipped for an allowed development fixture
+ok 245 - PWA is skipped for an allowed development fixture
+  ---
+  duration_ms: 1.061692
+  type: 'test'
+  ...
+# Subtest: public devFixture query does not disable production PWA registration
+ok 246 - public devFixture query does not disable production PWA registration
+  ---
+  duration_ms: 0.545698
+  type: 'test'
+  ...
+# Subtest: PWA registration failure does not stop the game
+ok 247 - PWA registration failure does not stop the game
+  ---
+  duration_ms: 0.551864
+  type: 'test'
+  ...
+# Subtest: radar renderer is integrated without changing the map input owner
+ok 248 - radar renderer is integrated without changing the map input owner
+  ---
+  duration_ms: 14.686393
+  type: 'test'
+  ...
+# Subtest: radar theme exposes tactical palette and mobile layout rules
+ok 249 - radar theme exposes tactical palette and mobile layout rules
+  ---
+  duration_ms: 3.862501
+  type: 'test'
+  ...
+# Subtest: combat and road renderers use radar glyphs and glow rather than emoji labels
+ok 250 - combat and road renderers use radar glyphs and glow rather than emoji labels
+  ---
+  duration_ms: 6.604297
+  type: 'test'
+  ...
+# Subtest: radar canvas layers render with a minimal canvas context
+ok 251 - radar canvas layers render with a minimal canvas context
+  ---
+  duration_ms: 5.365596
+  type: 'test'
+  ...
+# Subtest: playing footer stays clear of the combat toolbar
+ok 252 - playing footer stays clear of the combat toolbar
+  ---
+  duration_ms: 2.701563
+  type: 'test'
+  ...
+# Subtest: radar preferences apply defaults and cycle without game state
+ok 253 - radar preferences apply defaults and cycle without game state
+  ---
+  duration_ms: 2.791134
+  type: 'test'
+  ...
+# Subtest: bootstrap imports RadarPreferences before constructing it
+ok 254 - bootstrap imports RadarPreferences before constructing it
+  ---
+  duration_ms: 13.673418
+  type: 'test'
+  ...
+# Subtest: touch devices default to the power-saving radar profile
+ok 255 - touch devices default to the power-saving radar profile
+  ---
+  duration_ms: 0.567012
+  type: 'test'
+  ...
+# Subtest: destroying an enemy base creates one persistent recovery item at the destroyed base
+ok 256 - destroying an enemy base creates one persistent recovery item at the destroyed base
+  ---
+  duration_ms: 3.998019
+  type: 'test'
+  ...
+# Subtest: recovery requires the player to be within the physical collection range
+ok 257 - recovery requires the player to be within the physical collection range
+  ---
+  duration_ms: 1.213474
+  type: 'test'
+  ...
+# Subtest: recovery rejects stale or inaccurate geolocation even at the item position
+ok 258 - recovery rejects stale or inaccurate geolocation even at the item position
+  ---
+  duration_ms: 0.556675
+  type: 'test'
+  ...
+# Subtest: manual collection requires five seconds in range, grants once and removes the recovered item
+ok 259 - manual collection requires five seconds in range, grants once and removes the recovered item
+  ---
+  duration_ms: 2.290115
+  type: 'test'
+  ...
+# Subtest: leaving the collection radius cancels progress without removing the item
+ok 260 - leaving the collection radius cancels progress without removing the item
+  ---
+  duration_ms: 0.893802
+  type: 'test'
+  ...
+# Subtest: uncollected recovery items survive save and restore while live location freshness does not
+ok 261 - uncollected recovery items survive save and restore while live location freshness does not
+  ---
+  duration_ms: 3.061442
+  type: 'test'
+  ...
+# Subtest: refactor schema 1 scrap is migrated into canonical resources
+ok 262 - refactor schema 1 scrap is migrated into canonical resources
+  ---
+  duration_ms: 4.616106
+  type: 'test'
+  ...
+# Subtest: retrieval squad is deliberately weak and works from major and field bases
+ok 263 - retrieval squad is deliberately weak and works from major and field bases
+  ---
+  duration_ms: 3.166644
+  type: 'test'
+  ...
+# Subtest: dispatch reserves a recovery item and preview does not mutate it
+ok 264 - dispatch reserves a recovery item and preview does not mutate it
+  ---
+  duration_ms: 6.953827
+  type: 'test'
+  ...
+# Subtest: retrieval squad collects for eight seconds and grants the artifact only after returning
+ok 265 - retrieval squad collects for eight seconds and grants the artifact only after returning
+  ---
+  duration_ms: 18.913475
+  type: 'test'
+  ...
+# Subtest: destroying a squad before pickup releases the item at its original location
+ok 266 - destroying a squad before pickup releases the item at its original location
+  ---
+  duration_ms: 1.216591
+  type: 'test'
+  ...
+# Subtest: destroying a squad while carrying drops the item at the destruction point
+ok 267 - destroying a squad while carrying drops the item at the destruction point
+  ---
+  duration_ms: 4.233373
+  type: 'test'
+  ...
+# Subtest: withdrawing before pickup abandons the recovery mission and releases the item
+ok 268 - withdrawing before pickup abandons the recovery mission and releases the item
+  ---
+  duration_ms: 1.607014
+  type: 'test'
+  ...
+# Subtest: field bases can deploy and reorganize retrieval squads
+ok 269 - field bases can deploy and reorganize retrieval squads
+  ---
+  duration_ms: 1.196454
+  type: 'test'
+  ...
+# Subtest: reserved recovery mission survives save and restore without exposing exact live location data
+ok 270 - reserved recovery mission survives save and restore without exposing exact live location data
+  ---
+  duration_ms: 2.928161
+  type: 'test'
+  ...
+# Subtest: manual collection in progress blocks deployment without consuming resources or changing a ready squad
+ok 271 - manual collection in progress blocks deployment without consuming resources or changing a ready squad
+  ---
+  duration_ms: 1.562598
+  type: 'test'
+  ...
+# Subtest: orphaned reservations become available again after squad data is lost
+ok 272 - orphaned reservations become available again after squad data is lost
+  ---
+  duration_ms: 1.076213
+  type: 'test'
+  ...
+# Subtest: a real heavy enemy quickly destroys the weak retrieval squad and releases its reservation
+ok 273 - a real heavy enemy quickly destroys the weak retrieval squad and releases its reservation
+  ---
+  duration_ms: 2.923778
+  type: 'test'
+  ...
+# Subtest: remote retrieval completes under active, peripheral, and dormant regional intervals
+ok 274 - remote retrieval completes under active, peripheral, and dormant regional intervals
+  ---
+  duration_ms: 81.635476
+  type: 'test'
+  ...
+# Subtest: world chunks use deterministic grid ids and reversible centers
+ok 275 - world chunks use deterministic grid ids and reversible centers
+  ---
+  duration_ms: 3.089223
+  type: 'test'
+  ...
+# Subtest: initial chunk state does not assume that the cleaned initial graph fully covers surrounding chunks
+ok 276 - initial chunk state does not assume that the cleaned initial graph fully covers surrounding chunks
+  ---
+  duration_ms: 0.562782
+  type: 'test'
+  ...
+# Subtest: graph merge preserves existing ids, joins nearby endpoints and removes duplicate edges
+ok 277 - graph merge preserves existing ids, joins nearby endpoints and removes duplicate edges
+  ---
+  duration_ms: 4.277308
+  type: 'test'
+  ...
+# Subtest: chunk cache isolates worlds and can remove one world
+ok 278 - chunk cache isolates worlds and can remove one world
+  ---
+  duration_ms: 0.804022
+  type: 'test'
+  ...
+# Subtest: RoadService chunk acquisition projects roads into the original world coordinate system
+ok 279 - RoadService chunk acquisition projects roads into the original world coordinate system
+  ---
+  duration_ms: 16.500592
+  type: 'test'
+  ...
+# Subtest: parallel carriageways with the same identity collapse into one gameplay road
+ok 280 - parallel carriageways with the same identity collapse into one gameplay road
+  ---
+  duration_ms: 5.465878
+  type: 'test'
+  ...
+# Subtest: nearby roads with different names remain separate
+ok 281 - nearby roads with different names remain separate
+  ---
+  duration_ms: 0.985619
+  type: 'test'
+  ...
+# Subtest: clustered intersections build a connected graph and combat route
+ok 282 - clustered intersections build a connected graph and combat route
+  ---
+  duration_ms: 5.728288
+  type: 'test'
+  ...
+# Subtest: one RoadService load performs one acquisition and produces indexed graph data
+ok 283 - one RoadService load performs one acquisition and produces indexed graph data
+  ---
+  duration_ms: 29.802855
+  type: 'test'
+  ...
+# Subtest: chunk prefetch only includes crossed or nearby grid edges
+ok 284 - chunk prefetch only includes crossed or nearby grid edges
+  ---
+  duration_ms: 3.090199
+  type: 'test'
+  ...
+# Subtest: manager merges a new chunk, records it and persists a compact cache entry
+ok 285 - manager merges a new chunk, records it and persists a compact cache entry
+  ---
+  duration_ms: 6.351885
+  type: 'test'
+  ...
+# Subtest: manager loads a cached chunk without calling the road server
+ok 286 - manager loads a cached chunk without calling the road server
+  ---
+  duration_ms: 1.783319
+  type: 'test'
+  ...
+# Subtest: failed acquisitions cool down without blocking unrelated nearby chunks
+ok 287 - failed acquisitions cool down without blocking unrelated nearby chunks
+  ---
+  duration_ms: 18.343004
+  type: 'test'
+  ...
+# Subtest: chunk centers remain based on the original world center
+ok 288 - chunk centers remain based on the original world center
+  ---
+  duration_ms: 0.328977
+  type: 'test'
+  ...
+# Subtest: legacy initial coverage is released while explicitly merged chunks remain confirmed
+ok 289 - legacy initial coverage is released while explicitly merged chunks remain confirmed
+  ---
+  duration_ms: 0.88903
+  type: 'test'
+  ...
+# Subtest: approaching a visible road endpoint queues forward chunks before the grid boundary
+ok 290 - approaching a visible road endpoint queues forward chunks before the grid boundary
+  ---
+  duration_ms: 1.917964
+  type: 'test'
+  ...
+# Subtest: movement lookahead queues the travel direction even before the player reaches a chunk edge
+ok 291 - movement lookahead queues the travel direction even before the player reaches a chunk edge
+  ---
+  duration_ms: 4.265944
+  type: 'test'
+  ...
+# Subtest: frontier failures retry after the shorter movement cooldown
+ok 292 - frontier failures retry after the shorter movement cooldown
+  ---
+  duration_ms: 2.0708
+  type: 'test'
+  ...
+# Subtest: an internal cul-de-sac does not masquerade as the outer road frontier
+ok 293 - an internal cul-de-sac does not masquerade as the outer road frontier
+  ---
+  duration_ms: 2.055543
+  type: 'test'
+  ...
+# Subtest: lookahead road chunks remain hidden until the player physically enters them
+ok 294 - lookahead road chunks remain hidden until the player physically enters them
+  ---
+  duration_ms: 1.856714
+  type: 'test'
+  ...
+# Subtest: road-frontier movement completes acquisition and merges the new road into the live map
+ok 295 - road-frontier movement completes acquisition and merges the new road into the live map
+  ---
+  duration_ms: 21.761073
+  type: 'test'
+  ...
+# Subtest: save data remains JSON and graph indexes are reconstructed after load
+ok 296 - save data remains JSON and graph indexes are reconstructed after load
+  ---
+  duration_ms: 5.875701
+  type: 'test'
+  ...
+# Subtest: v0.19 object-form road graphs remain loadable after compact saves are introduced
+ok 297 - v0.19 object-form road graphs remain loadable after compact saves are introduced
+  ---
+  duration_ms: 0.732106
+  type: 'test'
+  ...
+# Subtest: lifecycle follows the new startup sequence
+ok 298 - lifecycle follows the new startup sequence
+  ---
+  duration_ms: 3.586031
+  type: 'test'
+  ...
+# Subtest: invalid transition is rejected
+ok 299 - invalid transition is rejected
+  ---
+  duration_ms: 1.022028
+  type: 'test'
+  ...
+# Subtest: state snapshots cannot mutate the store
+ok 300 - state snapshots cannot mutate the store
+  ---
+  duration_ms: 0.418239
+  type: 'test'
+  ...
+# Subtest: source contains no legacy function override pattern or duplicate fetchRoadGraph
+ok 301 - source contains no legacy function override pattern or duplicate fetchRoadGraph
+  ---
+  duration_ms: 132.778769
+  type: 'test'
+  ...
+# Subtest: repair relay remains available as a build tool
+ok 302 - repair relay remains available as a build tool
+  ---
+  duration_ms: 6.315343
+  type: 'test'
+  ...
+# Subtest: survey facility is a civilization level 1 tower with approved tier progression
+ok 303 - survey facility is a civilization level 1 tower with approved tier progression
+  ---
+  duration_ms: 4.175452
+  type: 'test'
+  ...
+# Subtest: survey facility cannot be built before civilization level 1 or from the player-only build zone
+ok 304 - survey facility cannot be built before civilization level 1 or from the player-only build zone
+  ---
+  duration_ms: 3.763108
+  type: 'test'
+  ...
+# Subtest: each owned base can operate only one active survey facility
+ok 305 - each owned base can operate only one active survey facility
+  ---
+  duration_ms: 2.487523
+  type: 'test'
+  ...
+# Subtest: survey candidate selection expands one adjacent unloaded chunk inside the tier radius
+ok 306 - survey candidate selection expands one adjacent unloaded chunk inside the tier radius
+  ---
+  duration_ms: 18.024121
+  type: 'test'
+  ...
+# Subtest: survey-loaded roads are recorded separately from physically observed regions
+ok 307 - survey-loaded roads are recorded separately from physically observed regions
+  ---
+  duration_ms: 6.028691
+  type: 'test'
+  ...
+# Subtest: remote survey does not reveal exact frontier sources or ambient exploration sites
+ok 308 - remote survey does not reveal exact frontier sources or ambient exploration sites
+  ---
+  duration_ms: 2.725416
+  type: 'test'
+  ...
+# Subtest: entering a surveyed chunk promotes it to physical observation and reveals local content
+ok 309 - entering a surveyed chunk promotes it to physical observation and reveals local content
+  ---
+  duration_ms: 4.162079
+  type: 'test'
+  ...
+# Subtest: survey scheduler serializes facilities and enforces a global real-time cooldown
+ok 310 - survey scheduler serializes facilities and enforces a global real-time cooldown
+  ---
+  duration_ms: 3.903329
+  type: 'test'
+  ...
+# Subtest: survey status reports radius, cadence and remaining expansion work
+ok 311 - survey status reports radius, cadence and remaining expansion work
+  ---
+  duration_ms: 1.348246
+  type: 'test'
+  ...
+# Subtest: survey tower upgrade remains gated by the matching civilization level
+ok 312 - survey tower upgrade remains gated by the matching civilization level
+  ---
+  duration_ms: 1.220849
+  type: 'test'
+  ...
+# Subtest: a survey facility anchored to a destroyed simple base stops operating until the base is rebuilt
+ok 313 - a survey facility anchored to a destroyed simple base stops operating until the base is rebuilt
+  ---
+  duration_ms: 1.052291
+  type: 'test'
+  ...
+# Subtest: survey-only road chunks do not receive exact enemy bases before physical observation
+ok 314 - survey-only road chunks do not receive exact enemy bases before physical observation
+  ---
+  duration_ms: 2.367792
+  type: 'test'
+  ...
+# Subtest: survey progress and physical-observation boundaries survive save and restore
+ok 315 - survey progress and physical-observation boundaries survive save and restore
+  ---
+  duration_ms: 2.546498
+  type: 'test'
+  ...
+# Subtest: resource outpost runtime is completely removed while legacy saves are safely stripped
+ok 316 - resource outpost runtime is completely removed while legacy saves are safely stripped
+  ---
+  duration_ms: 21.626865
+  type: 'test'
+  ...
+# Subtest: resource-camp capture rewards cover the mandatory ore gates of later civilization projects
+ok 317 - resource-camp capture rewards cover the mandatory ore gates of later civilization projects
+  ---
+  duration_ms: 0.471238
+  type: 'test'
+  ...
+# Subtest: project-only trial bronze goes directly to the active project and cannot be overproduced
+ok 318 - project-only trial bronze goes directly to the active project and cannot be overproduced
+  ---
+  duration_ms: 3.483749
+  type: 'test'
+  ...
+# Subtest: actual smelting chains turn scheduled resource-camp rewards into the mandatory bronze and iron progression totals
+ok 319 - actual smelting chains turn scheduled resource-camp rewards into the mandatory bronze and iron progression totals
+  ---
+  duration_ms: 9.533965
+  type: 'test'
+  ...
+# Subtest: wave doctrine changes actual routing and resource-base composition rather than only the label
+ok 320 - wave doctrine changes actual routing and resource-base composition rather than only the label
+  ---
+  duration_ms: 7.632031
+  type: 'test'
+  ...
+# Subtest: upgraded tower ranges affect evasive route selection
+ok 321 - upgraded tower ranges affect evasive route selection
+  ---
+  duration_ms: 1.434985
+  type: 'test'
+  ...
+# Subtest: shield tiers use their declared protection values and new enemies use correct friendly matchups
+ok 322 - shield tiers use their declared protection values and new enemies use correct friendly matchups
+  ---
+  duration_ms: 1.371067
+  type: 'test'
+  ...
+# Subtest: hunters abandon squads outside their pursuit radius
+ok 323 - hunters abandon squads outside their pursuit radius
+  ---
+  duration_ms: 2.699067
+  type: 'test'
+  ...
+# Subtest: additional major bases are real attack targets, can be destroyed, persist, and rebuild on site
+ok 324 - additional major bases are real attack targets, can be destroyed, persist, and rebuild on site
+  ---
+  duration_ms: 3.2547
+  type: 'test'
+  ...
+# Subtest: spawned and legacy-loaded enemies retain their defined visual radius and field-base UI lists retrieval units
+ok 325 - spawned and legacy-loaded enemies retain their defined visual radius and field-base UI lists retrieval units
+  ---
+  duration_ms: 10.342115
+  type: 'test'
+  ...
+# Subtest: destroyed major-base ruins still occupy their slot and block overlapping replacement placement
+ok 326 - destroyed major-base ruins still occupy their slot and block overlapping replacement placement
+  ---
+  duration_ms: 1.711534
+  type: 'test'
+  ...
+# Subtest: only one tab owns the synchronous storage lease
+ok 327 - only one tab owns the synchronous storage lease
+  ---
+  duration_ms: 2.023046
+  type: 'test'
+  ...
+# Subtest: broadcast fallback elects one primary tab when storage is unavailable
+ok 328 - broadcast fallback elects one primary tab when storage is unavailable
+  ---
+  duration_ms: 1.517656
+  type: 'test'
+  ...
+# Subtest: remaining route distance accounts for current edge progress
+ok 329 - remaining route distance accounts for current edge progress
+  ---
+  duration_ms: 2.188968
+  type: 'test'
+  ...
+# Subtest: threat level escalates from contact to critical
+ok 330 - threat level escalates from contact to critical
+  ---
+  duration_ms: 0.748629
+  type: 'test'
+  ...
+# Subtest: clear threat reports stable defense line
+ok 331 - clear threat reports stable defense line
+  ---
+  duration_ms: 0.452345
+  type: 'test'
+  ...
+# Subtest: tactical routes and focus render with a minimal canvas context
+ok 332 - tactical routes and focus render with a minimal canvas context
+  ---
+  duration_ms: 15.986661
+  type: 'test'
+  ...
+# Subtest: selected enemy base no longer renders a misleading player capture radius
+ok 333 - selected enemy base no longer renders a misleading player capture radius
+  ---
+  duration_ms: 0.993017
+  type: 'test'
+  ...
+# Subtest: HUD and modal CSS do not use unreadably small explicit type
+ok 334 - HUD and modal CSS do not use unreadably small explicit type
+  ---
+  duration_ms: 12.695449
+  type: 'test'
+  ...
+# Subtest: Canvas labels retain a readable minimum without changing world scale
+ok 335 - Canvas labels retain a readable minimum without changing world scale
+  ---
+  duration_ms: 11.184882
+  type: 'test'
+  ...
+# Subtest: larger tool labels receive matching control height and context clearance
+ok 336 - larger tool labels receive matching control height and context clearance
+  ---
+  duration_ms: 3.067122
+  type: 'test'
+  ...
+# Subtest: a fully destroyed wave increments perfect defense streak exactly once
+ok 337 - a fully destroyed wave increments perfect defense streak exactly once
+  ---
+  duration_ms: 8.36078
+  type: 'test'
+  ...
+# Subtest: enemy-base guard launches once and does not count as a perfect defense wave
+ok 338 - enemy-base guard launches once and does not count as a perfect defense wave
+  ---
+  duration_ms: 2.833169
+  type: 'test'
+  ...
+# Subtest: civilization level creates resource bases without duplicating them
+ok 339 - civilization level creates resource bases without duplicating them
+  ---
+  duration_ms: 19.164957
+  type: 'test'
+  ...
+# Subtest: initial base placement excludes civilization resource bases
+ok 340 - initial base placement excludes civilization resource bases
+  ---
+  duration_ms: 28.391911
+  type: 'test'
+  ...
+# Subtest: destroyed base waits for its respawn timer and then reappears elsewhere
+ok 341 - destroyed base waits for its respawn timer and then reappears elsewhere
+  ---
+  duration_ms: 2.014908
+  type: 'test'
+  ...
+# Subtest: initial enemy bases spread across independent road fronts when the graph permits it
+ok 342 - initial enemy bases spread across independent road fronts when the graph permits it
+  ---
+  duration_ms: 1.448611
+  type: 'test'
+  ...
+# Subtest: stacked initial enemy bases receive progressively longer opening delays on a one-front road
+ok 343 - stacked initial enemy bases receive progressively longer opening delays on a one-front road
+  ---
+  duration_ms: 2.548824
+  type: 'test'
+  ...
+# Subtest: region activity follows the nearest city or player anchor
+ok 344 - region activity follows the nearest city or player anchor
+  ---
+  duration_ms: 4.117453
+  type: 'test'
+  ...
+# Subtest: regional clocks only release peripheral and dormant simulation at their intervals
+ok 345 - regional clocks only release peripheral and dormant simulation at their intervals
+  ---
+  duration_ms: 1.646993
+  type: 'test'
+  ...
+# Subtest: dormant enemies and facilities advance only when the remote interval is due
+ok 346 - dormant enemies and facilities advance only when the remote interval is due
+  ---
+  duration_ms: 16.987277
+  type: 'test'
+  ...
+# Subtest: road graph spatial index excludes distant roads from local queries
+ok 347 - road graph spatial index excludes distant roads from local queries
+  ---
+  duration_ms: 2.178908
+  type: 'test'
+  ...
+# Subtest: expanded road graphs use compact save encoding and restore gameplay fields
+ok 348 - expanded road graphs use compact save encoding and restore gameplay fields
+  ---
+  duration_ms: 8.402967
+  type: 'test'
+  ...
+1..348
+# tests 348
+# suites 0
+# pass 348
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 28847.044339

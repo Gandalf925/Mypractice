@@ -1,0 +1,92 @@
+{
+  "release": "0.31.1-offline-equivalence",
+  "liveStepSeconds": 0.05,
+  "offlineStepSeconds": 0.25,
+  "scenario": "stationary high-HP enemy inside one tier-zero gun tower range; waves disabled",
+  "results": [
+    {
+      "seconds": 1800,
+      "liveMs": 708.4,
+      "offlineMs": 138,
+      "offlineIterations": 7200,
+      "live": {
+        "enemyHp": 195905,
+        "cooldown": 1.8,
+        "kills": 0,
+        "cityHp": 100,
+        "worldTimeMs": 1782262268184
+      },
+      "offline": {
+        "enemyHp": 195905,
+        "cooldown": 1.8,
+        "kills": 0,
+        "cityHp": 100,
+        "worldTimeMs": 1782262268184
+      },
+      "differences": {}
+    },
+    {
+      "seconds": 3600,
+      "liveMs": 427.8,
+      "offlineMs": 108,
+      "offlineIterations": 7200,
+      "live": {
+        "enemyHp": 191815,
+        "cooldown": 1.4,
+        "kills": 0,
+        "cityHp": 100,
+        "worldTimeMs": 1782264068184
+      },
+      "offline": {
+        "enemyHp": 191815,
+        "cooldown": 1.4,
+        "kills": 0,
+        "cityHp": 100,
+        "worldTimeMs": 1782264068184
+      },
+      "differences": {}
+    },
+    {
+      "seconds": 14400,
+      "liveMs": 2535.1,
+      "offlineMs": 653.3,
+      "offlineIterations": 43200,
+      "live": {
+        "enemyHp": 167270,
+        "cooldown": 1.2,
+        "kills": 0,
+        "cityHp": 100,
+        "worldTimeMs": 1782274868184
+      },
+      "offline": {
+        "enemyHp": 167270,
+        "cooldown": 1.2,
+        "kills": 0,
+        "cityHp": 100,
+        "worldTimeMs": 1782274868184
+      },
+      "differences": {}
+    },
+    {
+      "seconds": 43200,
+      "liveMs": 6867.9,
+      "offlineMs": 1714.3,
+      "offlineIterations": 115200,
+      "live": {
+        "enemyHp": 101815,
+        "cooldown": 1.4,
+        "kills": 0,
+        "cityHp": 100,
+        "worldTimeMs": 1782303668184
+      },
+      "offline": {
+        "enemyHp": 101815,
+        "cooldown": 1.4,
+        "kills": 0,
+        "cityHp": 100,
+        "worldTimeMs": 1782303668184
+      },
+      "differences": {}
+    }
+  ]
+}
