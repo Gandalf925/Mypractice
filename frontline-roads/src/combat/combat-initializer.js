@@ -48,12 +48,34 @@ export function initializeCombatState(state) {
 
 export function normalizeCombatState(state) {
   state.combat ??= {};
+  state.combat.enemies = Array.isArray(state.combat.enemies) ? state.combat.enemies : [];
+  state.combat.friendlySquads = Array.isArray(state.combat.friendlySquads) ? state.combat.friendlySquads : [];
+  state.combat.defenses = Array.isArray(state.combat.defenses) ? state.combat.defenses : [];
+  state.combat.waves ??= { elapsed: 0, nextSpawnAt: null, active: {}, resourceBaseCheckClock: 30 };
   state.combat.pendingSettlementDamage ??= [];
   state.combat.cityRecoveryCooldown = Math.max(0, Number(state.combat.cityRecoveryCooldown) || 0);
   state.combat.enemyRegroupUntil = Math.max(0, Number(state.combat.enemyRegroupUntil) || 0);
+
+  for (const defense of state.combat.defenses) {
+    defense.hp = Math.max(0, Number(defense.hp) || 0);
+    defense.maxHp = Math.max(1, Number(defense.maxHp) || defense.hp || 1);
+    defense.ruined = Boolean(defense.ruined || defense.hp <= 0);
+    if (defense.kind === 'barrier') {
+      defense.type = 'barrier';
+      defense.isGate = Boolean(defense.isGate || defense.line === 'gate');
+      defense.line = defense.isGate ? 'gate' : 'barrier';
+      defense.defenseKey ??= `${defense.line}${Math.max(0, Number(defense.tier) || 0)}`;
+    }
+  }
+
   ensureFrontierState(state);
   ensureExplorationState(state);
-  ensureCivilizationState(state, { initializeInventory: !state.runtime.combatInitialized });
-  if (!state.runtime.combatInitialized || !state.world.city) initializeCombatState(state);
+  const establishedCombat = Boolean(state.world?.city && state.world?.homeBase);
+  ensureCivilizationState(state, { initializeInventory: !establishedCombat });
+  if (establishedCombat) {
+    state.runtime.combatInitialized = true;
+  } else if (state.world?.homeBase?.nodeId) {
+    initializeCombatState(state);
+  }
   return state;
 }

@@ -1,9 +1,10 @@
+import { MAJOR_BASE_BUILD_RANGE_METERS } from '../base/construction-range.js';
 export const CITY_RECOVERY_DELAY_SECONDS = 75;
 export const CITY_RECOVERY_HP_PER_SECOND = 0.12;
 
 import { DEFENSE_LINES, ENEMY_DROPS, defenseLineForType, defenseTierDefinition } from '../civilization/data.js';
 
-export const BUILD_RANGE_METERS = 85;
+export const BUILD_RANGE_METERS = MAJOR_BASE_BUILD_RANGE_METERS;
 export const MAX_ENEMIES = 220;
 
 export const ENEMY_DEFINITIONS = Object.freeze({

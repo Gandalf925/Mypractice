@@ -1,4 +1,26 @@
-# FRONTLINE ROADS — modular source v0.32.2 collapse and recovery balance
+# FRONTLINE ROADS — modular source v0.32.4 survey and construction-range reliability
+
+## Survey and construction-range reliability v0.32.4
+
+- Major-base construction radius is `85 × 2^civilization level` meters: 85, 170, 340, 680 and 1360m from civilization level 0 through 4.
+- Simple-base construction radius is `50 × 2^civilization level` meters: 50, 100, 200, 400 and 800m.
+- The current physical-position construction radius remains 85m; civilization progress does not create a mobile long-range build zone.
+- Survey chunk requests use compact bounding-box queries, rotate through secure public endpoints, fall back between form POST and GET, and remember the last successful endpoint and transport across reloads.
+- A new manual survey action bypasses retry cooldown. The facility panel separates communication success from later road-processing success and shows endpoint, transport and response size.
+- Construction placement signatures include the current anchor radius, so civilization advancement refreshes valid build sites immediately.
+
+Implementation and verification are documented in `docs/survey-range-reliability-v0.32.4.md`.
+
+## Persistence and survey reliability v0.32.3
+
+- Same-schema saves that lack the historical combat-initialization flag no longer reset defenses during restore. Existing gates, ruins and survey facilities are preserved.
+- Building, repair, upgrade and gate-conversion actions save immediately. Defense destruction and city defeat queue an urgent save, and page hide performs a final local save.
+- Initial and restored road graphs reconstruct their covered chunk records so survey facilities expand from roads already present on the map.
+- Road acquisition uses form-encoded POST first and a non-script GET fallback on the same endpoint. A successful transport is remembered for later expansions. JSONP remains absent.
+- Survey failures enter an automatic retry-wait state with diagnostics instead of remaining as an undifferentiated permanent error.
+- Active gates have a distinct map shape. Destroyed gates render as an open breach with `OPEN` and the detail panel states that enemies can pass.
+
+Implementation and verification are documented in `docs/persistence-survey-reliability-v0.32.3.md`.
 
 ## Collapse and recovery balance v0.32.2
 

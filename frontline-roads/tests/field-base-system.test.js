@@ -121,17 +121,17 @@ test('simple bases require and consume the processed-resource cost for their slo
   assert.equal(state.inventory.resources.rope, 0);
 });
 
-test('simple base has 40 HP and creates only a 50m construction anchor', () => {
+test('simple base has 40 HP and its construction anchor doubles at civilization level 1', () => {
   const state = fixture();
   const base = establishFieldBase(state);
   state.player.worldPosition = null;
   assert.equal(base.maxHp, FIELD_BASE_MAX_HP);
   const anchors = new BuildSystem().getBuildAnchors(state);
   const anchor = anchors.find(value => value.id === `field:${base.id}`);
-  assert.equal(anchor.range, FIELD_BASE_BUILD_RANGE_METERS);
+  assert.equal(anchor.range, FIELD_BASE_BUILD_RANGE_METERS * 2);
   const sites = new BuildSystem().listBuildSites(state, 'gun');
   assert.ok(sites.some(site => site.nodeId === 'field-near' && site.anchorId === `field:${base.id}`));
-  assert.equal(sites.some(site => site.nodeId === 'field-far' && site.anchorId === `field:${base.id}`), false);
+  assert.equal(sites.some(site => site.nodeId === 'field-far' && site.anchorId === `field:${base.id}`), true);
 });
 
 test('current assault squad can deploy from an active simple base', () => {
@@ -228,15 +228,15 @@ test('a distant simple base does not pull attackers away from a much nearer city
   assert.equal(enemy.path.targetId, 'home');
 });
 
-test('standing at a simple base keeps the wider current-location construction zone', () => {
+test('standing at a level-one simple base uses its expanded 100m construction zone', () => {
   const state = fixture();
   const base = establishFieldBase(state);
   state.player.worldPosition = { x: base.x, y: base.y };
   const anchors = new BuildSystem().getBuildAnchors(state);
-  assert.ok(anchors.some(anchor => anchor.id === `field:${base.id}` && anchor.range === 50));
-  assert.ok(anchors.some(anchor => anchor.id === 'player' && anchor.range === 85));
+  assert.ok(anchors.some(anchor => anchor.id === `field:${base.id}` && anchor.range === 100));
+  assert.equal(anchors.some(anchor => anchor.id === 'player'), false);
   const sites = new BuildSystem().listBuildSites(state, 'gun');
-  assert.ok(sites.some(site => site.nodeId === 'field-far' && site.anchorId === 'player'));
+  assert.ok(sites.some(site => site.nodeId === 'field-far' && site.anchorId === `field:${base.id}`));
 });
 
 

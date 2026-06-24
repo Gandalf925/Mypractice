@@ -25,7 +25,8 @@ export class RoadService {
     if (!worldCenter || !chunkCenter || !chunkId) throw new TypeError('worldCenter, chunkCenter and chunkId are required');
     const rawData = await this.overpassClient.fetchRoads(chunkCenter.lat, chunkCenter.lon, {
       ...options,
-      radiusMeters
+      radiusMeters,
+      queryShape: 'bbox'
     });
     const rawSegments = parseOverpassSegments(rawData, worldCenter, {
       clipCenter: chunkCenter,

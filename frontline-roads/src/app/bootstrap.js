@@ -9,7 +9,7 @@ import { latLonToXY } from '../location/location-privacy.js';
 import { OverpassClient } from '../roads/overpass-client.js';
 import { RoadService } from '../roads/road-service.js';
 import { RoadWorldManager } from '../roads/road-world-manager.js';
-import { createRoadChunkState, ensureRoadChunkState } from '../roads/world-chunk-grid.js';
+import { chunkForWorldPoint, createRoadChunkState, ensureRoadChunkState, graphCoveredChunkIds } from '../roads/world-chunk-grid.js';
 import { normalizeRuntimeState } from '../core/state-normalizer.js';
 import { BasePlacementService } from '../base/base-placement-service.js';
 import { hasEstablishedHomeBase } from '../base/base-state.js';
@@ -81,7 +81,8 @@ class FrontlineRoadsApp {
       openDeployment: target => {
         if (target?.kind === 'enemyBase') this.deploymentUi?.openForEnemyBase(target.id);
         if (target?.kind === 'recoveryItem') this.deploymentUi?.openForRecoveryItem(target.id);
-      }
+      },
+      requestSurvey: defenseId => this.roadWorld?.requestSurvey(defenseId)
     });
     this.roadWorld = new RoadWorldManager({
       roadService: this.roadService,
@@ -148,6 +149,7 @@ class FrontlineRoadsApp {
     this.roadLoadController = null;
     this.startupGeneration = 0;
     this.stopLocationWatch = null;
+    this.criticalSaveQueued = false;
     this.tabCoordinator = new TabCoordinator();
     this.tabCoordinator.start(primary => this.handlePrimaryChange(primary));
     this.mapInput = new MapInput(queryRequired('#mapCanvas'), this.camera, {
@@ -193,6 +195,7 @@ class FrontlineRoadsApp {
     queryRequired('#recenter').addEventListener('click', () => this.recenterMap());
     queryRequired('#offlineClose').addEventListener('click', () => setVisible(queryRequired('#offlineSummary'), false));
     document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
+    globalThis.addEventListener?.('pagehide', () => this.persist({ notify: false }));
   }
 
   bindEvents() {
@@ -202,6 +205,18 @@ class FrontlineRoadsApp {
       queryRequired('#lifecycleText').textContent = current;
     });
     this.events.on('civilization:level-up', () => { this.civilizationUi.render(); this.baseCommandUi.render(); });
+    this.events.on('combat:defense-destroyed', () => this.queueCriticalSave());
+    this.events.on('combat:city-defeated', () => this.queueCriticalSave());
+  }
+
+  queueCriticalSave() {
+    if (this.criticalSaveQueued) return;
+    this.criticalSaveQueued = true;
+    const schedule = globalThis.queueMicrotask ?? (callback => Promise.resolve().then(callback));
+    schedule(() => {
+      this.criticalSaveQueued = false;
+      this.persist({ notify: false });
+    });
   }
 
   async start() {
@@ -314,7 +329,13 @@ class FrontlineRoadsApp {
       if (generation !== this.startupGeneration) return;
       this.store.transaction(draft => {
         draft.world.roadGraph = graph;
-        draft.world.roadChunks = createRoadChunkState();
+        const loadedChunkIds = graphCoveredChunkIds(graph);
+        const playerPoint = latLonToXY(currentLocation.lat, currentLocation.lon, graph.center);
+        const observedChunkId = chunkForWorldPoint(playerPoint).id;
+        draft.world.roadChunks = createRoadChunkState({
+          initialLoadedChunkIds: loadedChunkIds,
+          initialObservedChunkIds: loadedChunkIds.includes(observedChunkId) ? [observedChunkId] : []
+        });
       }, 'roads:loaded');
       this.basePlacement = new BasePlacementService(graph, currentLocation);
       this.renderer.setGraph(graph);
@@ -479,6 +500,7 @@ class FrontlineRoadsApp {
     this.gameLoop.stop({ save: save && this.tabCoordinator.isPrimary() });
     this.stopLocationWatch?.();
     this.stopLocationWatch = null;
+    this.criticalSaveQueued = false;
   }
 
   refreshFromSavedStateForTakeover() {

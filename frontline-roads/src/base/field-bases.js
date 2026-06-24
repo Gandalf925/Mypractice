@@ -1,7 +1,6 @@
 import { distance, stableId } from '../core/utilities.js';
 import { activePlayerBases, playerBaseById, playerBasesView } from './player-bases.js';
-
-export const FIELD_BASE_BUILD_RANGE_METERS = 50;
+export { FIELD_BASE_BUILD_RANGE_METERS } from './construction-range.js';
 export const FIELD_BASE_PLACEMENT_RANGE_METERS = 100;
 export const FIELD_BASE_MAX_HP = 40;
 export const FIELD_BASE_MINIMUM_SEPARATION_METERS = 140;

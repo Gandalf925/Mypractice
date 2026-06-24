@@ -1,6 +1,6 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const CACHE_NAME = `${CACHE_PREFIX}v0-32-2-collapse-recovery-balance`;
+const CACHE_NAME = `${CACHE_PREFIX}v0-32-4-survey-range-reliability`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -16,6 +16,7 @@ const APP_SHELL = [
   './src/base/base-graph.js',
   './src/base/base-placement-service.js',
   './src/base/base-state.js',
+  './src/base/construction-range.js',
   './src/base/field-bases.js',
   './src/base/field-base-system.js',
   './src/base/player-bases.js',

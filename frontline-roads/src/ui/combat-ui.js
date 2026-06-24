@@ -1,6 +1,7 @@
 import { distance } from '../core/utilities.js';
 import { DEFENSE_DEFINITIONS, ENEMY_BASE_DEFINITIONS, ENEMY_DEFINITIONS, defenseRuntimeDefinition } from '../combat/definitions.js';
 import { ownedBaseById } from '../base/field-bases.js';
+import { constructionRangeSummary } from '../base/construction-range.js';
 import { defensePresentation } from '../combat/defense-presentation.js';
 import { surveyFacilityPresentation } from '../exploration/survey-system.js';
 import { scaleEnemyDefinition } from '../combat/enemy-scaling.js';
@@ -28,7 +29,7 @@ import { defenseUpgradeStatus } from '../civilization/defense-upgrade.js';
 import { queryRequired, setVisible } from './dom.js';
 
 export class CombatUi {
-  constructor({ store, buildSystem, civilizationSystem, explorationSystem, recoverySystem, friendlyForceSystem, camera, renderer, notifications, persist = null, openDeployment = null }) {
+  constructor({ store, buildSystem, civilizationSystem, explorationSystem, recoverySystem, friendlyForceSystem, camera, renderer, notifications, persist = null, openDeployment = null, requestSurvey = null }) {
     this.store = store;
     this.buildSystem = buildSystem;
     this.civilizationSystem = civilizationSystem;
@@ -37,6 +38,7 @@ export class CombatUi {
     this.friendlyForceSystem = friendlyForceSystem;
     this.persist = persist;
     this.openDeployment = openDeployment;
+    this.requestSurvey = requestSurvey;
     this.camera = camera;
     this.renderer = renderer;
     this.notifications = notifications;
@@ -137,7 +139,7 @@ export class CombatUi {
       .join(',');
     const graph = state.world.roadGraph;
     const anchorState = this.buildSystem.getBuildAnchors(state)
-      .map(anchor => `${anchor.id}:${anchor.point.x.toFixed(1)},${anchor.point.y.toFixed(1)}`)
+      .map(anchor => `${anchor.id}:${anchor.point.x.toFixed(1)},${anchor.point.y.toFixed(1)}:${Number(anchor.range).toFixed(0)}`)
       .join(';');
     return [
       this.selectedTool,
@@ -502,6 +504,7 @@ export class CombatUi {
       return;
     }
 
+    this.persist?.();
     this.notifications.show(`${DEFENSE_DEFINITIONS[this.selectedTool].name}を設置しました。`);
     this.buildCandidate = null;
     this.buildPlacementSignature = '';
@@ -680,6 +683,7 @@ export class CombatUi {
   mutateAction(action, reason) {
     let result;
     this.store.transaction(state => { result = action(state); }, reason, { emit: true, validate: true });
+    if (result?.ok) this.persist?.();
     this.notifications.show(result?.ok ? result?.message ?? '操作を実行しました。' : result?.reason ?? '操作できません。');
     this.renderContext();
     this.renderer.render();
@@ -735,12 +739,13 @@ export class CombatUi {
         ? '緑色で表示された有効地点から設置位置を選択してください。'
         : '現在の建設可能範囲内に空いている設置地点がありません。';
     const anchors = this.buildSystem.getBuildAnchors(state);
+    const ranges = constructionRangeSummary(state.civilization?.level);
     const metrics = [
       ...presentation.metrics,
       ['COST', bundleText(definition.cost)],
       ['STATUS', affordable ? 'READY' : buildStatus.reason ?? '利用不可'],
       ['SITES', String(this.buildSites.length)],
-      ['ZONES', anchors.map(anchor => anchor.label).join(' + ') || 'NONE'],
+      ['ZONES', anchors.map(anchor => `${anchor.label} ${Math.round(anchor.range)}m`).join(' + ') || 'NONE'],
       ...(this.buildCandidate ? [['SOURCE', this.buildCandidate.anchorLabel ?? '再計算']] : [])
     ];
     this.setContextContent(instruction, metrics, [
@@ -749,8 +754,8 @@ export class CombatUi {
       presentation.placement,
       `新設時はTier ${definition.initialTier ?? 0}です。文明レベル上昇後、既設設備を選択して資源を支払い個別に強化できます。`,
       this.selectedTool === 'survey'
-        ? '測量施設は主要拠点・簡易拠点ごとに1基までです。遠隔取得で見えるのは道路と未確認前線だけで、現地情報は実際の移動後に表示されます。'
-        : `建設可能範囲は主要拠点と現在地が各85m、簡易拠点が50mです。設置済み施設は新たな建設基準点にはなりません。移動先の道路は周辺区域の取得完了後に建設へ利用できます。`
+        ? `測量施設は主要拠点・簡易拠点ごとに1基までです。現在の設置範囲は主要拠点${ranges.major}m、簡易拠点${ranges.field}mです。遠隔取得で見えるのは道路と未確認前線だけで、現地情報は実際の移動後に表示されます。`
+        : `文明Lv.${ranges.level}の建設可能範囲は主要拠点${ranges.major}m、簡易拠点${ranges.field}m、現在地${ranges.player}mです。拠点範囲は文明レベル上昇ごとに2倍になります。設置済み施設は新たな建設基準点にはなりません。移動先の道路は周辺区域の取得完了後に建設へ利用できます。`
     ]);
     if (this.buildCandidate) {
       const confirm = this.action(affordable ? '建設を確定' : buildStatus.requiredCivilizationLevel ? '文明未解禁' : '資源不足', () => this.confirmBuildCandidate(), 'primary');
@@ -983,11 +988,32 @@ export class CombatUi {
       const runtime = defenseRuntimeDefinition(defense);
       const presentation = defensePresentation(defense.type, runtime);
       const survey = defense.type === 'survey' ? surveyFacilityPresentation(state, defense) : null;
-      const operatingStatus = defense.ruined ? '破壊済み' : defense.disabledTimer > 0 ? `停止 ${defense.disabledTimer.toFixed(1)}秒` : survey ? survey.status : defense.cooldown > 0 ? `再装填 ${defense.cooldown.toFixed(1)}秒` : '稼働';
+      const operatingStatus = defense.ruined
+        ? defense.isGate ? '破壊済み・敵通行可' : '破壊済み'
+        : defense.disabledTimer > 0
+          ? `停止 ${defense.disabledTimer.toFixed(1)}秒`
+          : survey
+            ? survey.statusLabel
+            : defense.cooldown > 0 ? `再装填 ${defense.cooldown.toFixed(1)}秒` : defense.isGate ? '封鎖中' : '稼働';
       const upgrade = defenseUpgradeStatus(state, defense);
-      const surveyMetrics = survey ? [['NEXT', `${survey.nextScanSeconds}秒`], ['EXPANDED', `${survey.completedCount}区域`], ['REMAIN', String(survey.remainingChunks)]] : [];
+      const surveyMetrics = survey ? [
+        ['NEXT', `${survey.nextScanSeconds}秒`],
+        ['EXPANDED', `${survey.completedCount}区域`],
+        ['REMAIN', String(survey.remainingChunks)],
+        ['COMM', survey.lastConnectionAt > 0 ? '成功' : survey.lastTransport === 'CACHE' ? 'キャッシュ' : '未成功'],
+        ['LINK', survey.lastEndpoint ? `${survey.lastEndpoint} ${survey.lastTransport ?? ''}`.trim() : '未成功'],
+        ...(survey.lastConnectionAt > 0 ? [['RESPONSE', `${survey.lastResponseElements}件`]] : []),
+        ...(survey.lastSuccessAt > 0 ? [['ROADS', String(survey.lastRoadCount)]] : []),
+        ...(survey.errorCount > 0 ? [['RETRY', String(survey.errorCount)]] : [])
+      ] : [];
       const notes = presentation ? [presentation.effect, presentation.placement, '強化しても損傷率は維持され、全回復はしません。'] : [];
-      if (survey) notes.push('遠隔測量済み区域へプレイヤーが実際に入ると、現地イベントや敵発生源の正確な情報が解禁されます。');
+      if (defense.isGate && defense.ruined) notes.push('この門は現在道路を封鎖していません。修理が完了するまで敵は通過できます。');
+      if (survey) {
+        notes.push('遠隔測量済み区域へプレイヤーが実際に入ると、現地イベントや敵発生源の正確な情報が解禁されます。');
+        if (survey.lastConnectionAt <= 0) notes.push('この施設にはまだ道路サーバーとの通信成功記録がありません。COMMが未成功のままなら「今すぐ測量」で再試行してください。');
+        else if (survey.lastSuccessAt <= 0) notes.push('道路サーバーとの通信は成功していますが、道路の解析・統合はまだ完了していません。');
+        if (survey.lastError) notes.push(`直近の${survey.lastErrorStage === 'PROCESSING' ? '道路処理' : '通信'}失敗：${survey.lastError}`);
+      }
 
       this.context.classList?.add(`is-defense-${this.defensePanelMode}`);
       if (this.defensePanelMode === 'details') {
@@ -1016,6 +1042,21 @@ export class CombatUi {
         this.action('説明', () => this.setDefensePanelMode('details', defense.id));
         const repair = this.action(defense.hp >= defense.maxHp && !defense.ruined ? '修理不要' : '修理', () => this.mutateAction(draft => this.civilizationSystem.progression.repairDefense(draft, defense.id), 'defense:repair'));
         repair.disabled = defense.hp >= defense.maxHp && !defense.ruined;
+        if (survey) {
+          const surveyBusy = ['QUEUED', 'LOADING'].includes(survey.status);
+          const surveyComplete = survey.status === 'COMPLETE' && survey.remainingChunks <= 0;
+          const scan = this.action(
+            surveyBusy ? '測量通信中' : surveyComplete ? '範囲内取得完了' : '今すぐ測量',
+            () => {
+              const result = this.requestSurvey?.(defense.id) ?? { ok: false, reason: '測量通信を開始できません。' };
+              this.notifications.show(result.ok ? result.message ?? '道路測量を開始しました。' : result.reason ?? '道路測量を開始できません。');
+              if (result.ok) this.persist?.();
+              this.renderContext();
+            },
+            'primary'
+          );
+          scan.disabled = defense.ruined || defense.hp <= 0 || defense.disabledTimer > 0 || surveyBusy || surveyComplete || typeof this.requestSurvey !== 'function';
+        }
         const upgradeButton = this.action(upgrade.atMax ? '最高Tier' : '強化', () => this.setDefensePanelMode('upgrade', defense.id), 'primary');
         upgradeButton.disabled = upgrade.atMax;
         if (defense.kind === 'barrier' && !defense.isGate) {

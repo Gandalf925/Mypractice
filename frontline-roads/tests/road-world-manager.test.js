@@ -115,7 +115,7 @@ test('chunk centers remain based on the original world center', () => {
 });
 
 
-test('legacy initial coverage is released while explicitly merged chunks remain confirmed', () => {
+test('legacy unrelated coverage is released while graph-derived and explicitly merged chunks remain confirmed', () => {
   const state = createInitialState();
   state.world.roadGraph = baseGraph();
   state.world.roadGraph.nodes[1].chunkIds = ['1:0'];
@@ -136,9 +136,9 @@ test('legacy initial coverage is released while explicitly merged chunks remain 
   const migrated = ensureRoadChunkState(state.world);
 
   assert.equal(migrated.version, 2);
-  assert.deepEqual(migrated.loaded, ['1:0']);
-  assert.deepEqual(migrated.integrated, ['1:0']);
-  assert.deepEqual(migrated.playerObserved, ['1:0']);
+  assert.deepEqual(migrated.loaded, ['0:0', '1:0']);
+  assert.deepEqual(migrated.integrated, ['0:0', '1:0']);
+  assert.deepEqual(migrated.playerObserved, ['0:0', '1:0']);
 });
 
 test('approaching a visible road endpoint queues forward chunks before the grid boundary', () => {

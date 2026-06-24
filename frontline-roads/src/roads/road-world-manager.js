@@ -219,26 +219,40 @@ export class RoadWorldManager {
     return candidates.map(chunk => chunk.id);
   }
 
-  considerSurveyFacilities() {
+  considerSurveyFacilities({ forceDefenseId = null } = {}) {
     const realNow = this.now();
-    if (realNow - this.lastSurveyEnqueueAt < 30000) return [];
+    if (!forceDefenseId && realNow - this.lastSurveyEnqueueAt < 30000) return [];
     let plan = null;
     this.store.transaction(state => {
       const worldTimeMs = Number(state.runtime?.worldTimeMs) || realNow;
-      const facilities = activeSurveyFacilities(state);
+      const facilities = activeSurveyFacilities(state)
+        .filter(defense => !forceDefenseId || defense.id === forceDefenseId);
       for (const defense of facilities) {
         synchronizeSurveyFacility(defense, worldTimeMs);
-        if (defense.disabledTimer > 0 || worldTimeMs < defense.surveyNextAt) continue;
-        const candidates = surveyChunkCandidates(state, defense, {
+        if (forceDefenseId) {
+          defense.surveyNextAt = 0;
+          defense.surveyRetryAt = 0;
+        }
+        if (defense.disabledTimer > 0 || (!forceDefenseId && worldTimeMs < Math.max(defense.surveyNextAt, defense.surveyRetryAt))) continue;
+        const candidateOptions = {
           pendingIds: this.pending,
           now: realNow,
-          retryCooldownMs: ROAD_CONFIG.chunkRetryCooldownMs
+          retryCooldownMs: forceDefenseId ? 0 : ROAD_CONFIG.surveyRetryCooldownMs
+        };
+        const candidates = surveyChunkCandidates(state, defense, candidateOptions);
+        const allCandidates = surveyChunkCandidates(state, defense, {
+          pendingIds: new Set(),
+          now: realNow,
+          retryCooldownMs: 0
         });
         const definition = defenseRuntimeDefinition(defense);
         const intervalSeconds = Math.max(30, Number(definition?.scanInterval) || 180);
         defense.surveyNextAt = worldTimeMs + intervalSeconds * 1000;
         if (!candidates.length) {
-          defense.surveyStatus = 'COMPLETE';
+          const pendingCandidate = allCandidates.some(candidate => this.pending.has(candidate.id));
+          const failedCandidate = allCandidates.some(candidate => state.world.roadChunks.failed?.[candidate.id]);
+          defense.surveyStatus = pendingCandidate ? 'QUEUED' : failedCandidate ? 'RETRY_WAIT' : 'COMPLETE';
+          if (failedCandidate) defense.surveyRetryAt = Math.max(defense.surveyRetryAt, worldTimeMs + ROAD_CONFIG.surveyRetryCooldownMs);
           continue;
         }
         const chunk = candidates[0];
@@ -247,11 +261,28 @@ export class RoadWorldManager {
         plan = { chunk, worldCenter: state.world.roadGraph.center, defenseId: defense.id };
         break;
       }
-    }, 'survey:schedule');
+    }, forceDefenseId ? 'survey:manual-schedule' : 'survey:schedule');
     if (!plan) return [];
     this.lastSurveyEnqueueAt = realNow;
     this.enqueue(plan.chunk, plan.worldCenter, { mode: 'survey', defenseId: plan.defenseId });
     return [plan.chunk.id];
+  }
+
+  requestSurvey(defenseId) {
+    const state = this.store.snapshot();
+    const defense = activeSurveyFacilities(state).find(item => item.id === defenseId);
+    if (!defense) return { ok: false, reason: 'この測量施設は現在稼働できません。' };
+    if (defense.disabledTimer > 0) return { ok: false, reason: `機能停止中です。あと${Math.ceil(defense.disabledTimer)}秒待ってください。` };
+    const queued = this.considerSurveyFacilities({ forceDefenseId: defenseId });
+    const latest = this.store.snapshot().combat.defenses.find(item => item.id === defenseId);
+    if (queued.length > 0) return { ok: true, message: '道路測量を開始しました。', chunkId: queued[0] };
+    if (latest?.surveyStatus === 'LOADING' || latest?.surveyStatus === 'QUEUED') {
+      return { ok: true, message: '道路測量はすでに進行中です。' };
+    }
+    if (latest?.surveyStatus === 'COMPLETE') {
+      return { ok: false, reason: '現在の測量半径内に未取得の道路区域はありません。' };
+    }
+    return { ok: false, reason: latest?.surveyLastError ? `道路取得に失敗しました：${latest.surveyLastError}` : '測量可能な隣接区域がありません。' };
   }
 
   enqueue(chunk, worldCenter, options = {}) {
@@ -296,21 +327,34 @@ export class RoadWorldManager {
         if (observationList && !observationList.includes(chunk.id)) observationList.push(chunk.id);
         if (defenseId) {
           const defense = draft.combat.defenses.find(item => item.id === defenseId);
-          if (defense) defense.surveyStatus = 'WAITING';
+          if (defense) {
+            defense.surveyStatus = 'WAITING';
+            defense.surveyErrorCount = 0;
+            defense.surveyRetryAt = 0;
+            defense.surveyLastError = null;
+          }
         }
       }, 'roads:chunk-already-loaded');
       return;
     }
     const worldId = roadWorldId(state.world.roadGraph);
     this.onStatus?.({ type: 'loading', chunkId: chunk.id, text: mode === 'survey' ? '測量施設が周辺道路を解析しています…' : '周辺道路を偵察しています…' });
+    if (defenseId) {
+      this.store.transaction(draft => {
+        const defense = draft.combat.defenses.find(item => item.id === defenseId);
+        if (defense) defense.surveyStatus = 'LOADING';
+      }, 'survey:loading');
+    }
 
     let graph = await this.cache?.get?.(worldId, chunk.id).catch(() => null);
     if (stale()) return;
     let source = 'cache';
+    let networkSuccess = null;
     if (graph) attachGraphIndexes(graph);
     if (!graph) {
       source = 'network';
       this.abortController = new AbortController();
+      const connectionBeforeSequence = Number(this.roadService.overpassClient?.getLastSuccess?.()?.sequence) || 0;
       try {
         const chunkCenter = chunkCenterLocation(chunk, worldCenter, currentChunks.sizeMeters);
         graph = await this.roadService.loadChunk({
@@ -319,21 +363,47 @@ export class RoadWorldManager {
           chunkId: chunk.id,
           radiusMeters: ROAD_CONFIG.chunkFetchRadiusMeters
         }, { signal: this.abortController.signal });
+        networkSuccess = this.roadService.overpassClient?.getLastSuccess?.() ?? null;
         if (stale()) return;
         await this.cache?.put?.(worldId, chunk.id, compactChunkGraph(graph)).catch(() => false);
         if (stale()) return;
       } catch (error) {
         if (error?.name === 'AbortError') return;
+        const connectionAfter = this.roadService.overpassClient?.getLastSuccess?.() ?? null;
+        const communicationSucceeded = Number(connectionAfter?.sequence) > connectionBeforeSequence;
+        const failureDetail = String(error?.details ?? error?.message ?? error).replace(/\s+/g, ' ').slice(0, 210);
         this.store.transaction(draft => {
           const chunkState = ensureRoadChunkState(draft.world);
           chunkState.failed[chunk.id] = { at: this.now(), message: String(error?.message ?? error).slice(0, 160) };
           chunkState.updatedAt = this.now();
           if (defenseId) {
             const defense = draft.combat.defenses.find(item => item.id === defenseId);
-            if (defense) defense.surveyStatus = 'ERROR';
+            if (defense) {
+              const worldTimeMs = Number(draft.runtime?.worldTimeMs) || this.now();
+              defense.surveyErrorCount = Math.max(0, Number(defense.surveyErrorCount) || 0) + 1;
+              defense.surveyLastErrorStage = communicationSucceeded ? 'PROCESSING' : 'NETWORK';
+              defense.surveyLastError = `${communicationSucceeded ? '通信成功・道路処理失敗' : '通信失敗'}：${failureDetail}`.slice(0, 240);
+              if (communicationSucceeded) {
+                defense.surveyLastConnectionAt = worldTimeMs;
+                defense.surveyLastEndpoint = connectionAfter.host ?? 'overpass';
+                defense.surveyLastTransport = connectionAfter.transport ?? null;
+                defense.surveyLastResponseElements = Math.max(0, Number(connectionAfter.elementCount) || 0);
+              }
+              defense.surveyRetryAt = worldTimeMs + ROAD_CONFIG.surveyRetryCooldownMs;
+              defense.surveyNextAt = Math.max(Number(defense.surveyNextAt) || 0, defense.surveyRetryAt);
+              defense.surveyStatus = 'RETRY_WAIT';
+            }
           }
         }, 'roads:chunk-failed');
-        this.onStatus?.({ type: 'error', chunkId: chunk.id, text: mode === 'survey' ? '測量施設による道路取得に失敗しました。時間を置いて再試行します。' : '周辺道路を取得できませんでした。移動後に再試行します。' });
+        this.onStatus?.({
+          type: 'error',
+          chunkId: chunk.id,
+          text: mode === 'survey'
+            ? communicationSucceeded
+              ? '道路サーバーとの通信には成功しましたが、道路データの処理に失敗しました。再試行します。'
+              : '測量施設が道路サーバーへ接続できませんでした。時間を置いて再試行します。'
+            : '周辺道路を取得できませんでした。移動後に再試行します。'
+        });
         return;
       } finally {
         this.abortController = null;
@@ -361,6 +431,21 @@ export class RoadWorldManager {
           defense.surveyStatus = 'WAITING';
           defense.surveyCompletedCount = Math.max(0, Number(defense.surveyCompletedCount) || 0) + 1;
           defense.surveyLastChunkId = chunk.id;
+          defense.surveyErrorCount = 0;
+          defense.surveyRetryAt = 0;
+          defense.surveyLastError = null;
+          defense.surveyLastErrorStage = null;
+          defense.surveyLastSuccessAt = Number(draft.runtime?.worldTimeMs) || this.now();
+          if (source === 'network') {
+            defense.surveyLastConnectionAt = defense.surveyLastSuccessAt;
+            defense.surveyLastEndpoint = networkSuccess?.host ?? 'overpass';
+            defense.surveyLastTransport = networkSuccess?.transport ?? 'POST';
+            defense.surveyLastResponseElements = Math.max(0, Number(networkSuccess?.elementCount) || 0);
+          } else if (!defense.surveyLastEndpoint) {
+            defense.surveyLastEndpoint = 'local-cache';
+            defense.surveyLastTransport = 'CACHE';
+          }
+          defense.surveyLastRoadCount = Math.max(0, graph.edges.length);
         }
       }
       chunkState.updatedAt = this.now();
@@ -371,7 +456,7 @@ export class RoadWorldManager {
       type: 'loaded',
       chunkId: chunk.id,
       text: graph.edges.length > 0
-        ? `${mode === 'survey' ? '測量施設が新しい道路区域を追加しました' : '新しい道路区域を確認しました'}（道路 ${mergeResult.addedEdges}）`
+        ? `${mode === 'survey' ? '測量施設が新しい道路区域を追加しました' : '新しい道路区域を確認しました'}（道路 ${mergeResult.addedEdges}${mode === 'survey' && networkSuccess?.host ? ` / ${networkSuccess.host} ${networkSuccess.transport}` : ''}）`
         : mode === 'survey' ? '測量区域に利用可能な道路はありませんでした。' : 'この区域には利用可能な道路がありません。'
     });
   }

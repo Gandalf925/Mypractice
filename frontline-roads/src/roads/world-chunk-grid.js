@@ -92,9 +92,14 @@ function uniqueChunkIds(values = []) {
   return [...new Set(values.map(String))];
 }
 
-function graphChunkIds(graph) {
+export function graphCoveredChunkIds(graph, sizeMeters = ROAD_CONFIG.chunkSizeMeters) {
   const ids = new Set();
-  for (const node of graph?.nodes ?? []) for (const id of node.chunkIds ?? []) ids.add(String(id));
+  for (const node of graph?.nodes ?? []) {
+    for (const id of node.chunkIds ?? []) ids.add(String(id));
+    if (Number.isFinite(Number(node.x)) && Number.isFinite(Number(node.y))) {
+      ids.add(chunkForWorldPoint(node, sizeMeters).id);
+    }
+  }
   for (const edge of graph?.edges ?? []) for (const id of edge.chunkIds ?? []) ids.add(String(id));
   return [...ids];
 }
@@ -117,7 +122,7 @@ export function createRoadChunkState({ initialLoadedChunkIds = [], initialObserv
 }
 
 function migrateLegacyRoadChunkState(world, legacy) {
-  const explicitGraphIds = new Set(graphChunkIds(world?.roadGraph));
+  const explicitGraphIds = new Set(graphCoveredChunkIds(world?.roadGraph));
   const cached = uniqueChunkIds(Array.isArray(legacy?.cached) ? legacy.cached : []);
   const surveyed = uniqueChunkIds(Array.isArray(legacy?.surveyed) ? legacy.surveyed : []);
   const empty = uniqueChunkIds(Array.isArray(legacy?.empty) ? legacy.empty : []);
@@ -162,10 +167,11 @@ export function ensureRoadChunkState(world) {
   current.surveyed = Array.isArray(current.surveyed) ? current.surveyed : [];
   current.playerObserved = Array.isArray(current.playerObserved) ? current.playerObserved : current.loaded.filter(id => !current.surveyed.includes(id));
   current.updatedAt = Number(current.updatedAt) || Date.now();
-  current.loaded = uniqueChunkIds(current.loaded);
-  current.empty = uniqueChunkIds(current.empty);
+  const graphIds = graphCoveredChunkIds(world.roadGraph, current.sizeMeters);
+  current.loaded = uniqueChunkIds([...current.loaded, ...graphIds]);
+  current.empty = uniqueChunkIds(current.empty).filter(id => !current.loaded.includes(id));
   current.cached = uniqueChunkIds(current.cached);
-  current.integrated = uniqueChunkIds(current.integrated).filter(id => current.loaded.includes(id));
+  current.integrated = uniqueChunkIds([...current.integrated, ...graphIds]).filter(id => current.loaded.includes(id));
   current.playerObserved = uniqueChunkIds(current.playerObserved).filter(id => current.loaded.includes(id) || current.empty.includes(id));
   current.surveyed = uniqueChunkIds(current.surveyed).filter(id => current.loaded.includes(id));
   return current;

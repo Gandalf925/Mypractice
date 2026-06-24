@@ -1,11 +1,18 @@
 import { distance, stableId } from '../core/utilities.js';
+import { ROAD_CONFIG } from '../core/constants.js';
 import { pointToSegmentProjection } from '../roads/geometry.js';
 import { graphElementsNearPoint } from '../roads/road-graph.js';
 import { bundleText, consumeBundle, missingBundle } from '../civilization/inventory-system.js';
 import { BUILD_RANGE_METERS, DEFENSE_DEFINITIONS, defenseRuntimeDefinition } from './definitions.js';
+import {
+  FIELD_BASE_BUILD_RANGE_METERS,
+  PLAYER_BUILD_RANGE_METERS,
+  fieldBaseBuildRange,
+  majorBaseBuildRange
+} from '../base/construction-range.js';
 import { findCombatPath } from './routing-system.js';
 import { activePlayerBases } from '../base/player-bases.js';
-import { FIELD_BASE_BUILD_RANGE_METERS, activeFieldBases } from '../base/field-bases.js';
+import { activeFieldBases } from '../base/field-bases.js';
 
 const CANDIDATE_POINT_TOLERANCE_METERS = 1;
 const ANCHOR_DUPLICATE_TOLERANCE_METERS = 0.5;
@@ -15,13 +22,19 @@ function finitePoint(point) {
 }
 
 function buildAnchors(state) {
+  const civilizationLevel = Math.max(0, Math.floor(Number(state.civilization?.level) || 0));
+  const majorRange = majorBaseBuildRange(civilizationLevel);
+  const fieldRange = fieldBaseBuildRange(civilizationLevel);
   const anchors = activePlayerBases(state)
     .filter(finitePoint)
     .map((base, index) => ({
       id: index === 0 ? 'base' : `base:${base.id}`,
       label: base.name || (index === 0 ? '本拠地' : `主要拠点 ${index + 1}`),
       point: { x: base.x, y: base.y },
-      range: BUILD_RANGE_METERS,
+      range: majorRange,
+      baseRange: BUILD_RANGE_METERS,
+      rangeMultiplier: majorRange / BUILD_RANGE_METERS,
+      civilizationLevel,
       kind: 'MAJOR',
       baseId: base.id
     }));
@@ -30,15 +43,22 @@ function buildAnchors(state) {
       id: `field:${base.id}`,
       label: base.name || '簡易拠点',
       point: { x: base.x, y: base.y },
-      range: FIELD_BASE_BUILD_RANGE_METERS,
+      range: fieldRange,
+      baseRange: FIELD_BASE_BUILD_RANGE_METERS,
+      rangeMultiplier: fieldRange / FIELD_BASE_BUILD_RANGE_METERS,
+      civilizationLevel,
       kind: 'FIELD',
       baseId: base.id
     });
   }
   if (finitePoint(state.player.worldPosition)) {
     const point = { x: state.player.worldPosition.x, y: state.player.worldPosition.y };
-    const overlapsBase = anchors.some(anchor => (anchor.range ?? BUILD_RANGE_METERS) >= BUILD_RANGE_METERS && distance(anchor.point, point) <= ANCHOR_DUPLICATE_TOLERANCE_METERS);
-    if (!overlapsBase) anchors.push({ id: 'player', label: '現在地', point, range: BUILD_RANGE_METERS, kind: 'PLAYER' });
+    const overlapsBase = anchors.some(anchor => distance(anchor.point, point) <= ANCHOR_DUPLICATE_TOLERANCE_METERS);
+    if (!overlapsBase) anchors.push({
+      id: 'player', label: '現在地', point, range: PLAYER_BUILD_RANGE_METERS,
+      baseRange: PLAYER_BUILD_RANGE_METERS, rangeMultiplier: 1, civilizationLevel,
+      kind: 'PLAYER'
+    });
   }
   return anchors;
 }
@@ -124,6 +144,16 @@ function anchorHasFacility(state, definition, anchor) {
   return state.combat.defenses.some(defense =>
     defense.type === definition.type && defense.buildAnchorId === anchor.id
   );
+}
+
+function buildRangeReason(state, definition) {
+  const level = Math.max(0, Math.floor(Number(state.civilization?.level) || 0));
+  const major = majorBaseBuildRange(level);
+  const field = fieldBaseBuildRange(level);
+  if (definition.allowedAnchorKinds) {
+    return `測量施設は主要拠点${major}m以内、または簡易拠点${field}m以内へ設置してください。`;
+  }
+  return `建設可能範囲内へ設置してください（主要拠点${major}m、簡易拠点${field}m、現在地${PLAYER_BUILD_RANGE_METERS}m）。`;
 }
 
 function anchorPlacementForSegment(anchors, a, b) {
@@ -262,7 +292,7 @@ export class BuildSystem {
       const projection = pointToSegmentProjection(requestedPoint, a, b);
       if (projection.distance > CANDIDATE_POINT_TOLERANCE_METERS) return { ok: false, reason: '設置候補が道路上にありません。' };
       const anchor = coveringAnchor(anchors, projection.point);
-      if (!anchor) return { ok: false, reason: '建設可能範囲内へ設置してください（主要拠点・現在地は85m以内、簡易拠点は50m以内）。' };
+      if (!anchor) return { ok: false, reason: buildRangeReason(state, definition) };
       if (anchorHasFacility(state, definition, anchor)) return { ok: false, reason: `${anchor.label}には同種設備をこれ以上設置できません。` };
       if (state.combat.defenses.some(defense => defense.kind === 'barrier' && defense.edgeId === edge.id)) {
         return { ok: false, reason: 'この道路には設備または残骸があります。先に修理または撤去してください。' };
@@ -272,7 +302,7 @@ export class BuildSystem {
       const node = graph.nodeById.get(candidate.nodeId);
       if (!node) return { ok: false, reason: '対象交差点が見つかりません。' };
       const anchor = coveringAnchor(anchors, node);
-      if (!anchor) return { ok: false, reason: definition.allowedAnchorKinds ? '測量施設は主要拠点または簡易拠点の建設範囲内へ設置してください。' : '建設可能範囲内へ設置してください（主要拠点・現在地は85m以内、簡易拠点は50m以内）。' };
+      if (!anchor) return { ok: false, reason: buildRangeReason(state, definition) };
       if (anchorHasFacility(state, definition, anchor)) return { ok: false, reason: `${anchor.label}には測量施設を1基だけ設置できます。` };
       if (state.combat.defenses.some(defense => defense.kind === 'tower' && defense.nodeId === node.id)) {
         return { ok: false, reason: 'この交差点には設備または残骸があります。先に修理または撤去してください。' };
@@ -320,11 +350,20 @@ export class BuildSystem {
       cooldown: 0, disabledTimer: 0, ruined: false
     };
     if (normalized.type === 'survey') {
-      const interval = Math.max(30, Number(definition.scanInterval) || 180);
-      defense.surveyNextAt = (state.runtime?.worldTimeMs ?? Date.now()) + Math.min(60, interval / 6) * 1000;
+      defense.surveyNextAt = (state.runtime?.worldTimeMs ?? Date.now()) + ROAD_CONFIG.surveyInitialDelayMs;
       defense.surveyStatus = 'WAITING';
       defense.surveyLastChunkId = null;
       defense.surveyCompletedCount = 0;
+      defense.surveyErrorCount = 0;
+      defense.surveyRetryAt = 0;
+      defense.surveyLastError = null;
+      defense.surveyLastSuccessAt = 0;
+      defense.surveyLastConnectionAt = 0;
+      defense.surveyLastResponseElements = 0;
+      defense.surveyLastErrorStage = null;
+      defense.surveyLastEndpoint = null;
+      defense.surveyLastTransport = null;
+      defense.surveyLastRoadCount = 0;
     }
     state.combat.defenses.push(defense);
     for (const enemy of state.combat.enemies) enemy.reroutePending = true;

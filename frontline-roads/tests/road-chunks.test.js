@@ -95,12 +95,12 @@ test('RoadService chunk acquisition projects roads into the original world coord
   let request = null;
   const service = new RoadService({
     async fetchRoads(lat, lon, options) {
-      request = { lat, lon, radiusMeters: options.radiusMeters };
+      request = { lat, lon, radiusMeters: options.radiusMeters, queryShape: options.queryShape };
       return makeGrid(chunkCenter);
     }
   });
   const chunkGraph = await service.loadChunk({ worldCenter, chunkCenter, chunkId: '1:0', radiusMeters: 500 });
-  assert.deepEqual(request, { lat: chunkCenter.lat, lon: chunkCenter.lon, radiusMeters: 500 });
+  assert.deepEqual(request, { lat: chunkCenter.lat, lon: chunkCenter.lon, radiusMeters: 500, queryShape: 'bbox' });
   assert.ok(chunkGraph.nodes.length > 0);
   assert.ok(chunkGraph.nodes.some(node => node.x > 700));
   assert.ok(chunkGraph.nodes.every(node => node.chunkIds.includes('1:0')));

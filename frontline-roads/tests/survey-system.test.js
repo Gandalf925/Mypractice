@@ -288,3 +288,91 @@ test('survey progress and physical-observation boundaries survive save and resto
   assert.equal(restoredDefense.surveyLastChunkId, '1:0');
   assert.equal(restoredDefense.surveyCompletedCount, 4);
 });
+
+test('manual survey bypasses a previous retry cooldown and records the real connection used after success', async () => {
+  let now = 500_000;
+  const state = stateForSurvey();
+  state.runtime.worldTimeMs = now;
+  const candidate = surveyChunkCandidates(state, state.combat.defenses[0], { now, retryCooldownMs: 0 })[0];
+  assert.ok(candidate);
+  state.world.roadChunks.failed[candidate.id] = { at: now, message: 'previous failure' };
+  state.combat.defenses[0].surveyStatus = 'RETRY_WAIT';
+  state.combat.defenses[0].surveyRetryAt = now + 90_000;
+  state.combat.defenses[0].surveyNextAt = now + 90_000;
+
+  const store = new StateStore(state, new EventBus());
+  const roadService = {
+    overpassClient: {
+      getLastSuccess() {
+        return { endpoint: 'https://two.test/api/interpreter', host: 'two.test', transport: 'GET', elementCount: 1, at: now };
+      }
+    },
+    async loadChunk({ chunkId }) {
+      return incomingChunk(chunkId);
+    }
+  };
+  const manager = new RoadWorldManager({
+    store,
+    cache: new MemoryRoadChunkCache(),
+    roadService,
+    now: () => now
+  });
+
+  const request = manager.requestSurvey('survey-1');
+  assert.equal(request.ok, true);
+  assert.equal(request.chunkId, candidate.id);
+  for (let index = 0; index < 50 && (manager.running || manager.queue.length > 0); index += 1) {
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+
+  const defense = store.snapshot().combat.defenses.find(item => item.id === 'survey-1');
+  assert.equal(defense.surveyStatus, 'WAITING');
+  assert.equal(defense.surveyErrorCount, 0);
+  assert.equal(defense.surveyLastError, null);
+  assert.equal(defense.surveyLastEndpoint, 'two.test');
+  assert.equal(defense.surveyLastTransport, 'GET');
+  assert.ok(defense.surveyLastRoadCount > 0);
+  assert.ok(store.snapshot().world.roadChunks.surveyed.includes(candidate.id));
+});
+
+test('survey diagnostics distinguish successful communication from later road-processing failure', async () => {
+  let now = 700_000;
+  let connection = { sequence: 0 };
+  const state = stateForSurvey();
+  state.runtime.worldTimeMs = now;
+  const store = new StateStore(state, new EventBus());
+  const roadService = {
+    overpassClient: { getLastSuccess: () => ({ ...connection }) },
+    async loadChunk() {
+      connection = {
+        sequence: 1,
+        endpoint: 'https://two.test/api/interpreter',
+        host: 'two.test',
+        transport: 'POST',
+        at: now,
+        elementCount: 17
+      };
+      throw new Error('invalid road geometry');
+    }
+  };
+  const manager = new RoadWorldManager({
+    store,
+    cache: new MemoryRoadChunkCache(),
+    roadService,
+    now: () => now
+  });
+
+  assert.equal(manager.requestSurvey('survey-1').ok, true);
+  for (let index = 0; index < 50 && (manager.running || manager.queue.length > 0); index += 1) {
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+
+  const defense = store.snapshot().combat.defenses.find(item => item.id === 'survey-1');
+  assert.equal(defense.surveyLastErrorStage, 'PROCESSING');
+  assert.match(defense.surveyLastError, /通信成功・道路処理失敗/);
+  assert.equal(defense.surveyLastConnectionAt, now);
+  assert.equal(defense.surveyLastEndpoint, 'two.test');
+  assert.equal(defense.surveyLastTransport, 'POST');
+  assert.equal(defense.surveyLastResponseElements, 17);
+  assert.equal(defense.surveyLastSuccessAt ?? 0, 0);
+});

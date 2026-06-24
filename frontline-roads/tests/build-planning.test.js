@@ -111,7 +111,7 @@ test('barrier candidates retain the tapped road position and reject out-of-range
   assert.equal(valid.candidate.edgeId, 'cross');
   assert.deepEqual(valid.candidate.point, { x: 20, y: 40 });
   assert.equal(invalid.ok, false);
-  assert.match(invalid.reason, /85m以内/);
+  assert.match(invalid.reason, /主要拠点85m/);
 });
 
 

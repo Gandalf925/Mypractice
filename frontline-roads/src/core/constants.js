@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.32.2-collapse-recovery-balance';
+export const APP_VERSION = '0.32.4-survey-range-reliability';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 
@@ -46,6 +46,8 @@ export const ROAD_CONFIG = Object.freeze({
   movementChunkBatchLimit: 6,
   movementChunkRetryCooldownMs: 45 * 1000,
   chunkRetryCooldownMs: 5 * 60 * 1000,
+  surveyInitialDelayMs: 5 * 1000,
+  surveyRetryCooldownMs: 90 * 1000,
   overpassTimeoutMs: 18000,
   overpassTotalTimeoutMs: 90000,
   minimumRawSegments: 18,

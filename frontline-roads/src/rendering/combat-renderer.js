@@ -108,6 +108,50 @@ function drawBarrier(context, point, angle, quality) {
   context.restore();
 }
 
+
+function drawGate(context, point, angle, quality) {
+  context.save();
+  context.translate(point.x, point.y);
+  context.rotate(angle);
+  glow(context, '#ffd978', 11, quality);
+  context.strokeStyle = '#ffd978';
+  context.fillStyle = 'rgba(255,217,120,0.18)';
+  context.lineWidth = 1.8;
+  context.fillRect(-12, -6, 24, 12);
+  context.strokeRect(-12, -6, 24, 12);
+  context.beginPath();
+  context.moveTo(-8, -6); context.lineTo(-8, 6);
+  context.moveTo(8, -6); context.lineTo(8, 6);
+  context.moveTo(0, -6); context.lineTo(0, 6);
+  context.stroke();
+  context.restore();
+}
+
+function drawRuinedGate(context, point, angle, timeMs, quality) {
+  const pulse = 14 + Math.sin(timeMs * 0.006) * 1.8;
+  context.save();
+  glow(context, '#ff5268', 16, quality);
+  ring(context, point, pulse, '#ff5268', 1.8, 0.95, true);
+  context.translate(point.x, point.y);
+  context.rotate(angle);
+  context.strokeStyle = '#ff6b7d';
+  context.lineWidth = 2.2;
+  context.beginPath();
+  context.moveTo(-12, -7); context.lineTo(-12, 7);
+  context.moveTo(-12, -7); context.lineTo(-5, -2);
+  context.moveTo(12, -7); context.lineTo(12, 7);
+  context.moveTo(12, -7); context.lineTo(5, 2);
+  context.stroke();
+  context.restore();
+  context.save();
+  context.fillStyle = '#ff9aaa';
+  context.font = '900 7px ui-monospace, monospace';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText('OPEN', point.x, point.y + 17);
+  context.restore();
+}
+
 function defenseColor(type) {
   if (type === 'mortar') return '#ffbc73';
   if (type === 'relay') return '#68ffd4';
@@ -301,8 +345,12 @@ export function drawCombatState(context, state, camera, radar = {}) {
       const a = edge && graph.nodeById.get(edge.a);
       const b = edge && graph.nodeById.get(edge.b);
       if (!a || !b || !visiblePoint(point, camera)) continue;
-      if (ruined) drawRuinedDefense(context, point, runtime.icon ?? '▰', timeMs, quality);
-      else drawBarrier(context, point, Math.atan2(b.y - a.y, b.x - a.x), quality);
+      const angle = Math.atan2(b.y - a.y, b.x - a.x);
+      if (ruined) {
+        if (defense.isGate) drawRuinedGate(context, point, angle, timeMs, quality);
+        else drawRuinedDefense(context, point, runtime.icon ?? '▰', timeMs, quality);
+      } else if (defense.isGate) drawGate(context, point, angle, quality);
+      else drawBarrier(context, point, angle, quality);
       if (!ruined && shouldDrawHealth(defense.hp, defense.maxHp, quality)) drawHealthBar(context, point, defense.hp, defense.maxHp, 22, 9, quality);
       continue;
     }
