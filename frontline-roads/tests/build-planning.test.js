@@ -80,7 +80,7 @@ test('a stale candidate is rejected without spending resources', () => {
   const result = build.buildCandidate(state, preview.candidate);
 
   assert.equal(result.ok, false);
-  assert.match(result.reason, /すでに設備/);
+  assert.match(result.reason, /設備または残骸/);
   assert.deepEqual(state.inventory.resources, before);
   assert.equal(state.combat.defenses.length, 1);
 });
@@ -115,7 +115,7 @@ test('barrier candidates retain the tapped road position and reject out-of-range
 });
 
 
-test('rebuilding a ruined placement at the same world time creates a distinct defense id', () => {
+test('a ruined placement blocks replacement construction until the wreck is repaired or removed', () => {
   const state = makeState();
   const build = new BuildSystem();
   const firstPreview = build.previewAt(state, 'gun', { x: 60, y: 0 }, 5);
@@ -123,11 +123,11 @@ test('rebuilding a ruined placement at the same world time creates a distinct de
   first.defense.hp = 0;
   first.defense.ruined = true;
 
-  const secondPreview = build.previewAt(state, 'gun', { x: 60, y: 0 }, 5);
-  const second = build.buildCandidate(state, secondPreview.candidate);
+  const secondPreview = build.previewAt(state, 'mortar', { x: 60, y: 0 }, 5);
 
-  assert.equal(second.ok, true);
-  assert.notEqual(second.defense.id, first.defense.id);
+  assert.equal(secondPreview.ok, false);
+  assert.match(secondPreview.reason, /残骸/);
+  assert.equal(state.combat.defenses.length, 1);
 });
 
 test('preview skips an occupied nearest intersection when another valid intersection is within the tap tolerance', () => {

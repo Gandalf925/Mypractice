@@ -1,4 +1,5 @@
 import { deepClone } from '../core/utilities.js';
+import { RECOVERY_BALANCE } from '../core/recovery-balance.js';
 import { CIVILIZATIONS, CIVILIZATION_PROJECTS, DEFENSE_LINES, SETTLEMENT_BUILDINGS, defenseLineForType } from './data.js';
 import { addBundle, consumeBundle } from './inventory-system.js';
 import { applyDefenseTier, defenseUpgradeStatus } from './defense-upgrade.js';
@@ -222,6 +223,7 @@ export class ProgressionSystem {
   repairDefense(state, defenseId) {
     const defense = state.combat.defenses.find(item => item.id === defenseId);
     if (!defense) return { ok: false, reason: '設備が見つかりません。' };
+    const wasRuined = Boolean(defense.ruined || defense.hp <= 0);
     const missingHp = Math.max(0, defense.maxHp - defense.hp);
     if (missingHp <= 0 && !defense.ruined) return { ok: false, reason: '修理は不要です。' };
     const line = defenseLine(defense);
@@ -229,6 +231,7 @@ export class ProgressionSystem {
     if (!consumeBundle(state, cost)) return { ok: false, reason: '修理資源が不足しています。' };
     defense.hp = defense.maxHp;
     defense.ruined = false;
+    if (wasRuined && defense.kind === 'tower') defense.disabledTimer = Math.max(Number(defense.disabledTimer) || 0, RECOVERY_BALANCE.restoredTowerRestartSeconds);
     state.civilization.progress.totalRepairHpPaid += missingHp;
     this.events?.emit('combat:defense-repaired', { defenseId: defense.id, repairHp: missingHp, cost, automatic: false });
     return { ok: true, defense, cost };

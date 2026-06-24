@@ -33,7 +33,8 @@ export function createInitialState() {
       defenses: [],
       waves: { elapsed: 0, nextSpawnAt: null, active: {}, resourceBaseCheckClock: 30 },
       pendingSettlementDamage: [],
-      cityRecoveryCooldown: 0
+      cityRecoveryCooldown: 0,
+      enemyRegroupUntil: 0
     },
     civilization: {
       level: 0,

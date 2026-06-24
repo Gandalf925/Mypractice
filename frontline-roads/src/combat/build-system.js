@@ -54,9 +54,6 @@ function coveringAnchor(anchors, point) {
   return best;
 }
 
-function activeDefense(defense) {
-  return defense.hp > 0 && !defense.ruined;
-}
 
 function nearbyEdges(graph, point, maxDistance) {
   const matches = [];
@@ -172,7 +169,7 @@ export class BuildSystem {
     if (definition.kind === 'barrier') {
       const occupied = new Set(
         state.combat.defenses
-          .filter(defense => defense.kind === 'barrier' && activeDefense(defense))
+          .filter(defense => defense.kind === 'barrier')
           .map(defense => defense.edgeId)
       );
       const candidateEdges = new Set();
@@ -203,7 +200,7 @@ export class BuildSystem {
 
     const occupied = new Set(
       state.combat.defenses
-        .filter(defense => defense.kind === 'tower' && activeDefense(defense))
+        .filter(defense => defense.kind === 'tower')
         .map(defense => defense.nodeId)
     );
     const candidateNodes = new Set();
@@ -267,8 +264,8 @@ export class BuildSystem {
       const anchor = coveringAnchor(anchors, projection.point);
       if (!anchor) return { ok: false, reason: '建設可能範囲内へ設置してください（主要拠点・現在地は85m以内、簡易拠点は50m以内）。' };
       if (anchorHasFacility(state, definition, anchor)) return { ok: false, reason: `${anchor.label}には同種設備をこれ以上設置できません。` };
-      if (state.combat.defenses.some(defense => defense.kind === 'barrier' && defense.edgeId === edge.id && activeDefense(defense))) {
-        return { ok: false, reason: 'この道路にはすでに防壁があります。' };
+      if (state.combat.defenses.some(defense => defense.kind === 'barrier' && defense.edgeId === edge.id)) {
+        return { ok: false, reason: 'この道路には設備または残骸があります。先に修理または撤去してください。' };
       }
       normalized = barrierCandidate(candidate.type, edge, projection.point, anchor);
     } else {
@@ -277,8 +274,8 @@ export class BuildSystem {
       const anchor = coveringAnchor(anchors, node);
       if (!anchor) return { ok: false, reason: definition.allowedAnchorKinds ? '測量施設は主要拠点または簡易拠点の建設範囲内へ設置してください。' : '建設可能範囲内へ設置してください（主要拠点・現在地は85m以内、簡易拠点は50m以内）。' };
       if (anchorHasFacility(state, definition, anchor)) return { ok: false, reason: `${anchor.label}には測量施設を1基だけ設置できます。` };
-      if (state.combat.defenses.some(defense => defense.kind === 'tower' && defense.nodeId === node.id && activeDefense(defense))) {
-        return { ok: false, reason: 'この交差点にはすでに設備があります。' };
+      if (state.combat.defenses.some(defense => defense.kind === 'tower' && defense.nodeId === node.id)) {
+        return { ok: false, reason: 'この交差点には設備または残骸があります。先に修理または撤去してください。' };
       }
       normalized = towerCandidate(candidate.type, node, anchor);
     }

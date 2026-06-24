@@ -112,7 +112,11 @@ export class BaseCommandUi {
     const majorSlots = playerBaseSlotsUsed(state);
     const field = state.world?.fieldBases ?? [];
     const focused = [...major, ...field].find(base => base.id === this.focusedBaseId);
-    this.summary.textContent = `主要 ${major.length}稼働・${majorSlots}/${baseLimitForCivilization(state.civilization?.level)}・簡易 ${fieldBaseSlotsUsed(state)}/${fieldBaseLimitForCivilization(state.civilization?.level)}${focused ? `・表示 ${focused.name}` : ''}`;
+    const damagedDefenses = (state.combat?.defenses ?? []).filter(defense => defense.ruined || defense.hp <= 0 || defense.hp < defense.maxHp).length;
+    const ruinedBuildings = (state.civilization?.buildings ?? []).filter(building => !building.demolished && (building.ruined || building.hp <= 0)).length;
+    const repairCount = damagedDefenses + ruinedBuildings;
+    this.summary.textContent = `主要 ${major.length}稼働・${majorSlots}/${baseLimitForCivilization(state.civilization?.level)}・簡易 ${fieldBaseSlotsUsed(state)}/${fieldBaseLimitForCivilization(state.civilization?.level)}${repairCount ? `・要修理 ${repairCount}` : ''}${focused ? `・表示 ${focused.name}` : ''}`;
+    this.summary.classList?.toggle('has-repairs', repairCount > 0);
   }
 
   handleAction(event) {

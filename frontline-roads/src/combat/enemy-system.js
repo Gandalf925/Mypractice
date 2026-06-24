@@ -10,6 +10,7 @@ import { destroyPlayerBase } from '../base/player-base-system.js';
 import { enemyBehaviorForDefinition } from './enemy-personalities.js';
 import { destroyFieldBase } from '../base/field-base-system.js';
 import { FRIENDLY_SQUAD_DEFINITIONS, friendlySquadDefinition } from './friendly-force-definitions.js';
+import { RECOVERY_BALANCE, beginEnemyRegroup } from '../core/recovery-balance.js';
 
 const FACILITY_ATTACK_RANGE_METERS = 20;
 const FACILITY_PRIORITY_PENALTY_SECONDS = 18;
@@ -243,6 +244,7 @@ function attackTargetFacility(state, enemy, definition, deltaSeconds, events) {
 
   target.hp = 0;
   target.ruined = true;
+  beginEnemyRegroup(state, RECOVERY_BALANCE.defenseBreakthroughRegroupSeconds);
   invalidateDefenseTargetPaths(state, target.id);
   events?.emit('combat:defense-destroyed', { defenseId: target.id, position: node });
   events?.emit('message', { text: `${target.type === 'relay' ? '修復中継所' : target.type === 'survey' ? '測量施設' : target.type === 'medical' ? '治療施設' : target.type === 'fieldAid' ? '簡易救護所' : '防衛施設'}が敵の集中攻撃で破壊されました。` });
@@ -431,6 +433,7 @@ export class EnemySystem {
         if (barrier.hp > 0) continue;
         barrier.hp = 0;
         barrier.ruined = true;
+        beginEnemyRegroup(state, RECOVERY_BALANCE.defenseBreakthroughRegroupSeconds);
         frame.barriers.delete(edge.id);
         this.invalidateAllPaths(state);
         const a = graph.nodeById.get(edge.a);

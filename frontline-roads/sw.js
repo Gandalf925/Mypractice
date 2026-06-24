@@ -1,6 +1,6 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const CACHE_NAME = `${CACHE_PREFIX}v0-32-0-state-foundation`;
+const CACHE_NAME = `${CACHE_PREFIX}v0-32-2-collapse-recovery-balance`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -51,6 +51,7 @@ const APP_SHELL = [
   './src/combat/wave-system.js',
   './src/core/constants.js',
   './src/core/errors.js',
+  './src/core/recovery-balance.js',
   './src/core/event-bus.js',
   './src/core/state-schema.js',
   './src/core/state-store.js',

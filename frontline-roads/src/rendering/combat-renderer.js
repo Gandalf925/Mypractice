@@ -4,6 +4,7 @@ import { enemyPosition } from '../combat/enemy-system.js';
 import { friendlySquadPosition } from '../combat/friendly-force-system.js';
 import { friendlySquadDefinition } from '../combat/friendly-force-definitions.js';
 import { recoveryItemPoint } from '../exploration/recovery-system.js';
+import { defenseRuntimeDefinition } from '../combat/definitions.js';
 import { sweepIntensity } from './radar-renderer.js';
 
 const TAU = Math.PI * 2;
@@ -117,44 +118,41 @@ function defenseColor(type) {
   return '#65d7ff';
 }
 
-function drawDefense(context, point, type, quality) {
+function drawDefense(context, point, type, quality, icon = '?') {
   const color = defenseColor(type);
   context.save();
   glow(context, color, 11, quality);
   ring(context, point, 9.5, color, 1.3, 0.72);
-  if (type === 'gun') {
-    polygon(context, point, 5.5, 3, -Math.PI / 2, 'rgba(101,215,255,0.2)', color, 1.2);
-  } else if (type === 'mortar') {
-    polygon(context, point, 5.2, 4, Math.PI / 4, 'rgba(255,188,115,0.2)', color, 1.2);
-    ring(context, point, 2, color, 1, 0.9);
-  } else if (type === 'relay') {
-    ring(context, point, 5.5, color, 1.1, 0.95);
-    context.fillStyle = color;
-    context.beginPath();
-    context.arc(point.x, point.y, 1.6, 0, TAU);
-    context.fill();
-  } else if (type === 'survey') {
-    context.strokeStyle = color;
-    context.lineWidth = 1.2;
-    context.beginPath();
-    context.moveTo(point.x, point.y - 6);
-    context.lineTo(point.x, point.y + 6);
-    context.moveTo(point.x - 5, point.y - 2);
-    context.lineTo(point.x + 5, point.y - 2);
-    context.stroke();
-    ring(context, { x: point.x, y: point.y - 6 }, 2.2, color, 1, 0.9);
-  } else if (type === 'medical' || type === 'fieldAid') {
-    context.strokeStyle = color;
-    context.lineWidth = 2;
-    context.beginPath();
-    context.moveTo(point.x - 5, point.y);
-    context.lineTo(point.x + 5, point.y);
-    context.moveTo(point.x, point.y - 5);
-    context.lineTo(point.x, point.y + 5);
-    context.stroke();
-  } else {
-    polygon(context, point, 5.5, 4, 0, 'rgba(187,140,255,0.2)', color, 1.2);
-  }
+  context.fillStyle = color;
+  context.font = '800 11px ui-monospace, monospace';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(icon, point.x, point.y + 0.5);
+  context.restore();
+}
+
+function drawRuinedDefense(context, point, icon, timeMs, quality) {
+  const pulse = 12 + Math.sin(timeMs * 0.006) * 1.6;
+  context.save();
+  glow(context, '#ff5268', 16, quality);
+  ring(context, point, pulse, '#ff5268', 1.6, 0.9, true);
+  ring(context, point, 9.5, '#ffc857', 1.3, 0.9);
+  context.strokeStyle = '#ff5268';
+  context.lineWidth = 2;
+  context.beginPath();
+  context.moveTo(point.x - 6, point.y - 6);
+  context.lineTo(point.x + 6, point.y + 6);
+  context.moveTo(point.x + 6, point.y - 6);
+  context.lineTo(point.x - 6, point.y + 6);
+  context.stroke();
+  context.fillStyle = '#fff0d3';
+  context.font = '800 8px ui-monospace, monospace';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(icon, point.x, point.y + 0.5);
+  context.fillStyle = '#ff9aaa';
+  context.font = '800 7px ui-monospace, monospace';
+  context.fillText('FIX', point.x, point.y + 16);
   context.restore();
 }
 
@@ -293,25 +291,28 @@ export function drawCombatState(context, state, camera, radar = {}) {
 
 
   for (const defense of state.combat.defenses ?? []) {
-    if (defense.hp <= 0 || defense.ruined) continue;
+    const runtime = defenseRuntimeDefinition(defense);
+    const ruined = defense.hp <= 0 || defense.ruined;
     if (defense.kind === 'barrier') {
       const middle = edgeMidpoint(graph, defense.edgeId);
       if (!middle) continue;
       const point = camera.worldToScreen(middle);
       const edge = graph.edgeById.get(defense.edgeId);
-      const a = graph.nodeById.get(edge.a);
-      const b = graph.nodeById.get(edge.b);
-      if (!visiblePoint(point, camera)) continue;
-      drawBarrier(context, point, Math.atan2(b.y - a.y, b.x - a.x), quality);
-      if (shouldDrawHealth(defense.hp, defense.maxHp, quality)) drawHealthBar(context, point, defense.hp, defense.maxHp, 22, 9, quality);
+      const a = edge && graph.nodeById.get(edge.a);
+      const b = edge && graph.nodeById.get(edge.b);
+      if (!a || !b || !visiblePoint(point, camera)) continue;
+      if (ruined) drawRuinedDefense(context, point, runtime.icon ?? '▰', timeMs, quality);
+      else drawBarrier(context, point, Math.atan2(b.y - a.y, b.x - a.x), quality);
+      if (!ruined && shouldDrawHealth(defense.hp, defense.maxHp, quality)) drawHealthBar(context, point, defense.hp, defense.maxHp, 22, 9, quality);
       continue;
     }
     const node = graph.nodeById.get(defense.nodeId);
     if (!node) continue;
     const point = camera.worldToScreen(node);
     if (!visiblePoint(point, camera)) continue;
-    drawDefense(context, point, defense.type, quality);
-    if (shouldDrawHealth(defense.hp, defense.maxHp, quality)) drawHealthBar(context, point, defense.hp, defense.maxHp, 20, 11, quality);
+    if (ruined) drawRuinedDefense(context, point, runtime.icon ?? '?', timeMs, quality);
+    else drawDefense(context, point, defense.type, quality, runtime.icon ?? '?');
+    if (!ruined && shouldDrawHealth(defense.hp, defense.maxHp, quality)) drawHealthBar(context, point, defense.hp, defense.maxHp, 20, 11, quality);
   }
 
   if (quality !== 'minimal') {

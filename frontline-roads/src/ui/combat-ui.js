@@ -174,7 +174,7 @@ export class CombatUi {
     this.buildPlacementSignature = signature;
   }
 
-  nearestObject(state, point, tolerance) {
+  nearestObject(state, point, tolerance, afterObject = null) {
     const graph = state.world.roadGraph;
     const candidates = [];
     for (const item of state.world.recoveryItems ?? []) {
@@ -199,7 +199,13 @@ export class CombatUi {
     }
     for (const defense of state.combat.defenses) {
       const position = defense.kind === 'barrier' ? edgeMidpoint(graph, defense.edgeId) : graph.nodeById.get(defense.nodeId);
-      if (position) candidates.push({ kind: 'defense', id: defense.id, point: position, distance: distance(point, position) });
+      if (position) candidates.push({
+        kind: 'defense',
+        id: defense.id,
+        point: position,
+        distance: distance(point, position),
+        priority: defense.ruined || defense.hp <= 0 ? 1 : 0
+      });
     }
     for (const enemy of state.combat.enemies) {
       if (enemy.hp <= 0 || enemy.departDelay > 0) continue;
@@ -213,8 +219,13 @@ export class CombatUi {
     }
     const city = graph.nodeById.get(state.world.city.nodeId);
     if (city) candidates.push({ kind: 'city', id: 'city', point: city, distance: distance(point, city) });
-    candidates.sort((a, b) => a.distance - b.distance);
-    return candidates[0]?.distance <= tolerance ? candidates[0] : null;
+    candidates.sort((a, b) => a.distance - b.distance || (a.priority ?? 0) - (b.priority ?? 0));
+    const nearby = candidates.filter(candidate => candidate.distance <= tolerance);
+    if (afterObject && nearby.length > 1) {
+      const selectedIndex = nearby.findIndex(candidate => candidate.kind === afterObject.kind && candidate.id === afterObject.id);
+      if (selectedIndex >= 0) return nearby[(selectedIndex + 1) % nearby.length];
+    }
+    return nearby[0] ?? null;
   }
 
   selectedFriendlySquad(state = this.store.snapshot()) {
@@ -436,7 +447,7 @@ export class CombatUi {
     }
     if (this.selectedTool === 'select') {
       const state = this.store.snapshot();
-      const nextObject = this.nearestObject(state, worldPoint, 24 / this.camera.scale);
+      const nextObject = this.nearestObject(state, worldPoint, 24 / this.camera.scale, this.selectedObject);
       const sameObject = nextObject
         && this.selectedObject
         && nextObject.kind === this.selectedObject.kind
@@ -880,7 +891,7 @@ export class CombatUi {
         ? (state.combat.friendlySquads ?? []).find(squad => squad.id === enemy.targetSquadId && squad.hp > 0)
         : null;
       const targetName = targetDefense
-        ? DEFENSE_DEFINITIONS[targetDefense.type]?.name ?? '防衛施設'
+        ? defenseRuntimeDefinition(targetDefense).name ?? '防衛施設'
         : targetSquad
           ? FRIENDLY_SQUAD_DEFINITIONS[targetSquad.type]?.name ?? '味方部隊'
           : targetPlayerBase?.name ?? targetFieldBase?.name ?? (enemy.targetPlayerBaseId ? '主要拠点' : enemy.targetFieldBaseId ? '簡易拠点' : '都市');
@@ -1027,7 +1038,7 @@ export class CombatUi {
   }
 
   update(state = this.store.snapshot()) {
-    this.cityHp.textContent = Math.ceil(state.world.city?.hp ?? 0);
+    this.cityHp.textContent = `${Math.ceil(state.world.city?.hp ?? 0)}/${Math.ceil(state.world.city?.maxHp ?? 0)}`;
     this.enemyCount.textContent = state.combat.enemies.length;
     this.civilizationLevel.textContent = state.civilization.level;
     const affordability = this.affordabilitySignature(state);

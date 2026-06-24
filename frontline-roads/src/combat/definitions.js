@@ -1,5 +1,5 @@
-export const CITY_RECOVERY_DELAY_SECONDS = 120;
-export const CITY_RECOVERY_HP_PER_SECOND = 0.08;
+export const CITY_RECOVERY_DELAY_SECONDS = 75;
+export const CITY_RECOVERY_HP_PER_SECOND = 0.12;
 
 import { DEFENSE_LINES, ENEMY_DROPS, defenseLineForType, defenseTierDefinition } from '../civilization/data.js';
 

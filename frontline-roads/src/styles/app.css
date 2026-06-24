@@ -268,12 +268,30 @@ footer {
 footer::before { content: "RADAR BUILD // "; }
 
 .gameUi { position: absolute; z-index: 12; inset: 0; pointer-events: none; }
-.combatStats {
+.hudHeader {
   position: absolute;
+  z-index: 14;
   left: 10px;
-  top: calc(var(--safe-top) + 44px);
-  display: flex;
+  right: 10px;
+  top: calc(var(--safe-top) + 48px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "stats actions"
+    "resources resources"
+    "summary summary"
+    "warning warning";
   gap: 6px;
+  min-width: 0;
+  pointer-events: none;
+}
+.combatStats {
+  grid-area: stats;
+  position: static;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(82px, 1fr));
+  gap: 6px;
+  min-width: 0;
 }
 .combatStats span,
 .resourceSummary,
@@ -286,28 +304,28 @@ footer::before { content: "RADAR BUILD // "; }
   clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
 }
 .combatStats span {
-  position: relative;
-  min-width: 68px;
-  padding: 6px 8px 6px 10px;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 8px;
   color: var(--muted);
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
 }
+.combatStats span small { min-width: 0; overflow: hidden; text-overflow: ellipsis; font: inherit; }
 .combatStats strong { color: #dffff7; font-size: 14px; text-shadow: 0 0 8px rgba(101,255,208,0.35); }
 .resourceSummary {
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  top: calc(var(--safe-top) + 82px);
-  display: grid;
-  grid-auto-flow: column;
-  grid-template-rows: repeat(2, minmax(23px, auto));
-  grid-auto-columns: minmax(82px, max-content);
+  grid-area: resources;
+  position: static;
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  align-items: stretch;
   gap: 4px;
-  min-height: 58px;
-  max-height: 58px;
   padding: 5px;
   overflow-x: auto;
   overflow-y: hidden;
@@ -315,39 +333,52 @@ footer::before { content: "RADAR BUILD // "; }
   pointer-events: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(101,255,208,.28) transparent;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
 }
 .resourceSummary::-webkit-scrollbar { height: 4px; }
 .resourceSummary::-webkit-scrollbar-thumb { background: rgba(101,255,208,.28); }
 .resourceChip {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  flex: 0 0 auto;
+  min-width: 92px;
+  min-height: 32px;
+  display: inline-flex;
   align-items: center;
-  column-gap: 6px;
-  padding: 3px 6px;
+  gap: 7px;
+  padding: 5px 7px;
   border: 1px solid rgba(101,255,208,.12);
   background: rgba(1,14,12,.78);
   white-space: nowrap;
+  scroll-snap-align: start;
 }
-.resourceChip small { overflow: hidden; color: #79aa9f; font-size: 9px; text-overflow: ellipsis; }
-.resourceChip strong { color: #effffb; font-size: 12px; }
-.resourceChip em { grid-column: 1 / -1; color: #ffd982; font-size: 8px; font-style: normal; }
+.resourceChip small { color: #79aa9f; font-size: 9px; }
+.resourceChip strong { margin-left: auto; color: #effffb; font-size: 12px; }
+.resourceChip em { color: #ffd982; font-size: 8px; font-style: normal; }
 .baseSummary {
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  top: calc(var(--safe-top) + 146px);
-  max-width: none;
-  padding: 5px 8px;
-  color: #658f84;
+  grid-area: summary;
+  position: static;
+  min-width: 0;
+  padding: 6px 8px;
+  color: #7fae9f;
   font-size: 10px;
+  line-height: 1.35;
+}
+.baseSummary.has-repairs {
+  border-color: rgba(255,82,104,.72);
+  background: rgba(54,10,18,.92);
+  color: #ffd4da;
+  box-shadow: inset 0 0 18px rgba(255,82,104,.08), 0 0 16px rgba(255,82,104,.18);
+}
+.storageWarning {
+  grid-area: warning;
+  position: static;
+  min-width: 0;
 }
 .topActions {
-  position: absolute;
-  right: 10px;
-  top: calc(var(--safe-top) + 44px);
+  grid-area: actions;
+  position: static;
   display: grid;
-  grid-template-columns: repeat(3, auto);
+  grid-template-columns: repeat(3, minmax(0, auto));
   gap: 6px;
   pointer-events: auto;
 }
@@ -619,35 +650,28 @@ footer::before { content: "RADAR BUILD // "; }
   .panelFooter small { font-size: 10px; }
   .mapControls { top: 50%; right: calc(39% + 8px); transform: translateY(-50%); }
   .mapControls button { width: 38px; height: 38px; }
-  .combatStats { top: calc(var(--safe-top) + 36px); right: auto; }
-  .resourceSummary { top: calc(var(--safe-top) + 72px); right: 10px; grid-template-rows: minmax(23px, auto); min-height: 31px; max-height: 31px; }
-  .baseSummary { top: calc(var(--safe-top) + 108px); right: 10px; }
-  .storageWarning { top: calc(var(--safe-top) + 135px); right: 10px; }
-  .topActions { left: auto; right: 10px; top: calc(var(--safe-top) + 36px); grid-template-columns: repeat(3, auto); }
+  .hudHeader { top: calc(var(--safe-top) + 44px); grid-template-columns: minmax(0, 1fr) auto; }
+  .resourceSummary { min-height: 40px; }
+  .resourceChip { min-height: 28px; }
   .combatTools { left: 48%; padding-top: 8px; }
   .contextPanel { left: 48%; bottom: calc(var(--safe-bottom) + 86px); }
 }
 
 /* v0.14.1 narrow-screen audit fixes */
 @media (max-width: 620px) and (orientation: portrait) {
-  .combatStats {
-    left: 10px;
-    right: 10px;
-    top: calc(var(--safe-top) + 44px);
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .hudHeader {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "stats"
+      "actions"
+      "resources"
+      "summary"
+      "warning";
   }
-  .combatStats span { min-width: 0; text-align: center; }
-  .topActions {
-    left: 10px;
-    right: 10px;
-    top: calc(var(--safe-top) + 81px);
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+  .combatStats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .combatStats span { padding-inline: 5px; }
+  .topActions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .topActions button { min-width: 0; }
-  .resourceSummary { top: calc(var(--safe-top) + 119px); }
-  .baseSummary { top: calc(var(--safe-top) + 183px); max-width: none; }
-  .storageWarning { top: calc(var(--safe-top) + 211px); }
 }
 
 /* v0.16 terminal HUD and visual preferences */

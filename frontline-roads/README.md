@@ -1,21 +1,41 @@
-# FRONTLINE ROADS — modular source v0.32.0 state foundation
+# FRONTLINE ROADS — modular source v0.32.2 collapse and recovery balance
+
+## Collapse and recovery balance v0.32.2
+
+- A destroyed defense makes enemy bases regroup for 150 seconds. Enemies already on the road continue fighting; only new wave launches pause.
+- City defeat restores 60% HP at civilization level 0 and 50% afterward, then gives a 210/150-second regroup interval.
+- Defeat penalties preserve a repair reserve instead of repeatedly consuming the last wood and stone.
+- Tower and support-facility restoration costs 55% of the prior full rebuild basis. Dedicated wall repair tables remain unchanged.
+- A restored tower requires 20 seconds to restart, using the existing disabled-timer mechanism instead of adding another repair-state system.
+- The same rules are used by active and offline simulation.
+
+Implementation and simulation results are documented in `docs/collapse-recovery-balance-v0.32.2.md`.
+
+## UI and repair visibility v0.32.1
+
+- The resource HUD is a content-sized single-row strip; overflow stock stays inline and no longer pushes chips outside their frame.
+- The ambiguous city counter is labeled `本拠地HP` and shows current/maximum durability.
+- Destroyed defenses remain visible on the map with a red `FIX` marker and the same canonical icon used by the construction tool.
+- Ruins occupy their road location until repaired or removed, preventing new facilities from overlapping old wrecks.
+- Existing saves that already contain overlapping facilities select the active facility first; repeated taps cycle to the underlying ruin.
+- The base summary highlights the total number of defenses and settlement buildings requiring repair.
+
+Implementation is documented in `docs/ui-repair-visibility-v0.32.1.md`.
+
+FRONTLINE ROADS is a location-based, continuously progressing road-defense strategy game. This directory is the canonical modular development source.
 
 ## State foundation v0.32.0
 
 - UI rendering uses detached snapshots and cannot normalize or mutate the committed game state.
 - State commands run transactionally: validation or command failures leave the committed state and queued events unchanged.
 - Legacy direct state APIs were removed instead of retained as compatibility layers.
-- Save validation, optional road-cache restoration, offline simulation, and UI startup now have separate failure boundaries.
-- Periodic HUD refresh shares one snapshot across the visible UI systems.
+- Save validation, optional road-cache restoration, offline simulation, and UI startup have separate failure boundaries.
 - Road acquisition uses generation cancellation so late responses cannot repopulate a reset world.
 - Live simulation preserves slow-frame backlog instead of silently discarding elapsed time.
-- Autosave sanitizes one detached snapshot instead of cloning the complete world twice.
 - Overpass requests use POST only; the obsolete JSONP script transport was removed.
-- Duplicate normalization calls and five confirmed unused exports were removed.
 
 Implementation and verification are documented in `docs/state-foundation-v0.32.0.md`.
 
-FRONTLINE ROADS is a location-based, continuously progressing road-defense strategy game. This directory is the canonical modular development source.
 
 ## Command capacity, facility guidance and resource HUD v0.31.3
 
@@ -24,7 +44,7 @@ FRONTLINE ROADS is a location-based, continuously progressing road-defense strat
 - Active, recovering and ready squads each occupy one persistent base slot. A free slot remains usable while another squad recovers.
 - Coordinated deployment may assign several squads to the same base when it has enough slots.
 - Every settlement building now has a concise description covering its output or storage purpose and primary use.
-- The default resource display renders every owned resource as an independent chip in a two-row horizontal dock, avoiding omission and overlap with top controls.
+- The default resource display introduced independent resource chips; its fixed two-row layout was replaced by the content-sized strip in v0.32.1.
 - Save schema and save key remain unchanged because command capacity is derived from civilization level.
 
 Implementation and verification are documented in `docs/command-capacity-resource-hud-v0.31.3.md`.

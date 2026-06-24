@@ -151,7 +151,7 @@ export class CivilizationUi {
     this.resourceSummary.innerHTML = visibleResources.map(key => {
       const amount = Math.floor(state.inventory.resources[key] ?? 0);
       const overflow = Math.floor(state.inventory.overflow[key]?.amount ?? 0);
-      return `<span class="resourceChip" data-resource="${key}"><small>${RESOURCE_LABELS[key]}</small><strong>${amount}</strong>${overflow ? `<em>保留 ${overflow}</em>` : ''}</span>`;
+      return `<span class="resourceChip" data-resource="${key}"><small>${RESOURCE_LABELS[key]}</small><strong>${amount}</strong>${overflow ? `<em>保留+${overflow}</em>` : ''}</span>`;
     }).join('');
     this.resourceSummary.setAttribute(
       'aria-label',

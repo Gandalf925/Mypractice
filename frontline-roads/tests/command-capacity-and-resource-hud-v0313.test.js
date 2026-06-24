@@ -121,9 +121,10 @@ test('default resource HUD renders every owned resource as an independent chip',
   }
 });
 
-test('resource HUD uses a non-overlapping scrollable two-row dock', async () => {
+test('resource HUD uses a non-overlapping content-sized scroll strip', async () => {
   const css = await readFile(new URL('../src/styles/app.css', import.meta.url), 'utf8');
-  assert.match(css, /\.resourceSummary\s*\{[\s\S]*grid-template-rows:\s*repeat\(2,[\s\S]*overflow-x:\s*auto/s);
-  assert.match(css, /@media \(max-width: 620px\) and \(orientation: portrait\)[\s\S]*\.topActions[\s\S]*top:[^;]*81px[\s\S]*\.resourceSummary[^}]*top:[^;]*119px/s);
-  assert.match(css, /\.resourceChip\s*\{/);
+  assert.match(css, /\.hudHeader\s*\{[\s\S]*grid-template-areas:/s);
+  assert.match(css, /\.resourceSummary\s*\{[\s\S]*display:\s*flex[\s\S]*overflow-x:\s*auto/s);
+  assert.match(css, /@media \(max-width: 620px\) and \(orientation: portrait\)[\s\S]*\.hudHeader[\s\S]*"resources"/s);
+  assert.match(css, /\.resourceChip\s*\{[\s\S]*flex:\s*0 0 auto/s);
 });

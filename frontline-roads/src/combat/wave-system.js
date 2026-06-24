@@ -4,6 +4,7 @@ import { spawnEnemy } from './enemy-system.js';
 import { enemyBaseLevelForState, waveIntervalForBase } from './enemy-scaling.js';
 import { INITIAL_BASE_TYPES, selectEnemyBaseNode } from './enemy-base-placement.js';
 import { enemyBehaviorForDefinition, waveDoctrineDefinition } from './enemy-personalities.js';
+import { enemyRegroupActive } from '../core/recovery-balance.js';
 
 export { INITIAL_BASE_TYPES } from './enemy-base-placement.js';
 
@@ -208,6 +209,7 @@ export class WaveSystem {
       state.combat.waves.resourceBaseCheckClock -= 30;
       this.ensureUnlockedBases(state);
     }
+    const regrouping = enemyRegroupActive(state);
     for (const base of state.world.enemyBases) {
       if (!base.alive) continue;
       const definition = ENEMY_BASE_DEFINITIONS[base.type];
@@ -219,6 +221,7 @@ export class WaveSystem {
         this.events?.emit('message', { text: `${definition.name}の脅威レベルがLv.${base.level}へ上昇しました。` });
         this.events?.emit('combat:enemy-base-level-up', { baseId: base.id, level: base.level });
       }
+      if (regrouping) continue;
       base.spawnClock = (base.spawnClock ?? 0) + deltaSeconds;
       const openingMultiplier = openingPressureLimited(state) ? OPENING_WAVE_INTERVAL_MULTIPLIER : 1;
       const interval = waveIntervalForBase(definition, base.level, state.world.city.hp)

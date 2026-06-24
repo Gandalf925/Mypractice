@@ -122,10 +122,10 @@ test('city recovers after a quiet period and a large update only heals post-cool
   state.world.enemyBases = [];
   state.combat.waves.resourceBaseCheckClock = -1000;
   state.world.city.hp = 40;
-  state.combat.cityRecoveryCooldown = 120;
+  state.combat.cityRecoveryCooldown = 75;
   const system = new CombatSystem();
   system.update(state, 180);
-  assert.ok(Math.abs(state.world.city.hp - 44.8) < 0.0001);
+  assert.ok(Math.abs(state.world.city.hp - 52.6) < 0.0001);
   assert.equal(state.combat.cityRecoveryCooldown, 0);
   system.update(state, 690);
   assert.equal(state.world.city.hp, 100);
@@ -141,10 +141,11 @@ test('city defeat never creates negative resources and reports unpaid emergency 
   const messages = [];
   const system = new CombatSystem({ emit(type, payload) { if (type === 'message') messages.push(payload.text); } });
   system.update(state, 0.1);
-  assert.equal(state.world.city.hp, 50);
+  assert.equal(state.world.city.hp, 60);
   assert.equal(state.inventory.resources.wood, 0);
   assert.equal(state.inventory.resources.stone, 0);
-  assert.equal(state.combat.cityRecoveryCooldown, 120);
-  assert.equal(state.world.enemyBases[0].spawnClock, -60);
-  assert.match(messages.at(-1), /備蓄不足/);
+  assert.equal(state.combat.cityRecoveryCooldown, 75);
+  assert.equal(state.world.enemyBases[0].spawnClock, 0);
+  assert.equal(state.combat.enemyRegroupUntil, state.runtime.worldTimeMs + 210000);
+  assert.match(messages.at(-1), /使い切らず|修理余力/);
 });

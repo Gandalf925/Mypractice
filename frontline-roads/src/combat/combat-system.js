@@ -1,4 +1,3 @@
-import { consumeBundle } from '../civilization/inventory-system.js';
 import { DefenseSystem } from './defense-system.js';
 import { EnemySystem, enemyPosition } from './enemy-system.js';
 import { WaveSystem } from './wave-system.js';
@@ -8,6 +7,7 @@ import { ExplorationSystem } from '../exploration/exploration-system.js';
 import { FriendlyForceSystem, friendlySquadPosition } from './friendly-force-system.js';
 import { RecoverySystem } from '../exploration/recovery-system.js';
 import { CITY_RECOVERY_DELAY_SECONDS, CITY_RECOVERY_HP_PER_SECOND } from './definitions.js';
+import { applyCityDefeatRecovery, beginEnemyRegroup } from '../core/recovery-balance.js';
 import {
   REGION_ACTIVITY,
   REGION_ACTIVITY_CONFIG,
@@ -108,23 +108,23 @@ export class CombatSystem {
 
     if (state.world.city.hp <= 0) {
       const opening = Math.max(0, Math.floor(Number(state.civilization?.level) || 0)) === 0;
-      state.world.city.hp = opening ? 50 : 35;
+      const recovery = applyCityDefeatRecovery(state, opening);
+      state.world.city.hp = recovery.hp;
       state.combat.cityRecoveryCooldown = CITY_RECOVERY_DELAY_SECONDS;
       state.combat.enemies = [];
       state.combat.waves.active = {};
       for (const base of state.world.enemyBases ?? []) {
-        if (base.alive) base.spawnClock = opening ? -60 : 0;
+        if (base.alive) base.spawnClock = 0;
       }
-      const recoveryCost = opening ? { wood: 12, stone: 8 } : { wood: 30, stone: 20 };
-      const paid = consumeBundle(state, recoveryCost);
+      beginEnemyRegroup(state, recovery.regroupSeconds);
       state.civilization.progress.perfectWaveStreak = 0;
-      this.events?.emit('combat:city-defeated', { recoveryCost, paid, openingProtection: opening });
+      this.events?.emit('combat:city-defeated', { recoveryCost: recovery.requested, paid: recovery.paid, fullyPaid: recovery.fullyPaid, recoveryReserve: recovery.reserve, openingProtection: opening });
       this.events?.emit('message', {
-        text: paid
+        text: recovery.fullyPaid
           ? opening
-            ? '序盤防衛線が崩壊しました。木材12・石材8で応急再編成し、敵の次回進軍を遅らせました。'
-            : '都市防衛線が崩壊し、木材30・石材20を使って緊急再編成しました。'
-          : '都市防衛線が崩壊しました。備蓄不足のため最低限の応急再編成だけが行われました。'
+            ? '序盤防衛線が崩壊しました。応急再編成後、修理用資源を残して敵の再進軍を遅らせました。'
+            : '都市防衛線が崩壊しました。緊急再編成後、修理用資源を確保して敵の再進軍を遅らせました。'
+          : '都市防衛線が崩壊しました。備蓄を使い切らず、最低限の再編成と修理余力を確保しました。'
       });
     }
   }

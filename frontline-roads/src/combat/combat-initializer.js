@@ -26,6 +26,7 @@ export function initializeCombatState(state) {
   state.combat.waves = { elapsed: 0, nextSpawnAt: null, active: {}, resourceBaseCheckClock: 30 };
   state.combat.pendingSettlementDamage = [];
   state.combat.cityRecoveryCooldown = 0;
+  state.combat.enemyRegroupUntil = 0;
   ensureCivilizationState(state, { initializeInventory: true });
   state.world.enemyBases = selectEnemyBasePlacements(graph, cityNodeId).map(placement => {
     const definition = ENEMY_BASE_DEFINITIONS[placement.type];
@@ -49,6 +50,7 @@ export function normalizeCombatState(state) {
   state.combat ??= {};
   state.combat.pendingSettlementDamage ??= [];
   state.combat.cityRecoveryCooldown = Math.max(0, Number(state.combat.cityRecoveryCooldown) || 0);
+  state.combat.enemyRegroupUntil = Math.max(0, Number(state.combat.enemyRegroupUntil) || 0);
   ensureFrontierState(state);
   ensureExplorationState(state);
   ensureCivilizationState(state, { initializeInventory: !state.runtime.combatInitialized });

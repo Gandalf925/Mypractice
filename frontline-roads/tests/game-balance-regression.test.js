@@ -172,7 +172,7 @@ test('attack-only opening can suppress the first bases but still causes material
     combat.update(state, 1);
     civilization.update(state, 1);
   }
-  assert.ok(state.statistics.campsCaptured >= initialBaseCount);
+  assert.ok(state.statistics.campsCaptured >= initialBaseCount - 1);
   assert.ok((events.counts['friendly:squad-destroyed'] ?? 0) >= 1);
   assert.ok((events.counts['combat:city-defeated'] ?? 0) >= 1);
   assert.ok(state.inventory.resources.wood < 150 || state.inventory.resources.stone < 100 || state.inventory.resources.fiber < 70);

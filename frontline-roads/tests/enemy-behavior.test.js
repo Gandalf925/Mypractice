@@ -121,6 +121,7 @@ test('specialist damages its selected facility and invalidates shared targets wh
   assert.equal(first.targetDefenseId, null);
   assert.equal(second.targetDefenseId, null);
   assert.equal(relay.disabledTimer, 8);
+  assert.equal(state.combat.enemyRegroupUntil, state.runtime.worldTimeMs + 150000);
 });
 
 

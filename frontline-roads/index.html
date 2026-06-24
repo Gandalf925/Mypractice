@@ -18,7 +18,7 @@
     #assetRecovery p { margin: 10px 0 0; color: #9fcfc2; line-height: 1.55; }
   </style>
   <script>
-    globalThis.__FRONTLINE_RELEASE__ = Object.freeze({ version: '0.32.0', directory: 'frontline-roads' });
+    globalThis.__FRONTLINE_RELEASE__ = Object.freeze({ version: '0.32.2', directory: 'frontline-roads' });
     globalThis.__FRONTLINE_STYLES_READY__ = (() => {
       const release = globalThis.__FRONTLINE_RELEASE__;
       const projectSegment = location.pathname.split('/').filter(Boolean)[0] ?? '';
@@ -90,18 +90,20 @@
     </section>
 
     <section id="playingHud" class="gameUi" hidden>
-      <div class="combatStats">
-        <span>都市 <strong id="cityHp">100</strong></span>
-        <span>敵 <strong id="enemyCount">0</strong></span>
-        <span>文明 <strong id="civilizationLevel">0</strong></span>
-      </div>
-      <div id="resourceSummary" class="resourceSummary" role="group" aria-label="保有資材"></div>
-      <div id="baseSummary" class="baseSummary">拠点設置済み</div>
-      <div id="storageWarning" class="storageWarning" hidden></div>
-      <div class="topActions">
-        <button id="baseCommandButton" type="button">BASES // 拠点</button>
-        <button id="civilizationButton" type="button">CIV // 文明</button>
-        <button id="menuButton" type="button">MENU</button>
+      <div class="hudHeader">
+        <div class="combatStats">
+          <span><small>本拠地HP</small><strong id="cityHp">100/100</strong></span>
+          <span><small>敵部隊</small><strong id="enemyCount">0</strong></span>
+          <span><small>文明Lv.</small><strong id="civilizationLevel">0</strong></span>
+        </div>
+        <div class="topActions">
+          <button id="baseCommandButton" type="button">BASES // 拠点</button>
+          <button id="civilizationButton" type="button">CIV // 文明</button>
+          <button id="menuButton" type="button">MENU</button>
+        </div>
+        <div id="resourceSummary" class="resourceSummary" role="group" aria-label="保有資材"></div>
+        <div id="baseSummary" class="baseSummary">拠点設置済み</div>
+        <div id="storageWarning" class="storageWarning" hidden></div>
       </div>
       <aside id="contextPanel" class="contextPanel" hidden>
         <strong id="contextTitle"></strong>
