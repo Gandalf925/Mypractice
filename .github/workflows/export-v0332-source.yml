@@ -1,0 +1,23 @@
+name: Export v0.33.2 source
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pack source tree
+        run: tar --exclude=.git --exclude=.github/workflows/export-v0332-source.yml -czf /tmp/Mypractice-v0.33.2.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mypractice-v0.33.2-source
+          path: /tmp/Mypractice-v0.33.2.tar.gz
+          if-no-files-found: error
+          retention-days: 1
