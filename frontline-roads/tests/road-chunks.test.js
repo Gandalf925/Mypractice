@@ -52,7 +52,7 @@ test('world chunks use deterministic grid ids and reversible centers', () => {
 
 test('initial chunk state does not assume that the cleaned initial graph fully covers surrounding chunks', () => {
   const state = createRoadChunkState();
-  assert.equal(state.version, 2);
+  assert.equal(state.version, 4);
   assert.deepEqual(state.loaded, []);
   assert.deepEqual(state.playerObserved, []);
 });

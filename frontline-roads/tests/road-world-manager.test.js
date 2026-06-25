@@ -26,7 +26,7 @@ function chunkGraph(id) {
       { id: 'node_1', x: 700, y: 0, chunkIds: [id] }
     ],
     edges: [{ id: 'next', a: 'node_0', b: 'node_1', length: 601, roadWidth: 5, lanes: 1, highway: 'residential', name: '', oneway: false, chunkIds: [id] }],
-    center: { lat: 35, lon: 139 }, source: 'test-chunk', roadSpecVersion: 2, chunkId: id
+    center: { lat: 35, lon: 139 }, source: 'test-chunk', roadSpecVersion: 3, chunkId: id, cacheVersion: 3
   });
 }
 
@@ -135,7 +135,7 @@ test('legacy unrelated coverage is released while graph-derived and explicitly m
 
   const migrated = ensureRoadChunkState(state.world);
 
-  assert.equal(migrated.version, 2);
+  assert.equal(migrated.version, 4);
   assert.deepEqual(migrated.loaded, ['0:0', '1:0']);
   assert.deepEqual(migrated.integrated, ['0:0', '1:0']);
   assert.deepEqual(migrated.playerObserved, ['0:0', '1:0']);
@@ -310,4 +310,32 @@ test('aborting road acquisition prevents a late response from repopulating reset
   assert.ok(!state.world.roadChunks.loaded.includes('1:0'));
   assert.equal(state.world.roadGraph.edges.length, 1);
   assert.ok(!statuses.some(status => status.type === 'loaded'));
+});
+
+test('an old cached empty graph is discarded and reacquired instead of blocking map growth', async () => {
+  const store = storeWithWorld();
+  const cache = new MemoryRoadChunkCache();
+  const id = '1:0';
+  const worldId = roadWorldId(store.read(state => state.world.roadGraph));
+  await cache.put(worldId, id, { nodes: [], edges: [], center: { lat: 35, lon: 139 }, chunkId: id });
+  store.transaction(state => { state.world.roadChunks.cached.push(id); });
+  let calls = 0;
+  const manager = new RoadWorldManager({
+    store,
+    cache,
+    roadService: {
+      async loadChunk({ chunkId }) {
+        calls += 1;
+        return chunkGraph(chunkId);
+      }
+    }
+  });
+
+  await manager.loadChunk(parseChunkId(id), store.read(state => state.world.roadGraph.center));
+
+  assert.equal(calls, 1);
+  assert.ok(store.read(state => state.world.roadChunks.loaded.includes(id)));
+  assert.ok(!store.read(state => state.world.roadChunks.empty.includes(id)));
+  assert.ok(store.read(state => state.world.roadChunks.cached.includes(id)));
+  assert.ok((await cache.get(worldId, id)).edges.length > 0);
 });

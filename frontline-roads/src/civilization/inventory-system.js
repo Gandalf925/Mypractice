@@ -50,7 +50,6 @@ export function recalculateCapacity(state, timestamp = state.runtime?.worldTimeM
   const base = { ...(currentCivilization(state).capacity ?? CIVILIZATIONS[0].capacity) };
   const counts = new Map();
   for (const building of state.civilization?.buildings ?? []) {
-    if (building.ruined || building.demolished) continue;
     const definition = SETTLEMENT_BUILDINGS[building.type];
     if (!definition?.capacityBonus) continue;
     const count = counts.get(building.type) ?? 0;

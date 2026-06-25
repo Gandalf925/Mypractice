@@ -19,7 +19,7 @@ test('radar preferences apply defaults and cycle without game state', () => {
   const preferences = new RadarPreferences({ documentRef, storage: null, environment, onChange: value => values.push(value) });
   assert.equal(documentRef.documentElement.dataset.radarQuality, 'balanced');
   documentRef.elements['#radarQualityButton'].handler();
-  assert.equal(preferences.get().quality, 'minimal');
+  assert.equal(preferences.get().quality, 'full');
   documentRef.elements['#radarMotionButton'].handler();
   assert.equal(typeof preferences.get().motion, 'boolean');
   assert.ok(values.length >= 3);
@@ -41,4 +41,6 @@ test('touch devices default to the power-saving radar profile', () => {
   const preferences = new RadarPreferences({ documentRef, storage: null, environment });
   assert.equal(preferences.get().quality, 'minimal');
   assert.equal(preferences.get().routes, 'off');
+  documentRef.elements['#radarQualityButton'].handler();
+  assert.equal(preferences.get().quality, 'balanced');
 });

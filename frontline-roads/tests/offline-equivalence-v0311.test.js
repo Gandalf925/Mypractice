@@ -53,7 +53,7 @@ function stationaryEnemy(id = 'enemy') {
 function gunTower() {
   return {
     id: 'gun', kind: 'tower', type: 'gun', line: 'single', tier: 0,
-    nodeId: 'home', hp: 150, maxHp: 150, cooldown: 0, disabledTimer: 0, ruined: false
+    nodeId: 'home', hp: 150, maxHp: 150, cooldown: 0, disabledTimer: 0
   };
 }
 

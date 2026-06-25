@@ -34,7 +34,7 @@ export const FRIENDLY_SQUAD_DEFINITIONS = Object.freeze({
     members: 7, hp: 290, speed: 1.15, enemyDps: 14, baseDps: 12, engagementRange: 20,
     allowedBaseKinds: Object.freeze(['MAJOR']), nonCombatRecoveryPerSecond: 1.4, recoveryDelaySeconds: 10,
     cost: Object.freeze({ timber: 14, rope: 5, bronzeIngot: 4, wroughtIron: 10 }),
-    description: '高い総合戦闘力を持ち、戦闘から離れると少量ずつ自己回復します。'
+    description: '高い総合戦闘力を持ち、戦闘から離れると少量ずつ自己回復します。さらに現在位置の周囲120mを移動式の建設圏として利用できます。'
   }),
   retrieval: Object.freeze({
     type: 'retrieval', name: '回収部隊', shortLabel: 'RECV', role: '遠隔回収', unlockLevel: 0,

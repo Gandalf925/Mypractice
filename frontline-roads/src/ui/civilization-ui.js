@@ -4,7 +4,7 @@ import {
 } from '../civilization/data.js';
 import { bundleText, currentCivilization } from '../civilization/inventory-system.js';
 import { evaluateProject, projectContributionReserve, safeProjectContributionAmount } from '../civilization/progression-system.js';
-import { queryRequired, setVisible } from './dom.js';
+import { bindDismissibleModal, queryRequired, setVisible } from './dom.js';
 import { baseLimitForCivilization } from '../base/player-bases.js';
 import { fieldBaseLimitForCivilization, fieldBaseSlotsUsed } from '../base/field-bases.js';
 import { diagnoseFieldBaseNetwork } from '../base/field-base-system.js';
@@ -25,13 +25,13 @@ function formatDuration(seconds) {
 
 const DEFENSE_LINE_LABELS = Object.freeze({
   barrier: '防壁', single: '単体攻撃', area: '範囲攻撃', slow: '減速支援', repair: '自動修復',
-  medical: '主要拠点治療', fieldAid: '簡易拠点救護', survey: '道路測量', gate: '門'
+  medical: '範囲回復', fieldBarracks: '前線兵舎', survey: '道路測量', gate: '門'
 });
 
 function defenseTierCatalog(state) {
   const level = Math.max(0, Math.min(4, Number(state.civilization?.level) || 0));
   return Object.entries(DEFENSE_LINE_LABELS).map(([line, label]) => {
-    const minimum = line === 'gate' ? 2 : ['survey', 'medical', 'fieldAid'].includes(line) ? 1 : 0;
+    const minimum = line === 'gate' ? 2 : ['survey', 'medical', 'fieldBarracks'].includes(line) ? 1 : 0;
     if (level < minimum) {
       return `<div class="defenseTierCard is-locked"><small>${label}</small><strong>文明Lv.${minimum}で解禁</strong><span>現在は利用できません</span></div>`;
     }
@@ -81,6 +81,7 @@ export class CivilizationUi {
     this.lastPanelRenderAt = 0;
     queryRequired('#civilizationButton').addEventListener('click', () => this.open());
     queryRequired('#closeCivilization').addEventListener('click', () => this.close());
+    bindDismissibleModal(this.panel, () => this.close());
     this.body.addEventListener('click', event => this.handleAction(event));
   }
 
@@ -201,32 +202,31 @@ export class CivilizationUi {
     const buildingCatalog = Object.entries(SETTLEMENT_BUILDINGS)
       .filter(([, definition]) => definition.level <= state.civilization.level)
       .map(([type, definition]) => {
-        const count = state.civilization.buildings.filter(building => building.type === type && !building.demolished).length;
+        const count = state.civilization.buildings.filter(building => building.type === type).length;
         return `<div class="catalogCard"><div><strong>${definition.name}</strong><p>${definition.description}</p><small>所有 ${count}・費用 ${bundleText(definition.cost)}</small></div><button data-action="build-building" data-type="${type}">建設</button></div>`;
       }).join('') || '<p class="emptyText">文明発展後に集落施設が解放されます。</p>';
 
-    const production = state.civilization.buildings.filter(building => !building.demolished).map(building => {
+    const production = state.civilization.buildings.map(building => {
       const definition = SETTLEMENT_BUILDINGS[building.type];
       const recipes = this.system.production.availableRecipes(state, building);
       const queue = state.civilization.productionQueues.find(item => item.buildingId === building.id);
       const summary = this.system.production.queueSummary(state, building.id);
-      const current = building.ruined ? '破壊済み' : queue?.current ? `${PRODUCTION_RECIPES[queue.current.recipeId].name} ${Math.floor(queue.current.elapsedSec)}/${queue.current.durationSec}秒` : queue?.waitingForResources ? '資源待ち' : '待機中';
+      const current = queue?.current ? `${PRODUCTION_RECIPES[queue.current.recipeId].name} ${Math.floor(queue.current.elapsedSec)}/${queue.current.durationSec}秒` : queue?.waitingForResources ? '資源待ち' : '待機中';
       const buffer = bundleText(building.outputBuffer ?? {});
       const recipeCards = recipes.map(recipe => {
         const maximum = this.system.production.maximumProducible(state, building.id, recipe.id).quantity;
-        const disabled = building.ruined ? 'disabled' : '';
-        return `<div class="productionRecipe"><div><strong>${recipe.name}</strong><small>1個：${bundleText(recipe.input)}・${formatDuration(recipe.seconds)}</small></div><div class="productionQuantity"><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="1" ${disabled}>+1</button><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="5" ${disabled}>+5</button><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="10" ${disabled}>+10</button><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="max" ${disabled || maximum <= 0 ? 'disabled' : ''}>最大 ${maximum}</button></div></div>`;
+        return `<div class="productionRecipe"><div><strong>${recipe.name}</strong><small>1個：${bundleText(recipe.input)}・${formatDuration(recipe.seconds)}</small></div><div class="productionQuantity"><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="1">+1</button><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="5">+5</button><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="10">+10</button><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="max" ${maximum <= 0 ? 'disabled' : ''}>最大 ${maximum}</button></div></div>`;
       }).join('') || '<span>生産レシピなし</span>';
-      return `<div class="productionCard ${building.ruined ? 'is-ruined' : ''}"><strong>${definition.name}</strong><p class="buildingDescription">${definition.description}</p><small>耐久 ${Math.ceil(building.hp)}/${building.maxHp}・${current}${summary.pendingUnits ? `・予約残 ${summary.pendingUnits}` : ''}</small>${buffer !== 'なし' ? `<small>保留：${buffer}</small>` : ''}<div class="recipeButtons">${recipeCards}</div><div class="buttonRow">${building.hp < building.maxHp ? `<button data-action="repair-building" data-building-id="${building.id}">修理</button>` : ''}${buffer !== 'なし' ? `<button data-action="collect-output" data-building-id="${building.id}">保留品を回収</button>` : ''}<button data-action="demolish-building" data-building-id="${building.id}">解体</button></div></div>`;
+      return `<div class="productionCard"><strong>${definition.name}</strong><p class="buildingDescription">${definition.description}</p><small>耐久 ${Math.ceil(building.hp)}/${building.maxHp}・${current}${summary.pendingUnits ? `・予約残 ${summary.pendingUnits}` : ''}</small>${buffer !== 'なし' ? `<small>保留：${buffer}</small>` : ''}<div class="recipeButtons">${recipeCards}</div><div class="buttonRow">${building.hp < building.maxHp ? `<button data-action="repair-building" data-building-id="${building.id}">修理</button>` : ''}${buffer !== 'なし' ? `<button data-action="collect-output" data-building-id="${building.id}">保留品を回収</button>` : ''}<button data-action="demolish-building" data-building-id="${building.id}">解体</button></div></div>`;
     }).join('') || '<p class="emptyText">生産施設はまだありません。</p>';
 
 
     this.body.innerHTML = `
-      <section class="civilizationOverview"><div><span>文明</span><strong>${civilization.name}</strong></div><div><span>中央施設</span><strong>${civilization.central}</strong></div><div><span>集落建設枠</span><strong>${state.civilization.buildings.filter(item => !item.demolished).length}/${civilization.slots}</strong></div><div><span>拠点上限</span><strong>主要 ${baseLimitForCivilization(state.civilization.level)}・簡易 ${fieldBaseSlotsUsed(state)}/${fieldBaseLimitForCivilization(state.civilization.level)}</strong></div></section>
+      <section class="civilizationOverview"><div><span>文明</span><strong>${civilization.name}</strong></div><div><span>中央施設</span><strong>${civilization.central}</strong></div><div><span>集落建設枠</span><strong>${state.civilization.buildings.length}/${civilization.slots}</strong></div><div><span>拠点上限</span><strong>主要 ${baseLimitForCivilization(state.civilization.level)}・簡易 ${fieldBaseSlotsUsed(state)}/${fieldBaseLimitForCivilization(state.civilization.level)}</strong></div></section>
       <section><h2>資源</h2><div class="resourceGrid">${resources}</div></section>
       <section><h2>文明発展</h2>${projectHtml}</section>
       <section><h2>防衛設備Tier</h2><p class="sectionNote">通常設備はTier 0、測量施設は文明Lv.1でTier 1から建設できます。文明レベルと同じTierまで、MAP上の既設設備を個別に強化できます。</p><div class="defenseTierGrid">${defenseTierCatalog(state)}</div></section>
-      <section><h2>派兵部隊</h2><p class="sectionNote">文明レベルごとに部隊種類と拠点ごとの部隊枠が増えます。現在は主要拠点 ${friendlySquadCapacityForBase(state, { kind: 'MAJOR' })}枠、簡易拠点 ${friendlySquadCapacityForBase(state, { kind: 'FIELD' })}枠です。簡易拠点からは突撃部隊・遊撃部隊・回収部隊、主要拠点からは全種類を派兵できます。</p><div class="defenseTierGrid">${friendlyUnitCatalog(state)}</div></section>
+      <section><h2>派兵部隊</h2><p class="sectionNote">文明レベルごとに部隊種類と拠点ごとの部隊枠が増えます。現在は主要拠点 ${friendlySquadCapacityForBase(state, { kind: 'MAJOR' })}枠、簡易拠点 ${friendlySquadCapacityForBase(state, { kind: 'FIELD' })}枠です。簡易拠点からは突撃部隊・遊撃部隊・回収部隊、主要拠点からは全種類を派兵できます。前線兵舎を置いた簡易拠点は部隊枠が1つ増えます。</p><div class="defenseTierGrid">${friendlyUnitCatalog(state)}</div></section>
       <section><h2>集落施設</h2><div class="catalogGrid">${buildingCatalog}</div></section>
       <section><h2>生産</h2>${production}</section>`;
   }

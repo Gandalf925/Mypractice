@@ -50,25 +50,28 @@ function normalizeDefenses(legacy, graph) {
   const defenses = [];
   const legacyTowers = legacy.towers ?? legacy.combat?.defenses?.filter(item => item.kind === 'tower') ?? [];
   for (const tower of legacyTowers) {
+    if (tower.ruined || Number(tower.hp) <= 0) continue;
     const line = tower.line ?? (tower.type === 'gun' ? 'single' : tower.type === 'mortar' ? 'area' : tower.type === 'slow' ? 'slow' : 'repair');
     defenses.push({
       id: tower.id, kind: 'tower', type: tower.type ?? 'gun', line,
       tier: Math.max(0, Number(tower.tier) || 0), defenseKey: tower.defenseKey ?? `${line}${Math.max(0, Number(tower.tier) || 0)}`,
       nodeId: tower.nodeId, hp: Math.max(0, Number(tower.hp) || 0), maxHp: Math.max(1, Number(tower.maxHp) || 150),
-      cooldown: Math.max(0, Number(tower.cooldown) || 0), disabledTimer: Math.max(0, Number(tower.disabledTimer) || 0),
-      ruined: Boolean(tower.ruined || Number(tower.hp) <= 0)
+      cooldown: Math.max(0, Number(tower.cooldown) || 0), disabledTimer: Math.max(0, Number(tower.disabledTimer) || 0)
     });
   }
   for (const edge of graph?.edges ?? []) {
     if (!edge.barrier) continue;
     const barrier = edge.barrier;
+    if (Number(barrier.hp) <= 0) {
+      edge.barrier = null;
+      continue;
+    }
     const tier = Math.max(0, Number(barrier.tier) || 0);
     defenses.push({
       id: barrier.id ?? `legacy_barrier_${edge.id}`, kind: 'barrier', type: 'barrier',
       line: barrier.isGate ? 'gate' : 'barrier', tier,
       defenseKey: barrier.defenseKey ?? `${barrier.isGate ? 'gate' : 'barrier'}${tier}`,
-      edgeId: edge.id, hp: Math.max(0, Number(barrier.hp) || 0), maxHp: Math.max(1, Number(barrier.maxHp) || 220),
-      ruined: Number(barrier.hp) <= 0, isGate: Boolean(barrier.isGate)
+      edgeId: edge.id, hp: Math.max(0, Number(barrier.hp) || 0), maxHp: Math.max(1, Number(barrier.maxHp) || 220), isGate: Boolean(barrier.isGate)
     });
     edge.barrier = null;
   }

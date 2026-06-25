@@ -62,6 +62,11 @@ function anchorPalette(anchor, affordable) {
     fill: 'rgba(101,215,255,0.016)',
     marker: '#65d7ff'
   };
+  if (anchor.kind === 'EXPEDITION') return {
+    stroke: 'rgba(244,245,154,0.62)',
+    fill: 'rgba(244,245,154,0.020)',
+    marker: '#f4f59a'
+  };
   return {
     stroke: 'rgba(101,255,208,0.48)',
     fill: 'rgba(101,255,208,0.014)',
@@ -74,13 +79,13 @@ function drawAnchor(context, camera, anchor, affordable, quality) {
   drawWorldCircle(context, camera, anchor.point, anchor.range ?? BUILD_RANGE_METERS, {
     stroke: palette.stroke,
     fill: palette.fill,
-    dash: anchor.id === 'player' ? [4, 5] : anchor.kind === 'FIELD' ? [3, 4] : [8, 7],
+    dash: anchor.id === 'player' ? [4, 5] : anchor.kind === 'FIELD' ? [3, 4] : anchor.kind === 'EXPEDITION' ? [2, 3] : [8, 7],
     width: 1.2
   });
   const point = camera.worldToScreen(anchor.point);
   context.save();
   context.strokeStyle = palette.marker;
-  context.fillStyle = anchor.id === 'player' ? 'rgba(255,209,102,0.22)' : 'rgba(101,255,208,0.22)';
+  context.fillStyle = anchor.id === 'player' ? 'rgba(255,209,102,0.22)' : anchor.kind === 'EXPEDITION' ? 'rgba(244,245,154,0.24)' : 'rgba(101,255,208,0.22)';
   context.lineWidth = 1.4;
   if (quality === 'full') {
     context.shadowColor = palette.marker;
@@ -169,7 +174,7 @@ function drawCandidate(context, camera, placement, timeMs, quality) {
   const color = affordable ? '#ffffff' : '#ffb454';
 
   drawCandidateAnchorLink(context, camera, placement, candidate, affordable);
-  const effectRadius = definition?.type === 'survey' ? definition.surveyRadius : ['medical', 'fieldAid'].includes(definition?.type) ? 0 : definition?.range;
+  const effectRadius = definition?.type === 'survey' ? definition.surveyRadius : definition?.type === 'fieldBarracks' ? 0 : definition?.range;
   if (definition?.kind === 'tower' && effectRadius > 0) {
     drawWorldCircle(context, camera, candidate.point, effectRadius, {
       stroke: definition?.type === 'survey' ? 'rgba(255,209,102,0.72)' : affordable ? 'rgba(101,215,255,0.72)' : 'rgba(255,180,84,0.68)',

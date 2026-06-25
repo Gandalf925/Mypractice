@@ -52,7 +52,7 @@ function stateWithFacilities() {
   return state;
 }
 
-test('same-schema saves missing the old initialization flag preserve gates and survey facilities', () => {
+test('same-schema saves missing the old initialization flag remove destroyed facilities and preserve active survey facilities', () => {
   const state = stateWithFacilities();
   delete state.runtime.combatInitialized;
   const storage = new MemoryStorage();
@@ -61,19 +61,14 @@ test('same-schema saves missing the old initialization flag preserve gates and s
   const restored = repository.load();
   normalizeRuntimeState(restored);
   assert.equal(restored.runtime.combatInitialized, true);
-  assert.deepEqual(restored.combat.defenses.map(defense => defense.id), ['broken-gate', 'survey-1']);
-  const gate = restored.combat.defenses[0];
-  assert.equal(gate.ruined, true);
-  assert.equal(gate.isGate, true);
-  assert.equal(gate.line, 'gate');
+  assert.deepEqual(restored.combat.defenses.map(defense => defense.id), ['survey-1']);
 });
 
-test('normalization marks zero-HP defenses as ruins without deleting them', () => {
+test('normalization removes zero-HP defenses even when legacy ruin flags are absent', () => {
   const state = stateWithFacilities();
   state.combat.defenses[0].ruined = false;
   normalizeRuntimeState(state);
-  assert.equal(state.combat.defenses.length, 2);
-  assert.equal(state.combat.defenses[0].ruined, true);
+  assert.deepEqual(state.combat.defenses.map(defense => defense.id), ['survey-1']);
 });
 
 test('loaded road chunks are reconstructed from the persisted graph so survey can expand from initial roads', () => {
@@ -112,15 +107,15 @@ test('survey network failures become retry-wait state instead of a permanent raw
   manager.abort();
 });
 
-test('critical facility operations persist immediately and destroyed gates have an explicit open-road marker', async () => {
+test('critical facility operations persist immediately and obsolete wreck UI is absent', async () => {
   const combatUi = await readFile(new URL('../src/ui/combat-ui.js', import.meta.url), 'utf8');
   const bootstrap = await readFile(new URL('../src/app/bootstrap.js', import.meta.url), 'utf8');
   const renderer = await readFile(new URL('../src/rendering/combat-renderer.js', import.meta.url), 'utf8');
   assert.match(combatUi, /if \(result\?\.ok\) this\.persist\?\.\(\)/);
   assert.match(combatUi, /this\.persist\?\.\(\);\n\s*this\.notifications\.show\(`\$\{DEFENSE_DEFINITIONS/);
   assert.match(bootstrap, /combat:defense-destroyed['"], \(\) => this\.queueCriticalSave\(\)/);
+  assert.match(bootstrap, /civilization:building-destroyed['"], \(\) => this\.queueCriticalSave\(\)/);
   assert.match(bootstrap, /addEventListener\?\.\('pagehide'/);
-  assert.match(renderer, /function drawRuinedGate/);
-  assert.match(renderer, /fillText\('OPEN'/);
-  assert.match(combatUi, /破壊済み・敵通行可/);
+  assert.doesNotMatch(renderer, /drawRuinedGate|drawRuinedDefense|fillText\('OPEN'|fillText\('FIX'/);
+  assert.doesNotMatch(combatUi, /破壊済み・敵通行可|残骸を撤去/);
 });

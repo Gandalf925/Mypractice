@@ -1,5 +1,5 @@
 const STORAGE_KEY = 'frontline_roads_radar_preferences_v2';
-const QUALITY_VALUES = ['full', 'balanced', 'minimal'];
+const QUALITY_VALUES = ['minimal', 'balanced', 'full'];
 const ROUTE_VALUES = ['priority', 'all', 'off'];
 
 function safeStorage(environment = globalThis) {

@@ -1,4 +1,4 @@
-import { MAJOR_HIGHWAYS } from './road-constants.js';
+import { stableId } from '../core/utilities.js';
 import { xyToLatLon } from '../location/location-privacy.js';
 
 class DisjointSet {
@@ -20,13 +20,26 @@ class DisjointSet {
   }
 }
 
+function sameElevationModel(first, second) {
+  return first.segment.layer === second.segment.layer
+    && first.segment.bridge === second.segment.bridge
+    && first.segment.tunnel === second.segment.tunnel;
+}
+
 function canConnect(first, second) {
-  const a = first.segment;
-  const b = second.segment;
-  if (a.layer !== b.layer) return false;
-  if (a.bridge !== b.bridge || a.tunnel !== b.tunnel) return false;
-  if (first.sourceNodeId && second.sourceNodeId && first.sourceNodeId === second.sourceNodeId) return true;
-  return true;
+  if (!sameElevationModel(first, second)) return false;
+  const firstId = first.sourceNodeId;
+  const secondId = second.sourceNodeId;
+  if (firstId && secondId) return firstId === secondId;
+  return Math.hypot(first.x - second.x, first.y - second.y) <= 1.5;
+}
+
+function nodeIdForGroup(group) {
+  const sourceIds = [...new Set(group.map(point => point.sourceNodeId).filter(Boolean))].sort();
+  if (sourceIds.length > 0) return stableId('osm-node', ...sourceIds);
+  const x = group.reduce((sum, point) => sum + point.x, 0) / group.length;
+  const y = group.reduce((sum, point) => sum + point.y, 0) / group.length;
+  return stableId('road-node', Math.round(x * 10), Math.round(y * 10));
 }
 
 export function clusterSegmentEndpoints(segments, center) {
@@ -39,7 +52,7 @@ export function clusterSegmentEndpoints(segments, center) {
   }
 
   const sets = new DisjointSet(points.length);
-  const cellSize = 14;
+  const cellSize = 4;
   const buckets = new Map();
 
   for (let index = 0; index < points.length; index += 1) {
@@ -51,12 +64,7 @@ export function clusterSegmentEndpoints(segments, center) {
         for (const otherIndex of buckets.get(`${cx + dx},${cy + dy}`) ?? []) {
           const other = points[otherIndex];
           if (point.segment === other.segment || !canConnect(point, other)) continue;
-          const sharedOsmNode = point.sourceNodeId && other.sourceNodeId && point.sourceNodeId === other.sourceNodeId;
-          const gap = Math.hypot(point.x - other.x, point.y - other.y);
-          const sameNamed = point.segment.name && point.segment.name === other.segment.name;
-          const bothMajor = MAJOR_HIGHWAYS.has(point.segment.highway) && MAJOR_HIGHWAYS.has(other.segment.highway);
-          const threshold = sharedOsmNode ? 24 : sameNamed ? 16 : bothMajor ? 13 : 8;
-          if (gap <= threshold) sets.union(index, otherIndex);
+          sets.union(index, otherIndex);
         }
       }
     }
@@ -74,11 +82,17 @@ export function clusterSegmentEndpoints(segments, center) {
 
   const nodes = [];
   const nodeByRoot = new Map();
+  const usedIds = new Set();
   for (const [root, group] of groups) {
     const x = group.reduce((sum, point) => sum + point.x, 0) / group.length;
     const y = group.reduce((sum, point) => sum + point.y, 0) / group.length;
     const location = xyToLatLon(x, y, center);
-    const node = { id: `node_${nodes.length}`, x, y, lat: location.lat, lon: location.lon };
+    const sourceNodeIds = [...new Set(group.map(point => point.sourceNodeId).filter(Boolean))].sort();
+    let id = nodeIdForGroup(group);
+    let sequence = 1;
+    while (usedIds.has(id)) id = `${nodeIdForGroup(group)}_${sequence++}`;
+    usedIds.add(id);
+    const node = { id, x, y, lat: location.lat, lon: location.lon, sourceNodeIds };
     nodes.push(node);
     nodeByRoot.set(root, node);
   }

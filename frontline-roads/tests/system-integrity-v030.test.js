@@ -75,7 +75,7 @@ test('project-only trial bronze goes directly to the active project and cannot b
   state.civilization.level = 2;
   ensureCivilizationState(state, { initializeInventory: true });
   state.civilization.buildings.push({
-    id: 'trial-furnace', type: 'trialBronzeFurnace', hp: 240, maxHp: 240, ruined: false, demolished: false,
+    id: 'trial-furnace', type: 'trialBronzeFurnace', hp: 240, maxHp: 240,
     outputBuffer: {}, history: { produced: 0, repairs: 0 }
   });
   Object.assign(state.inventory.resources, { copperIngot: 3, tinIngot: 1, charcoal: 2, bronzeIngot: 0 });
@@ -98,9 +98,9 @@ test('actual smelting chains turn scheduled resource-camp rewards into the manda
   ensureCivilizationState(bronzeState, { initializeInventory: true });
   bronzeState.inventory.capacity = { base: 5000, processed: 5000, ore: 5000, metal: 5000 };
   bronzeState.civilization.buildings.push(
-    { id: 'copper', type: 'copperFurnace', hp: 240, maxHp: 240, ruined: false, demolished: false, outputBuffer: {}, history: { produced: 0, repairs: 0 } },
-    { id: 'tin', type: 'tinFurnace', hp: 240, maxHp: 240, ruined: false, demolished: false, outputBuffer: {}, history: { produced: 0, repairs: 0 } },
-    { id: 'trial', type: 'trialBronzeFurnace', hp: 240, maxHp: 240, ruined: false, demolished: false, outputBuffer: {}, history: { produced: 0, repairs: 0 } }
+    { id: 'copper', type: 'copperFurnace', hp: 240, maxHp: 240, outputBuffer: {}, history: { produced: 0, repairs: 0 } },
+    { id: 'tin', type: 'tinFurnace', hp: 240, maxHp: 240, outputBuffer: {}, history: { produced: 0, repairs: 0 } },
+    { id: 'trial', type: 'trialBronzeFurnace', hp: 240, maxHp: 240, outputBuffer: {}, history: { produced: 0, repairs: 0 } }
   );
   Object.assign(bronzeState.inventory.resources, {
     copperOre: ENEMY_BASE_DEFINITIONS.copperCamp.reward.copperOre,
@@ -123,8 +123,8 @@ test('actual smelting chains turn scheduled resource-camp rewards into the manda
   ensureCivilizationState(ironState, { initializeInventory: true });
   ironState.inventory.capacity = { base: 5000, processed: 5000, ore: 5000, metal: 5000 };
   ironState.civilization.buildings.push(
-    { id: 'bloomery', type: 'bloomery', hp: 240, maxHp: 240, ruined: false, demolished: false, outputBuffer: {}, history: { produced: 0, repairs: 0 } },
-    { id: 'forge', type: 'forge', hp: 240, maxHp: 240, ruined: false, demolished: false, outputBuffer: {}, history: { produced: 0, repairs: 0 } }
+    { id: 'bloomery', type: 'bloomery', hp: 240, maxHp: 240, outputBuffer: {}, history: { produced: 0, repairs: 0 } },
+    { id: 'forge', type: 'forge', hp: 240, maxHp: 240, outputBuffer: {}, history: { produced: 0, repairs: 0 } }
   );
   Object.assign(ironState.inventory.resources, {
     ironOre: ENEMY_BASE_DEFINITIONS.ironCamp.reward.ironOre * CIVILIZATION_PROJECTS[4].progress.ironCampsCaptured,
@@ -183,7 +183,7 @@ test('upgraded tower ranges affect evasive route selection', () => {
     { id: 'outer-a', a: 'start', b: 'outer', length: 100 },
     { id: 'outer-b', a: 'outer', b: 'city', length: 250 }
   ], 'city');
-  const tower = { id: 'mortar', kind: 'tower', type: 'mortar', line: 'area', tier: 0, nodeId: 'tower', hp: 150, maxHp: 150, ruined: false };
+  const tower = { id: 'mortar', kind: 'tower', type: 'mortar', line: 'area', tier: 0, nodeId: 'tower', hp: 150, maxHp: 150 };
   state.combat.defenses = [tower];
   assert.deepEqual(findCombatPath(state, 'start', 'city', 'scout').edgeIds, ['direct-a', 'direct-b']);
   tower.tier = 4;

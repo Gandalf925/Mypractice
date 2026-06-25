@@ -1,6 +1,6 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const CACHE_NAME = `${CACHE_PREFIX}v0-32-4-survey-range-reliability`;
+const CACHE_NAME = `${CACHE_PREFIX}v0-32-10-modal-display-recovery`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -34,6 +34,7 @@ const APP_SHELL = [
   './src/combat/combat-initializer.js',
   './src/combat/combat-system.js',
   './src/combat/combat-spatial-index.js',
+  './src/combat/defense-lifecycle.js',
   './src/combat/defense-system.js',
   './src/combat/defense-presentation.js',
   './src/combat/definitions.js',
@@ -43,6 +44,7 @@ const APP_SHELL = [
   './src/combat/enemy-base-placement.js',
   './src/combat/enemy-personalities.js',
   './src/combat/friendly-force-definitions.js',
+  './src/combat/friendly-healing-system.js',
   './src/combat/friendly-recovery-system.js',
   './src/combat/friendly-force-system.js',
   './src/combat/friendly-route-planner.js',
@@ -89,7 +91,7 @@ const APP_SHELL = [
   './src/roads/graph-cleanup.js',
   './src/roads/intersection-clustering.js',
   './src/roads/overpass-client.js',
-  './src/roads/parallel-road-collapse.js',
+  './src/roads/sandbox-jsonp-transport.js',
   './src/roads/road-constants.js',
   './src/roads/road-filter.js',
   './src/roads/road-graph.js',

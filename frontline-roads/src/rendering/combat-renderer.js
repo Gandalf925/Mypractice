@@ -127,37 +127,12 @@ function drawGate(context, point, angle, quality) {
   context.restore();
 }
 
-function drawRuinedGate(context, point, angle, timeMs, quality) {
-  const pulse = 14 + Math.sin(timeMs * 0.006) * 1.8;
-  context.save();
-  glow(context, '#ff5268', 16, quality);
-  ring(context, point, pulse, '#ff5268', 1.8, 0.95, true);
-  context.translate(point.x, point.y);
-  context.rotate(angle);
-  context.strokeStyle = '#ff6b7d';
-  context.lineWidth = 2.2;
-  context.beginPath();
-  context.moveTo(-12, -7); context.lineTo(-12, 7);
-  context.moveTo(-12, -7); context.lineTo(-5, -2);
-  context.moveTo(12, -7); context.lineTo(12, 7);
-  context.moveTo(12, -7); context.lineTo(5, 2);
-  context.stroke();
-  context.restore();
-  context.save();
-  context.fillStyle = '#ff9aaa';
-  context.font = '900 7px ui-monospace, monospace';
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
-  context.fillText('OPEN', point.x, point.y + 17);
-  context.restore();
-}
-
 function defenseColor(type) {
   if (type === 'mortar') return '#ffbc73';
   if (type === 'relay') return '#68ffd4';
   if (type === 'survey') return '#ffd166';
   if (type === 'medical') return '#ff8fb3';
-  if (type === 'fieldAid') return '#91f0b5';
+  if (type === 'fieldBarracks') return '#91f0b5';
   if (type === 'slow') return '#bb8cff';
   return '#65d7ff';
 }
@@ -172,31 +147,6 @@ function drawDefense(context, point, type, quality, icon = '?') {
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   context.fillText(icon, point.x, point.y + 0.5);
-  context.restore();
-}
-
-function drawRuinedDefense(context, point, icon, timeMs, quality) {
-  const pulse = 12 + Math.sin(timeMs * 0.006) * 1.6;
-  context.save();
-  glow(context, '#ff5268', 16, quality);
-  ring(context, point, pulse, '#ff5268', 1.6, 0.9, true);
-  ring(context, point, 9.5, '#ffc857', 1.3, 0.9);
-  context.strokeStyle = '#ff5268';
-  context.lineWidth = 2;
-  context.beginPath();
-  context.moveTo(point.x - 6, point.y - 6);
-  context.lineTo(point.x + 6, point.y + 6);
-  context.moveTo(point.x + 6, point.y - 6);
-  context.lineTo(point.x - 6, point.y + 6);
-  context.stroke();
-  context.fillStyle = '#fff0d3';
-  context.font = '800 8px ui-monospace, monospace';
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
-  context.fillText(icon, point.x, point.y + 0.5);
-  context.fillStyle = '#ff9aaa';
-  context.font = '800 7px ui-monospace, monospace';
-  context.fillText('FIX', point.x, point.y + 16);
   context.restore();
 }
 
@@ -336,7 +286,7 @@ export function drawCombatState(context, state, camera, radar = {}) {
 
   for (const defense of state.combat.defenses ?? []) {
     const runtime = defenseRuntimeDefinition(defense);
-    const ruined = defense.hp <= 0 || defense.ruined;
+    if (defense.hp <= 0) continue;
     if (defense.kind === 'barrier') {
       const middle = edgeMidpoint(graph, defense.edgeId);
       if (!middle) continue;
@@ -346,21 +296,17 @@ export function drawCombatState(context, state, camera, radar = {}) {
       const b = edge && graph.nodeById.get(edge.b);
       if (!a || !b || !visiblePoint(point, camera)) continue;
       const angle = Math.atan2(b.y - a.y, b.x - a.x);
-      if (ruined) {
-        if (defense.isGate) drawRuinedGate(context, point, angle, timeMs, quality);
-        else drawRuinedDefense(context, point, runtime.icon ?? '▰', timeMs, quality);
-      } else if (defense.isGate) drawGate(context, point, angle, quality);
+      if (defense.isGate) drawGate(context, point, angle, quality);
       else drawBarrier(context, point, angle, quality);
-      if (!ruined && shouldDrawHealth(defense.hp, defense.maxHp, quality)) drawHealthBar(context, point, defense.hp, defense.maxHp, 22, 9, quality);
+      if (shouldDrawHealth(defense.hp, defense.maxHp, quality)) drawHealthBar(context, point, defense.hp, defense.maxHp, 22, 9, quality);
       continue;
     }
     const node = graph.nodeById.get(defense.nodeId);
     if (!node) continue;
     const point = camera.worldToScreen(node);
     if (!visiblePoint(point, camera)) continue;
-    if (ruined) drawRuinedDefense(context, point, runtime.icon ?? '?', timeMs, quality);
-    else drawDefense(context, point, defense.type, quality, runtime.icon ?? '?');
-    if (!ruined && shouldDrawHealth(defense.hp, defense.maxHp, quality)) drawHealthBar(context, point, defense.hp, defense.maxHp, 20, 11, quality);
+    drawDefense(context, point, defense.type, quality, runtime.icon ?? '?');
+    if (shouldDrawHealth(defense.hp, defense.maxHp, quality)) drawHealthBar(context, point, defense.hp, defense.maxHp, 20, 11, quality);
   }
 
   if (quality !== 'minimal') {

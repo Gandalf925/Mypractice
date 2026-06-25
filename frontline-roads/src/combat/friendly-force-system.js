@@ -19,6 +19,7 @@ import {
   friendlySquadEnemyDamage,
   friendlySquadUnlocked
 } from './friendly-force-definitions.js';
+import { defenseRuntimeDefinition } from './definitions.js';
 import {
   RECOVERY_ITEM_STATUS,
   SQUAD_RECOVERY_COLLECTION_DURATION_SECONDS,
@@ -46,7 +47,7 @@ export const FRIENDLY_SQUAD_STATUS = Object.freeze({
   READY: FRIENDLY_RECOVERY_STATUS.READY
 });
 
-export const FRIENDLY_SQUAD_MISSION = Object.freeze({ ATTACK: 'ATTACK', RECOVERY: 'RECOVERY' });
+export const FRIENDLY_SQUAD_MISSION = Object.freeze({ ATTACK: 'ATTACK', INTERCEPT: 'INTERCEPT', RECOVERY: 'RECOVERY' });
 
 export const FRIENDLY_SQUAD_ORDER = Object.freeze({
   ADVANCE: 'ADVANCE',
@@ -94,8 +95,11 @@ export function ensureFriendlyForceState(state) {
         : FRIENDLY_SQUAD_ORDER.ADVANCE;
     squad.missionType = squad.missionType === FRIENDLY_SQUAD_MISSION.RECOVERY || definition.missionKind === 'RECOVERY'
       ? FRIENDLY_SQUAD_MISSION.RECOVERY
-      : FRIENDLY_SQUAD_MISSION.ATTACK;
+      : squad.missionType === FRIENDLY_SQUAD_MISSION.INTERCEPT || squad.targetEnemyId
+        ? FRIENDLY_SQUAD_MISSION.INTERCEPT
+        : FRIENDLY_SQUAD_MISSION.ATTACK;
     squad.missionTargetBaseId ??= squad.targetBaseId ?? null;
+    squad.targetEnemyId ??= null;
     squad.targetRecoveryItemId ??= null;
     squad.recoveryCollectionProgressSec = squad.recoveryCollectionProgressSec == null
       ? null
@@ -119,9 +123,9 @@ export function ensureFriendlyForceState(state) {
     squad.recoveryBaseId ??= null;
     squad.recoveryStartedAt = Number(squad.recoveryStartedAt) || null;
     squad.reorganizationRemaining = Math.max(0, Number(squad.reorganizationRemaining) || 0);
-    squad.recoveryTargetHp = Math.max(squad.hp, Math.min(squad.maxHp, Number(squad.recoveryTargetHp) || squad.hp));
-    squad.recoveryFacilityType ??= null;
-    squad.recoveryFacilityId ??= null;
+    delete squad.recoveryTargetHp;
+    delete squad.recoveryFacilityType;
+    delete squad.recoveryFacilityId;
     squad.readyAt = Number(squad.readyAt) || null;
   }
   return state.combat.friendlySquads;
@@ -139,13 +143,26 @@ function squadsFromBase(state, baseId) {
   return (state.combat?.friendlySquads ?? []).filter(squad => squad.originBaseId === baseId && squad.hp > 0);
 }
 
+function fieldBarracksCapacityBonus(state, baseId) {
+  if (!baseId) return 0;
+  const facility = (state.combat?.defenses ?? []).find(defense =>
+    defense.type === 'fieldBarracks'
+    && defense.baseId === baseId
+    && defense.hp > 0
+    && (defense.disabledTimer ?? 0) <= 0
+  );
+  if (!facility) return 0;
+  return Math.max(0, Math.floor(Number(defenseRuntimeDefinition(facility).squadCapacityBonus) || 0));
+}
+
 export function friendlySquadCapacityForBase(state, baseOrId) {
   const base = typeof baseOrId === 'string' ? ownedBaseById(state, baseOrId, { includeDestroyed: true }) : baseOrId;
   if (!base) return 0;
   const civilizationLevel = Math.max(0, Math.floor(Number(state.civilization?.level) || 0));
-  return base.kind === 'FIELD'
-    ? 2 + Math.floor(civilizationLevel / 2)
-    : 2 + civilizationLevel;
+  if (base.kind === 'FIELD') {
+    return 2 + Math.floor(civilizationLevel / 2) + fieldBarracksCapacityBonus(state, base.id);
+  }
+  return 2 + civilizationLevel;
 }
 
 export function friendlySquadCapacityStatus(state, baseOrId) {
@@ -183,27 +200,55 @@ function reservePlanningSlot(planning, preview) {
   );
 }
 
-function deploymentTarget(state, definition, targetId) {
+export function enemyPursuitNodeId(state, enemy) {
+  const graph = state.world?.roadGraph;
+  if (!graph || !enemy) return null;
+  const pathNodeIds = Array.isArray(enemy.path?.nodeIds) ? enemy.path.nodeIds : [];
+  const nextNodeId = pathNodeIds.length
+    ? pathNodeIds[Math.min(Math.max(0, Number(enemy.pathIndex) || 0) + 1, pathNodeIds.length - 1)]
+    : null;
+  if (nextNodeId && graph.nodeById.has(nextNodeId)) return nextNodeId;
+  return graph.nodeById.has(enemy.nodeId) ? enemy.nodeId : null;
+}
+
+function deploymentTarget(state, definition, targetId, targetKind = 'enemyBase') {
   if (definition.missionKind === 'RECOVERY') {
     if (state.world.recoveryCollection?.itemId === targetId) return null;
     const item = (state.world?.recoveryItems ?? []).find(value => value.id === targetId && value.status === RECOVERY_ITEM_STATUS.AVAILABLE) ?? null;
-    return item ? { target: item, nodeId: item.nodeId, missionType: FRIENDLY_SQUAD_MISSION.RECOVERY } : null;
+    return item ? { target: item, nodeId: item.nodeId, missionType: FRIENDLY_SQUAD_MISSION.RECOVERY, targetKind: 'recoveryItem' } : null;
+  }
+  if (targetKind === 'enemy') {
+    const enemy = state.combat.enemies.find(value => value.id === targetId && value.hp > 0 && value.departDelay <= 0) ?? null;
+    const nodeId = enemyPursuitNodeId(state, enemy);
+    return enemy && nodeId ? { target: enemy, nodeId, missionType: FRIENDLY_SQUAD_MISSION.INTERCEPT, targetKind: 'enemy' } : null;
   }
   const base = state.world.enemyBases.find(value => value.id === targetId && value.alive && value.hp > 0) ?? null;
-  return base ? { target: base, nodeId: base.nodeId, missionType: FRIENDLY_SQUAD_MISSION.ATTACK } : null;
+  return base ? { target: base, nodeId: base.nodeId, missionType: FRIENDLY_SQUAD_MISSION.ATTACK, targetKind: 'enemyBase' } : null;
 }
 
-export function previewFriendlyDeployment(state, squadType, originBaseId, targetId, planning = null) {
+function unavailableTargetReason(definition, targetKind) {
+  if (definition.missionKind === 'RECOVERY') return '回収可能な特殊アイテムではありません。';
+  if (targetKind === 'enemy') return '迎撃可能な敵部隊ではありません。';
+  return '攻撃可能な敵拠点ではありません。';
+}
+
+function unreachableTargetReason(definition, targetKind) {
+  if (definition.missionKind === 'RECOVERY') return '回収地点へ到達できる道路経路がありません。';
+  if (targetKind === 'enemy') return '敵部隊の進路へ到達できる道路経路がありません。';
+  return '敵拠点へ到達できる道路経路がありません。';
+}
+
+export function previewFriendlyDeployment(state, squadType, originBaseId, targetId, planning = null, targetKind = 'enemyBase') {
   const definition = FRIENDLY_SQUAD_DEFINITIONS[squadType];
   if (!definition) return { ok: false, reason: '選択した部隊種類は存在しません。' };
   if (!friendlySquadUnlocked(state, squadType)) return { ok: false, reason: `${definition.name}は文明Lv.${definition.unlockLevel}で解禁されます。`, definition };
   const origin = ownedBaseById(state, originBaseId);
   if (!origin || origin.status !== 'ESTABLISHED' || origin.hp <= 0) return { ok: false, reason: '出撃可能な拠点ではありません。', definition };
   if (!deploymentBases(state, squadType).some(base => base.id === origin.id)) return { ok: false, reason: `この拠点から${definition.name}は派兵できません。`, definition };
-  const resolved = deploymentTarget(state, definition, targetId);
-  if (!resolved) return { ok: false, reason: definition.missionKind === 'RECOVERY' ? '回収可能な特殊アイテムではありません。' : '攻撃可能な敵拠点ではありません。', definition };
+  const resolved = deploymentTarget(state, definition, targetId, targetKind);
+  if (!resolved) return { ok: false, reason: unavailableTargetReason(definition, targetKind), definition };
   const path = findRoadPath(state, origin.nodeId, resolved.nodeId);
-  if (!path) return { ok: false, reason: definition.missionKind === 'RECOVERY' ? '回収地点へ到達できる道路経路がありません。' : '敵拠点へ到達できる道路経路がありません。', definition };
+  if (!path) return { ok: false, reason: unreachableTargetReason(definition, targetKind), definition };
 
   const assignedSquads = squadsFromBase(state, origin.id);
   const capacity = friendlySquadCapacityForBase(state, origin);
@@ -243,6 +288,7 @@ export function previewFriendlyDeployment(state, squadType, originBaseId, target
     origin,
     target: resolved.target,
     missionType: resolved.missionType,
+    targetKind: resolved.targetKind,
     path,
     routeDistance: path.cost,
     cost: { ...deploymentCost },
@@ -277,6 +323,7 @@ function instantiateFriendlySquad(state, preview, squadType, originBaseId, targe
     originBaseId,
     targetBaseId: preview.missionType === FRIENDLY_SQUAD_MISSION.ATTACK ? targetId : null,
     missionTargetBaseId: preview.missionType === FRIENDLY_SQUAD_MISSION.ATTACK ? targetId : null,
+    targetEnemyId: preview.missionType === FRIENDLY_SQUAD_MISSION.INTERCEPT ? targetId : null,
     targetRecoveryItemId: preview.missionType === FRIENDLY_SQUAD_MISSION.RECOVERY ? targetId : null,
     recoveryCollectionProgressSec: null,
     nodeId: preview.origin.nodeId,
@@ -289,17 +336,21 @@ function instantiateFriendlySquad(state, preview, squadType, originBaseId, targe
     formationSpeed: formation?.speed ?? null,
     formationSize: formation?.size ?? null,
     recoveryBaseId: null, recoveryStartedAt: null, reorganizationRemaining: 0,
-    recoveryTargetHp: squad.hp, recoveryFacilityType: null, recoveryFacilityId: null, readyAt: null, deployedAt: worldTime
+    readyAt: null, deployedAt: worldTime
   });
   if (!preview.reuseReadySquad) state.combat.friendlySquads.push(squad);
   events?.emit('friendly:squad-deployed', { squad, origin: preview.origin, target: preview.target, cost: preview.cost, redeployed: preview.reuseReadySquad, formationId: formation?.id ?? null });
-  const targetLabel = preview.missionType === FRIENDLY_SQUAD_MISSION.RECOVERY ? `${recoveryItemPresentation(preview.target).name}の回収へ` : '';
+  const targetLabel = preview.missionType === FRIENDLY_SQUAD_MISSION.RECOVERY
+    ? `${recoveryItemPresentation(preview.target).name}の回収へ`
+    : preview.missionType === FRIENDLY_SQUAD_MISSION.INTERCEPT
+      ? '指定敵部隊の迎撃へ'
+      : '';
   events?.emit('message', { text: preview.reuseReadySquad ? `${preview.origin.name}から${definition.name}が${targetLabel || '再'}出撃しました。` : `${preview.origin.name}から${definition.name}が${targetLabel || ''}出撃しました。` });
   return { squad, cost: preview.cost, routeDistance: preview.routeDistance, redeployed: preview.reuseReadySquad, replaced: preview.replaceReadySquad };
 }
 
-export function dispatchFriendlySquad(state, squadType, originBaseId, targetId, events = null) {
-  const preview = previewFriendlyDeployment(state, squadType, originBaseId, targetId);
+export function dispatchFriendlySquad(state, squadType, originBaseId, targetId, events = null, targetKind = 'enemyBase') {
+  const preview = previewFriendlyDeployment(state, squadType, originBaseId, targetId, null, targetKind);
   if (!preview.ok) return preview;
 
   let reservation = null;
@@ -347,7 +398,7 @@ export function previewCoordinatedDeployment(state, targetId, squadTypes) {
   for (const item of assignmentOrder) {
     if (!friendlySquadUnlocked(state, item.type)) return { ok: false, reason: `${item.definition.name}は文明Lv.${item.definition.unlockLevel}で解禁されます。`, assignments };
     const candidates = deploymentBases(state, item.type)
-      .map(base => previewFriendlyDeployment(state, item.type, base.id, targetId, planning))
+      .map(base => previewFriendlyDeployment(state, item.type, base.id, targetId, planning, 'enemyBase'))
       .filter(preview => preview.origin && preview.path && !/部隊枠が満員/.test(preview.reason ?? ''))
       .sort((left, right) =>
         (left.routeDistance ?? Infinity) - (right.routeDistance ?? Infinity)
@@ -508,6 +559,9 @@ export function issueFriendlyRouteOrder(state, squadId, { order, path, destinati
     if (squad.missionType === FRIENDLY_SQUAD_MISSION.RECOVERY) {
       advanceTarget = (state.world?.recoveryItems ?? []).find(item => item.id === squad.targetRecoveryItemId && item.assignedSquadId === squad.id && [RECOVERY_ITEM_STATUS.RESERVED, RECOVERY_ITEM_STATUS.CARRIED].includes(item.status)) ?? null;
       if (!advanceTarget) return { ok: false, reason: '回収目標が失われています。撤退してください。' };
+    } else if (squad.missionType === FRIENDLY_SQUAD_MISSION.INTERCEPT) {
+      advanceTarget = currentTargetEnemy(state, squad);
+      if (!advanceTarget) return { ok: false, reason: '迎撃対象は既に失われています。撤退してください。' };
     } else {
       const targetId = squad.missionTargetBaseId ?? squad.targetBaseId;
       advanceTarget = state.world.enemyBases.find(base => base.id === targetId && base.alive && base.hp > 0) ?? null;
@@ -520,12 +574,14 @@ export function issueFriendlyRouteOrder(state, squadId, { order, path, destinati
   }
   if (!assignPathAtCurrentPosition(state, squad, path, destinationNodeId ?? path?.targetId ?? null)) return { ok: false, reason: '現在位置から選択ルートへ接続できません。' };
   if (advanceTarget && squad.missionType === FRIENDLY_SQUAD_MISSION.ATTACK) squad.targetBaseId = advanceTarget.id;
+  if (advanceTarget && squad.missionType === FRIENDLY_SQUAD_MISSION.INTERCEPT) squad.targetEnemyId = advanceTarget.id;
   if (order === FRIENDLY_SQUAD_ORDER.WITHDRAW) {
     if (squad.targetRecoveryItemId) releaseRecoveryItem(state, squad.targetRecoveryItemId, squad.id, squad.status === FRIENDLY_SQUAD_STATUS.COLLECTING_ITEM ? friendlySquadPosition(state, squad) : null);
     squad.targetRecoveryItemId = null;
     squad.recoveryCollectionProgressSec = null;
     squad.targetBaseId = null;
     squad.missionTargetBaseId = null;
+    squad.targetEnemyId = null;
   }
   squad.commandDestinationNodeId = destinationNodeId ?? path.targetId ?? null;
   if (squad.missionType === FRIENDLY_SQUAD_MISSION.RECOVERY && order !== FRIENDLY_SQUAD_ORDER.HOLD) squad.recoveryCollectionProgressSec = null;
@@ -548,9 +604,10 @@ function planReturn(state, squad) {
     ? squad.path.nodeIds[squad.pathIndex + 1]
     : squad.nodeId;
   const path = findRoadPath(state, routeStart, origin.nodeId);
-  if (squad.missionType === FRIENDLY_SQUAD_MISSION.ATTACK) {
+  if ([FRIENDLY_SQUAD_MISSION.ATTACK, FRIENDLY_SQUAD_MISSION.INTERCEPT].includes(squad.missionType)) {
     squad.targetBaseId = null;
     squad.missionTargetBaseId = null;
+    squad.targetEnemyId = null;
   }
   squad.engagedEnemyId = null;
   squad.order = FRIENDLY_SQUAD_ORDER.RETURN;
@@ -586,6 +643,7 @@ function redirectRecoverySquadToMajorBase(state, squad, events = null) {
   squad.recoveryBaseId = fallback.base.id;
   squad.targetBaseId = null;
   squad.missionTargetBaseId = null;
+  squad.targetEnemyId = null;
   squad.commandDestinationNodeId = fallback.base.nodeId;
   squad.order = FRIENDLY_SQUAD_ORDER.RETURN;
   squad.status = FRIENDLY_SQUAD_STATUS.RETURNING;
@@ -593,9 +651,6 @@ function redirectRecoverySquadToMajorBase(state, squad, events = null) {
   squad.heldDestinationNodeId = null;
   squad.recoveryStartedAt = null;
   squad.reorganizationRemaining = 0;
-  squad.recoveryTargetHp = squad.hp;
-  squad.recoveryFacilityType = null;
-  squad.recoveryFacilityId = null;
   squad.readyAt = null;
   events?.emit('friendly:squad-recovery-relocated', { squadId: squad.id, baseId: fallback.base.id });
   events?.emit('message', { text: `療養中の拠点が失われたため、部隊は${fallback.base.name}へ退避します。` });
@@ -606,6 +661,37 @@ function currentTargetBase(state, squad) {
   return squad.targetBaseId
     ? state.world.enemyBases.find(base => base.id === squad.targetBaseId && base.alive && base.hp > 0) ?? null
     : null;
+}
+
+function currentTargetEnemy(state, squad) {
+  return squad.targetEnemyId
+    ? state.combat.enemies.find(enemy => enemy.id === squad.targetEnemyId && enemy.hp > 0 && enemy.departDelay <= 0) ?? null
+    : null;
+}
+
+function replanIntercept(state, squad, target = currentTargetEnemy(state, squad)) {
+  const destinationNodeId = enemyPursuitNodeId(state, target);
+  if (!destinationNodeId) return false;
+  if (squad.commandDestinationNodeId === destinationNodeId && (squad.path || squad.nodeId === destinationNodeId)) return true;
+  const currentEdge = squad.edgeId ? state.world.roadGraph.edgeById.get(squad.edgeId) : null;
+  const routeStart = currentEdge && squad.edgeProgress > 0 && squad.edgeProgress < currentEdge.length && squad.path?.nodeIds?.[squad.pathIndex + 1]
+    ? squad.path.nodeIds[squad.pathIndex + 1]
+    : squad.nodeId;
+  squad.commandDestinationNodeId = destinationNodeId;
+  if (routeStart === destinationNodeId) {
+    if (!currentEdge || squad.edgeProgress <= 0 || squad.edgeProgress >= currentEdge.length) {
+      squad.path = null;
+      squad.edgeId = null;
+      squad.edgeProgress = 0;
+      squad.nodeId = destinationNodeId;
+    }
+    squad.status = FRIENDLY_SQUAD_STATUS.OUTBOUND;
+    return true;
+  }
+  const path = findRoadPath(state, routeStart, destinationNodeId);
+  if (!path || !assignPathAtCurrentPosition(state, squad, path, destinationNodeId)) return false;
+  squad.status = FRIENDLY_SQUAD_STATUS.OUTBOUND;
+  return true;
 }
 
 function currentRecoveryItem(state, squad) {
@@ -663,6 +749,8 @@ function acquireEnemy(state, squad, spatial, definition) {
   const candidates = spatial.query(position, definition.engagementRange)
     .filter(entry => entry.enemy.hp > 0 && entry.enemy.departDelay <= 0)
     .sort((a, b) => {
+      if (a.enemy.id === squad.targetEnemyId) return -1;
+      if (b.enemy.id === squad.targetEnemyId) return 1;
       const rankA = priority.has(a.enemy.type) ? priority.get(a.enemy.type) : Number.MAX_SAFE_INTEGER;
       const rankB = priority.has(b.enemy.type) ? priority.get(b.enemy.type) : Number.MAX_SAFE_INTEGER;
       return rankA - rankB || distance(a.position, position) - distance(b.position, position);
@@ -676,6 +764,13 @@ function acquireEnemy(state, squad, spatial, definition) {
 function updateEngagement(state, squad, definition, deltaSeconds, spatial, events) {
   let enemy = squad.engagedEnemyId ? state.combat.enemies.find(item => item.id === squad.engagedEnemyId && item.hp > 0) : null;
   const squadPoint = friendlySquadPosition(state, squad);
+  const designated = squad.missionType === FRIENDLY_SQUAD_MISSION.INTERCEPT ? currentTargetEnemy(state, squad) : null;
+  if (designated && distance(enemyPosition(state, designated), squadPoint) <= definition.engagementRange) {
+    if (enemy && enemy.id !== designated.id && enemy.engagedSquadId === squad.id) enemy.engagedSquadId = null;
+    enemy = designated;
+    squad.engagedEnemyId = designated.id;
+    designated.engagedSquadId = squad.id;
+  }
   if (enemy && distance(enemyPosition(state, enemy), squadPoint) > definition.engagementRange + 5) {
     if (enemy.engagedSquadId === squad.id) enemy.engagedSquadId = null;
     squad.engagedEnemyId = null;
@@ -760,7 +855,9 @@ function replanStranded(state, squad) {
   let targetNodeId = null;
   if (squad.order === FRIENDLY_SQUAD_ORDER.ADVANCE) targetNodeId = squad.missionType === FRIENDLY_SQUAD_MISSION.RECOVERY
     ? currentRecoveryItem(state, squad)?.nodeId ?? null
-    : currentTargetBase(state, squad)?.nodeId ?? null;
+    : squad.missionType === FRIENDLY_SQUAD_MISSION.INTERCEPT
+      ? enemyPursuitNodeId(state, currentTargetEnemy(state, squad))
+      : currentTargetBase(state, squad)?.nodeId ?? null;
   if ([FRIENDLY_SQUAD_ORDER.RETURN, FRIENDLY_SQUAD_ORDER.WITHDRAW].includes(squad.order)) targetNodeId = ownedBaseById(state, squad.originBaseId)?.nodeId ?? activePlayerBases(state)[0]?.nodeId ?? null;
   if (squad.order === FRIENDLY_SQUAD_ORDER.RETREAT) targetNodeId = squad.commandDestinationNodeId;
   if (!targetNodeId) return false;
@@ -779,12 +876,12 @@ export class FriendlyForceSystem {
     this.events = events;
   }
 
-  previewDeployment(state, originBaseId, targetBaseId, squadType = 'assault') {
-    return previewFriendlyDeployment(state, squadType, originBaseId, targetBaseId);
+  previewDeployment(state, originBaseId, targetId, squadType = 'assault', targetKind = 'enemyBase') {
+    return previewFriendlyDeployment(state, squadType, originBaseId, targetId, null, targetKind);
   }
 
-  dispatch(state, originBaseId, targetBaseId, squadType = 'assault') {
-    return dispatchFriendlySquad(state, squadType, originBaseId, targetBaseId, this.events);
+  dispatch(state, originBaseId, targetId, squadType = 'assault', targetKind = 'enemyBase') {
+    return dispatchFriendlySquad(state, squadType, originBaseId, targetId, this.events, targetKind);
   }
 
   previewCoordinatedDeployment(state, targetBaseId, squadTypes) {
@@ -832,6 +929,23 @@ export class FriendlyForceSystem {
         if (activeSeconds <= 1e-9) continue;
       }
 
+      if (squad.missionType === FRIENDLY_SQUAD_MISSION.INTERCEPT && squad.order === FRIENDLY_SQUAD_ORDER.ADVANCE) {
+        const target = currentTargetEnemy(state, squad);
+        if (!target) {
+          planReturn(state, squad);
+          continue;
+        }
+        const destinationNodeId = enemyPursuitNodeId(state, target);
+        if (destinationNodeId && (squad.commandDestinationNodeId !== destinationNodeId || (!squad.path && squad.nodeId !== destinationNodeId))) {
+          if (!replanIntercept(state, squad, target)) {
+            squad.status = FRIENDLY_SQUAD_STATUS.STRANDED;
+            squad.path = null;
+            squad.edgeId = null;
+            continue;
+          }
+        }
+      }
+
       const evasive = [FRIENDLY_SQUAD_ORDER.RETREAT, FRIENDLY_SQUAD_ORDER.WITHDRAW].includes(squad.order);
       if (evasive) exposeEvasiveSquad(state, squad, definition, spatial);
       if (!evasive && updateEngagement(state, squad, definition, activeSeconds, spatial, this.events)) continue;
@@ -842,6 +956,8 @@ export class FriendlyForceSystem {
         squad.status = FRIENDLY_SQUAD_STATUS.HALTED;
         if (squad.missionType === FRIENDLY_SQUAD_MISSION.RECOVERY) {
           if (squad.targetRecoveryItemId && !currentRecoveryItem(state, squad)) planReturn(state, squad);
+        } else if (squad.missionType === FRIENDLY_SQUAD_MISSION.INTERCEPT) {
+          if (squad.targetEnemyId && !currentTargetEnemy(state, squad)) planReturn(state, squad);
         } else {
           const missionId = squad.missionTargetBaseId ?? squad.targetBaseId;
           if (missionId && !state.world.enemyBases.some(base => base.id === missionId && base.alive && base.hp > 0)) planReturn(state, squad);
@@ -897,13 +1013,17 @@ export class FriendlyForceSystem {
           continue;
         }
         this.events?.emit('friendly:squad-returned', { squadId: squad.id, originBaseId: recoveryBaseId, hp: squad.hp, withdrawal: squad.order === FRIENDLY_SQUAD_ORDER.WITHDRAW });
-        this.events?.emit('message', { text: '部隊が拠点へ帰還し、回復・再編成を開始しました。' });
+        this.events?.emit('message', { text: recovery.profile?.kind === 'MAJOR'
+          ? '部隊が主要拠点へ帰還し、補給・回復・再編成を開始しました。'
+          : '部隊が簡易拠点へ帰還し、再編成を開始しました。回復には回復施設の範囲内での待機が必要です。' });
       } else if (squad.order === FRIENDLY_SQUAD_ORDER.RETREAT) {
         squad.order = FRIENDLY_SQUAD_ORDER.HOLD;
         squad.heldOrder = FRIENDLY_SQUAD_ORDER.ADVANCE;
         squad.heldDestinationNodeId = squad.missionType === FRIENDLY_SQUAD_MISSION.RECOVERY
           ? currentRecoveryItem(state, squad)?.nodeId ?? null
-          : state.world.enemyBases.find(base => base.id === (squad.missionTargetBaseId ?? squad.targetBaseId) && base.alive && base.hp > 0)?.nodeId ?? null;
+          : squad.missionType === FRIENDLY_SQUAD_MISSION.INTERCEPT
+            ? enemyPursuitNodeId(state, currentTargetEnemy(state, squad))
+            : state.world.enemyBases.find(base => base.id === (squad.missionTargetBaseId ?? squad.targetBaseId) && base.alive && base.hp > 0)?.nodeId ?? null;
         squad.status = FRIENDLY_SQUAD_STATUS.HALTED;
         squad.path = null;
         squad.edgeId = null;
@@ -915,6 +1035,15 @@ export class FriendlyForceSystem {
         squad.edgeProgress = 0;
         squad.recoveryCollectionProgressSec = 0;
         updateRecoveryCollection(state, squad, definition, movement.remainingSeconds, this.events);
+      } else if (squad.missionType === FRIENDLY_SQUAD_MISSION.INTERCEPT) {
+        squad.path = null;
+        squad.edgeId = null;
+        squad.edgeProgress = 0;
+        const target = currentTargetEnemy(state, squad);
+        if (!target) planReturn(state, squad);
+        else if (!replanIntercept(state, squad, target)) {
+          squad.status = FRIENDLY_SQUAD_STATUS.STRANDED;
+        }
       } else {
         attackEnemyBase(state, squad, definition, movement.remainingSeconds, this.events);
       }

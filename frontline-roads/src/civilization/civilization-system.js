@@ -14,16 +14,21 @@ export function ensureCivilizationState(state, { initializeInventory = false } =
   state.civilization ??= {};
   state.civilization.level = Math.max(0, Math.min(4, Number(state.civilization.level) || 0));
   state.civilization.project ??= null;
-  state.civilization.buildings ??= [];
+  state.civilization.buildings = Array.isArray(state.civilization.buildings)
+    ? state.civilization.buildings.filter(building => !building.demolished && !building.ruined && Number(building.hp) > 0)
+    : [];
   for (const building of state.civilization.buildings) {
     building.maxHp = Math.max(1, Number(building.maxHp) || 240);
-    building.hp = Math.max(0, Number(building.hp) || (building.ruined ? 0 : building.maxHp));
-    building.ruined = Boolean(building.ruined || building.hp <= 0);
-    building.demolished = Boolean(building.demolished);
+    building.hp = Math.max(1, Math.min(building.maxHp, Number(building.hp) || building.maxHp));
+    delete building.ruined;
+    delete building.demolished;
     building.outputBuffer ??= {};
     building.history = { produced: 0, repairs: 0, ...(building.history ?? {}) };
   }
-  state.civilization.productionQueues ??= [];
+  const activeBuildingIds = new Set(state.civilization.buildings.map(building => building.id));
+  state.civilization.productionQueues = Array.isArray(state.civilization.productionQueues)
+    ? state.civilization.productionQueues.filter(queue => activeBuildingIds.has(queue.buildingId))
+    : [];
   state.civilization.progress = { ...createProgressState(), ...(state.civilization.progress ?? {}) };
   state.civilization.progress.totalProduced ??= {};
   state.civilization.progress.bossesDefeated ??= {};

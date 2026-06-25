@@ -1,4 +1,4 @@
-import { queryRequired, setVisible } from './dom.js';
+import { bindDismissibleModal, queryRequired, setVisible } from './dom.js';
 
 export class MenuUi {
   constructor({ onSave, onReset, notifications, confirmImpl = globalThis.confirm?.bind(globalThis) }) {
@@ -7,6 +7,7 @@ export class MenuUi {
     this.confirmImpl = confirmImpl;
     queryRequired('#menuButton').addEventListener('click', () => setVisible(this.panel, true));
     queryRequired('#closeMenu').addEventListener('click', () => setVisible(this.panel, false));
+    bindDismissibleModal(this.panel, () => setVisible(this.panel, false));
     this.manualSave.addEventListener('click', () => {
       const saved = onSave();
       notifications.show(saved ? '現在の状態を保存しました。' : '保存できません。このタブを閉じると進行状況は失われます。');

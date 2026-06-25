@@ -61,6 +61,15 @@ export class RoadChunkCache {
     return true;
   }
 
+
+  async remove(worldId, chunkId) {
+    const database = await this.open();
+    if (!database) return false;
+    const transaction = database.transaction(this.storeName, 'readwrite');
+    await requestResult(transaction.objectStore(this.storeName).delete(`${worldId}:${chunkId}`));
+    return true;
+  }
+
   async removeWorld(worldId) {
     const database = await this.open();
     if (!database) return false;
@@ -82,6 +91,8 @@ export class MemoryRoadChunkCache {
   isAvailable() { return true; }
   async get(worldId, chunkId) { return this.records.get(`${worldId}:${chunkId}`) ?? null; }
   async put(worldId, chunkId, payload) { this.records.set(`${worldId}:${chunkId}`, structuredClone(payload)); return true; }
+
+  async remove(worldId, chunkId) { return this.records.delete(`${worldId}:${chunkId}`); }
   async removeWorld(worldId) {
     for (const key of [...this.records.keys()]) if (key.startsWith(`${worldId}:`)) this.records.delete(key);
     return true;

@@ -28,7 +28,7 @@ function hasOperationalAnchor(state, defense) {
 
 export function activeSurveyFacilities(state) {
   return (state?.combat?.defenses ?? [])
-    .filter(defense => defense.type === SURVEY_FACILITY_TYPE && defense.kind === 'tower' && defense.hp > 0 && !defense.ruined)
+    .filter(defense => defense.type === SURVEY_FACILITY_TYPE && defense.kind === 'tower' && defense.hp > 0)
     .filter(defense => hasOperationalAnchor(state, defense))
     .sort((a, b) => String(a.id).localeCompare(String(b.id)));
 }
@@ -48,7 +48,7 @@ export function synchronizeSurveyFacility(defense, worldTimeMs = Date.now()) {
   defense.surveyLastResponseElements = Math.max(0, Math.floor(Number(defense.surveyLastResponseElements) || 0));
   defense.surveyLastErrorStage = defense.surveyLastErrorStage === 'PROCESSING' || defense.surveyLastErrorStage === 'NETWORK' ? defense.surveyLastErrorStage : null;
   defense.surveyLastEndpoint = defense.surveyLastEndpoint ? String(defense.surveyLastEndpoint).slice(0, 100) : null;
-  defense.surveyLastTransport = ['GET', 'POST', 'CACHE'].includes(defense.surveyLastTransport) ? defense.surveyLastTransport : null;
+  defense.surveyLastTransport = ['GET', 'POST', 'SANDBOX_JSONP', 'CACHE'].includes(defense.surveyLastTransport) ? defense.surveyLastTransport : null;
   defense.surveyLastRoadCount = Math.max(0, Math.floor(Number(defense.surveyLastRoadCount) || 0));
   return defense;
 }
@@ -67,15 +67,17 @@ export function surveyChunkCandidates(state, defense, { pendingIds = new Set(), 
   if (!node || !chunks || radius <= 0) return [];
 
   const loaded = new Set([...(chunks.loaded ?? []), ...(chunks.empty ?? [])]);
+  const refresh = new Set(chunks.refresh ?? []);
+  const acquisitionAnchors = new Set([...loaded, ...(chunks.integrated ?? [])]);
   return chunksIntersectingCircle(node, radius, chunks.sizeMeters)
-    .filter(chunk => !loaded.has(chunk.id) && !pendingIds.has(chunk.id))
+    .filter(chunk => (refresh.has(chunk.id) || !loaded.has(chunk.id)) && !pendingIds.has(chunk.id))
     .filter(chunk => {
       const failure = chunks.failed?.[chunk.id];
       if (!failure) return true;
       const failedAt = Number(failure.at);
       return !Number.isFinite(failedAt) || now - failedAt >= retryCooldownMs;
     })
-    .filter(chunk => hasLoadedNeighbor(chunk, loaded))
+    .filter(chunk => hasLoadedNeighbor(chunk, acquisitionAnchors))
     .map(chunk => ({
       ...chunk,
       distance: distance(node, chunk.center)

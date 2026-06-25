@@ -1,4 +1,4 @@
-import { BUILD_RANGE_METERS, DEFENSE_DEFINITIONS } from './definitions.js';
+import { DEFENSE_DEFINITIONS } from './definitions.js';
 
 const percent = value => `${Math.round(value * 100)}%`;
 const seconds = value => `${Number(value).toFixed(value < 10 ? 1 : 0)}秒`;
@@ -35,22 +35,22 @@ const TEXT = Object.freeze({
     placement: '建設可能範囲内の交差点へ設置します。'
   },
   medical: {
-    role: '部隊治療',
-    summary: '主要拠点へ帰還した部隊の回復と再編成を早める施設です。',
-    effect: '全種類の味方部隊を最大HPまで回復します。Tierが上がると回復速度・再編成速度・同時処理数が向上します。',
-    placement: '主要拠点の建設範囲内へ、各拠点1基まで設置できます。'
+    role: '範囲回復',
+    summary: '周囲にいる味方部隊を、滞在している間だけ徐々に回復する施設です。',
+    effect: '帰還中・待機中・交戦前後を問わず、射程内の生存部隊を同時に回復します。施設が停止中または破壊された場合は回復しません。',
+    placement: '主要拠点・簡易拠点・遠征部隊の建設範囲内へ、各建設基準点につき1基まで設置できます。'
   },
-  fieldAid: {
-    role: '前線救護',
-    summary: '簡易拠点へ帰還した軽部隊を限定的に回復する施設です。',
-    effect: '突撃部隊と遊撃部隊を最大HPの70%まで回復します。攻城・重装・遠征部隊は利用できません。',
+  fieldBarracks: {
+    role: '前線部隊枠',
+    summary: '簡易拠点から運用できる部隊枠を1枠増やす前線兵舎です。',
+    effect: '設置された簡易拠点の部隊上限だけを増やします。既存部隊は施設停止中も消えませんが、新規派兵は通常上限まで制限されます。',
     placement: '簡易拠点の建設範囲内へ、各拠点1基まで設置できます。'
   },
   survey: {
     role: '道路測量',
     summary: '拠点周辺の未取得道路チャンクを時間をかけてMAPへ追加する探索支援設備です。',
     effect: '道路形状と未確認前線だけを遠隔取得します。敵基地・特殊アイテム・現地イベントの正確な位置は、プレイヤーが現地へ移動するまで表示しません。',
-    placement: '主要拠点または簡易拠点の建設範囲内へ、各拠点1基まで設置できます。'
+    placement: '主要拠点・簡易拠点・遠征部隊の建設範囲内へ、各建設基準点につき1基まで設置できます。'
   }
 });
 
@@ -59,7 +59,7 @@ export function defensePresentation(type, definition = DEFENSE_DEFINITIONS[type]
   if (!text || !definition) return null;
   const metrics = [];
   if (type === 'barrier') {
-    metrics.push(['HP', String(definition.hp)], ['BUILD', `${BUILD_RANGE_METERS}m`]);
+    metrics.push(['HP', String(definition.hp)], ['BLOCK', '1区間']);
   } else if (type === 'gun') {
     metrics.push(['RANGE', `${definition.range}m`], ['DAMAGE', String(definition.damage)], ['RELOAD', seconds(definition.cooldown)]);
   } else if (type === 'mortar') {
@@ -71,9 +71,9 @@ export function defensePresentation(type, definition = DEFENSE_DEFINITIONS[type]
   } else if (type === 'survey') {
     metrics.push(['MAP RADIUS', `${definition.surveyRadius}m`], ['SCAN', `${definition.scanInterval}秒/区域`], ['LIMIT', '拠点ごと1基']);
   } else if (type === 'medical') {
-    metrics.push(['HEAL', `${(definition.recoveryRate * 100).toFixed(1)}%/秒`], ['REORG', `${definition.reorganizationSeconds}秒`], ['CAPACITY', String(definition.recoveryCapacity)]);
-  } else if (type === 'fieldAid') {
-    metrics.push(['HEAL', `${(definition.recoveryRate * 100).toFixed(1)}%/秒`], ['LIMIT', `${Math.round(definition.recoveryCap * 100)}%`], ['REORG', `${definition.reorganizationSeconds}秒`]);
+    metrics.push(['RANGE', `${definition.range}m`], ['HEAL', `${(definition.recoveryRate * 100).toFixed(1)}%最大HP/秒`], ['TARGETS', '範囲内の全味方']);
+  } else if (type === 'fieldBarracks') {
+    metrics.push(['SQUAD SLOT', `+${definition.squadCapacityBonus}`], ['LIMIT', '簡易拠点ごと1基']);
   }
   return { ...text, metrics };
 }

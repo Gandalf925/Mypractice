@@ -57,7 +57,7 @@ function stateForSurvey({ level = 1, towerNodeId = 'edge' } = {}) {
   if (towerNodeId) {
     state.combat.defenses.push({
       id: 'survey-1', kind: 'tower', type: 'survey', line: 'survey', tier: 1, defenseKey: 'survey1',
-      nodeId: towerNodeId, hp: 160, maxHp: 160, ruined: false, disabledTimer: 0,
+      nodeId: towerNodeId, hp: 160, maxHp: 160, disabledTimer: 0,
       buildAnchorId: 'base', surveyNextAt: 0, surveyStatus: 'WAITING', surveyCompletedCount: 0
     });
   }

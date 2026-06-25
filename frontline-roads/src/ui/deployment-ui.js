@@ -1,13 +1,13 @@
 import { deploymentBases, ownedBaseById } from '../base/field-bases.js';
-import { ENEMY_BASE_DEFINITIONS } from '../combat/definitions.js';
+import { ENEMY_BASE_DEFINITIONS, ENEMY_DEFINITIONS } from '../combat/definitions.js';
 import {
   FRIENDLY_SQUAD_DEFINITIONS, FRIENDLY_SQUAD_TYPES, friendlySquadCapacityStatus
 } from '../combat/friendly-force-system.js';
 import { bundleText } from '../civilization/inventory-system.js';
 import { RECOVERY_ITEM_STATUS, recoveryItemPresentation } from '../exploration/recovery-system.js';
-import { queryRequired, setVisible } from './dom.js';
+import { bindDismissibleModal, queryRequired, setVisible } from './dom.js';
 
-const MISSION_KIND = Object.freeze({ ATTACK: 'ATTACK', RECOVERY: 'RECOVERY' });
+const MISSION_KIND = Object.freeze({ ATTACK: 'ATTACK', INTERCEPT: 'INTERCEPT', RECOVERY: 'RECOVERY' });
 const DEPLOYMENT_MODE = Object.freeze({ SINGLE: 'SINGLE', COORDINATED: 'COORDINATED' });
 const MAX_COORDINATED_SQUADS = 6;
 
@@ -48,21 +48,34 @@ export class DeploymentUi {
     this.groupCounts = Object.create(null);
     this.originBaseId = null;
     this.targetId = null;
+    this.targetKind = 'enemyBase';
     this.lastRenderAt = 0;
     queryRequired('#closeDeployment').addEventListener('click', () => this.close());
+    bindDismissibleModal(this.panel, () => this.close());
     this.body.addEventListener('click', event => this.handleAction(event));
   }
 
   openForEnemyBase(targetId) {
     this.missionKind = MISSION_KIND.ATTACK;
+    this.targetKind = 'enemyBase';
     this.mode = DEPLOYMENT_MODE.SINGLE;
     if (isRecoveryType(this.squadType)) this.squadType = 'assault';
     this.resetGroupSelection();
     return this.openTarget(targetId);
   }
 
+  openForEnemy(targetId) {
+    this.missionKind = MISSION_KIND.INTERCEPT;
+    this.targetKind = 'enemy';
+    this.mode = DEPLOYMENT_MODE.SINGLE;
+    if (isRecoveryType(this.squadType)) this.squadType = 'assault';
+    this.groupCounts = Object.create(null);
+    return this.openTarget(targetId);
+  }
+
   openForRecoveryItem(targetId) {
     this.missionKind = MISSION_KIND.RECOVERY;
+    this.targetKind = 'recoveryItem';
     this.mode = DEPLOYMENT_MODE.SINGLE;
     this.squadType = 'retrieval';
     this.groupCounts = Object.create(null);
@@ -75,7 +88,12 @@ export class DeploymentUi {
     const state = this.store.snapshot();
     this.normalizeSelection(state);
     if (!this.currentTarget(state)) {
-      this.notifications.show(this.missionKind === MISSION_KIND.RECOVERY ? 'この回収物は現在派遣対象にできません。' : 'この敵拠点は現在攻撃対象にできません。');
+      const message = this.missionKind === MISSION_KIND.RECOVERY
+        ? 'この回収物は現在派遣対象にできません。'
+        : this.missionKind === MISSION_KIND.INTERCEPT
+          ? 'この敵部隊は現在迎撃対象にできません。'
+          : 'この敵拠点は現在攻撃対象にできません。';
+      this.notifications.show(message);
       return false;
     }
     this.render(state);
@@ -108,6 +126,9 @@ export class DeploymentUi {
   currentTarget(state = this.store.snapshot()) {
     if (this.missionKind === MISSION_KIND.RECOVERY) {
       return (state.world.recoveryItems ?? []).find(item => item.id === this.targetId && item.status === RECOVERY_ITEM_STATUS.AVAILABLE) ?? null;
+    }
+    if (this.missionKind === MISSION_KIND.INTERCEPT) {
+      return state.combat.enemies.find(enemy => enemy.id === this.targetId && enemy.hp > 0 && enemy.departDelay <= 0) ?? null;
     }
     return state.world.enemyBases.find(base => base.id === this.targetId && base.alive && base.hp > 0) ?? null;
   }
@@ -162,7 +183,7 @@ export class DeploymentUi {
     if (action === 'select-origin') this.originBaseId = baseId;
     if (action === 'dispatch') {
       let result;
-      this.store.transaction(state => { result = this.system.dispatch(state, this.originBaseId, this.targetId, this.squadType); }, 'friendly:dispatch', { emit: true, validate: true });
+      this.store.transaction(state => { result = this.system.dispatch(state, this.originBaseId, this.targetId, this.squadType, this.targetKind); }, 'friendly:dispatch', { emit: true, validate: true });
       if (!result?.ok) this.notifications.show(result?.reason ?? '派兵できません。');
       else {
         this.notifications.show(`${FRIENDLY_SQUAD_DEFINITIONS[this.squadType].name}を派兵しました。`);
@@ -192,12 +213,16 @@ export class DeploymentUi {
       const presentation = recoveryItemPresentation(target);
       return `<div class="deploymentTargetSummary recoveryTarget"><span>RECOVERY TARGET</span><strong>${presentation.name}</strong><small>${presentation.sourceName}跡地・確保後は拠点への帰還が必要</small></div>`;
     }
+    if (this.missionKind === MISSION_KIND.INTERCEPT) {
+      const definition = ENEMY_DEFINITIONS[target.type];
+      return `<div class="deploymentTargetSummary hostile"><span>INTERCEPT TARGET</span><strong>${definition?.name ?? '敵部隊'}</strong><small>HP ${Math.ceil(target.hp)}/${target.maxHp}・Lv.${target.level ?? 1}・移動目標を追跡</small></div>`;
+    }
     const definition = ENEMY_BASE_DEFINITIONS[target.type];
     return `<div class="deploymentTargetSummary hostile"><span>ATTACK TARGET</span><strong>${definition?.name ?? '敵拠点'}</strong><small>HP ${Math.ceil(target.hp)}/${target.maxHp}・Lv.${target.level ?? 1}</small></div>`;
   }
 
   modeMarkup() {
-    if (this.missionKind === MISSION_KIND.RECOVERY) return '';
+    if (this.missionKind !== MISSION_KIND.ATTACK) return '';
     return `<div class="deploymentModeSwitch" role="group" aria-label="派兵方式"><button data-action="deployment-mode" data-mode="${DEPLOYMENT_MODE.SINGLE}" class="${this.mode === DEPLOYMENT_MODE.SINGLE ? 'selected' : ''}">単独出撃</button><button data-action="deployment-mode" data-mode="${DEPLOYMENT_MODE.COORDINATED}" class="${this.mode === DEPLOYMENT_MODE.COORDINATED ? 'selected' : ''}">連携出撃</button></div>`;
   }
 
@@ -228,7 +253,7 @@ export class DeploymentUi {
     const bases = deploymentBases(state, this.squadType);
     const recoveryMission = this.missionKind === MISSION_KIND.RECOVERY;
     const preview = this.originBaseId
-      ? this.system.previewDeployment(state, this.originBaseId, this.targetId, this.squadType)
+      ? this.system.previewDeployment(state, this.originBaseId, this.targetId, this.squadType, this.targetKind)
       : { ok: false, reason: '出撃元を選択してください。' };
     const originCards = bases.map(base => {
       const capacity = friendlySquadCapacityStatus(state, base);
@@ -245,8 +270,8 @@ export class DeploymentUi {
       <section><h2>出撃元</h2><div class="deploymentGrid">${originCards}</div></section>
       <section class="deploymentOrder"><h2>派兵確認</h2>
         <div class="contextMetricGrid"><span><small>FROM</small><strong>${origin?.name ?? '未選択'}</strong></span><span><small>UNIT</small><strong>${definition.name}</strong></span><span><small>ROUTE</small><strong>${routeText(preview.routeDistance)}</strong></span><span><small>SLOT</small><strong>${preview.capacity ? `${preview.assignedSquads ?? 0}/${preview.capacity}` : '—'}</strong></span><span><small>COST</small><strong>${preview.reuseReadySquad ? '不要' : bundleText(definition.cost)}</strong></span></div>
-        <p class="sectionNote">${preview.ok ? preview.reuseReadySquad ? '回復・再編成済みの同じ部隊を、追加費用なしで再出撃させます。' : preview.replaceReadySquad ? '待機中の別部隊を解散し、新しい部隊を編成します。' : definition.description : preview.reason}</p>
-        <button class="primary wideButton" data-action="dispatch" ${preview.ok ? '' : 'disabled'}>${preview.reuseReadySquad ? `${definition.name}を再出撃` : preview.replaceReadySquad ? `${definition.name}へ再編成` : recoveryMission ? `${definition.name}を派遣` : `この敵拠点へ${definition.name}を派兵`}</button>
+        <p class="sectionNote">${preview.ok ? preview.reuseReadySquad ? '再編成済みの同じ部隊を、現在HPのまま追加費用なしで再出撃させます。' : preview.replaceReadySquad ? '待機中の別部隊を解散し、新しい部隊を編成します。' : definition.description : preview.reason}</p>
+        <button class="primary wideButton" data-action="dispatch" ${preview.ok ? '' : 'disabled'}>${preview.reuseReadySquad ? `${definition.name}を再出撃` : preview.replaceReadySquad ? `${definition.name}へ再編成` : recoveryMission ? `${definition.name}を派遣` : this.missionKind === MISSION_KIND.INTERCEPT ? `この敵部隊へ${definition.name}を派兵` : `この敵拠点へ${definition.name}を派兵`}</button>
       </section>`;
   }
 
@@ -269,9 +294,10 @@ export class DeploymentUi {
     const target = this.currentTarget(state);
     if (!target) return;
     const recoveryMission = this.missionKind === MISSION_KIND.RECOVERY;
-    if (recoveryMission) this.mode = DEPLOYMENT_MODE.SINGLE;
-    this.title.textContent = recoveryMission ? '選択回収物への派遣' : '選択敵拠点への派兵';
-    const content = this.mode === DEPLOYMENT_MODE.COORDINATED && !recoveryMission
+    const interceptMission = this.missionKind === MISSION_KIND.INTERCEPT;
+    if (recoveryMission || interceptMission) this.mode = DEPLOYMENT_MODE.SINGLE;
+    this.title.textContent = recoveryMission ? '選択回収物への派遣' : interceptMission ? '選択敵部隊への迎撃派兵' : '選択敵拠点への派兵';
+    const content = this.mode === DEPLOYMENT_MODE.COORDINATED && !recoveryMission && !interceptMission
       ? this.coordinatedDeploymentMarkup(state)
       : this.singleDeploymentMarkup(state);
     this.body.innerHTML = `<section class="deploymentTargetSection"><h2>選択中の目標</h2>${this.targetMarkup(target)}</section>${this.modeMarkup()}${content}`;

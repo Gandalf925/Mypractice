@@ -85,7 +85,7 @@ function branchingState() {
   }];
   state.combat.defenses = [{
     id: 'support', kind: 'tower', type: 'gun', nodeId: 'upper', hp: 100, maxHp: 100,
-    range: 90, tier: 0, cooldown: 0, ruined: false, disabledTimer: 0
+    range: 90, tier: 0, cooldown: 0, disabledTimer: 0
   }];
   return state;
 }

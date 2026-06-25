@@ -46,7 +46,7 @@ function defenseMaps(state) {
   const barriers = new Map();
   const towers = [];
   for (const defense of state.combat.defenses) {
-    if (defense.hp <= 0 || defense.ruined) continue;
+    if (defense.hp <= 0) continue;
     if (defense.kind === 'barrier') barriers.set(defense.edgeId, defense);
     else towers.push(defense);
   }
@@ -69,7 +69,7 @@ function edgeTowerThreat(state, edgeId, towers, cache) {
   if (!middle) return 0;
   let threat = 0;
   for (const tower of towers) {
-    if (tower.kind !== 'tower' || ['relay', 'survey', 'medical', 'fieldAid'].includes(tower.type)) continue;
+    if (tower.kind !== 'tower' || ['relay', 'survey', 'medical', 'fieldBarracks'].includes(tower.type)) continue;
     const node = graph.nodeById.get(tower.nodeId);
     const range = defenseRuntimeDefinition(tower).range ?? 80;
     if (node && distance(middle, node) <= range) threat += 1;

@@ -54,7 +54,7 @@ function projectCanAccept(state, recipeId, recipe) {
 
 function baseCompatible(state, building, recipe) {
   return Boolean(
-    building && !building.ruined && !building.demolished && recipe &&
+    building && building.hp > 0 && recipe &&
     recipe.building === building.type && (state.civilization.level ?? 0) >= recipe.level
   );
 }
@@ -98,7 +98,7 @@ export class ProductionSystem {
   }
 
   maximumProducible(state, buildingId, recipeId, cap = 99) {
-    const building = state.civilization.buildings.find(item => item.id === buildingId && !item.demolished);
+    const building = state.civilization.buildings.find(item => item.id === buildingId);
     const recipe = PRODUCTION_RECIPES[recipeId];
     if (!compatible(state, building, recipeId, recipe)) return { ok: false, quantity: 0, reason: 'この施設では現在生産できません。' };
     const committed = queuedInputCommitment(state);
@@ -118,7 +118,7 @@ export class ProductionSystem {
   }
 
   enqueue(state, buildingId, recipeId, quantity = 1) {
-    const building = state.civilization.buildings.find(item => item.id === buildingId && !item.demolished);
+    const building = state.civilization.buildings.find(item => item.id === buildingId);
     const recipe = PRODUCTION_RECIPES[recipeId];
     if (!compatible(state, building, recipeId, recipe)) return { ok: false, reason: 'この施設では生産できません。' };
     let amount = Math.max(1, Math.min(99, Math.floor(Number(quantity) || 1)));
@@ -202,8 +202,8 @@ export class ProductionSystem {
       const active = [];
       let step = remaining;
       for (const queue of state.civilization.productionQueues) {
-        const building = state.civilization.buildings.find(item => item.id === queue.buildingId && !item.demolished);
-        if (!building || building.ruined) continue;
+        const building = state.civilization.buildings.find(item => item.id === queue.buildingId);
+        if (!building || building.hp <= 0) continue;
         if (!queue.current) this.startNext(state, queue, building);
         if (!queue.current) continue;
         active.push({ queue, building });
@@ -221,7 +221,7 @@ export class ProductionSystem {
   }
 
   collectOutput(state, buildingId) {
-    const building = state.civilization.buildings.find(item => item.id === buildingId && !item.demolished);
+    const building = state.civilization.buildings.find(item => item.id === buildingId);
     if (!building) return { ok: false, reason: '施設が見つかりません。' };
     const buffered = { ...(building.outputBuffer ?? {}) };
     if (Object.values(buffered).every(value => !value)) return { ok: false, reason: '回収できる生産物はありません。' };

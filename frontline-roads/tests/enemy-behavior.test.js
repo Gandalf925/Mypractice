@@ -59,7 +59,7 @@ function facilityState() {
 
 test('enemy types make different barrier decisions from break time and detour time', () => {
   const state = routingState();
-  state.combat.defenses.push({ id: 'wall', kind: 'barrier', type: 'barrier', edgeId: 'ab', hp: 220, maxHp: 220, ruined: false });
+  state.combat.defenses.push({ id: 'wall', kind: 'barrier', type: 'barrier', edgeId: 'ab', hp: 220, maxHp: 220 });
 
   const scout = findCombatPath(state, 'base', 'home', 'scout');
   const engineer = findCombatPath(state, 'base', 'home', 'engineer');
@@ -72,7 +72,7 @@ test('enemy types make different barrier decisions from break time and detour ti
 
 test('balanced infantry breaches a weakened wall instead of taking a long detour', () => {
   const state = routingState();
-  state.combat.defenses.push({ id: 'wall', kind: 'barrier', type: 'barrier', edgeId: 'ab', hp: 40, maxHp: 220, ruined: false });
+  state.combat.defenses.push({ id: 'wall', kind: 'barrier', type: 'barrier', edgeId: 'ab', hp: 40, maxHp: 220 });
 
   const path = findCombatPath(state, 'base', 'home', 'infantry');
 
@@ -82,8 +82,8 @@ test('balanced infantry breaches a weakened wall instead of taking a long detour
 test('raider selects repair support before ordinary weapon towers', () => {
   const state = facilityState();
   state.combat.defenses.push(
-    { id: 'relay', kind: 'tower', type: 'relay', nodeId: 'north', hp: 180, maxHp: 180, ruined: false, disabledTimer: 0 },
-    { id: 'gun', kind: 'tower', type: 'gun', nodeId: 'south', hp: 160, maxHp: 160, ruined: false, disabledTimer: 0 }
+    { id: 'relay', kind: 'tower', type: 'relay', nodeId: 'north', hp: 180, maxHp: 180, disabledTimer: 0 },
+    { id: 'gun', kind: 'tower', type: 'gun', nodeId: 'south', hp: 160, maxHp: 160, disabledTimer: 0 }
   );
   const enemy = spawnEnemy(state, state.world.enemyBases[0], 'raider');
 
@@ -96,8 +96,8 @@ test('raider selects repair support before ordinary weapon towers', () => {
 test('rope cutter selects slowing equipment before repair support', () => {
   const state = facilityState();
   state.combat.defenses.push(
-    { id: 'relay', kind: 'tower', type: 'relay', nodeId: 'north', hp: 180, maxHp: 180, ruined: false, disabledTimer: 0 },
-    { id: 'slow', kind: 'tower', type: 'slow', nodeId: 'south', hp: 140, maxHp: 140, ruined: false, disabledTimer: 0 }
+    { id: 'relay', kind: 'tower', type: 'relay', nodeId: 'north', hp: 180, maxHp: 180, disabledTimer: 0 },
+    { id: 'slow', kind: 'tower', type: 'slow', nodeId: 'south', hp: 140, maxHp: 140, disabledTimer: 0 }
   );
   const enemy = spawnEnemy(state, state.world.enemyBases[0], 'ropeCutter');
 
@@ -108,7 +108,7 @@ test('rope cutter selects slowing equipment before repair support', () => {
 
 test('specialist damages its selected facility and invalidates shared targets when it is destroyed', () => {
   const state = facilityState();
-  const relay = { id: 'relay', kind: 'tower', type: 'relay', nodeId: 'base', hp: 5, maxHp: 180, ruined: false, disabledTimer: 0 };
+  const relay = { id: 'relay', kind: 'tower', type: 'relay', nodeId: 'base', hp: 5, maxHp: 180, disabledTimer: 0 };
   state.combat.defenses.push(relay);
   const first = spawnEnemy(state, state.world.enemyBases[0], 'raider');
   const second = spawnEnemy(state, state.world.enemyBases[0], 'raider');
@@ -117,7 +117,7 @@ test('specialist damages its selected facility and invalidates shared targets wh
 
   new EnemySystem().update(state, 1);
 
-  assert.equal(relay.ruined, true);
+  assert.equal(state.combat.defenses.some(defense => defense.id === relay.id), false);
   assert.equal(first.targetDefenseId, null);
   assert.equal(second.targetDefenseId, null);
   assert.equal(relay.disabledTimer, 8);

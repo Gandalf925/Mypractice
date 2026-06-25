@@ -31,7 +31,7 @@ export const ENEMY_DEFINITIONS = Object.freeze({
   raider: {
     name: '破壊工作員', hp: 55, speed: 1.3, cityDamage: 6, barrierDps: 3, radius: 4.9, drops: ENEMY_DROPS.raider,
     personality: 'saboteur', barrierStrategy: 'avoid', barrierCostFactor: 2.0, routeLabel: '施設潜入', objectiveLabel: '支援・火力施設',
-    targetPriorities: ['medical', 'fieldAid', 'relay', 'mortar', 'gun', 'slow'], facilitySearchRadius: 420, facilityDps: 12, stunSeconds: 8,
+    targetPriorities: ['medical', 'fieldBarracks', 'relay', 'mortar', 'gun', 'slow'], facilitySearchRadius: 420, facilityDps: 12, stunSeconds: 8,
     attackMessage: '破壊工作員が防衛施設を停止させました。'
   },
   archer: {
@@ -75,7 +75,7 @@ export const ENEMY_DEFINITIONS = Object.freeze({
     name: '資源略奪兵', hp: 105, speed: 1.02, cityDamage: 11, barrierDps: 4, radius: 5.3, drops: { wood: 3, stone: 3, copperOre: 1 }, generation: 2,
     personality: 'marauder', avoidCongestion: true, barrierStrategy: 'balanced', barrierCostFactor: 1.0,
     routeLabel: '前線略奪', objectiveLabel: '簡易拠点・支援施設', cityPriorityPenalty: 42, fieldBasePriorityPenalty: 0,
-    targetPriorities: ['survey', 'relay', 'fieldAid', 'medical'], facilitySearchRadius: 460, facilityDps: 13,
+    targetPriorities: ['survey', 'relay', 'fieldBarracks', 'medical'], facilitySearchRadius: 460, facilityDps: 13,
     attackMessage: '資源略奪兵が前線支援施設を破壊しています。'
   },
   bronzeShield: {
@@ -125,7 +125,7 @@ export const ENEMY_DEFINITIONS = Object.freeze({
     name: '重破壊工作員', hp: 265, speed: 0.9, cityDamage: 20, barrierDps: 8, radius: 6.3, drops: { ironOre: 2, wroughtIron: 1 }, generation: 4, slowResistance: 0.35,
     personality: 'saboteur', avoidTowers: true, barrierStrategy: 'avoid', barrierCostFactor: 2.1,
     routeLabel: '後方施設破壊', objectiveLabel: '治療・修復・火力施設',
-    targetPriorities: ['medical', 'fieldAid', 'relay', 'mortar', 'gun', 'slow', 'survey'], facilitySearchRadius: 560, facilityDps: 22, stunSeconds: 12,
+    targetPriorities: ['medical', 'fieldBarracks', 'relay', 'mortar', 'gun', 'slow', 'survey'], facilitySearchRadius: 560, facilityDps: 22, stunSeconds: 12,
     attackMessage: '重破壊工作員が後方施設を機能停止させました。'
   },
   bodyguard: {
@@ -181,12 +181,12 @@ export const ENEMY_BASE_DEFINITIONS = Object.freeze({
   }
 });
 
-const ICONS = Object.freeze({ barrier: '▰', gun: '⌁', mortar: '◉', slow: '◌', relay: '⚒', survey: '⌖', medical: '✚', fieldAid: '＋' });
-const KINDS = Object.freeze({ barrier: 'barrier', gun: 'tower', mortar: 'tower', slow: 'tower', relay: 'tower', survey: 'tower', medical: 'tower', fieldAid: 'tower' });
-const INITIAL_TIERS = Object.freeze({ survey: 1, medical: 1, fieldAid: 1 });
+const ICONS = Object.freeze({ barrier: '▰', gun: '⌁', mortar: '◉', slow: '◌', relay: '⚒', survey: '⌖', medical: '✚', fieldBarracks: '▣' });
+const KINDS = Object.freeze({ barrier: 'barrier', gun: 'tower', mortar: 'tower', slow: 'tower', relay: 'tower', survey: 'tower', medical: 'tower', fieldBarracks: 'tower' });
+const INITIAL_TIERS = Object.freeze({ survey: 1, medical: 1, fieldBarracks: 1 });
 
 export const DEFENSE_DEFINITIONS = Object.freeze(Object.fromEntries(
-  ['barrier', 'gun', 'mortar', 'slow', 'relay', 'survey', 'medical', 'fieldAid'].map(type => {
+  ['barrier', 'gun', 'mortar', 'slow', 'relay', 'survey', 'medical', 'fieldBarracks'].map(type => {
     const initialTier = INITIAL_TIERS[type] ?? 0;
     const tier = defenseTierDefinition(type, initialTier);
     return [type, Object.freeze({
@@ -197,8 +197,8 @@ export const DEFENSE_DEFINITIONS = Object.freeze(Object.fromEntries(
       kind: KINDS[type],
       initialTier,
       requiredCivilizationLevel: initialTier,
-      allowedAnchorKinds: type === 'survey' ? ['MAJOR', 'FIELD'] : type === 'medical' ? ['MAJOR'] : type === 'fieldAid' ? ['FIELD'] : null,
-      limitPerAnchor: ['survey', 'medical', 'fieldAid'].includes(type) ? 1 : null,
+      allowedAnchorKinds: type === 'survey' ? ['MAJOR', 'FIELD', 'EXPEDITION'] : type === 'medical' ? ['MAJOR', 'FIELD', 'EXPEDITION'] : type === 'fieldBarracks' ? ['FIELD'] : null,
+      limitPerAnchor: ['survey', 'medical', 'fieldBarracks'].includes(type) ? 1 : null,
       cost: tier.cost,
       hp: tier.hp,
       range: tier.range,
@@ -214,9 +214,7 @@ export const DEFENSE_DEFINITIONS = Object.freeze(Object.fromEntries(
       surveyRadius: tier.surveyRadius,
       scanInterval: tier.scanInterval,
       recoveryRate: tier.recoveryRate,
-      recoveryCap: tier.recoveryCap,
-      reorganizationSeconds: tier.reorganizationSeconds,
-      recoveryCapacity: tier.recoveryCapacity
+      squadCapacityBonus: tier.squadCapacityBonus
     })];
   })
 ));
@@ -236,8 +234,6 @@ export function defenseRuntimeDefinition(defense) {
     surveyRadius: base?.surveyRadius ?? fallback?.surveyRadius,
     scanInterval: base?.scanInterval ?? fallback?.scanInterval,
     recoveryRate: base?.recoveryRate ?? fallback?.recoveryRate,
-    recoveryCap: base?.recoveryCap ?? fallback?.recoveryCap,
-    reorganizationSeconds: base?.reorganizationSeconds ?? fallback?.reorganizationSeconds,
-    recoveryCapacity: base?.recoveryCapacity ?? fallback?.recoveryCapacity
+    squadCapacityBonus: base?.squadCapacityBonus ?? fallback?.squadCapacityBonus
   };
 }

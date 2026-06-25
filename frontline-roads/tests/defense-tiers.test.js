@@ -34,7 +34,7 @@ function makeState() {
 function gunDefense(overrides = {}) {
   return {
     id: 'gun-1', kind: 'tower', type: 'gun', line: 'single', tier: 0, defenseKey: 'single0',
-    nodeId: 'road-node', hp: 150, maxHp: 150, cooldown: 0, disabledTimer: 0, ruined: false,
+    nodeId: 'road-node', hp: 150, maxHp: 150, cooldown: 0, disabledTimer: 0,
     ...overrides
   };
 }
@@ -148,8 +148,8 @@ test('destroyed and maximum-tier defenses cannot be upgraded', () => {
   const state = makeState();
   state.civilization.level = 4;
   Object.assign(state.inventory.resources, { timber: 100, rope: 100, stone: 100, cutStone: 100, wroughtIron: 100 });
-  const destroyed = gunDefense({ hp: 0, ruined: true });
-  assert.match(defenseUpgradeStatus(state, destroyed).reason, /先に修理/);
+  const destroyed = gunDefense({ hp: 0 });
+  assert.match(defenseUpgradeStatus(state, destroyed).reason, /撤去済み/);
   const maximum = gunDefense({ tier: 4, defenseKey: 'single4', hp: 350, maxHp: 350 });
   const status = defenseUpgradeStatus(state, maximum);
   assert.equal(status.atMax, true);
@@ -162,7 +162,7 @@ test('gate conversion starts at tier two and preserves the prior health ratio', 
   Object.assign(state.inventory.resources, { cutStone: 100, timber: 100, rope: 100 });
   const barrier = {
     id: 'wall', kind: 'barrier', type: 'barrier', line: 'barrier', tier: 0, defenseKey: 'barrier0',
-    edgeId: 'road', hp: 110, maxHp: 220, ruined: false, isGate: false
+    edgeId: 'road', hp: 110, maxHp: 220, isGate: false
   };
   state.combat.defenses.push(barrier);
   const result = new CivilizationSystem().progression.convertBarrierToGate(state, barrier.id);

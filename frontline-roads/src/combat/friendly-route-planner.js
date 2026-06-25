@@ -2,7 +2,7 @@ import { distance } from '../core/utilities.js';
 import { activeOwnedBases, ownedBaseById } from '../base/field-bases.js';
 import { activePlayerBases } from '../base/player-bases.js';
 import { combineRoadPaths, findRoadPathWeighted } from './routing-system.js';
-import { friendlySquadPosition, FRIENDLY_SQUAD_DEFINITIONS } from './friendly-force-system.js';
+import { enemyPursuitNodeId, friendlySquadPosition, FRIENDLY_SQUAD_DEFINITIONS } from './friendly-force-system.js';
 import { buildCombatSpatialIndex } from './combat-spatial-index.js';
 import { graphElementsNearPoint } from '../roads/road-graph.js';
 
@@ -77,7 +77,7 @@ function createRouteAnalysis(state) {
     supportEntries.push({ point, range: 110, value: 1.25 });
   }
   for (const defense of state.combat.defenses ?? []) {
-    if (defense.kind !== 'tower' || defense.hp <= 0 || defense.ruined) continue;
+    if (defense.kind !== 'tower' || defense.hp <= 0) continue;
     const point = state.world.roadGraph.nodeById.get(defense.nodeId);
     if (!point) continue;
     const range = Math.max(50, Number(defense.range) || 80);
@@ -224,6 +224,10 @@ export function orderDestinationNodeId(state, squad, mode) {
     if (squad.missionType === 'RECOVERY') {
       return (state.world.recoveryItems ?? []).find(item => item.id === squad.targetRecoveryItemId && item.assignedSquadId === squad.id)?.nodeId ?? null;
     }
+    if (squad.missionType === 'INTERCEPT') {
+      const enemy = state.combat.enemies.find(item => item.id === squad.targetEnemyId && item.hp > 0 && item.departDelay <= 0);
+      return enemyPursuitNodeId(state, enemy);
+    }
     const targetId = squad.missionTargetBaseId ?? squad.targetBaseId;
     return state.world.enemyBases.find(base => base.id === targetId && base.alive && base.hp > 0)?.nodeId ?? null;
   }
@@ -239,9 +243,13 @@ export function validateRetreatDestination(state, squad, nodeId) {
   const startId = commandStartNodeId(state, squad);
   if (nodeId === startId) return { ok: false, reason: '現在の進路先とは別の地点を選択してください。' };
   const missionId = squad.missionTargetBaseId ?? squad.targetBaseId;
-  const target = state.world.enemyBases.find(base => base.id === missionId && base.alive && base.hp > 0);
-  if (target) {
-    const targetNode = state.world.roadGraph.nodeById.get(target.nodeId);
+  const targetBase = state.world.enemyBases.find(base => base.id === missionId && base.alive && base.hp > 0);
+  const targetEnemy = squad.missionType === 'INTERCEPT'
+    ? state.combat.enemies.find(enemy => enemy.id === squad.targetEnemyId && enemy.hp > 0 && enemy.departDelay <= 0)
+    : null;
+  const targetNodeId = targetEnemy ? enemyPursuitNodeId(state, targetEnemy) : targetBase?.nodeId;
+  if (targetNodeId) {
+    const targetNode = state.world.roadGraph.nodeById.get(targetNodeId);
     const start = state.world.roadGraph.nodeById.get(startId) ?? friendlySquadPosition(state, squad);
     const isOwnedBase = activeOwnedBases(state).some(base => base.nodeId === nodeId);
     if (!isOwnedBase && targetNode && distance(node, targetNode) + 5 < distance(start, targetNode)) {

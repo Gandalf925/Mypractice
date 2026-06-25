@@ -242,7 +242,7 @@ test('defense removal requires a second confirmation and then clears the selecte
   try {
     const { CombatUi } = await import('../src/ui/combat-ui.js');
     const state = makeState();
-    state.combat.defenses.push({ id: 'tower', kind: 'tower', type: 'gun', line: 'single', tier: 0, nodeId: 'near', hp: 150, maxHp: 150, ruined: false, cooldown: 0, disabledTimer: 0 });
+    state.combat.defenses.push({ id: 'tower', kind: 'tower', type: 'gun', line: 'single', tier: 0, nodeId: 'near', hp: 150, maxHp: 150, cooldown: 0, disabledTimer: 0 });
     let persisted = 0;
     let focus = null;
     const store = {
@@ -288,7 +288,7 @@ test('tapping the selected facility again closes the compact context panel', asy
     const state = makeState();
     state.combat.defenses.push({
       id: 'tower-close', kind: 'tower', type: 'gun', line: 'single', tier: 0, defenseKey: 'single0',
-      nodeId: 'near', hp: 150, maxHp: 150, cooldown: 0, disabledTimer: 0, ruined: false
+      nodeId: 'near', hp: 150, maxHp: 150, cooldown: 0, disabledTimer: 0
     });
     let focus = 'unset';
     const ui = new CombatUi({

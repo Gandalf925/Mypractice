@@ -1,6 +1,6 @@
 import { distance, stableId } from '../core/utilities.js';
 import { addBundle } from '../civilization/inventory-system.js';
-import { CITY_RECOVERY_DELAY_SECONDS, ENEMY_DEFINITIONS, MAX_ENEMIES } from './definitions.js';
+import { CITY_RECOVERY_DELAY_SECONDS, ENEMY_DEFINITIONS, MAX_ENEMIES, defenseRuntimeDefinition } from './definitions.js';
 import { normalizeEnemyLevel, scaleEnemyDefinition } from './enemy-scaling.js';
 import { findCombatPath, findCombatPathToTargets } from './routing-system.js';
 import { roadUnitPosition } from './road-unit-position.js';
@@ -11,6 +11,7 @@ import { enemyBehaviorForDefinition } from './enemy-personalities.js';
 import { destroyFieldBase } from '../base/field-base-system.js';
 import { FRIENDLY_SQUAD_DEFINITIONS, friendlySquadDefinition } from './friendly-force-definitions.js';
 import { RECOVERY_BALANCE, beginEnemyRegroup } from '../core/recovery-balance.js';
+import { detachDefense } from './defense-lifecycle.js';
 
 const FACILITY_ATTACK_RANGE_METERS = 20;
 const FACILITY_PRIORITY_PENALTY_SECONDS = 18;
@@ -55,7 +56,7 @@ export function spawnEnemy(state, base, type, departDelay = 0, waveId = null, do
 function activeTowerById(state, defenseId) {
   if (!defenseId) return null;
   return state.combat.defenses.find(defense =>
-    defense.id === defenseId && defense.kind === 'tower' && defense.hp > 0 && !defense.ruined
+    defense.id === defenseId && defense.kind === 'tower' && defense.hp > 0
   ) ?? null;
 }
 
@@ -66,7 +67,7 @@ function facilityTargetCandidates(state, definition, enemy) {
   const origin = enemyPosition(state, enemy);
   const maxDistance = Math.max(50, Number(definition.facilitySearchRadius) || DEFAULT_FACILITY_SEARCH_RADIUS_METERS);
   return state.combat.defenses
-    .filter(defense => defense.kind === 'tower' && defense.hp > 0 && !defense.ruined && rankByType.has(defense.type))
+    .filter(defense => defense.kind === 'tower' && defense.hp > 0 && rankByType.has(defense.type))
     .filter(defense => {
       const node = state.world.roadGraph.nodeById.get(defense.nodeId);
       return node && distance(origin, node) <= maxDistance;
@@ -216,14 +217,6 @@ function ensurePath(state, enemy) {
   return Boolean(path);
 }
 
-function invalidateDefenseTargetPaths(state, defenseId) {
-  for (const enemy of state.combat.enemies) {
-    if (enemy.targetDefenseId !== defenseId) continue;
-    enemy.targetDefenseId = null;
-    enemy.reroutePending = true;
-  }
-}
-
 function attackTargetFacility(state, enemy, definition, deltaSeconds, events) {
   const target = activeTowerById(state, enemy.targetDefenseId);
   if (!target) return false;
@@ -243,11 +236,10 @@ function attackTargetFacility(state, enemy, definition, deltaSeconds, events) {
   if (target.hp > 0) return true;
 
   target.hp = 0;
-  target.ruined = true;
+  const destroyed = detachDefense(state, target.id) ?? target;
   beginEnemyRegroup(state, RECOVERY_BALANCE.defenseBreakthroughRegroupSeconds);
-  invalidateDefenseTargetPaths(state, target.id);
-  events?.emit('combat:defense-destroyed', { defenseId: target.id, position: node });
-  events?.emit('message', { text: `${target.type === 'relay' ? '修復中継所' : target.type === 'survey' ? '測量施設' : target.type === 'medical' ? '治療施設' : target.type === 'fieldAid' ? '簡易救護所' : '防衛施設'}が敵の集中攻撃で破壊されました。` });
+  events?.emit('combat:defense-destroyed', { defenseId: destroyed.id, defense: destroyed, position: node });
+  events?.emit('message', { text: `${defenseRuntimeDefinition(destroyed).name ?? '防衛施設'}が破壊され、建設地点から撤去されました。` });
   return true;
 }
 
@@ -432,14 +424,14 @@ export class EnemySystem {
         barrier.hp -= definition.barrierDps * 0.5;
         if (barrier.hp > 0) continue;
         barrier.hp = 0;
-        barrier.ruined = true;
+        const destroyed = detachDefense(state, barrier.id) ?? barrier;
         beginEnemyRegroup(state, RECOVERY_BALANCE.defenseBreakthroughRegroupSeconds);
         frame.barriers.delete(edge.id);
         this.invalidateAllPaths(state);
         const a = graph.nodeById.get(edge.a);
         const b = graph.nodeById.get(edge.b);
-        this.events?.emit('combat:defense-destroyed', { defenseId: barrier.id, position: a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : null });
-        this.events?.emit('message', { text: '防壁が破壊され、敵の流れが変わりました。' });
+        this.events?.emit('combat:defense-destroyed', { defenseId: destroyed.id, defense: destroyed, position: a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : null });
+        this.events?.emit('message', { text: `${destroyed.isGate ? '門' : '防壁'}が破壊され、道路から撤去されました。` });
         continue;
       }
 
@@ -578,7 +570,7 @@ export class EnemySystem {
     }
     const barriers = new Map();
     for (const defense of state.combat.defenses) {
-      if (defense.kind === 'barrier' && defense.hp > 0 && !defense.ruined) barriers.set(defense.edgeId, defense);
+      if (defense.kind === 'barrier' && defense.hp > 0) barriers.set(defense.edgeId, defense);
     }
     const frame = { spatial, barriers };
     const remove = new Set();

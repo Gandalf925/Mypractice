@@ -5,7 +5,6 @@ import { createInitialState } from '../src/core/state-schema.js';
 import { attachGraphIndexes } from '../src/roads/road-graph.js';
 import { BuildSystem } from '../src/combat/build-system.js';
 import {
-  constructionRangeMultiplier,
   majorBaseBuildRange,
   fieldBaseBuildRange,
   PLAYER_BUILD_RANGE_METERS
@@ -44,16 +43,15 @@ function rangeFixture(level = 0) {
   return state;
 }
 
-test('base construction ranges double at every civilization level while the current-position radius stays fixed', () => {
+test('base construction ranges grow gradually with a hard cap while the current-position radius stays fixed', () => {
   const expected = [
-    { level: 0, multiplier: 1, major: 85, field: 50 },
-    { level: 1, multiplier: 2, major: 170, field: 100 },
-    { level: 2, multiplier: 4, major: 340, field: 200 },
-    { level: 3, multiplier: 8, major: 680, field: 400 },
-    { level: 4, multiplier: 16, major: 1360, field: 800 }
+    { level: 0, major: 85, field: 50 },
+    { level: 1, major: 120, field: 75 },
+    { level: 2, major: 160, field: 105 },
+    { level: 3, major: 205, field: 140 },
+    { level: 4, major: 255, field: 180 }
   ];
   for (const row of expected) {
-    assert.equal(constructionRangeMultiplier(row.level), row.multiplier);
     assert.equal(majorBaseBuildRange(row.level), row.major);
     assert.equal(fieldBaseBuildRange(row.level), row.field);
     const anchors = new BuildSystem().getBuildAnchors(rangeFixture(row.level));
@@ -61,17 +59,19 @@ test('base construction ranges double at every civilization level while the curr
     assert.equal(anchors.find(anchor => anchor.kind === 'FIELD').range, row.field);
     assert.equal(anchors.find(anchor => anchor.kind === 'PLAYER').range, PLAYER_BUILD_RANGE_METERS);
   }
+  assert.equal(majorBaseBuildRange(99), 255);
+  assert.equal(fieldBaseBuildRange(99), 180);
 });
 
-test('civilization advancement immediately unlocks road construction sites in the expanded base radius', () => {
+test('civilization advancement unlocks nearby road sites without covering the initial road map', () => {
   const build = new BuildSystem();
-  const levelZero = rangeFixture(0);
-  const levelOne = rangeFixture(1);
-  const levelZeroSites = build.listBuildSites(levelZero, 'gun');
-  const levelOneSites = build.listBuildSites(levelOne, 'gun');
-  assert.equal(levelZeroSites.some(site => site.nodeId === 'major-160' && site.anchorKind === 'MAJOR'), false);
-  assert.equal(levelOneSites.some(site => site.nodeId === 'major-160' && site.anchorKind === 'MAJOR'), true);
-  assert.equal(levelOneSites.some(site => site.nodeId === 'field-90' && site.anchorKind === 'FIELD'), true);
+  const levelOneSites = build.listBuildSites(rangeFixture(1), 'gun');
+  const levelTwoSites = build.listBuildSites(rangeFixture(2), 'gun');
+  assert.equal(levelOneSites.some(site => site.nodeId === 'major-160' && site.anchorKind === 'MAJOR'), false);
+  assert.equal(levelTwoSites.some(site => site.nodeId === 'major-160' && site.anchorKind === 'MAJOR'), true);
+  assert.equal(levelOneSites.some(site => site.nodeId === 'field-90' && site.anchorKind === 'FIELD'), false);
+  assert.equal(levelTwoSites.some(site => site.nodeId === 'field-90' && site.anchorKind === 'FIELD'), true);
+  assert.ok(majorBaseBuildRange(4) < 1250);
 });
 
 test('civilization growth does not turn the player position into an unlimited mobile construction anchor', () => {

@@ -10,6 +10,7 @@ import { edgeMidpoint } from '../combat/combat-geometry.js';
 import { enemyPosition } from '../combat/enemy-system.js';
 import { FRIENDLY_SQUAD_DEFINITIONS, FRIENDLY_SQUAD_ORDER, FRIENDLY_SQUAD_STATUS, friendlySquadPosition } from '../combat/friendly-force-system.js';
 import { recoveryPresentation } from '../combat/friendly-recovery-system.js';
+import { medicalCoverageForSquad } from '../combat/friendly-healing-system.js';
 import {
   FRIENDLY_ORDER_MODE,
   buildFriendlyRouteOptions,
@@ -135,7 +136,7 @@ export class CombatUi {
       .join(',');
     const occupiedState = state.combat.defenses
       .filter(defense => defense.kind === definition.kind)
-      .map(defense => `${defense.id}:${defense.hp > 0 && !defense.ruined ? 1 : 0}`)
+      .map(defense => `${defense.id}:${defense.hp > 0 ? 1 : 0}`)
       .join(',');
     const graph = state.world.roadGraph;
     const anchorState = this.buildSystem.getBuildAnchors(state)
@@ -206,7 +207,7 @@ export class CombatUi {
         id: defense.id,
         point: position,
         distance: distance(point, position),
-        priority: defense.ruined || defense.hp <= 0 ? 1 : 0
+        priority: 0
       });
     }
     for (const enemy of state.combat.enemies) {
@@ -639,6 +640,9 @@ export class CombatUi {
       add('塔修復', current.repairTower, next.repairTower);
       add('壁修復', current.repairBarrier, next.repairBarrier);
       add('再作動', `${current.cooldown}秒`, `${next.cooldown}秒`);
+    } else if (defense.type === 'medical') {
+      add('回復範囲', `${current.range}m`, `${next.range}m`);
+      add('回復速度', `${(current.recoveryRate * 100).toFixed(1)}%/秒`, `${(next.recoveryRate * 100).toFixed(1)}%/秒`);
     } else if (defense.type === 'survey') {
       add('MAP半径', `${current.surveyRadius}m`, `${next.surveyRadius}m`);
       add('区域取得', `${current.scanInterval}秒`, `${next.scanInterval}秒`);
@@ -755,7 +759,7 @@ export class CombatUi {
       `新設時はTier ${definition.initialTier ?? 0}です。文明レベル上昇後、既設設備を選択して資源を支払い個別に強化できます。`,
       this.selectedTool === 'survey'
         ? `測量施設は主要拠点・簡易拠点ごとに1基までです。現在の設置範囲は主要拠点${ranges.major}m、簡易拠点${ranges.field}mです。遠隔取得で見えるのは道路と未確認前線だけで、現地情報は実際の移動後に表示されます。`
-        : `文明Lv.${ranges.level}の建設可能範囲は主要拠点${ranges.major}m、簡易拠点${ranges.field}m、現在地${ranges.player}mです。拠点範囲は文明レベル上昇ごとに2倍になります。設置済み施設は新たな建設基準点にはなりません。移動先の道路は周辺区域の取得完了後に建設へ利用できます。`
+        : `文明Lv.${ranges.level}の建設可能範囲は主要拠点${ranges.major}m、簡易拠点${ranges.field}m、現在地${ranges.player}m、出撃中の遠征部隊${ranges.expedition}mです。拠点範囲は文明レベルに応じて段階的に広がりますが、後半でも現地移動・前線拠点・遠征部隊が必要な上限に抑えられます。設置済み施設は新たな建設基準点にはなりません。移動先の道路は周辺区域の取得完了後に建設へ利用できます。`
     ]);
     if (this.buildCandidate) {
       const confirm = this.action(affordable ? '建設を確定' : buildStatus.requiredCivilizationLevel ? '文明未解禁' : '資源不足', () => this.confirmBuildCandidate(), 'primary');
@@ -811,6 +815,7 @@ export class CombatUi {
       const remaining = remainingRouteDistance(state, squad);
       const origin = ownedBaseById(state, squad.originBaseId, { includeDestroyed: true });
       const target = state.world.enemyBases.find(base => base.id === squad.targetBaseId);
+      const interceptTarget = state.combat.enemies.find(enemy => enemy.id === squad.targetEnemyId && enemy.hp > 0);
       const recoveryItem = (state.world.recoveryItems ?? []).find(item => item.id === squad.targetRecoveryItemId);
       const recoveryTargetName = recoveryItem ? recoveryItemPresentation(recoveryItem).name : null;
       this.contextTitle.textContent = `ALLY // ${definition.name}`;
@@ -820,7 +825,7 @@ export class CombatUi {
         : definition.type === 'heavy'
           ? `${definition.guardRange}m以内の味方損害を${Math.round(definition.guardShare * 100)}%肩代わり`
           : definition.type === 'expedition'
-            ? `非戦闘${definition.recoveryDelaySeconds}秒後から毎秒${definition.nonCombatRecoveryPerSecond}HP回復`
+            ? `非戦闘${definition.recoveryDelaySeconds}秒後から毎秒${definition.nonCombatRecoveryPerSecond}HP回復・周囲120mを建設圏化`
             : definition.type === 'siege'
               ? '敵基地への攻撃に特化し、通常敵への火力は低い'
               : definition.type === 'retrieval'
@@ -829,19 +834,25 @@ export class CombatUi {
       if ([FRIENDLY_SQUAD_STATUS.RECOVERING, FRIENDLY_SQUAD_STATUS.READY].includes(squad.status)) {
         const recovery = recoveryPresentation(state, squad);
         const recoveryBase = ownedBaseById(state, squad.recoveryBaseId ?? squad.originBaseId, { includeDestroyed: true });
+        const medical = medicalCoverageForSquad(state, squad);
         this.setContextContent(
           squad.status === FRIENDLY_SQUAD_STATUS.READY
-            ? '回復・再編成が完了し、拠点で再出撃命令を待っています。DEPLOY画面から同じ部隊を追加費用なしで再出撃できます。'
-            : '拠点へ帰還し、回復と再編成を行っています。完了するまで再出撃できません。',
+            ? recovery.baseHealing
+              ? '主要拠点で補給・回復・再編成が完了し、再出撃命令を待っています。'
+              : '簡易拠点で再編成が完了し、再出撃命令を待っています。前線でのHP回復には回復施設を利用します。'
+            : recovery.baseHealing
+              ? '主要拠点へ帰還し、補給による回復と再編成を行っています。'
+              : '簡易拠点へ帰還し、再編成を行っています。HP回復には回復施設の範囲内での待機が必要です。',
           [
             ['HP', `${Math.ceil(squad.hp)}/${squad.maxHp}`],
-            ['TARGET HP', `${Math.ceil(recovery.targetHp)}/${squad.maxHp}`],
             ['STATUS', squad.status],
             ['BASE', recoveryBase?.name ?? '不明'],
-            ['CARE', recovery.profile?.label ?? '待機'],
-            ['REORG', squad.status === FRIENDLY_SQUAD_STATUS.READY ? '完了' : `${Math.ceil(recovery.reorganizationRemaining)}秒`]
+            ['REORG', squad.status === FRIENDLY_SQUAD_STATUS.READY ? '完了' : `${Math.ceil(recovery.reorganizationRemaining)}秒`],
+            ['HEAL', recovery.baseHealing ? '主要拠点補給' : medical ? `${medical.definition.name} ${Math.round(medical.distance)}m` : '範囲外']
           ],
-          [special, recovery.profile?.limited ? '簡易拠点での回復には上限があります。主要拠点へ帰還すれば完全回復できます。' : '主要拠点では最大HPまで回復します。']
+          [special, recovery.baseHealing
+            ? '主要拠点では帰還部隊へ基礎補給を行います。回復施設は拠点外でも範囲内の全味方部隊を同時に回復します。'
+            : '簡易拠点には自動回復機能がありません。回復施設の射程内へ配置してください。']
         );
       } else {
         this.setContextContent(
@@ -855,9 +866,11 @@ export class CombatUi {
                   ? `特殊アイテムを確保し、出撃元へ輸送中です。${definition.description}`
                   : squad.missionType === 'RECOVERY' && recoveryItem
                     ? `特殊アイテムの回収地点へ進行中です。${definition.description}`
-                    : squad.targetBaseId
-                      ? `敵基地へ進軍中です。${definition.description}`
-                      : `任務を終えて出撃元へ帰還中です。${definition.description}`,
+                    : squad.missionType === 'INTERCEPT' && interceptTarget
+                      ? `指定した敵部隊を追跡・迎撃中です。${definition.description}`
+                      : squad.targetBaseId
+                        ? `敵基地へ進軍中です。${definition.description}`
+                        : `任務を終えて出撃元へ帰還中です。${definition.description}`,
           [
             ['HP', `${Math.ceil(squad.hp)}/${squad.maxHp}`],
             ['MEN', String(Math.max(1, Math.ceil((squad.hp / squad.maxHp) * definition.members)))],
@@ -869,13 +882,17 @@ export class CombatUi {
             ['BASE DPS', String(definition.baseDps)],
             ['RANGE', Number.isFinite(remaining) ? `${Math.round(remaining)}m` : 'RECALC'],
             ['ORIGIN', origin?.name ?? '不明'],
-            ['TARGET', recoveryItem?.status === RECOVERY_ITEM_STATUS.CARRIED ? '出撃元へ輸送' : recoveryTargetName ?? (target ? ENEMY_BASE_DEFINITIONS[target.type]?.name ?? '敵拠点' : squad.order === FRIENDLY_SQUAD_ORDER.WITHDRAW ? '出撃元' : '帰還')]
+            ['TARGET', recoveryItem?.status === RECOVERY_ITEM_STATUS.CARRIED
+              ? '出撃元へ輸送'
+              : recoveryTargetName
+                ?? (interceptTarget ? ENEMY_DEFINITIONS[interceptTarget.type]?.name ?? '敵部隊' : null)
+                ?? (target ? ENEMY_BASE_DEFINITIONS[target.type]?.name ?? '敵拠点' : squad.order === FRIENDLY_SQUAD_ORDER.WITHDRAW ? '出撃元' : '帰還')]
           ],
           [special]
         );
         if (![FRIENDLY_SQUAD_ORDER.RETURN, FRIENDLY_SQUAD_ORDER.WITHDRAW].includes(squad.order)) {
           if (squad.order !== FRIENDLY_SQUAD_ORDER.HOLD) this.action('停止', () => this.holdSelectedSquad());
-          if (squad.order === FRIENDLY_SQUAD_ORDER.HOLD && ((squad.missionTargetBaseId ?? squad.targetBaseId ?? squad.targetRecoveryItemId) || squad.heldDestinationNodeId)) this.action('移動再開', () => this.beginOrderPlanning(FRIENDLY_ORDER_MODE.RESUME), 'primary');
+          if (squad.order === FRIENDLY_SQUAD_ORDER.HOLD && ((squad.missionTargetBaseId ?? squad.targetBaseId ?? squad.targetEnemyId ?? squad.targetRecoveryItemId) || squad.heldDestinationNodeId)) this.action('移動再開', () => this.beginOrderPlanning(FRIENDLY_ORDER_MODE.RESUME), 'primary');
           this.action('後退', () => this.beginOrderPlanning(FRIENDLY_ORDER_MODE.RETREAT));
           this.action('撤退', () => this.beginOrderPlanning(FRIENDLY_ORDER_MODE.WITHDRAW), 'danger');
         }
@@ -888,7 +905,7 @@ export class CombatUi {
       const doctrine = waveDoctrineDefinition(enemy.doctrineKey);
       const remaining = remainingRouteDistance(state, enemy);
       const targetDefense = enemy.targetDefenseId
-        ? state.combat.defenses.find(defense => defense.id === enemy.targetDefenseId && defense.hp > 0 && !defense.ruined)
+        ? state.combat.defenses.find(defense => defense.id === enemy.targetDefenseId && defense.hp > 0)
         : null;
       const targetFieldBase = enemy.targetFieldBaseId ? ownedBaseById(state, enemy.targetFieldBaseId) : null;
       const targetPlayerBase = enemy.targetPlayerBaseId ? ownedBaseById(state, enemy.targetPlayerBaseId) : null;
@@ -921,6 +938,8 @@ export class CombatUi {
         ['DAMAGE', String(definition.cityDamage)],
         ['OBJECTIVE', targetName]
       ], [behavior.description, `基本目標：${definition.objectiveLabel ?? '都市'}`]);
+      const intercept = this.action('この敵部隊へ派兵', () => this.openDeployment?.({ kind: 'enemy', id: enemy.id }), 'primary');
+      intercept.disabled = enemy.departDelay > 0 || typeof this.openDeployment !== 'function';
     } else if (selected.kind === 'explorationSite') {
       const site = (state.world.explorationSites ?? []).find(item => item.id === selected.id);
       if (!site || site.status === 'CLEARED') { this.clearObjectSelection(); return; }
@@ -988,9 +1007,7 @@ export class CombatUi {
       const runtime = defenseRuntimeDefinition(defense);
       const presentation = defensePresentation(defense.type, runtime);
       const survey = defense.type === 'survey' ? surveyFacilityPresentation(state, defense) : null;
-      const operatingStatus = defense.ruined
-        ? defense.isGate ? '破壊済み・敵通行可' : '破壊済み'
-        : defense.disabledTimer > 0
+      const operatingStatus = defense.disabledTimer > 0
           ? `停止 ${defense.disabledTimer.toFixed(1)}秒`
           : survey
             ? survey.statusLabel
@@ -1001,13 +1018,12 @@ export class CombatUi {
         ['EXPANDED', `${survey.completedCount}区域`],
         ['REMAIN', String(survey.remainingChunks)],
         ['COMM', survey.lastConnectionAt > 0 ? '成功' : survey.lastTransport === 'CACHE' ? 'キャッシュ' : '未成功'],
-        ['LINK', survey.lastEndpoint ? `${survey.lastEndpoint} ${survey.lastTransport ?? ''}`.trim() : '未成功'],
+        ['LINK', survey.lastEndpoint ? `${survey.lastEndpoint} ${{ SANDBOX_JSONP: '安全JSONP', GET: 'GET', POST: 'POST', CACHE: 'キャッシュ' }[survey.lastTransport] ?? survey.lastTransport ?? ''}`.trim() : '未成功'],
         ...(survey.lastConnectionAt > 0 ? [['RESPONSE', `${survey.lastResponseElements}件`]] : []),
         ...(survey.lastSuccessAt > 0 ? [['ROADS', String(survey.lastRoadCount)]] : []),
         ...(survey.errorCount > 0 ? [['RETRY', String(survey.errorCount)]] : [])
       ] : [];
       const notes = presentation ? [presentation.effect, presentation.placement, '強化しても損傷率は維持され、全回復はしません。'] : [];
-      if (defense.isGate && defense.ruined) notes.push('この門は現在道路を封鎖していません。修理が完了するまで敵は通過できます。');
       if (survey) {
         notes.push('遠隔測量済み区域へプレイヤーが実際に入ると、現地イベントや敵発生源の正確な情報が解禁されます。');
         if (survey.lastConnectionAt <= 0) notes.push('この施設にはまだ道路サーバーとの通信成功記録がありません。COMMが未成功のままなら「今すぐ測量」で再試行してください。');
@@ -1040,8 +1056,8 @@ export class CombatUi {
           ...surveyMetrics
         ]);
         this.action('説明', () => this.setDefensePanelMode('details', defense.id));
-        const repair = this.action(defense.hp >= defense.maxHp && !defense.ruined ? '修理不要' : '修理', () => this.mutateAction(draft => this.civilizationSystem.progression.repairDefense(draft, defense.id), 'defense:repair'));
-        repair.disabled = defense.hp >= defense.maxHp && !defense.ruined;
+        const repair = this.action(defense.hp >= defense.maxHp ? '修理不要' : '修理', () => this.mutateAction(draft => this.civilizationSystem.progression.repairDefense(draft, defense.id), 'defense:repair'));
+        repair.disabled = defense.hp >= defense.maxHp;
         if (survey) {
           const surveyBusy = ['QUEUED', 'LOADING'].includes(survey.status);
           const surveyComplete = survey.status === 'COMPLETE' && survey.remainingChunks <= 0;
@@ -1055,17 +1071,17 @@ export class CombatUi {
             },
             'primary'
           );
-          scan.disabled = defense.ruined || defense.hp <= 0 || defense.disabledTimer > 0 || surveyBusy || surveyComplete || typeof this.requestSurvey !== 'function';
+          scan.disabled = defense.hp <= 0 || defense.disabledTimer > 0 || surveyBusy || surveyComplete || typeof this.requestSurvey !== 'function';
         }
         const upgradeButton = this.action(upgrade.atMax ? '最高Tier' : '強化', () => this.setDefensePanelMode('upgrade', defense.id), 'primary');
         upgradeButton.disabled = upgrade.atMax;
         if (defense.kind === 'barrier' && !defense.isGate) {
           const gate = this.action((state.civilization.level ?? 0) >= 2 ? '門へ変換' : '門は文明Lv.2で解禁', () => this.mutateAction(draft => this.civilizationSystem.progression.convertBarrierToGate(draft, defense.id), 'defense:gate'));
-          gate.disabled = (state.civilization.level ?? 0) < 2 || defense.ruined || defense.hp <= 0;
+          gate.disabled = (state.civilization.level ?? 0) < 2 || defense.hp <= 0;
         }
         const removalPending = this.pendingDefenseRemovalId === defense.id;
         this.action(
-          removalPending ? '撤去を確定（資源返還なし）' : defense.ruined || defense.hp <= 0 ? '残骸を撤去' : '撤去',
+          removalPending ? '撤去を確定（資源返還なし）' : '撤去',
           () => this.requestDefenseRemoval(defense.id),
           'danger'
         );

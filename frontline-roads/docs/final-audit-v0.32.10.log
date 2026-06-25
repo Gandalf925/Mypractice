@@ -1,0 +1,50 @@
+FRONTLINE ROADS v0.32.10 FINAL AUDIT
+
+Scope
+- Recover full-screen menu/civilization/base/deployment panels after radar-quality changes on Android Chromium
+- Isolate radar quality from interactive DOM panel composition
+- Add backdrop/Escape emergency dismissal for all modal command panels
+
+Root cause
+- Touch devices defaulted to minimal, but the next quality value was full
+- Full quality enabled modal backdrop blur
+- Legacy comma-joined CSS selectors coupled radar quality to modal card and panel filter/clip rules
+- The dark overlay remained interactive while the modal card could disappear from the compositor
+
+Corrections
+- Quality order: minimal -> balanced -> full
+- Modal overlay backdrop filters: none
+- Modal card opacity/visibility/filter: explicitly safe
+- Quality-scoped modal selectors: removed
+- Malformed selector/media-query coupling: removed
+- Shared modal backdrop/Escape dismissal: menu, civilization, base command, deployment
+- hidden and aria-hidden: synchronized
+
+Verification
+- Parallel regression: 420 passed, 0 failed
+- Serial file-by-file regression: 420 passed, 0 failed across 69 test files
+- JavaScript syntax: passed
+- CSS parser errors: 0
+- Qualified CSS selectors containing @media: 0
+- Production JavaScript modules: 102
+- Reachable from bootstrap: 102
+- Unreachable modules: 0
+- Unresolved imports: 0
+- Circular dependencies: 0
+- Duplicate HTML IDs: 0
+- Service Worker runtime omissions: 0
+- Quality-scoped modal selectors: 0
+- Modal backdrop blur rules: 0
+- Selector comma before @media: 0
+- Local HTTP checks: index, CSS, bootstrap, preferences, modal helper, service worker, legacy redirect all returned 200
+
+Compatibility
+- Save key: frontline_roads_refactor_v2 (unchanged)
+- Save schema: 2 (unchanged)
+- Existing radar preference storage key retained
+- Existing saved full-quality setting remains valid and no longer hides command panels
+- Combat, road acquisition, offline progression, deployment missions and construction ranges unchanged
+
+Environment limitation
+- Chromium in this execution environment blocks local/file navigation by administrator policy.
+- Android GPU composition, touch interaction and Service Worker replacement require public HTTPS/device verification.

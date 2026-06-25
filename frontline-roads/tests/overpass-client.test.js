@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_ENDPOINTS, OverpassClient } from '../src/roads/overpass-client.js';
+import { DEFAULT_ENDPOINTS, OVERPASS_TRANSPORT, OverpassClient } from '../src/roads/overpass-client.js';
 
 test('default endpoints use the configured public instances', () => {
   assert.deepEqual(DEFAULT_ENDPOINTS, [
@@ -15,6 +15,8 @@ test('query filters road classes before download', () => {
   const query = client.buildQuery(35, 139, 1150);
   assert.match(query, /primary_link/);
   assert.match(query, /living_street/);
+  assert.match(query, /service/);
+  assert.match(query, /road/);
   assert.match(query, /access/);
   assert.match(query, /area/);
   assert.match(query, /around:1150,35,139/);
@@ -35,9 +37,8 @@ test('browser request starts with a form-encoded POST and stops after success', 
   await client.fetchRoads(35, 139, { onAttempt: item => attempts.push(item) });
   assert.equal(captured.url, 'https://one.test/api/interpreter');
   assert.equal(captured.options.method, 'POST');
-  assert.match(captured.options.body, /^data=/);
-  assert.equal(captured.options.headers['Content-Type'], 'application/x-www-form-urlencoded;charset=UTF-8');
-  assert.equal(captured.options.headers.Accept, 'application/json');
+  assert.match(String(captured.options.body), /^data=/);
+  assert.equal(captured.options.headers, undefined);
   assert.deepEqual(attempts.map(item => item.transport), ['POST']);
   assert.equal(attempts[0].totalAttempts, 2);
 });
@@ -104,6 +105,69 @@ test('all failures include endpoint and both secure transport diagnostics', asyn
     assert.doesNotMatch(error.details, /JSONP/);
     return true;
   });
+});
+
+test('failed fetch transports fall back to opaque sandbox JSONP and remember it', async () => {
+  const fetchMethods = [];
+  const jsonpCalls = [];
+  const payload = { elements: [{ type: 'way', id: 1 }] };
+  const client = new OverpassClient({
+    endpoints: ['https://one.test/api/interpreter'],
+    fetchImpl: async (_url, options) => {
+      fetchMethods.push(options.method);
+      throw new TypeError('Failed to fetch');
+    },
+    sandboxJsonpImpl: async (endpoint, query) => {
+      jsonpCalls.push({ endpoint, query });
+      return payload;
+    }
+  });
+
+  assert.equal(await client.fetchRoads(35, 139), payload);
+  assert.deepEqual(fetchMethods, ['POST', 'GET']);
+  assert.equal(jsonpCalls.length, 1);
+  assert.equal(client.getLastSuccess().transport, OVERPASS_TRANSPORT.SANDBOX_JSONP);
+
+  await client.fetchRoads(35, 139);
+  assert.equal(jsonpCalls.length, 2);
+  assert.deepEqual(fetchMethods, ['POST', 'GET']);
+});
+
+test('an empty road result requires confirmation from two independent endpoints', async () => {
+  const calls = [];
+  const client = new OverpassClient({
+    endpoints: ['https://one.test/api/interpreter', 'https://two.test/api/interpreter'],
+    sandboxJsonpImpl: null,
+    fetchImpl: async (url, options) => {
+      calls.push({ host: new URL(url).hostname, method: options.method });
+      return { ok: true, status: 200, async json() { return { elements: [] }; } };
+    }
+  });
+  const result = await client.fetchRoads(35, 139);
+  assert.deepEqual(result, { elements: [] });
+  assert.deepEqual(calls.map(call => call.host), ['one.test', 'two.test']);
+  assert.equal(client.getLastSuccess().confirmedEmpty, true);
+  assert.equal(client.getLastSuccess().emptyConfirmationCount, 2);
+});
+
+test('roads from a second endpoint override a false empty response from the first', async () => {
+  const client = new OverpassClient({
+    endpoints: ['https://one.test/api/interpreter', 'https://two.test/api/interpreter'],
+    sandboxJsonpImpl: null,
+    fetchImpl: async url => ({
+      ok: true,
+      status: 200,
+      async json() {
+        return new URL(url).hostname === 'one.test'
+          ? { elements: [] }
+          : { elements: [{ type: 'way', id: 9 }] };
+      }
+    })
+  });
+  const result = await client.fetchRoads(35, 139);
+  assert.equal(result.elements[0].id, 9);
+  assert.equal(client.getLastSuccess().host, 'two.test');
+  assert.equal(client.getLastSuccess().confirmedEmpty, false);
 });
 
 test('caller abort stops attempts immediately', async () => {

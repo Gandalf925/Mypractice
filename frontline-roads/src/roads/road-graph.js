@@ -1,9 +1,10 @@
 import { distance, stableId } from '../core/utilities.js';
 import { clusterSegmentEndpoints } from './intersection-clustering.js';
-import { mergeRoadMetadata } from './parallel-road-collapse.js';
 import { segmentAngle, segmentMidpoint } from './geometry.js';
 
 const GRAPH_SPATIAL_CELL_METERS = 400;
+const MIN_EDGE_METERS = 1.5;
+const MAX_EDGE_METERS = 320;
 
 function cellKey(x, y) {
   return `${x},${y}`;
@@ -84,23 +85,22 @@ export function graphElementsNearPoint(graph, point, radius) {
 export function buildRoadGraphFromSegments(segments, center) {
   const clustered = clusterSegmentEndpoints(segments, center);
   const edges = [];
-  const edgeByPair = new Map();
+  const edgeKeys = new Set();
 
   for (const segment of segments) {
     const a = clustered.nodeByRoot.get(clustered.find(segment.pointA));
     const b = clustered.nodeByRoot.get(clustered.find(segment.pointB));
     if (!a || !b || a.id === b.id) continue;
     const length = distance(a, b);
-    if (length < 6 || length > 280) continue;
+    if (length < MIN_EDGE_METERS || length > MAX_EDGE_METERS) continue;
     const pair = a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`;
-    const existing = edgeByPair.get(pair);
-    if (existing) {
-      mergeRoadMetadata(existing, segment);
-      continue;
-    }
+    const wayId = String(segment.wayId ?? segment.id);
+    const edgeKey = `${pair}|${wayId}`;
+    if (edgeKeys.has(edgeKey)) continue;
+    edgeKeys.add(edgeKey);
 
     const edge = {
-      id: stableId('edge', pair, segment.name, segment.highway),
+      id: stableId('edge', pair, wayId, segment.id),
       a: a.id,
       b: b.id,
       length,
@@ -111,21 +111,24 @@ export function buildRoadGraphFromSegments(segments, center) {
       highway: segment.highway,
       name: segment.name,
       oneway: segment.oneway,
+      sourceWayIds: [wayId],
       mergedSegmentIds: [...(segment.mergedSegmentIds ?? [segment.id])]
     };
     edge.angle = segmentAngle({ a, b });
     edge.mid = segmentMidpoint({ a, b });
     edges.push(edge);
-    edgeByPair.set(pair, edge);
   }
 
-  return attachGraphIndexes({ nodes: clustered.nodes, edges, center, source: 'osm', roadSpecVersion: 1 });
+  return attachGraphIndexes({ nodes: clustered.nodes, edges, center, source: 'osm', roadSpecVersion: 3 });
 }
 
 export function attachGraphIndexes(graph) {
   const nodeById = new Map(graph.nodes.map(node => [node.id, node]));
   const edgeById = new Map();
   const adjacency = new Map(graph.nodes.map(node => [node.id, []]));
+  for (const node of graph.nodes) {
+    node.sourceNodeIds = [...new Set((node.sourceNodeIds ?? []).map(String))];
+  }
   for (const edge of graph.edges) {
     const a = nodeById.get(edge.a);
     const b = nodeById.get(edge.b);
@@ -135,6 +138,7 @@ export function attachGraphIndexes(graph) {
       edge.mid ??= segmentMidpoint({ a, b });
     }
     edge.mergedSegmentIds ??= [edge.id];
+    edge.sourceWayIds = [...new Set((edge.sourceWayIds ?? []).map(String))];
     edgeById.set(edge.id, edge);
     adjacency.get(edge.a)?.push({ to: edge.b, edgeId: edge.id, length: edge.length });
     adjacency.get(edge.b)?.push({ to: edge.a, edgeId: edge.id, length: edge.length });

@@ -72,12 +72,12 @@ function straightRoadScenario(types, { baseLevel = 2, slow = true } = {}) {
   state.world.enemyBases = [base];
   state.combat.defenses = [{
     id: 'area', kind: 'tower', type: 'mortar', line: 'area', tier: 0,
-    nodeId: 'city', hp: 150, maxHp: 150, cooldown: 0, disabledTimer: 0, ruined: false
+    nodeId: 'city', hp: 150, maxHp: 150, cooldown: 0, disabledTimer: 0
   }];
   if (slow) {
     state.combat.defenses.push({
       id: 'slow', kind: 'tower', type: 'slow', line: 'slow', tier: 0,
-      nodeId: 'city', hp: 150, maxHp: 150, cooldown: 0, disabledTimer: 0, ruined: false
+      nodeId: 'city', hp: 150, maxHp: 150, cooldown: 0, disabledTimer: 0
     });
   }
   for (const type of types) spawnEnemy(state, base, type, 0);
@@ -115,7 +115,7 @@ test('area defense applies full damage to one target, reduced splash and a hard 
   state.combat.enemies = enemies;
   state.combat.defenses = [{
     id: 'area', kind: 'tower', type: 'mortar', line: 'area', tier: 0,
-    nodeId: 'tower', hp: 150, maxHp: 150, cooldown: 0, disabledTimer: 0, ruined: false
+    nodeId: 'tower', hp: 150, maxHp: 150, cooldown: 0, disabledTimer: 0
   }];
   const entries = enemies.map((enemy, index) => ({ enemy, position: { x: index * 4, y: 0 } }));
   new DefenseSystem().update(state, 0.1, fixedSpatial(entries));
@@ -131,7 +131,7 @@ test('slow defense affects only the nearest approved number of targets', () => {
   state.combat.enemies = enemies;
   state.combat.defenses = [{
     id: 'slow', kind: 'tower', type: 'slow', line: 'slow', tier: 0,
-    nodeId: 'tower', hp: 150, maxHp: 150, cooldown: 0, disabledTimer: 0, ruined: false
+    nodeId: 'tower', hp: 150, maxHp: 150, cooldown: 0, disabledTimer: 0
   }];
   const entries = enemies.map((enemy, index) => ({ enemy, position: { x: 10 + index * 10, y: 0 } }));
   new DefenseSystem().update(state, 0.1, fixedSpatial(entries));

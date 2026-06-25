@@ -54,17 +54,18 @@ test('removed resource outpost subsystem is absent from civilization runtime', (
 });
 
 
-test('settlement damage ruins a building and disables its production', () => {
+test('settlement damage removes a destroyed building and its production queue', () => {
   const state = stateWithWorld();
   state.civilization.level = 1;
   Object.assign(state.inventory.resources, { wood: 300, stone: 300, fiber: 300 });
   recalculateCapacity(state);
   const system = new CivilizationSystem();
   const building = system.settlement.build(state, 'carpentry').building;
+  assert.equal(system.production.enqueue(state, building.id, 'timber').ok, true);
   state.combat.pendingSettlementDamage = [{ enemyId: 'siege-1', enemyType: 'siegeBreaker', damage: 999 }];
   system.update(state, 0);
-  assert.equal(building.ruined, true);
-  assert.equal(building.hp, 0);
+  assert.equal(state.civilization.buildings.some(item => item.id === building.id), false);
+  assert.equal(state.civilization.productionQueues.some(queue => queue.buildingId === building.id), false);
   assert.equal(system.production.enqueue(state, building.id, 'timber').ok, false);
 });
 

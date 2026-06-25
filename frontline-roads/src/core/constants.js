@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.32.4-survey-range-reliability';
+export const APP_VERSION = '0.32.10-modal-display-recovery';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 
@@ -32,9 +32,11 @@ export const ALLOWED_TRANSITIONS = Object.freeze({
 
 export const ROAD_CONFIG = Object.freeze({
   selectionRadiusMeters: 1000,
-  fetchRadiusMeters: 1150,
+  fetchRadiusMeters: 1500,
+  initialRetentionRadiusMeters: 1250,
   chunkSizeMeters: 600,
-  chunkFetchRadiusMeters: 520,
+  chunkFetchRadiusMeters: 900,
+  chunkRetentionPaddingMeters: 120,
   chunkPrefetchRadius: 1,
   chunkPrefetchDistanceMeters: 180,
   roadFrontierDistanceMeters: 220,
@@ -50,11 +52,12 @@ export const ROAD_CONFIG = Object.freeze({
   surveyRetryCooldownMs: 90 * 1000,
   overpassTimeoutMs: 18000,
   overpassTotalTimeoutMs: 90000,
+  emptyResultConfirmationEndpoints: 2,
   minimumRawSegments: 18,
   minimumNodes: 14,
   minimumEdges: 16,
   maxSegmentLengthMeters: 280,
   minSegmentLengthMeters: 5,
-  maxDistanceFromCenterMeters: 1125,
+  maxDistanceFromCenterMeters: 1250,
   selectionTolerancePixels: 24
 });

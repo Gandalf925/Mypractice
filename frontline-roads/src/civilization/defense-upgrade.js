@@ -46,8 +46,7 @@ export function synchronizeDefenseTier(defense) {
   defense.tier = tier;
   defense.defenseKey = definition.key;
   defense.maxHp = maximum;
-  defense.hp = defense.ruined || oldHp <= 0 ? 0 : Math.max(1, Math.min(maximum, Math.round(maximum * ratio)));
-  defense.ruined = Boolean(defense.ruined || defense.hp <= 0);
+  defense.hp = oldHp <= 0 ? 0 : Math.max(1, Math.min(maximum, Math.round(maximum * ratio)));
   return defense;
 }
 
@@ -81,7 +80,7 @@ export function defenseUpgradeStatus(state, defense) {
   const affordable = hasBundle(state, cost);
   const missing = missingBundle(state, cost);
   let reason = null;
-  if (defense.ruined || defense.hp <= 0) reason = '破壊済み設備は先に修理してください。';
+  if (defense.hp <= 0) reason = '破壊された設備は撤去済みです。';
   else if (!unlocked) reason = `文明Lv.${requiredCivilizationLevel}で解禁されます。`;
   else if (!affordable) reason = '強化資源が不足しています。';
 
@@ -117,6 +116,6 @@ export function applyDefenseTier(defense, tier, { preserveHealthRatio = true } =
   defense.tier = tier;
   defense.defenseKey = definition.key;
   defense.maxHp = nextMaximum;
-  defense.hp = defense.ruined || oldHp <= 0 ? 0 : Math.max(1, Math.min(nextMaximum, Math.round(nextMaximum * ratio)));
+  defense.hp = oldHp <= 0 ? 0 : Math.max(1, Math.min(nextMaximum, Math.round(nextMaximum * ratio)));
   return definition;
 }

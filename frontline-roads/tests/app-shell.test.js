@@ -84,12 +84,14 @@ test('asset startup does not delete caches or unregister service workers before 
   assert.match(html, /release\.directory}\/src\/app\/bootstrap\.js/);
 });
 
-test('GitHub Pages package includes no-Jekyll markers and the legacy fr redirect', async () => {
+test('GitHub Pages package includes no-Jekyll markers and synchronized root and legacy redirects', async () => {
   await access(resolve(root, '.nojekyll'));
   await access(resolve(root, '..', '.nojekyll'));
   const alias = await readFile(resolve(root, '..', 'fr', 'index.html'), 'utf8');
+  const rootRedirect = await readFile(resolve(root, '..', 'index.html'), 'utf8');
   const packageData = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
   assert.ok(alias.includes(`../frontline-roads/?entry=${packageData.version}`));
+  assert.ok(rootRedirect.includes(`./frontline-roads/?entry=${packageData.version}`));
 });
 
 

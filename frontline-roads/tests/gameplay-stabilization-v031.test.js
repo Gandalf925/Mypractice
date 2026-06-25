@@ -40,7 +40,7 @@ function civilizationFixture(level = 1) {
 test('batch production queues 1, 5, 10 or the maximum without double-reserving inputs', () => {
   const state = civilizationFixture(1);
   state.civilization.buildings.push({
-    id: 'carpentry', type: 'carpentry', hp: 240, maxHp: 240, ruined: false, demolished: false,
+    id: 'carpentry', type: 'carpentry', hp: 240, maxHp: 240,
     outputBuffer: {}, history: { produced: 0, repairs: 0 }
   });
   state.inventory.resources.wood = 200;
@@ -60,7 +60,7 @@ test('batch production queues 1, 5, 10 or the maximum without double-reserving i
 test('project-only production caps queued units, starts the existing order, and cannot overshoot the target', () => {
   const state = civilizationFixture(2);
   state.civilization.buildings.push({
-    id: 'trial-furnace', type: 'trialBronzeFurnace', hp: 240, maxHp: 240, ruined: false, demolished: false,
+    id: 'trial-furnace', type: 'trialBronzeFurnace', hp: 240, maxHp: 240,
     outputBuffer: {}, history: { produced: 0, repairs: 0 }
   });
   Object.assign(state.inventory.resources, { copperIngot: 18, tinIngot: 6, charcoal: 12 });
@@ -183,7 +183,7 @@ test('listed barrier sites use an in-range projection and remain valid for const
   assert.equal(state.civilization.progress.barriersBuilt, 1);
 
   result.defense.hp = 0;
-  result.defense.ruined = true;
+  system.removeDefense(state, result.defense.id);
   const barrierCheck = evaluateProject(state).checks.find(check => check.key === 'barrier0');
   assert.equal(barrierCheck.complete, true, 'the one-time construction requirement must not reverse after battle damage');
 });

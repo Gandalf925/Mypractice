@@ -32,7 +32,7 @@ function makeState() {
 
 test('existing facilities do not expand construction beyond bases and the player', () => {
   const state = makeState();
-  state.combat.defenses.push({ id: 'occupied', kind: 'tower', type: 'gun', nodeId: 'near', hp: 100, maxHp: 100, ruined: false });
+  state.combat.defenses.push({ id: 'occupied', kind: 'tower', type: 'gun', nodeId: 'near', hp: 100, maxHp: 100 });
   const build = new BuildSystem();
 
   assert.deepEqual(build.getBuildAnchors(state).map(anchor => anchor.kind), ['MAJOR']);
@@ -74,13 +74,13 @@ test('a stale candidate is rejected without spending resources', () => {
   const state = makeState();
   const build = new BuildSystem();
   const preview = build.previewAt(state, 'gun', { x: 60, y: 0 }, 5);
-  state.combat.defenses.push({ id: 'other', kind: 'tower', type: 'gun', nodeId: 'near', hp: 100, maxHp: 100, ruined: false });
+  state.combat.defenses.push({ id: 'other', kind: 'tower', type: 'gun', nodeId: 'near', hp: 100, maxHp: 100 });
   const before = { ...state.inventory.resources };
 
   const result = build.buildCandidate(state, preview.candidate);
 
   assert.equal(result.ok, false);
-  assert.match(result.reason, /設備または残骸/);
+  assert.match(result.reason, /設備があります/);
   assert.deepEqual(state.inventory.resources, before);
   assert.equal(state.combat.defenses.length, 1);
 });
@@ -115,19 +115,19 @@ test('barrier candidates retain the tapped road position and reject out-of-range
 });
 
 
-test('a ruined placement blocks replacement construction until the wreck is repaired or removed', () => {
+test('a removed destroyed placement is immediately available for replacement construction', () => {
   const state = makeState();
   const build = new BuildSystem();
   const firstPreview = build.previewAt(state, 'gun', { x: 60, y: 0 }, 5);
   const first = build.buildCandidate(state, firstPreview.candidate);
   first.defense.hp = 0;
-  first.defense.ruined = true;
+  build.removeDefense(state, first.defense.id);
 
   const secondPreview = build.previewAt(state, 'mortar', { x: 60, y: 0 }, 5);
 
-  assert.equal(secondPreview.ok, false);
-  assert.match(secondPreview.reason, /残骸/);
-  assert.equal(state.combat.defenses.length, 1);
+  assert.equal(secondPreview.ok, true);
+  assert.equal(secondPreview.candidate.nodeId, 'near');
+  assert.equal(state.combat.defenses.length, 0);
 });
 
 test('preview skips an occupied nearest intersection when another valid intersection is within the tap tolerance', () => {
@@ -144,7 +144,7 @@ test('preview skips an occupied nearest intersection when another valid intersec
       { id: 'road-b', a: 'home', b: 'available', length: 60.2, roadWidth: 5 }
     ]
   });
-  state.combat.defenses.push({ id: 'tower-a', kind: 'tower', type: 'gun', nodeId: 'occupied', hp: 100, maxHp: 100, ruined: false });
+  state.combat.defenses.push({ id: 'tower-a', kind: 'tower', type: 'gun', nodeId: 'occupied', hp: 100, maxHp: 100 });
 
   const result = new BuildSystem().previewAt(state, 'gun', { x: 60, y: 1 }, 5);
 
@@ -167,7 +167,7 @@ test('preview skips an occupied nearest road when another valid road is within t
       { id: 'available-road', a: 'b0', b: 'b1', length: 60, roadWidth: 5 }
     ]
   });
-  state.combat.defenses.push({ id: 'barrier-a', kind: 'barrier', type: 'barrier', edgeId: 'occupied-road', hp: 100, maxHp: 100, ruined: false });
+  state.combat.defenses.push({ id: 'barrier-a', kind: 'barrier', type: 'barrier', edgeId: 'occupied-road', hp: 100, maxHp: 100 });
 
   const result = new BuildSystem().previewAt(state, 'barrier', { x: 30, y: 1 }, 5);
 
@@ -220,7 +220,7 @@ test('overlapping home-base and player positions are represented as one build zo
 test('a remote facility stays outside the build zone until the player physically reaches it', () => {
   const state = makeState();
   const build = new BuildSystem();
-  state.combat.defenses.push({ id: 'remote-anchor-attempt', kind: 'tower', type: 'gun', nodeId: 'near', hp: 100, maxHp: 100, ruined: false });
+  state.combat.defenses.push({ id: 'remote-anchor-attempt', kind: 'tower', type: 'gun', nodeId: 'near', hp: 100, maxHp: 100 });
   state.world.roadGraph = attachGraphIndexes({
     center: { lat: 35, lon: 139 }, source: 'test', roadSpecVersion: 1,
     nodes: [
@@ -242,7 +242,7 @@ test('a remote facility stays outside the build zone until the player physically
 test('removing a defense reopens its placement and invalidates enemy routes', () => {
   const state = makeState();
   const build = new BuildSystem();
-  state.combat.defenses.push({ id: 'remove-me', kind: 'tower', type: 'gun', nodeId: 'near', hp: 150, maxHp: 150, ruined: false });
+  state.combat.defenses.push({ id: 'remove-me', kind: 'tower', type: 'gun', nodeId: 'near', hp: 150, maxHp: 150 });
   state.combat.enemies.push({ id: 'enemy', hp: 10, targetDefenseId: 'remove-me', reroutePending: false });
 
   const result = build.removeDefense(state, 'remove-me');

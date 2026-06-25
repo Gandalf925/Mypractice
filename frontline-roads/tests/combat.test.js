@@ -70,7 +70,7 @@ test('build range is measured from established home base', () => {
 
 test('gun tower damages an enemy in range', () => {
   const state = makeState();
-  state.combat.defenses.push({ id: 'gun', kind: 'tower', type: 'gun', nodeId: 'home', hp: 160, maxHp: 160, cooldown: 0, disabledTimer: 0, ruined: false });
+  state.combat.defenses.push({ id: 'gun', kind: 'tower', type: 'gun', nodeId: 'home', hp: 160, maxHp: 160, cooldown: 0, disabledTimer: 0 });
   const base = state.world.enemyBases[0];
   const enemy = spawnEnemy(state, base, 'infantry', 0);
   enemy.nodeId = 'home';
@@ -103,9 +103,9 @@ test('repair relay consumes resources and repairs only the most damaged target',
   state.inventory.resources.stone = 100;
   state.inventory.resources.fiber = 100;
   state.combat.defenses.push(
-    { id: 'relay', kind: 'tower', type: 'relay', line: 'repair', tier: 0, nodeId: 'a', hp: 180, maxHp: 180, cooldown: 0, disabledTimer: 0, ruined: false },
-    { id: 'gun-a', kind: 'tower', type: 'gun', line: 'single', tier: 0, nodeId: 'home', hp: 50, maxHp: 150, cooldown: 0, disabledTimer: 0, ruined: false },
-    { id: 'gun-b', kind: 'tower', type: 'gun', line: 'single', tier: 0, nodeId: 'b', hp: 120, maxHp: 150, cooldown: 0, disabledTimer: 0, ruined: false }
+    { id: 'relay', kind: 'tower', type: 'relay', line: 'repair', tier: 0, nodeId: 'a', hp: 180, maxHp: 180, cooldown: 0, disabledTimer: 0 },
+    { id: 'gun-a', kind: 'tower', type: 'gun', line: 'single', tier: 0, nodeId: 'home', hp: 50, maxHp: 150, cooldown: 0, disabledTimer: 0 },
+    { id: 'gun-b', kind: 'tower', type: 'gun', line: 'single', tier: 0, nodeId: 'b', hp: 120, maxHp: 150, cooldown: 0, disabledTimer: 0 }
   );
   const before = { ...state.inventory.resources };
   const system = new DefenseSystem();

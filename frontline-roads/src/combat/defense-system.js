@@ -5,6 +5,7 @@ import { defenseRuntimeDefinition } from './definitions.js';
 import { edgeMidpoint } from './combat-geometry.js';
 import { damageEnemy } from './enemy-system.js';
 import { buildCombatSpatialIndex } from './combat-spatial-index.js';
+import { applyMedicalAreaHealing } from './friendly-healing-system.js';
 
 const MAX_ACTIONS_PER_UPDATE = 128;
 
@@ -23,7 +24,7 @@ function operateRelay(state, tower, definition, graph, position, events) {
   let target = null;
   let mostMissing = 0;
   for (const defense of state.combat.defenses) {
-    if (defense === tower || defense.ruined || defense.hp <= 0 || defense.hp >= defense.maxHp) continue;
+    if (defense === tower || defense.hp <= 0 || defense.hp >= defense.maxHp) continue;
     const targetPosition = defense.kind === 'barrier' ? edgeMidpoint(graph, defense.edgeId) : graph.nodeById.get(defense.nodeId);
     if (!targetPosition || distance(position, targetPosition) > definition.range) continue;
     const missing = defense.maxHp - defense.hp;
@@ -39,6 +40,8 @@ function operateRelay(state, tower, definition, graph, position, events) {
   events?.emit('combat:defense-repaired', { defenseId: target.id, repairHp, cost, automatic: true });
   return true;
 }
+
+
 
 function fireTower(state, tower, definition, position, spatial, events) {
   const targets = spatial.query(position, definition.range).filter(entry => entry.enemy.hp > 0);
@@ -100,17 +103,21 @@ export class DefenseSystem {
   constructor(events) { this.events = events; }
 
   updateTower(state, tower, deltaSeconds, spatial) {
-    if (tower.ruined || tower.hp <= 0) return;
+    if (tower.hp <= 0) return;
     const elapsed = Math.max(0, Number(deltaSeconds) || 0);
     const disabledBefore = Math.max(0, Number(tower.disabledTimer) || 0);
     tower.disabledTimer = Math.max(0, disabledBefore - elapsed);
     const operationalSeconds = Math.max(0, elapsed - disabledBefore);
-    if (operationalSeconds <= 0 || ['survey', 'medical', 'fieldAid'].includes(tower.type)) return;
+    if (operationalSeconds <= 0 || ['survey', 'fieldBarracks'].includes(tower.type)) return;
 
     const definition = defenseRuntimeDefinition(tower);
     const graph = state.world.roadGraph;
     const position = graph.nodeById.get(tower.nodeId);
     if (!definition || !position) return;
+    if (tower.type === 'medical') {
+      applyMedicalAreaHealing(state, tower, operationalSeconds);
+      return;
+    }
 
     tower.cooldown = (Number(tower.cooldown) || 0) - operationalSeconds;
     let actions = 0;

@@ -23,6 +23,7 @@ function fixture() {
   state.world.playerBases = [{ ...state.world.homeBase, name: '本拠地', hp: 100, maxHp: 100, primary: true }];
   state.world.city = { nodeId: 'home', hp: 100, maxHp: 100 };
   state.world.enemyBases = [{ id: 'target', type: 'barracks', nodeId: 'enemy', hp: 100, maxHp: 100, alive: true, level: 1 }];
+  state.combat.enemies = [{ id: 'moving-target', type: 'infantry', nodeId: 'enemy', hp: 50, maxHp: 50, level: 1, path: { nodeIds: ['enemy', 'home'], edgeIds: ['road'], targetId: 'home', cost: 200 }, pathIndex: 0, edgeId: 'road', edgeProgress: 0, departDelay: 0 }];
   Object.assign(state.inventory.resources, { wood: 200, stone: 200, fiber: 200 });
   state.inventory.capacity = { base: 1000, processed: 1000, ore: 1000, metal: 1000 };
   return state;
@@ -68,6 +69,31 @@ test('enemy-base deployment opens with the tapped target fixed', async () => {
   } finally { globalThis.document = prior; }
 });
 
+test('enemy-unit deployment opens an intercept mission for the tapped moving marker', async () => {
+  const prior = globalThis.document;
+  const state = fixture();
+  const elements = uiFixture();
+  globalThis.document = { querySelector(selector) { return elements.get(selector) ?? null; } };
+  try {
+    const { DeploymentUi } = await import('../src/ui/deployment-ui.js');
+    const ui = new DeploymentUi({
+      store: { snapshot() { return state; }, read(selector) { return selector(state); }, transaction(mutator) { return mutator(state); } },
+      friendlyForceSystem: new FriendlyForceSystem(),
+      notifications: { show() {} },
+      persist() {}
+    });
+    assert.equal(ui.openForEnemy('moving-target'), true);
+    const html = elements.get('#deploymentBody').innerHTML;
+    assert.equal(elements.get('#deploymentTitle').textContent, '選択敵部隊への迎撃派兵');
+    assert.match(html, /INTERCEPT TARGET/);
+    assert.match(html, /歩兵/);
+    assert.match(html, /移動目標を追跡/);
+    assert.match(html, /この敵部隊へ突撃部隊を派兵/);
+    assert.doesNotMatch(html, /連携出撃/);
+    assert.doesNotMatch(html, /回収部隊/);
+  } finally { globalThis.document = prior; }
+});
+
 test('recovery-item deployment keeps the selected item fixed and only offers retrieval squads', async () => {
   const prior = globalThis.document;
   const state = fixture();
@@ -101,6 +127,8 @@ test('combat target context exposes direct deployment actions', async () => {
   const source = await readFile(new URL('../src/ui/combat-ui.js', import.meta.url), 'utf8');
   assert.match(source, /この敵拠点へ派兵/);
   assert.match(source, /openDeployment\?\.\(\{ kind: 'enemyBase'/);
+  assert.match(source, /この敵部隊へ派兵/);
+  assert.match(source, /openDeployment\?\.\(\{ kind: 'enemy'/);
   assert.match(source, /回収部隊を派遣/);
   assert.match(source, /openDeployment\?\.\(\{ kind: 'recoveryItem'/);
   assert.match(source, /is-target-mode/);

@@ -4,8 +4,7 @@ export const RECOVERY_BALANCE = Object.freeze({
   cityRecoveryHpRatio: Object.freeze({ opening: 0.6, standard: 0.5 }),
   cityDefeatCost: Object.freeze({ opening: Object.freeze({ wood: 10, stone: 6 }), standard: Object.freeze({ wood: 22, stone: 14 }) }),
   cityDefeatReserve: Object.freeze({ opening: Object.freeze({ wood: 50, stone: 40 }), standard: Object.freeze({ wood: 80, stone: 60 }) }),
-  towerRepairCostMultiplier: 0.55,
-  restoredTowerRestartSeconds: 20
+  towerRepairCostMultiplier: 0.55
 });
 
 export function beginEnemyRegroup(state, seconds) {

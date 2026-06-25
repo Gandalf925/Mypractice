@@ -68,7 +68,7 @@ function addGun(state, index) {
   const nodeId = index === 0 ? state.world.city.nodeId : adjacent[index - 1]?.to ?? state.world.city.nodeId;
   state.combat.defenses.push({
     id: `opening-gun-${index}`, kind: 'tower', type: 'gun', line: 'single', tier: 0,
-    nodeId, hp: definition.hp, maxHp: definition.hp, cooldown: 0, disabledTimer: 0, ruined: false, baseId: 'home-base'
+    nodeId, hp: definition.hp, maxHp: definition.hp, cooldown: 0, disabledTimer: 0, baseId: 'home-base'
   });
   return true;
 }
@@ -81,7 +81,7 @@ function addBarrier(state) {
   if (!edgeId) return false;
   state.combat.defenses.push({
     id: 'opening-barrier', kind: 'barrier', type: 'barrier', line: 'barrier', tier: 0,
-    edgeId, hp: definition.hp, maxHp: definition.hp, cooldown: 0, disabledTimer: 0, ruined: false, isGate: false
+    edgeId, hp: definition.hp, maxHp: definition.hp, cooldown: 0, disabledTimer: 0, isGate: false
   });
   return true;
 }

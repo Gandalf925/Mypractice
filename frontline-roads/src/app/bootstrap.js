@@ -1,4 +1,4 @@
-import { APP_VERSION, LifecycleState } from '../core/constants.js';
+import { APP_VERSION, LifecycleState, ROAD_CONFIG } from '../core/constants.js';
 import { EventBus } from '../core/event-bus.js';
 import { createInitialState } from '../core/state-schema.js';
 import { StateStore } from '../core/state-store.js';
@@ -9,7 +9,7 @@ import { latLonToXY } from '../location/location-privacy.js';
 import { OverpassClient } from '../roads/overpass-client.js';
 import { RoadService } from '../roads/road-service.js';
 import { RoadWorldManager } from '../roads/road-world-manager.js';
-import { chunkForWorldPoint, createRoadChunkState, ensureRoadChunkState, graphCoveredChunkIds } from '../roads/world-chunk-grid.js';
+import { chunkForWorldPoint, chunkFullyInsideCircle, createRoadChunkState, ensureRoadChunkState, graphCoveredChunkIds, parseChunkId } from '../roads/world-chunk-grid.js';
 import { normalizeRuntimeState } from '../core/state-normalizer.js';
 import { BasePlacementService } from '../base/base-placement-service.js';
 import { hasEstablishedHomeBase } from '../base/base-state.js';
@@ -80,6 +80,7 @@ class FrontlineRoadsApp {
       persist: () => this.persist(),
       openDeployment: target => {
         if (target?.kind === 'enemyBase') this.deploymentUi?.openForEnemyBase(target.id);
+        if (target?.kind === 'enemy') this.deploymentUi?.openForEnemy(target.id);
         if (target?.kind === 'recoveryItem') this.deploymentUi?.openForRecoveryItem(target.id);
       },
       requestSurvey: defenseId => this.roadWorld?.requestSurvey(defenseId)
@@ -96,6 +97,7 @@ class FrontlineRoadsApp {
         }, 'world:graph-expanded');
         this.combatUi.refreshBuildPlacement(true);
         this.combatUi.update();
+        if (this.store.read(state => state.lifecycle) === LifecycleState.PLAYING) this.persist({ notify: false });
       },
       onStatus: status => {
         if (status.type === 'loaded' || status.type === 'error') this.notifications.show(status.text, 4500);
@@ -193,6 +195,18 @@ class FrontlineRoadsApp {
       this.renderer.render();
     });
     queryRequired('#recenter').addEventListener('click', () => this.recenterMap());
+    queryRequired('#gameZoomIn').addEventListener('click', () => {
+      this.camera.zoomAt(1.25, { x: this.camera.viewportWidth / 2, y: this.camera.viewportHeight / 2 });
+      this.renderer.render();
+    });
+    queryRequired('#gameZoomOut').addEventListener('click', () => {
+      this.camera.zoomAt(0.8, { x: this.camera.viewportWidth / 2, y: this.camera.viewportHeight / 2 });
+      this.renderer.render();
+    });
+    queryRequired('#focusSelectedBase').addEventListener('click', () => {
+      if (!this.baseCommandUi.focusCurrentBase()) this.notifications.show('表示できる拠点がありません。');
+    });
+    queryRequired('#focusPlayer').addEventListener('click', () => this.recenterMap());
     queryRequired('#offlineClose').addEventListener('click', () => setVisible(queryRequired('#offlineSummary'), false));
     document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
     globalThis.addEventListener?.('pagehide', () => this.persist({ notify: false }));
@@ -206,6 +220,7 @@ class FrontlineRoadsApp {
     });
     this.events.on('civilization:level-up', () => { this.civilizationUi.render(); this.baseCommandUi.render(); });
     this.events.on('combat:defense-destroyed', () => this.queueCriticalSave());
+    this.events.on('civilization:building-destroyed', () => this.queueCriticalSave());
     this.events.on('combat:city-defeated', () => this.queueCriticalSave());
   }
 
@@ -329,11 +344,19 @@ class FrontlineRoadsApp {
       if (generation !== this.startupGeneration) return;
       this.store.transaction(draft => {
         draft.world.roadGraph = graph;
-        const loadedChunkIds = graphCoveredChunkIds(graph);
+        const integratedChunkIds = graphCoveredChunkIds(graph);
+        const loadedChunkIds = integratedChunkIds.filter(id => chunkFullyInsideCircle(
+          parseChunkId(id),
+          { x: 0, y: 0 },
+          ROAD_CONFIG.initialRetentionRadiusMeters
+        ));
+        const refreshChunkIds = integratedChunkIds.filter(id => !loadedChunkIds.includes(id));
         const playerPoint = latLonToXY(currentLocation.lat, currentLocation.lon, graph.center);
         const observedChunkId = chunkForWorldPoint(playerPoint).id;
         draft.world.roadChunks = createRoadChunkState({
           initialLoadedChunkIds: loadedChunkIds,
+          initialIntegratedChunkIds: integratedChunkIds,
+          initialRefreshChunkIds: refreshChunkIds,
           initialObservedChunkIds: loadedChunkIds.includes(observedChunkId) ? [observedChunkId] : []
         });
       }, 'roads:loaded');

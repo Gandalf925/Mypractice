@@ -13,6 +13,8 @@ import {
 import { activeSurveyFacilities, surveyChunkCandidates, synchronizeSurveyFacility } from '../exploration/survey-system.js';
 import { defenseRuntimeDefinition } from '../combat/definitions.js';
 
+const ROAD_CHUNK_CACHE_VERSION = 3;
+
 function nearestRoadDistance(graph, point, radius = ROAD_CONFIG.roadFrontierDistanceMeters * 2) {
   if (!graph?.nodeById || !point) return Infinity;
   const elements = graphElementsNearPoint(graph, point, radius);
@@ -125,8 +127,18 @@ function compactChunkGraph(graph) {
     center: graph.center,
     source: graph.source,
     roadSpecVersion: graph.roadSpecVersion,
-    chunkId: graph.chunkId
+    chunkId: graph.chunkId,
+    cacheVersion: ROAD_CHUNK_CACHE_VERSION
   };
+}
+
+function usableCachedChunk(graph) {
+  return Number(graph?.cacheVersion) === ROAD_CHUNK_CACHE_VERSION
+    && Number(graph?.roadSpecVersion) >= 3
+    && Array.isArray(graph?.nodes)
+    && Array.isArray(graph.edges)
+    && graph.nodes.length > 0
+    && graph.edges.length > 0;
 }
 
 export function roadWorldId(graph) {
@@ -163,7 +175,14 @@ export class RoadWorldManager {
     for (const id of chunks.cached ?? []) {
       if (chunks.integrated?.includes(id)) continue;
       const payload = await this.cache.get(worldId, id).catch(() => null);
-      if (!payload) continue;
+      if (!usableCachedChunk(payload)) {
+        if (payload) await this.cache.remove?.(worldId, id).catch(() => false);
+        this.store.transaction(draft => {
+          const chunkState = ensureRoadChunkState(draft.world);
+          chunkState.cached = chunkState.cached.filter(chunkId => chunkId !== id);
+        }, 'roads:stale-cache-removed');
+        continue;
+      }
       attachGraphIndexes(payload);
       this.store.transaction(draft => {
         mergeRoadGraphs(draft.world.roadGraph, payload, { chunkId: id });
@@ -203,7 +222,7 @@ export class RoadWorldManager {
       ? ROAD_CONFIG.movementChunkRetryCooldownMs
       : ROAD_CONFIG.chunkRetryCooldownMs;
     const candidates = expansion.chunks
-      .filter(chunk => !chunks.loaded.includes(chunk.id) && !chunks.empty.includes(chunk.id) && !this.pending.has(chunk.id))
+      .filter(chunk => (chunks.refresh?.includes(chunk.id) || (!chunks.loaded.includes(chunk.id) && !chunks.empty.includes(chunk.id))) && !this.pending.has(chunk.id))
       .filter(chunk => {
         const failure = chunks.failed?.[chunk.id];
         if (!failure) return true;
@@ -320,7 +339,8 @@ export class RoadWorldManager {
     if (stale()) return;
     const state = this.store.snapshot();
     const currentChunks = state.world.roadChunks;
-    if (currentChunks.loaded.includes(chunk.id) || currentChunks.empty.includes(chunk.id)) {
+    const refreshRequired = currentChunks.refresh?.includes(chunk.id) === true;
+    if (!refreshRequired && (currentChunks.loaded.includes(chunk.id) || currentChunks.empty.includes(chunk.id))) {
       this.store.transaction(draft => {
         const chunkState = ensureRoadChunkState(draft.world);
         const observationList = mode === 'survey' ? chunkState.surveyed : observe ? chunkState.playerObserved : null;
@@ -346,10 +366,20 @@ export class RoadWorldManager {
       }, 'survey:loading');
     }
 
-    let graph = await this.cache?.get?.(worldId, chunk.id).catch(() => null);
+    let graph = refreshRequired ? null : await this.cache?.get?.(worldId, chunk.id).catch(() => null);
+    if (refreshRequired) await this.cache?.remove?.(worldId, chunk.id).catch(() => false);
     if (stale()) return;
+    if (graph && !usableCachedChunk(graph)) {
+      await this.cache?.remove?.(worldId, chunk.id).catch(() => false);
+      this.store.transaction(draft => {
+        const chunkState = ensureRoadChunkState(draft.world);
+        chunkState.cached = chunkState.cached.filter(chunkId => chunkId !== chunk.id);
+      }, 'roads:stale-cache-removed');
+      graph = null;
+    }
     let source = 'cache';
     let networkSuccess = null;
+    let acquisitionReport = null;
     if (graph) attachGraphIndexes(graph);
     if (!graph) {
       source = 'network';
@@ -364,13 +394,20 @@ export class RoadWorldManager {
           radiusMeters: ROAD_CONFIG.chunkFetchRadiusMeters
         }, { signal: this.abortController.signal });
         networkSuccess = this.roadService.overpassClient?.getLastSuccess?.() ?? null;
+        acquisitionReport = graph?.acquisitionReport ?? this.roadService.lastAcquisitionReport ?? null;
         if (stale()) return;
-        await this.cache?.put?.(worldId, chunk.id, compactChunkGraph(graph)).catch(() => false);
+        if (graph.nodes.length > 0 && graph.edges.length > 0) {
+          await this.cache?.put?.(worldId, chunk.id, compactChunkGraph(graph)).catch(() => false);
+        }
         if (stale()) return;
       } catch (error) {
         if (error?.name === 'AbortError') return;
         const connectionAfter = this.roadService.overpassClient?.getLastSuccess?.() ?? null;
         const communicationSucceeded = Number(connectionAfter?.sequence) > connectionBeforeSequence;
+        const unconfirmedEmpty = communicationSucceeded
+          && Number(connectionAfter?.elementCount) === 0
+          && connectionAfter?.confirmedEmpty !== true;
+        const processingFailed = communicationSucceeded && !unconfirmedEmpty;
         const failureDetail = String(error?.details ?? error?.message ?? error).replace(/\s+/g, ' ').slice(0, 210);
         this.store.transaction(draft => {
           const chunkState = ensureRoadChunkState(draft.world);
@@ -381,8 +418,8 @@ export class RoadWorldManager {
             if (defense) {
               const worldTimeMs = Number(draft.runtime?.worldTimeMs) || this.now();
               defense.surveyErrorCount = Math.max(0, Number(defense.surveyErrorCount) || 0) + 1;
-              defense.surveyLastErrorStage = communicationSucceeded ? 'PROCESSING' : 'NETWORK';
-              defense.surveyLastError = `${communicationSucceeded ? '通信成功・道路処理失敗' : '通信失敗'}：${failureDetail}`.slice(0, 240);
+              defense.surveyLastErrorStage = processingFailed ? 'PROCESSING' : 'NETWORK';
+              defense.surveyLastError = `${processingFailed ? '通信成功・道路処理失敗' : unconfirmedEmpty ? '空応答の確認未完了' : '通信失敗'}：${failureDetail}`.slice(0, 240);
               if (communicationSucceeded) {
                 defense.surveyLastConnectionAt = worldTimeMs;
                 defense.surveyLastEndpoint = connectionAfter.host ?? 'overpass';
@@ -399,10 +436,14 @@ export class RoadWorldManager {
           type: 'error',
           chunkId: chunk.id,
           text: mode === 'survey'
-            ? communicationSucceeded
+            ? processingFailed
               ? '道路サーバーとの通信には成功しましたが、道路データの処理に失敗しました。再試行します。'
-              : '測量施設が道路サーバーへ接続できませんでした。時間を置いて再試行します。'
-            : '周辺道路を取得できませんでした。移動後に再試行します。'
+              : unconfirmedEmpty
+                ? '道路なしという応答を別サーバーで確認できませんでした。自動再試行します。'
+                : '測量施設が道路サーバーへ接続できませんでした。時間を置いて再試行します。'
+            : unconfirmedEmpty
+              ? '道路なしという応答を確認できなかったため、移動後に再試行します。'
+              : '周辺道路を取得できませんでした。移動後に再試行します。'
         });
         return;
       } finally {
@@ -415,6 +456,7 @@ export class RoadWorldManager {
     this.store.transaction(draft => {
       const chunkState = ensureRoadChunkState(draft.world);
       delete chunkState.failed[chunk.id];
+      chunkState.refresh = (chunkState.refresh ?? []).filter(chunkId => chunkId !== chunk.id);
       if (graph.nodes.length === 0 || graph.edges.length === 0) {
         if (!chunkState.empty.includes(chunk.id)) chunkState.empty.push(chunk.id);
       } else {
@@ -448,6 +490,17 @@ export class RoadWorldManager {
           defense.surveyLastRoadCount = Math.max(0, graph.edges.length);
         }
       }
+      chunkState.lastAcquisition = {
+        chunkId: chunk.id,
+        source,
+        at: this.now(),
+        responseElements: Math.max(0, Number(acquisitionReport?.responseElements) || 0),
+        acceptedWays: Math.max(0, Number(acquisitionReport?.acceptedWays) || 0),
+        excludedWays: Math.max(0, Number(acquisitionReport?.excludedWays) || 0),
+        retainedSegments: Math.max(0, Number(acquisitionReport?.retainedSegmentCount) || 0),
+        graphEdges: Math.max(0, Number(graph.edges.length) || 0),
+        addedEdges: Math.max(0, Number(mergeResult.addedEdges) || 0)
+      };
       chunkState.updatedAt = this.now();
     }, 'roads:chunk-merged', { validate: true });
 

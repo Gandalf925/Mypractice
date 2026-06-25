@@ -56,15 +56,37 @@ export function normalizeCombatState(state) {
   state.combat.cityRecoveryCooldown = Math.max(0, Number(state.combat.cityRecoveryCooldown) || 0);
   state.combat.enemyRegroupUntil = Math.max(0, Number(state.combat.enemyRegroupUntil) || 0);
 
+  const normalizedDefenses = new Map();
   for (const defense of state.combat.defenses) {
+    if (defense.type === 'fieldAid' || defense.line === 'fieldAid') {
+      defense.type = 'fieldBarracks';
+      defense.line = 'fieldBarracks';
+      defense.tier = 1;
+      defense.defenseKey = 'fieldBarracks1';
+      delete defense.recoveryRate;
+      delete defense.recoveryCap;
+      delete defense.reorganizationSeconds;
+      delete defense.recoveryCapacity;
+    }
     defense.hp = Math.max(0, Number(defense.hp) || 0);
     defense.maxHp = Math.max(1, Number(defense.maxHp) || defense.hp || 1);
-    defense.ruined = Boolean(defense.ruined || defense.hp <= 0);
+    if (defense.ruined || defense.hp <= 0) continue;
+    delete defense.ruined;
     if (defense.kind === 'barrier') {
       defense.type = 'barrier';
       defense.isGate = Boolean(defense.isGate || defense.line === 'gate');
       defense.line = defense.isGate ? 'gate' : 'barrier';
       defense.defenseKey ??= `${defense.line}${Math.max(0, Number(defense.tier) || 0)}`;
+    }
+    const placementKey = defense.kind === 'barrier' ? `edge:${defense.edgeId}` : `node:${defense.nodeId}`;
+    normalizedDefenses.set(placementKey, defense);
+  }
+  state.combat.defenses = [...normalizedDefenses.values()];
+  const activeDefenseIds = new Set(state.combat.defenses.map(defense => defense.id));
+  for (const enemy of state.combat.enemies) {
+    if (enemy.targetDefenseId && !activeDefenseIds.has(enemy.targetDefenseId)) {
+      enemy.targetDefenseId = null;
+      enemy.reroutePending = true;
     }
   }
 

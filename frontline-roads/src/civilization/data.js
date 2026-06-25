@@ -18,7 +18,7 @@ export const INITIAL_RESOURCES = Object.freeze({ wood: 150, stone: 100, fiber: 7
 
 export const CIVILIZATIONS = Object.freeze([
   { level: 0, name: '原始集落', central: '中央焚火', slots: 2, graceMinutes: 0, capacity: { base: 300, processed: 0, ore: 0, metal: 0 }, unlocks: ['barrier0', 'single0', 'area0', 'slow0', 'repair0'] },
-  { level: 1, name: '定住集落', central: '集会小屋', slots: 5, graceMinutes: 15, capacity: { base: 800, processed: 200, ore: 0, metal: 0 }, unlocks: ['storehouse1', 'carpentry', 'ropeworks', 'stonecutter', 'barrier1', 'single1', 'area1', 'slow1', 'repair1', 'survey1', 'medical1', 'fieldAid1'] },
+  { level: 1, name: '定住集落', central: '集会小屋', slots: 5, graceMinutes: 15, capacity: { base: 800, processed: 200, ore: 0, metal: 0 }, unlocks: ['storehouse1', 'carpentry', 'ropeworks', 'stonecutter', 'barrier1', 'single1', 'area1', 'slow1', 'repair1', 'survey1', 'medical1', 'fieldBarracks1'] },
   { level: 2, name: '石工集落', central: '石造集会所', slots: 10, graceMinutes: 15, capacity: { base: 1500, processed: 500, ore: 300, metal: 300 }, unlocks: ['storehouse2', 'charcoalKiln', 'copperFurnace', 'tinFurnace', 'trialBronzeFurnace', 'barrier2', 'gate2', 'single2', 'area2', 'slow2', 'repair2', 'survey2', 'medical2'] },
   { level: 3, name: '青銅砦', central: '青銅の砦', slots: 14, graceMinutes: 15, capacity: { base: 3000, processed: 1000, ore: 500, metal: 500 }, unlocks: ['storehouse3', 'bronzeWorkshop', 'bloomery', 'forge', 'barrier3', 'gate3', 'single3', 'area3', 'slow3', 'repair3', 'survey3', 'medical3'] },
   { level: 4, name: '鉄器都市', central: '鉄の城館', slots: 16, graceMinutes: 0, capacity: { base: 6000, processed: 2000, ore: 1000, metal: 1000 }, unlocks: ['storehouse4', 'barrier4', 'gate4', 'single4', 'area4', 'slow4', 'repair4', 'survey4', 'medical4'] }
@@ -99,14 +99,14 @@ export const DEFENSE_LINES = Object.freeze({
   ],
   medical: [
     null,
-    { key: 'medical1', name: '応急治療所', type: 'medical', hp: 170, recoveryRate: 0.012, reorganizationSeconds: 30, recoveryCapacity: 1, cost: { timber: 8, rope: 3, cutStone: 4 } },
-    { key: 'medical2', name: '石造治療所', hp: 220, recoveryRate: 0.016, reorganizationSeconds: 24, recoveryCapacity: 1, upgrade: { cutStone: 8, timber: 5, rope: 2 } },
-    { key: 'medical3', name: '軍医所', hp: 285, recoveryRate: 0.021, reorganizationSeconds: 18, recoveryCapacity: 2, upgrade: { cutStone: 12, timber: 7, bronzeIngot: 5 } },
-    { key: 'medical4', name: '総合治療所', hp: 360, recoveryRate: 0.027, reorganizationSeconds: 12, recoveryCapacity: 2, upgrade: { cutStone: 16, timber: 10, wroughtIron: 7 } }
+    { key: 'medical1', name: '木造回復所', type: 'medical', hp: 170, range: 90, recoveryRate: 0.004, cost: { timber: 8, rope: 3, cutStone: 4 } },
+    { key: 'medical2', name: '石造回復所', hp: 220, range: 115, recoveryRate: 0.006, upgrade: { cutStone: 8, timber: 5, rope: 2 } },
+    { key: 'medical3', name: '軍医療養所', hp: 285, range: 140, recoveryRate: 0.008, upgrade: { cutStone: 12, timber: 7, bronzeIngot: 5 } },
+    { key: 'medical4', name: '総合回復院', hp: 360, range: 170, recoveryRate: 0.010, upgrade: { cutStone: 16, timber: 10, wroughtIron: 7 } }
   ],
-  fieldAid: [
+  fieldBarracks: [
     null,
-    { key: 'fieldAid1', name: '簡易救護所', type: 'fieldAid', hp: 115, recoveryRate: 0.008, recoveryCap: 0.70, reorganizationSeconds: 45, recoveryCapacity: 1, cost: { timber: 4, rope: 2, fiber: 20 } }
+    { key: 'fieldBarracks1', name: '前線兵舎', type: 'fieldBarracks', hp: 150, squadCapacityBonus: 1, cost: { timber: 4, rope: 2, fiber: 20 } }
   ],
   survey: [
     null,
@@ -138,7 +138,7 @@ export function emptyResourceBundle() {
 }
 
 export function defenseLineForType(type) {
-  return type === 'barrier' ? 'barrier' : type === 'gun' ? 'single' : type === 'mortar' ? 'area' : type === 'slow' ? 'slow' : type === 'survey' ? 'survey' : type === 'medical' ? 'medical' : type === 'fieldAid' ? 'fieldAid' : 'repair';
+  return type === 'barrier' ? 'barrier' : type === 'gun' ? 'single' : type === 'mortar' ? 'area' : type === 'slow' ? 'slow' : type === 'survey' ? 'survey' : type === 'medical' ? 'medical' : type === 'fieldBarracks' ? 'fieldBarracks' : 'repair';
 }
 
 export function defenseTierDefinition(type, tier = 0, isGate = false) {

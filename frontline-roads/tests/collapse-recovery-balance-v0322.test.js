@@ -56,22 +56,21 @@ test('enemy bases pause their launch clock during regroup and resume afterward',
   assert.equal(base.spawnClock, 35);
 });
 
-test('destroyed tower restoration costs fifty-five percent and needs a short restart', () => {
+test('damaged tower repair keeps the fifty-five percent material rate', () => {
   const state = stateFixture();
   Object.assign(state.inventory.resources, { wood: 100, stone: 100, fiber: 100 });
-  const tower = { id: 'gun', kind: 'tower', type: 'gun', line: 'single', tier: 0, defenseKey: 'single0', nodeId: 'home', hp: 0, maxHp: 150, ruined: true, cooldown: 0, disabledTimer: 0 };
+  const tower = { id: 'gun', kind: 'tower', type: 'gun', line: 'single', tier: 0, defenseKey: 'single0', nodeId: 'home', hp: 75, maxHp: 150, cooldown: 0, disabledTimer: 0 };
   state.combat.defenses.push(tower);
-  assert.deepEqual(repairCostForDefense(tower, 150), { wood: 16, stone: 13, fiber: 5 });
+  assert.deepEqual(repairCostForDefense(tower, 75), { wood: 8, stone: 7, fiber: 3 });
   const result = new ProgressionSystem().repairDefense(state, tower.id);
   assert.equal(result.ok, true);
   assert.equal(tower.hp, tower.maxHp);
-  assert.equal(tower.ruined, false);
-  assert.equal(tower.disabledTimer, RECOVERY_BALANCE.restoredTowerRestartSeconds);
+  assert.equal(tower.disabledTimer, 0);
 });
 
 test('dedicated barrier repair costs remain unchanged', () => {
-  const barrier = { id: 'wall', kind: 'barrier', type: 'barrier', line: 'barrier', tier: 0, defenseKey: 'barrier0', edgeId: 'road', hp: 0, maxHp: 220, ruined: true };
-  assert.deepEqual(repairCostForDefense(barrier, 220), { wood: 20, fiber: 8 });
+  const barrier = { id: 'wall', kind: 'barrier', type: 'barrier', line: 'barrier', tier: 0, defenseKey: 'barrier0', edgeId: 'road', hp: 110, maxHp: 220 };
+  assert.deepEqual(repairCostForDefense(barrier, 110), { wood: 10, fiber: 4 });
 });
 
 

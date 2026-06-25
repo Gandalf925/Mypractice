@@ -30,8 +30,8 @@ export class OfflineSimulator {
       cityHp: state.world.city?.hp ?? 0,
       resources: resourceSnapshot(state),
       enemies: state.combat.enemies.length,
-      destroyedDefenses: state.combat.defenses.filter(defense => defense.ruined || defense.hp <= 0).length,
-      ruinedBuildings: (state.civilization?.buildings ?? []).filter(building => building.ruined && !building.demolished).length,
+      defenses: state.combat.defenses.length,
+      buildings: (state.civilization?.buildings ?? []).length,
       civilizationLevel: state.civilization?.level ?? 0
     };
 
@@ -48,8 +48,8 @@ export class OfflineSimulator {
     }
 
     const afterResources = resourceSnapshot(state);
-    const afterDestroyed = state.combat.defenses.filter(defense => defense.ruined || defense.hp <= 0).length;
-    const afterRuinedBuildings = (state.civilization?.buildings ?? []).filter(building => building.ruined && !building.demolished).length;
+    const afterDefenses = state.combat.defenses.length;
+    const afterBuildings = (state.civilization?.buildings ?? []).length;
     state.runtime.lastOfflineSimulationAt = Date.now();
     return {
       requestedSeconds: elapsedSeconds,
@@ -59,8 +59,8 @@ export class OfflineSimulator {
       cityDamage: Math.max(0, before.cityHp - (state.world.city?.hp ?? 0)),
       resources: resourceDelta(before.resources, afterResources),
       enemiesDelta: state.combat.enemies.length - before.enemies,
-      defensesLost: afterDestroyed - before.destroyedDefenses,
-      buildingsLost: afterRuinedBuildings - before.ruinedBuildings,
+      defensesLost: Math.max(0, before.defenses - afterDefenses),
+      buildingsLost: Math.max(0, before.buildings - afterBuildings),
       civilizationAdvanced: (state.civilization?.level ?? 0) - before.civilizationLevel,
       iterations
     };

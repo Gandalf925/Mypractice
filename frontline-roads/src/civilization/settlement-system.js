@@ -3,7 +3,7 @@ import { SETTLEMENT_BUILDINGS } from './data.js';
 import { addBundle, consumeBundle, missingBundle, recalculateCapacity } from './inventory-system.js';
 
 export function usedSettlementSlots(state) {
-  return (state.civilization.buildings ?? []).filter(building => !building.demolished).length;
+  return (state.civilization.buildings ?? []).length;
 }
 
 export function settlementSlotLimit(state) {
@@ -25,6 +25,14 @@ function deterministicBuildingIndex(seed, length) {
   return length ? (hash >>> 0) % length : 0;
 }
 
+function removeBuilding(state, buildingId) {
+  const index = state.civilization.buildings.findIndex(building => building.id === buildingId);
+  if (index < 0) return null;
+  const [building] = state.civilization.buildings.splice(index, 1);
+  state.civilization.productionQueues = state.civilization.productionQueues.filter(queue => queue.buildingId !== building.id);
+  return building;
+}
+
 export class SettlementSystem {
   constructor(events = null) {
     this.events = events;
@@ -35,7 +43,7 @@ export class SettlementSystem {
     if (!definition) return { ok: false, reason: '不明な施設です。' };
     if (!isBuildingUnlocked(state, type)) return { ok: false, reason: '文明レベルが不足しています。' };
     if (usedSettlementSlots(state) >= settlementSlotLimit(state)) return { ok: false, reason: '集落の建設枠がありません。' };
-    const existing = state.civilization.buildings.filter(building => building.type === type && !building.demolished).length;
+    const existing = state.civilization.buildings.filter(building => building.type === type).length;
     if (definition.limit && existing >= definition.limit) return { ok: false, reason: 'この施設はこれ以上建設できません。' };
     if (!consumeBundle(state, definition.cost)) return { ok: false, reason: '資源が不足しています。', missing: missingBundle(state, definition.cost) };
     const building = {
@@ -43,8 +51,6 @@ export class SettlementSystem {
       type,
       hp: 240,
       maxHp: 240,
-      ruined: false,
-      demolished: false,
       outputBuffer: {},
       history: { produced: 0, repairs: 0 },
       createdAt: state.runtime?.worldTimeMs ?? Date.now()
@@ -56,7 +62,7 @@ export class SettlementSystem {
   }
 
   repair(state, buildingId) {
-    const building = state.civilization.buildings.find(item => item.id === buildingId && !item.demolished);
+    const building = state.civilization.buildings.find(item => item.id === buildingId);
     if (!building) return { ok: false, reason: '施設が見つかりません。' };
     const missingHp = Math.max(0, building.maxHp - building.hp);
     if (missingHp <= 0) return { ok: false, reason: '修理は不要です。' };
@@ -65,7 +71,6 @@ export class SettlementSystem {
     const cost = Object.fromEntries(Object.entries(definition.cost).map(([key, value]) => [key, Math.max(1, Math.ceil(value * 0.25 * ratio))]));
     if (!consumeBundle(state, cost)) return { ok: false, reason: '修理資源が不足しています。', missing: missingBundle(state, cost) };
     building.hp = building.maxHp;
-    building.ruined = false;
     building.history.repairs += missingHp;
     state.civilization.progress.totalRepairHpPaid += missingHp;
     recalculateCapacity(state);
@@ -74,13 +79,10 @@ export class SettlementSystem {
   }
 
   demolish(state, buildingId) {
-    const building = state.civilization.buildings.find(item => item.id === buildingId && !item.demolished);
+    const building = state.civilization.buildings.find(item => item.id === buildingId);
     if (!building) return { ok: false, reason: '施設が見つかりません。' };
     const definition = SETTLEMENT_BUILDINGS[building.type];
-    state.civilization.productionQueues = state.civilization.productionQueues.filter(queue => queue.buildingId !== building.id);
-    building.demolished = true;
-    building.ruined = true;
-    building.hp = 0;
+    removeBuilding(state, building.id);
     const refund = Object.fromEntries(
       Object.entries(definition?.cost ?? {})
         .map(([key, value]) => [key, Math.floor(value * 0.3)])
@@ -96,15 +98,15 @@ export class SettlementSystem {
     const queue = state.combat.pendingSettlementDamage ?? [];
     state.combat.pendingSettlementDamage = [];
     for (const incident of queue) {
-      const candidates = state.civilization.buildings.filter(building => !building.demolished && !building.ruined && building.hp > 0);
+      const candidates = state.civilization.buildings.filter(building => building.hp > 0);
       if (!candidates.length) continue;
       const target = candidates[deterministicBuildingIndex(incident.enemyId ?? incident.enemyType, candidates.length)];
       target.hp = Math.max(0, target.hp - Math.max(0, Number(incident.damage) || 0));
-      if (target.hp <= 0) {
-        target.ruined = true;
-        recalculateCapacity(state);
-        this.events?.emit('civilization:building-ruined', { building: target, incident });
-      }
+      if (target.hp > 0) continue;
+      const destroyed = removeBuilding(state, target.id) ?? target;
+      recalculateCapacity(state);
+      this.events?.emit('civilization:building-destroyed', { building: destroyed, incident });
+      this.events?.emit('message', { text: `${SETTLEMENT_BUILDINGS[destroyed.type]?.name ?? '集落施設'}が破壊され、建設枠から撤去されました。` });
     }
   }
 }

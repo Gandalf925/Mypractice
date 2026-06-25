@@ -1,0 +1,35 @@
+FRONTLINE ROADS v0.32.9 FINAL AUDIT
+
+Scope
+- Bounded civilization construction ranges
+- Direct intercept deployment to active enemy-unit markers
+- Instant camera focus for selected base and current player position
+
+Functional constants
+- Major-base ranges: 85, 120, 160, 205, 255 meters
+- Field-base ranges: 50, 75, 105, 140, 180 meters
+- Player range: 85 meters fixed
+- Expedition range: 120 meters fixed
+
+Verification
+- Parallel regression: 416 passed, 0 failed
+- Serial file-by-file regression: 416 passed, 0 failed across 68 test files
+- JavaScript syntax: passed
+- Production JavaScript modules: 102
+- Reachable from bootstrap: 102
+- Unreachable modules: 0
+- Unresolved imports: 0
+- Circular dependencies: 0
+- Duplicate HTML IDs: 0
+- Service Worker runtime omissions: 0
+- Removed exponential multiplier/runtime metadata references: 0
+
+Compatibility
+- Save key unchanged
+- Save schema unchanged
+- Existing ATTACK and RECOVERY squad missions preserved
+- INTERCEPT is assigned only to newly dispatched enemy-unit targets or saved squads already carrying targetEnemyId
+
+Environment limitation
+- Local HTTP assets returned HTTP 200.
+- Headless Chromium did not produce DOM before the 25-second environment timeout. GPS, touch interaction and Service Worker replacement require public HTTPS/device verification.

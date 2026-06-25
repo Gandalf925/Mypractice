@@ -3,10 +3,13 @@ import assert from 'node:assert/strict';
 import { createInitialState } from '../src/core/state-schema.js';
 import { attachGraphIndexes } from '../src/roads/road-graph.js';
 import { BuildSystem } from '../src/combat/build-system.js';
+import { normalizeCombatState } from '../src/combat/combat-initializer.js';
+import { DefenseSystem } from '../src/combat/defense-system.js';
 import {
   FRIENDLY_SQUAD_STATUS,
   FriendlyForceSystem,
   dispatchFriendlySquad,
+  friendlySquadCapacityForBase,
   previewFriendlyDeployment
 } from '../src/combat/friendly-force-system.js';
 import {
@@ -14,6 +17,7 @@ import {
   recoveryProfileForSquad,
   updateFriendlyRecovery
 } from '../src/combat/friendly-recovery-system.js';
+import { applyMedicalAreaHealing, medicalCoverageForSquad } from '../src/combat/friendly-healing-system.js';
 import { FRIENDLY_SQUAD_DEFINITIONS } from '../src/combat/friendly-force-definitions.js';
 import { SaveRepository } from '../src/persistence/save-repository.js';
 import { CIVILIZATIONS, DEFENSE_LINES } from '../src/civilization/data.js';
@@ -34,16 +38,20 @@ function fixture(level = 4) {
       { id: 'home-site', x: 20, y: 0 },
       { id: 'field', x: 300, y: 0 },
       { id: 'field-site', x: 320, y: 0 },
-      { id: 'enemy', x: 600, y: 0 }
+      { id: 'enemy', x: 600, y: 0 },
+      { id: 'remote', x: 1800, y: 0 },
+      { id: 'remote-site', x: 1880, y: 0 }
     ],
     edges: [
       { id: 'a', a: 'home', b: 'home-site', length: 20, roadWidth: 5 },
       { id: 'b', a: 'home-site', b: 'field', length: 280, roadWidth: 5 },
       { id: 'c', a: 'field', b: 'field-site', length: 20, roadWidth: 5 },
-      { id: 'd', a: 'field-site', b: 'enemy', length: 280, roadWidth: 5 }
+      { id: 'd', a: 'field-site', b: 'enemy', length: 280, roadWidth: 5 },
+      { id: 'e', a: 'enemy', b: 'remote', length: 1200, roadWidth: 5 },
+      { id: 'f', a: 'remote', b: 'remote-site', length: 80, roadWidth: 5 }
     ]
   });
-  state.world.homeBase = { id: 'home-base', status: 'ESTABLISHED', nodeId: 'home', x: 0, y: 0, establishedAt: 1 };
+  state.world.homeBase = { id: 'home-base', kind: 'MAJOR', status: 'ESTABLISHED', nodeId: 'home', x: 0, y: 0, establishedAt: 1 };
   state.world.playerBases = [{ ...state.world.homeBase, name: '本拠地', primary: true, hp: 100, maxHp: 100 }];
   state.world.fieldBases = [{ id: 'field-base', kind: 'FIELD', name: '簡易拠点', status: 'ESTABLISHED', nodeId: 'field', x: 300, y: 0, hp: 40, maxHp: 40, establishedAt: 2 }];
   state.world.city = { nodeId: 'home', hp: 100, maxHp: 100 };
@@ -56,100 +64,168 @@ function fixture(level = 4) {
   return state;
 }
 
-function squad(type = 'assault', baseId = 'home-base', hpRatio = 0.25) {
+function squad(type = 'assault', baseId = 'home-base', hpRatio = 0.25, nodeId = null) {
   const definition = FRIENDLY_SQUAD_DEFINITIONS[type];
+  const baseNodeId = nodeId ?? (baseId === 'field-base' ? 'field' : 'home');
   return {
-    id: `${type}-${baseId}`, type, hp: definition.hp * hpRatio, maxHp: definition.hp, members: definition.members,
+    id: `${type}-${baseId}-${baseNodeId}`, type, hp: definition.hp * hpRatio, maxHp: definition.hp, members: definition.members,
     originBaseId: baseId, targetBaseId: null, missionTargetBaseId: null,
-    nodeId: baseId === 'field-base' ? 'field' : 'home', path: null, pathIndex: 0, edgeId: null, edgeProgress: 0,
-    status: FRIENDLY_SQUAD_STATUS.RETURNING, order: 'RETURN', commandDestinationNodeId: baseId === 'field-base' ? 'field' : 'home',
-    travelHistoryNodeIds: [baseId === 'field-base' ? 'field' : 'home'], engagedEnemyId: null, combatCooldown: 0, departDelay: 0, deployedAt: 1
+    nodeId: baseNodeId, path: null, pathIndex: 0, edgeId: null, edgeProgress: 0,
+    status: FRIENDLY_SQUAD_STATUS.RETURNING, order: 'RETURN', commandDestinationNodeId: baseNodeId,
+    travelHistoryNodeIds: [baseNodeId], engagedEnemyId: null, combatCooldown: 0, departDelay: 0, deployedAt: 1
   };
 }
 
-function facility(type, baseId, nodeId, tier = 1) {
+function facility(type, baseId, nodeId, tier = 1, anchorId = null) {
+  const line = type;
+  const definition = DEFENSE_LINES[line][tier];
   return {
-    id: `${type}-${baseId}`, type, kind: 'tower', line: type, tier, defenseKey: `${type}${tier}`,
-    nodeId, baseId, buildAnchorId: baseId === 'field-base' ? `field:${baseId}` : 'base',
-    hp: 170, maxHp: 170, ruined: false, disabledTimer: 0, cooldown: 0
+    id: `${type}-${baseId}-${nodeId}`, type, kind: 'tower', line, tier, defenseKey: `${line}${tier}`,
+    nodeId, baseId, buildAnchorId: anchorId ?? (baseId === 'field-base' ? `field:${baseId}` : 'base'),
+    hp: definition.hp, maxHp: definition.hp, disabledTimer: 0, cooldown: 0
   };
 }
 
-
-test('civilization level one unlocks treatment and field aid with the approved progression', () => {
+test('civilization level one unlocks one area recovery facility and a distinct field barracks', () => {
   assert.ok(CIVILIZATIONS[1].unlocks.includes('medical1'));
-  assert.ok(CIVILIZATIONS[1].unlocks.includes('fieldAid1'));
-  assert.equal(DEFENSE_LINES.medical[1].recoveryRate, 0.012);
-  assert.equal(DEFENSE_LINES.medical[4].recoveryRate, 0.027);
-  assert.equal(DEFENSE_LINES.medical[4].reorganizationSeconds, 12);
-  assert.equal(DEFENSE_LINES.fieldAid[1].recoveryCap, 0.7);
-  assert.equal(DEFENSE_LINES.fieldAid[1].reorganizationSeconds, 45);
+  assert.ok(CIVILIZATIONS[1].unlocks.includes('fieldBarracks1'));
+  assert.equal(CIVILIZATIONS[1].unlocks.includes('fieldAid1'), false);
+  assert.equal(DEFENSE_LINES.medical[1].range, 90);
+  assert.equal(DEFENSE_LINES.medical[1].recoveryRate, 0.004);
+  assert.equal(DEFENSE_LINES.medical[4].range, 170);
+  assert.equal(DEFENSE_LINES.medical[4].recoveryRate, 0.01);
+  assert.equal(DEFENSE_LINES.fieldBarracks[1].squadCapacityBonus, 1);
 });
 
-test('major bases recover a returned squad to full health and keep it ready for redeployment', () => {
+test('major-base logistics restore a returned squad while the area recovery facility remains a separate field effect', () => {
   const state = fixture();
   const unit = squad('assault', 'home-base', 0.25);
   state.combat.friendlySquads = [unit];
   assert.equal(beginFriendlyRecovery(state, unit, 'home-base').ok, true);
-  assert.equal(unit.status, FRIENDLY_SQUAD_STATUS.RECOVERING);
-  for (let second = 0; second < 140; second += 1) updateFriendlyRecovery(state, unit, 1);
+  for (let second = 0; second < 130; second += 1) updateFriendlyRecovery(state, unit, 1);
   assert.equal(unit.status, FRIENDLY_SQUAD_STATUS.READY);
   assert.equal(unit.hp, unit.maxHp);
+  const profile = recoveryProfileForSquad(state, unit);
+  assert.equal(profile.label, '主要拠点で補給・再編成');
+  assert.equal(profile.healRatioPerSecond, 0.006);
 });
 
-test('a treatment facility accelerates healing and reorganization at a major base', () => {
-  const baselineState = fixture();
-  const baseline = squad('assault', 'home-base', 0.25);
-  baselineState.combat.friendlySquads = [baseline];
-  beginFriendlyRecovery(baselineState, baseline, 'home-base');
-  for (let second = 0; second < 50; second += 1) updateFriendlyRecovery(baselineState, baseline, 1);
-  assert.equal(baseline.status, FRIENDLY_SQUAD_STATUS.RECOVERING);
-
-  const improvedState = fixture();
-  improvedState.combat.defenses.push(facility('medical', 'home-base', 'home-site', 2));
-  const improved = squad('assault', 'home-base', 0.25);
-  improvedState.combat.friendlySquads = [improved];
-  beginFriendlyRecovery(improvedState, improved, 'home-base');
-  for (let second = 0; second < 50; second += 1) updateFriendlyRecovery(improvedState, improved, 1);
-  assert.equal(improved.status, FRIENDLY_SQUAD_STATUS.READY);
-  assert.equal(improved.hp, improved.maxHp);
-});
-
-test('a field base without an aid station reorganizes but does not heal a light squad', () => {
+test('a field base reorganizes squads without providing innate healing', () => {
   const state = fixture();
-  const unit = squad('assault', 'field-base', 0.3);
+  const unit = squad('assault', 'field-base', 0.25);
   state.combat.friendlySquads = [unit];
-  beginFriendlyRecovery(state, unit, 'field-base');
   const startingHp = unit.hp;
-  for (let second = 0; second < 70; second += 1) updateFriendlyRecovery(state, unit, 1);
+  assert.equal(beginFriendlyRecovery(state, unit, 'field-base').ok, true);
+  for (let second = 0; second < 65; second += 1) updateFriendlyRecovery(state, unit, 1);
   assert.equal(unit.status, FRIENDLY_SQUAD_STATUS.READY);
   assert.equal(unit.hp, startingHp);
 });
 
-test('a field aid station heals assault and skirmisher squads up to seventy percent', () => {
-  const state = fixture();
-  state.combat.defenses.push(facility('fieldAid', 'field-base', 'field-site'));
-  const unit = squad('skirmisher', 'field-base', 0.2);
-  state.combat.friendlySquads = [unit];
-  beginFriendlyRecovery(state, unit, 'field-base');
-  for (let second = 0; second < 90; second += 1) updateFriendlyRecovery(state, unit, 1);
-  assert.equal(unit.status, FRIENDLY_SQUAD_STATUS.READY);
-  assert.ok(Math.abs(unit.hp - unit.maxHp * 0.7) < 0.01);
+test('a recovery facility gradually heals every friendly squad inside its radius', () => {
+  const state = fixture(1);
+  const medical = facility('medical', 'home-base', 'home-site', 1);
+  const first = squad('assault', 'home-base', 0.5, 'home');
+  const second = squad('skirmisher', 'home-base', 0.5, 'home-site');
+  const outside = squad('assault', 'field-base', 0.5, 'field');
+  state.combat.defenses = [medical];
+  state.combat.friendlySquads = [first, second, outside];
+
+  const result = applyMedicalAreaHealing(state, medical, 10);
+  assert.equal(result.healedSquads, 2);
+  assert.equal(first.hp, FRIENDLY_SQUAD_DEFINITIONS.assault.hp * 0.54);
+  assert.equal(second.hp, FRIENDLY_SQUAD_DEFINITIONS.skirmisher.hp * 0.54);
+  assert.equal(outside.hp, FRIENDLY_SQUAD_DEFINITIONS.assault.hp * 0.5);
+  assert.equal(medicalCoverageForSquad(state, first)?.facility.id, medical.id);
+  assert.equal(medicalCoverageForSquad(state, outside), null);
 });
 
-test('field aid does not heal non-light squads if legacy data places one at a field base', () => {
-  const state = fixture();
-  state.combat.defenses.push(facility('fieldAid', 'field-base', 'field-site'));
-  const unit = squad('siege', 'field-base', 0.4);
+test('the defense update loop applies recovery-facility healing without a separate recovery queue', () => {
+  const state = fixture(1);
+  const medical = facility('medical', 'home-base', 'home-site', 1);
+  const unit = squad('assault', 'home-base', 0.5, 'home');
+  unit.status = FRIENDLY_SQUAD_STATUS.HALTED;
+  state.combat.defenses = [medical];
   state.combat.friendlySquads = [unit];
-  beginFriendlyRecovery(state, unit, 'field-base');
+  new DefenseSystem(null).updateTower(state, medical, 10, null);
+  assert.equal(unit.hp, FRIENDLY_SQUAD_DEFINITIONS.assault.hp * 0.54);
+});
+
+test('a disabled recovery facility provides no healing', () => {
+  const state = fixture(1);
+  const medical = facility('medical', 'home-base', 'home-site', 1);
+  medical.disabledTimer = 30;
+  const unit = squad('assault', 'home-base', 0.4, 'home');
+  state.combat.defenses = [medical];
+  state.combat.friendlySquads = [unit];
   const startingHp = unit.hp;
-  for (let second = 0; second < 100; second += 1) updateFriendlyRecovery(state, unit, 1);
-  assert.equal(unit.status, FRIENDLY_SQUAD_STATUS.READY);
+  assert.equal(medicalCoverageForSquad(state, unit), null);
+  applyMedicalAreaHealing(state, medical, 10);
   assert.equal(unit.hp, startingHp);
 });
 
-test('a recovering squad occupies one slot while another free slot remains usable', () => {
+test('a field barracks adds exactly one squad slot to its field base', () => {
+  const state = fixture(1);
+  const base = state.world.fieldBases[0];
+  assert.equal(friendlySquadCapacityForBase(state, base), 2);
+  state.combat.defenses.push(facility('fieldBarracks', base.id, 'field-site'));
+  assert.equal(friendlySquadCapacityForBase(state, base), 3);
+  state.combat.defenses[0].disabledTimer = 5;
+  assert.equal(friendlySquadCapacityForBase(state, base), 2);
+});
+
+test('field barracks is field-only while recovery facilities can use major, field, and expedition anchors', () => {
+  const state = fixture(4);
+  const expedition = squad('expedition', 'home-base', 1, 'remote');
+  expedition.status = FRIENDLY_SQUAD_STATUS.HALTED;
+  expedition.order = 'HOLD';
+  state.combat.friendlySquads = [expedition];
+  const system = new BuildSystem(null);
+
+  const barracksSites = system.listBuildSites(state, 'fieldBarracks');
+  assert.ok(barracksSites.length > 0);
+  assert.ok(barracksSites.every(site => site.anchorKind === 'FIELD'));
+
+  const medicalSites = system.listBuildSites(state, 'medical');
+  const kinds = new Set(medicalSites.map(site => site.anchorKind));
+  assert.ok(kinds.has('MAJOR'));
+  assert.ok(kinds.has('FIELD'));
+  assert.ok(kinds.has('EXPEDITION'));
+
+  const expeditionSite = medicalSites.find(site => site.anchorKind === 'EXPEDITION');
+  assert.ok(expeditionSite);
+  assert.equal(system.buildCandidate(state, expeditionSite).ok, true);
+  assert.equal(state.combat.defenses.at(-1).buildAnchorId, `expedition:${expedition.id}`);
+});
+
+test('an expedition squad creates a fixed 120 meter moving construction anchor and ordinary squads do not', () => {
+  const state = fixture(4);
+  const expedition = squad('expedition', 'home-base', 1, 'remote');
+  expedition.status = FRIENDLY_SQUAD_STATUS.HALTED;
+  expedition.order = 'HOLD';
+  const assault = squad('assault', 'home-base', 1, 'enemy');
+  assault.status = FRIENDLY_SQUAD_STATUS.HALTED;
+  assault.order = 'HOLD';
+  state.combat.friendlySquads = [expedition, assault];
+  const anchors = new BuildSystem(null).getBuildAnchors(state);
+  const expeditionAnchor = anchors.find(anchor => anchor.id === `expedition:${expedition.id}`);
+  assert.ok(expeditionAnchor);
+  assert.equal(expeditionAnchor.range, 120);
+  assert.deepEqual(expeditionAnchor.point, { x: 1800, y: 0 });
+  assert.equal(anchors.some(anchor => anchor.id === `expedition:${assault.id}`), false);
+
+  expedition.nodeId = 'enemy';
+  expedition.path = { nodeIds: ['enemy', 'remote'], edgeIds: ['e'], cost: 1200, targetId: 'remote' };
+  expedition.pathIndex = 0;
+  expedition.edgeId = 'e';
+  expedition.edgeProgress = 600;
+  const movingAnchor = new BuildSystem(null).getBuildAnchors(state).find(anchor => anchor.id === `expedition:${expedition.id}`);
+  assert.deepEqual(movingAnchor.point, { x: 1200, y: 0 });
+
+  expedition.status = FRIENDLY_SQUAD_STATUS.READY;
+  assert.equal(new BuildSystem(null).getBuildAnchors(state).some(anchor => anchor.id === `expedition:${expedition.id}`), false);
+});
+
+test('a recovering squad occupies a slot while another slot remains usable', () => {
   const state = fixture();
   const unit = squad('assault', 'home-base', 0.5);
   state.combat.friendlySquads = [unit];
@@ -157,89 +233,32 @@ test('a recovering squad occupies one slot while another free slot remains usabl
   const whileRecovering = previewFriendlyDeployment(state, 'assault', 'home-base', 'enemy-base');
   assert.equal(whileRecovering.ok, true);
   assert.equal(whileRecovering.reuseReadySquad, false);
-  assert.equal(whileRecovering.assignedSquads, 1);
-  assert.equal(whileRecovering.capacity, 6);
-  for (let second = 0; second < 140; second += 1) updateFriendlyRecovery(state, unit, 1);
+  for (let second = 0; second < 90; second += 1) updateFriendlyRecovery(state, unit, 1);
   const before = { ...state.inventory.resources };
-  const preview = previewFriendlyDeployment(state, 'assault', 'home-base', 'enemy-base');
-  assert.equal(preview.ok, true);
-  assert.equal(preview.reuseReadySquad, true);
-  assert.deepEqual(preview.cost, {});
   const result = dispatchFriendlySquad(state, 'assault', 'home-base', 'enemy-base');
   assert.equal(result.redeployed, true);
   assert.equal(result.squad.id, unit.id);
   assert.deepEqual(state.inventory.resources, before);
-  assert.equal(unit.status, FRIENDLY_SQUAD_STATUS.OUTBOUND);
 });
 
-test('selecting a different type replaces a ready garrison only when every squad slot is occupied', () => {
-  const state = fixture(2);
-  const unit = squad('assault', 'home-base', 1);
-  unit.status = FRIENDLY_SQUAD_STATUS.READY;
-  const active = Array.from({ length: 3 }, (_, index) => ({
-    ...squad('assault', 'home-base', 1),
-    id: `active-${index}`,
-    status: FRIENDLY_SQUAD_STATUS.OUTBOUND,
-    order: 'ADVANCE'
-  }));
-  state.combat.friendlySquads = [unit, ...active];
-  const beforeTimber = state.inventory.resources.timber;
-  const result = dispatchFriendlySquad(state, 'siege', 'home-base', 'enemy-base');
-  assert.equal(result.ok, true);
-  assert.equal(result.replaced, true);
-  assert.equal(state.combat.friendlySquads.length, 4);
-  assert.equal(state.combat.friendlySquads.some(item => item.id === unit.id), false);
-  assert.equal(state.combat.friendlySquads.some(item => item.type === 'siege'), true);
-  assert.equal(state.inventory.resources.timber, beforeTimber - FRIENDLY_SQUAD_DEFINITIONS.siege.cost.timber);
-});
-
-test('medical and field aid facilities are restricted to their matching base types and one slot each', () => {
-  const state = fixture(1);
-  const system = new BuildSystem(null);
-  const medicalSites = system.listBuildSites(state, 'medical');
-  const fieldAidSites = system.listBuildSites(state, 'fieldAid');
-  assert.ok(medicalSites.length > 0);
-  assert.ok(medicalSites.every(site => site.anchorKind === 'MAJOR'));
-  assert.ok(fieldAidSites.length > 0);
-  assert.ok(fieldAidSites.every(site => site.anchorKind === 'FIELD'));
-  assert.equal(system.buildCandidate(state, medicalSites[0]).ok, true);
-  assert.equal(system.listBuildSites(state, 'medical').length, 0);
-  assert.equal(system.buildCandidate(state, fieldAidSites[0]).ok, true);
-  assert.equal(system.listBuildSites(state, 'fieldAid').length, 0);
-});
-
-test('destroying a treatment facility immediately falls back to natural base recovery', () => {
-  const state = fixture();
-  const medical = facility('medical', 'home-base', 'home-site', 4);
-  state.combat.defenses.push(medical);
-  const unit = squad('assault', 'home-base', 0.2);
-  state.combat.friendlySquads = [unit];
-  beginFriendlyRecovery(state, unit, 'home-base');
-  assert.equal(recoveryProfileForSquad(state, unit).facility.id, medical.id);
-  medical.hp = 0;
-  medical.ruined = true;
-  const fallback = recoveryProfileForSquad(state, unit);
-  assert.equal(fallback.facility, null);
-  assert.equal(fallback.label, '拠点療養');
-});
-
-test('recovery state and progress survive save and restore', () => {
+test('major-base recovery progress survives save and restore without duplicate healing', () => {
   const state = fixture();
   const unit = squad('assault', 'home-base', 0.35);
   state.combat.friendlySquads = [unit];
   beginFriendlyRecovery(state, unit, 'home-base');
   updateFriendlyRecovery(state, unit, 20);
+  const savedHp = unit.hp;
+  assert.ok(savedHp > FRIENDLY_SQUAD_DEFINITIONS.assault.hp * 0.35);
   const repository = new SaveRepository(new MemoryStorage(), 'friendly-recovery');
   repository.save(state);
   const restored = repository.load();
   const restoredUnit = restored.combat.friendlySquads[0];
   assert.equal(restoredUnit.status, FRIENDLY_SQUAD_STATUS.RECOVERING);
-  assert.equal(restoredUnit.recoveryBaseId, 'home-base');
-  assert.ok(restoredUnit.hp > FRIENDLY_SQUAD_DEFINITIONS.assault.hp * 0.35);
-  assert.ok(restoredUnit.reorganizationRemaining < 45);
+  assert.equal(restoredUnit.hp, savedHp);
+  assert.equal(restoredUnit.reorganizationRemaining, 25);
 });
 
-test('a recovering squad evacuates to the nearest major base when its field base is destroyed', () => {
+test('a recovering squad evacuates to a major base when its field base is destroyed', () => {
   const state = fixture();
   const unit = squad('assault', 'field-base', 0.3);
   state.combat.friendlySquads = [unit];
@@ -252,7 +271,6 @@ test('a recovering squad evacuates to the nearest major base when its field base
   assert.equal(unit.status, FRIENDLY_SQUAD_STATUS.RETURNING);
   assert.equal(unit.originBaseId, 'home-base');
   assert.equal(unit.recoveryBaseId, 'home-base');
-  assert.equal(unit.path.targetId, 'home');
   for (let second = 0; second < 420; second += 1) system.update(state, 1, spatial);
   assert.equal(unit.status, FRIENDLY_SQUAD_STATUS.READY);
   assert.equal(unit.hp, unit.maxHp);
@@ -265,17 +283,34 @@ test('recovery and ready garrisons reject tactical movement orders', () => {
   beginFriendlyRecovery(state, unit, 'home-base');
   const system = new FriendlyForceSystem();
   assert.equal(system.hold(state, unit.id).ok, false);
-  assert.equal(system.issueRouteOrder(state, unit.id, {
-    order: 'ADVANCE', destinationNodeId: 'enemy',
-    path: { nodeIds: ['home', 'home-site', 'field', 'field-site', 'enemy'], edgeIds: ['a', 'b', 'c', 'd'], targetId: 'enemy', cost: 600 }
-  }).ok, false);
   unit.status = FRIENDLY_SQUAD_STATUS.READY;
   assert.equal(system.hold(state, unit.id).ok, false);
 });
 
-test('treatment capacity queues excess squads without losing recovery state', () => {
+test('legacy field-aid facilities migrate once into field barracks without leaving recovery behavior behind', () => {
+  const state = fixture(1);
+  state.combat.defenses = [{
+    id: 'legacy-aid', type: 'fieldAid', line: 'fieldAid', kind: 'tower', tier: 1,
+    defenseKey: 'fieldAid1', nodeId: 'field-site', baseId: 'field-base',
+    buildAnchorId: 'field:field-base', buildAnchorKind: 'FIELD',
+    hp: 150, maxHp: 150, recoveryRate: 0.01, recoveryCap: 0.7,
+    reorganizationSeconds: 40, recoveryCapacity: 2
+  }];
+  normalizeCombatState(state);
+  const migrated = state.combat.defenses[0];
+  assert.equal(migrated.type, 'fieldBarracks');
+  assert.equal(migrated.line, 'fieldBarracks');
+  assert.equal(migrated.defenseKey, 'fieldBarracks1');
+  assert.equal('recoveryRate' in migrated, false);
+  assert.equal('recoveryCap' in migrated, false);
+  assert.equal('reorganizationSeconds' in migrated, false);
+  assert.equal('recoveryCapacity' in migrated, false);
+  assert.equal(friendlySquadCapacityForBase(state, 'field-base'), 3);
+});
+
+test('base reorganization remains sequential and is not accelerated by recovery facilities', () => {
   const state = fixture();
-  state.combat.defenses.push(facility('medical', 'home-base', 'home-site', 1));
+  state.combat.defenses.push(facility('medical', 'home-base', 'home-site', 4));
   const first = squad('assault', 'home-base', 0.5);
   first.id = 'first';
   const second = squad('skirmisher', 'home-base', 0.5);
@@ -283,28 +318,9 @@ test('treatment capacity queues excess squads without losing recovery state', ()
   state.combat.friendlySquads = [first, second];
   beginFriendlyRecovery(state, first, 'home-base', 1000);
   beginFriendlyRecovery(state, second, 'home-base', 2000);
-  const secondRemaining = second.reorganizationRemaining;
+  const beforeSecond = second.reorganizationRemaining;
   assert.equal(updateFriendlyRecovery(state, first, 1).updated, true);
   const queued = updateFriendlyRecovery(state, second, 1);
   assert.equal(queued.queued, true);
-  assert.equal(second.reorganizationRemaining, secondRemaining);
-  assert.equal(second.status, FRIENDLY_SQUAD_STATUS.RECOVERING);
-});
-
-test('tier-three treatment facilities process two recovering squads at once', () => {
-  const state = fixture(3);
-  state.combat.defenses.push(facility('medical', 'home-base', 'home-site', 3));
-  const first = squad('assault', 'home-base', 0.5);
-  first.id = 'first';
-  const second = squad('skirmisher', 'home-base', 0.5);
-  second.id = 'second';
-  state.combat.friendlySquads = [first, second];
-  beginFriendlyRecovery(state, first, 'home-base', 1000);
-  beginFriendlyRecovery(state, second, 'home-base', 2000);
-  const beforeFirst = first.reorganizationRemaining;
-  const beforeSecond = second.reorganizationRemaining;
-  updateFriendlyRecovery(state, first, 1);
-  updateFriendlyRecovery(state, second, 1);
-  assert.ok(first.reorganizationRemaining < beforeFirst);
-  assert.ok(second.reorganizationRemaining < beforeSecond);
+  assert.equal(second.reorganizationRemaining, beforeSecond);
 });

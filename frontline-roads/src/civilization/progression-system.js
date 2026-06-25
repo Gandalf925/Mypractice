@@ -1,5 +1,4 @@
 import { deepClone } from '../core/utilities.js';
-import { RECOVERY_BALANCE } from '../core/recovery-balance.js';
 import { CIVILIZATIONS, CIVILIZATION_PROJECTS, DEFENSE_LINES, SETTLEMENT_BUILDINGS, defenseLineForType } from './data.js';
 import { addBundle, consumeBundle } from './inventory-system.js';
 import { applyDefenseTier, defenseUpgradeStatus } from './defense-upgrade.js';
@@ -65,11 +64,11 @@ export function ensureProject(state) {
 }
 
 function defenseCount(state, predicate) {
-  return state.combat.defenses.filter(defense => defense.hp > 0 && !defense.ruined && predicate(defense)).length;
+  return state.combat.defenses.filter(defense => defense.hp > 0 && predicate(defense)).length;
 }
 
 function buildingCheckValue(state, key) {
-  if (SETTLEMENT_BUILDINGS[key]) return state.civilization.buildings.filter(building => building.type === key && !building.ruined && !building.demolished).length;
+  if (SETTLEMENT_BUILDINGS[key]) return state.civilization.buildings.filter(building => building.type === key).length;
   if (key === 'barrier0') {
     const active = defenseCount(state, defense => defense.kind === 'barrier' && (defense.tier ?? 0) >= 0);
     return Math.max(active, Number(state.civilization.progress.barriersBuilt) || 0);
@@ -77,12 +76,12 @@ function buildingCheckValue(state, key) {
   if (key === 'single0') return defenseCount(state, defense => defenseLineForType(defense.type) === 'single');
   if (key === 'otherDefense0') return defenseCount(state, defense => ['area', 'slow', 'repair'].includes(defenseLineForType(defense.type)));
   if (key === 'upgradedDefenses') return defenseCount(state, defense => (defense.tier ?? 0) >= 1);
-  if (key === 'upgradedDefenseKinds') return new Set(state.combat.defenses.filter(defense => defense.hp > 0 && !defense.ruined && (defense.tier ?? 0) >= 1).map(defense => defenseLineForType(defense.type))).size;
+  if (key === 'upgradedDefenseKinds') return new Set(state.combat.defenses.filter(defense => defense.hp > 0 && (defense.tier ?? 0) >= 1).map(defense => defenseLineForType(defense.type))).size;
   if (key === 'barrier2') return defenseCount(state, defense => defense.kind === 'barrier' && !defense.isGate && (defense.tier ?? 0) >= 2);
   if (key === 'gate2') return defenseCount(state, defense => defense.kind === 'barrier' && defense.isGate && (defense.tier ?? 0) >= 2);
   if (key === 'gate3') return defenseCount(state, defense => defense.kind === 'barrier' && defense.isGate && (defense.tier ?? 0) >= 3);
   if (key === 'bronzeDefenses') return defenseCount(state, defense => (defense.tier ?? 0) >= 3);
-  if (key === 'bronzeDefenseKinds') return new Set(state.combat.defenses.filter(defense => defense.hp > 0 && !defense.ruined && (defense.tier ?? 0) >= 3).map(defense => defenseLineForType(defense.type))).size;
+  if (key === 'bronzeDefenseKinds') return new Set(state.combat.defenses.filter(defense => defense.hp > 0 && (defense.tier ?? 0) >= 3).map(defense => defenseLineForType(defense.type))).size;
   if (key === 'wallAtLeast2') return defenseCount(state, defense => defense.kind === 'barrier' && !defense.isGate && (defense.tier ?? 0) >= 2);
   return 0;
 }
@@ -223,22 +222,20 @@ export class ProgressionSystem {
   repairDefense(state, defenseId) {
     const defense = state.combat.defenses.find(item => item.id === defenseId);
     if (!defense) return { ok: false, reason: '設備が見つかりません。' };
-    const wasRuined = Boolean(defense.ruined || defense.hp <= 0);
+    if (defense.hp <= 0) return { ok: false, reason: '破壊された設備は撤去済みです。再建してください。' };
     const missingHp = Math.max(0, defense.maxHp - defense.hp);
-    if (missingHp <= 0 && !defense.ruined) return { ok: false, reason: '修理は不要です。' };
+    if (missingHp <= 0) return { ok: false, reason: '修理は不要です。' };
     const line = defenseLine(defense);
     const cost = repairCostForDefense(defense, missingHp);
     if (!consumeBundle(state, cost)) return { ok: false, reason: '修理資源が不足しています。' };
     defense.hp = defense.maxHp;
-    defense.ruined = false;
-    if (wasRuined && defense.kind === 'tower') defense.disabledTimer = Math.max(Number(defense.disabledTimer) || 0, RECOVERY_BALANCE.restoredTowerRestartSeconds);
     state.civilization.progress.totalRepairHpPaid += missingHp;
     this.events?.emit('combat:defense-repaired', { defenseId: defense.id, repairHp: missingHp, cost, automatic: false });
     return { ok: true, defense, cost };
   }
 
   convertBarrierToGate(state, defenseId) {
-    const defense = state.combat.defenses.find(item => item.id === defenseId && item.kind === 'barrier' && !item.isGate && item.hp > 0 && !item.ruined);
+    const defense = state.combat.defenses.find(item => item.id === defenseId && item.kind === 'barrier' && !item.isGate && item.hp > 0);
     if (!defense) return { ok: false, reason: '変換できる防壁がありません。' };
     const civilizationLevel = state.civilization.level ?? 0;
     if (civilizationLevel < 2) return { ok: false, reason: '文明Lv.2で石門が解禁されます。' };

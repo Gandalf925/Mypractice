@@ -1,5 +1,7 @@
 import { ROAD_CONFIG } from '../core/constants.js';
 import { AppError, ErrorCode } from '../core/errors.js';
+import { sandboxJsonpRequest } from './sandbox-jsonp-transport.js';
+import { OVERPASS_HIGHWAY_PATTERN } from './road-constants.js';
 
 export const DEFAULT_ENDPOINTS = Object.freeze([
   'https://overpass-api.de/api/interpreter',
@@ -7,18 +9,14 @@ export const DEFAULT_ENDPOINTS = Object.freeze([
   'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
 ]);
 
-const PREFERENCE_KEY = 'frontline_roads_overpass_preference_v1';
-const HIGHWAY_PATTERN = [
-  'primary',
-  'primary_link',
-  'secondary',
-  'secondary_link',
-  'tertiary',
-  'tertiary_link',
-  'residential',
-  'unclassified',
-  'living_street'
-].join('|');
+export const OVERPASS_TRANSPORT = Object.freeze({
+  POST: 'POST',
+  GET: 'GET',
+  SANDBOX_JSONP: 'SANDBOX_JSONP'
+});
+
+const PREFERENCE_KEY = 'frontline_roads_overpass_preference_v2';
+const HIGHWAY_PATTERN = OVERPASS_HIGHWAY_PATTERN;
 
 function endpointHost(endpoint) {
   try { return new URL(endpoint).hostname; }
@@ -56,10 +54,22 @@ function radiusBounds(lat, lon, radiusMeters) {
   };
 }
 
+function defaultSandboxTransport() {
+  return globalThis.document?.body && globalThis.window?.addEventListener ? sandboxJsonpRequest : null;
+}
+
 export class OverpassClient {
-  constructor({ fetchImpl = globalThis.fetch, endpoints = DEFAULT_ENDPOINTS, preferenceStorage = safeBrowserStorage() } = {}) {
-    if (typeof fetchImpl !== 'function') throw new TypeError('fetchImpl must be a function');
-    this.fetchImpl = fetchImpl;
+  constructor({
+    fetchImpl = globalThis.fetch,
+    endpoints = DEFAULT_ENDPOINTS,
+    preferenceStorage = safeBrowserStorage(),
+    sandboxJsonpImpl = defaultSandboxTransport()
+  } = {}) {
+    if (typeof fetchImpl !== 'function' && typeof sandboxJsonpImpl !== 'function') {
+      throw new TypeError('A fetch or sandbox JSONP transport is required');
+    }
+    this.fetchImpl = typeof fetchImpl === 'function' ? fetchImpl : null;
+    this.sandboxJsonpImpl = typeof sandboxJsonpImpl === 'function' ? sandboxJsonpImpl : null;
     this.endpoints = [...endpoints];
     this.preferenceStorage = preferenceStorage;
     this.preferredEndpoint = null;
@@ -74,11 +84,11 @@ export class OverpassClient {
       const value = JSON.parse(this.preferenceStorage?.getItem?.(PREFERENCE_KEY) ?? 'null');
       if (!value || !this.endpoints.includes(value.endpoint)) return;
       this.preferredEndpoint = value.endpoint;
-      if (value.transport === 'GET' || value.transport === 'POST') {
+      if (Object.values(OVERPASS_TRANSPORT).includes(value.transport)) {
         this.preferredTransports.set(value.endpoint, value.transport);
       }
     } catch {
-      // Preference storage is optional; network requests remain functional without it.
+      // Preferences are an optimization only.
     }
   }
 
@@ -86,13 +96,22 @@ export class OverpassClient {
     try {
       this.preferenceStorage?.setItem?.(PREFERENCE_KEY, JSON.stringify({ endpoint, transport, updatedAt: Date.now() }));
     } catch {
-      // Storage can be unavailable in private browsing. The in-memory preference still applies.
+      // Private browsing may deny storage; in-memory preference remains active.
     }
   }
 
   orderedEndpoints() {
     if (!this.preferredEndpoint || !this.endpoints.includes(this.preferredEndpoint)) return [...this.endpoints];
     return [this.preferredEndpoint, ...this.endpoints.filter(endpoint => endpoint !== this.preferredEndpoint)];
+  }
+
+  availableTransports(endpoint) {
+    const transports = [];
+    if (this.fetchImpl) transports.push(OVERPASS_TRANSPORT.POST, OVERPASS_TRANSPORT.GET);
+    if (this.sandboxJsonpImpl) transports.push(OVERPASS_TRANSPORT.SANDBOX_JSONP);
+    const preferred = this.preferredTransports.get(endpoint);
+    if (!preferred || !transports.includes(preferred)) return transports;
+    return [preferred, ...transports.filter(transport => transport !== preferred)];
   }
 
   buildQuery(lat, lon, radiusMeters = ROAD_CONFIG.fetchRadiusMeters, { shape = 'around' } = {}) {
@@ -113,18 +132,8 @@ export class OverpassClient {
   }
 
   async fetchWithPost(endpoint, query, signal) {
-    const response = await this.fetchImpl(endpoint, {
-      method: 'POST',
-      mode: 'cors',
-      credentials: 'omit',
-      cache: 'no-store',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
-      },
-      body: `data=${encodeURIComponent(query)}`,
-      signal
-    });
+    const body = new URLSearchParams({ data: query });
+    const response = await this.fetchImpl(endpoint, { method: 'POST', body, signal });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return validatePayload(await response.json());
   }
@@ -132,14 +141,7 @@ export class OverpassClient {
   async fetchWithGet(endpoint, query, signal) {
     const url = new URL(endpoint);
     url.searchParams.set('data', query);
-    const response = await this.fetchImpl(url.href, {
-      method: 'GET',
-      mode: 'cors',
-      credentials: 'omit',
-      cache: 'no-store',
-      headers: { Accept: 'application/json' },
-      signal
-    });
+    const response = await this.fetchImpl(url.href, { method: 'GET', signal });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return validatePayload(await response.json());
   }
@@ -150,16 +152,16 @@ export class OverpassClient {
     const abortFromCaller = () => controller.abort();
     callerSignal?.addEventListener('abort', abortFromCaller, { once: true });
     try {
-      return transport === 'GET'
-        ? await this.fetchWithGet(endpoint, query, controller.signal)
-        : await this.fetchWithPost(endpoint, query, controller.signal);
+      if (transport === OVERPASS_TRANSPORT.GET) return await this.fetchWithGet(endpoint, query, controller.signal);
+      if (transport === OVERPASS_TRANSPORT.POST) return await this.fetchWithPost(endpoint, query, controller.signal);
+      return await this.sandboxJsonpImpl(endpoint, query, { signal: controller.signal, timeoutMs });
     } finally {
       clearTimeout(timer);
       callerSignal?.removeEventListener('abort', abortFromCaller);
     }
   }
 
-  recordSuccess(endpoint, transport, result) {
+  recordSuccess(endpoint, transport, result, { confirmedEmpty = false, emptyConfirmationCount = 0 } = {}) {
     this.preferredEndpoint = endpoint;
     this.preferredTransports.set(endpoint, transport);
     this.lastSuccess = Object.freeze({
@@ -168,7 +170,9 @@ export class OverpassClient {
       host: endpointHost(endpoint),
       transport,
       at: Date.now(),
-      elementCount: result.elements.length
+      elementCount: result.elements.length,
+      confirmedEmpty,
+      emptyConfirmationCount
     });
     this.persistPreference(endpoint, transport);
   }
@@ -186,15 +190,17 @@ export class OverpassClient {
     const query = this.buildQuery(lat, lon, radiusMeters, { shape: queryShape });
     const startedAt = Date.now();
     const failures = [];
+    const emptyEndpoints = new Set();
+    let firstEmpty = null;
     let attempt = 0;
     const endpoints = this.orderedEndpoints();
-    const totalAttempts = endpoints.length * 2;
+    const totalAttempts = endpoints.reduce((sum, endpoint) => sum + this.availableTransports(endpoint).length, 0);
+    const requiredEmptyConfirmations = Math.min(ROAD_CONFIG.emptyResultConfirmationEndpoints, Math.max(1, endpoints.length));
 
     for (let index = 0; index < endpoints.length; index += 1) {
       if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
       const endpoint = endpoints[index];
-      const preferred = this.preferredTransports.get(endpoint);
-      const transports = preferred === 'GET' ? ['GET', 'POST'] : ['POST', 'GET'];
+      const transports = this.availableTransports(endpoint);
 
       for (const transport of transports) {
         if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -215,8 +221,21 @@ export class OverpassClient {
 
         try {
           const result = await this.runAttempt(endpoint, query, timeoutMs, signal, transport);
-          this.recordSuccess(endpoint, transport, result);
-          return result;
+          if (result.elements.length > 0) {
+            this.recordSuccess(endpoint, transport, result);
+            return result;
+          }
+
+          firstEmpty ??= result;
+          emptyEndpoints.add(endpoint);
+          const confirmed = emptyEndpoints.size >= requiredEmptyConfirmations;
+          this.recordSuccess(endpoint, transport, result, {
+            confirmedEmpty: confirmed,
+            emptyConfirmationCount: emptyEndpoints.size
+          });
+          if (confirmed) return firstEmpty;
+          failures.push(`${endpointHost(endpoint)} ${transport}:empty-unconfirmed`);
+          break;
         } catch (error) {
           if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
           failures.push(`${endpointHost(endpoint)} ${transport}:${errorSummary(error)}`);
@@ -227,7 +246,9 @@ export class OverpassClient {
     const details = failures.length > 0 ? failures.join(' / ') : 'no endpoint completed';
     throw new AppError(
       ErrorCode.ROAD_REQUEST_FAILED,
-      '道路データを取得できませんでした。下の診断内容をスクリーンショットで共有してください。',
+      emptyEndpoints.size > 0
+        ? '道路がないという応答を確認できませんでした。別の道路サーバーで自動再試行します。'
+        : '道路データを取得できませんでした。下の診断内容をスクリーンショットで共有してください。',
       { details }
     );
   }

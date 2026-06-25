@@ -161,7 +161,7 @@ test('tactical route choices use spatial snapshots instead of rescanning every e
   }));
   const defenses = Array.from({ length: 150 }, (_, index) => ({
     id: `defense-${index}`, type: 'gun', kind: 'tower', nodeId: `n${(index * 13) % size}_${(index * 29) % size}`,
-    hp: 100, maxHp: 100, range: 80, ruined: false
+    hp: 100, maxHp: 100, range: 80
   }));
   let enemyScans = 0;
   let defenseScans = 0;

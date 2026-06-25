@@ -33,6 +33,10 @@ export function roadWidthMeters(highway, lanes, tags = {}) {
   const explicit = Number.parseFloat(tags.width);
   if (Number.isFinite(explicit) && explicit > 1) return clamp(explicit, 2.5, 30);
   const base = {
+    motorway: 13,
+    motorway_link: 9.5,
+    trunk: 12,
+    trunk_link: 9,
     primary: 10.5,
     primary_link: 8.5,
     secondary: 9,
@@ -41,7 +45,9 @@ export function roadWidthMeters(highway, lanes, tags = {}) {
     tertiary_link: 6.5,
     residential: 5.5,
     unclassified: 5,
-    living_street: 4.5
+    living_street: 4.5,
+    service: 4.2,
+    road: 4
   }[highway] ?? 5;
   return clamp(Math.max(base, lanes * 3.15 + (lanes > 1 ? 1 : 0)), 3.2, 28);
 }

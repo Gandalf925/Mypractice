@@ -516,7 +516,8 @@ footer::before { content: "RADAR BUILD // "; }
   place-items: center;
   padding: calc(var(--safe-top) + 14px) 12px calc(var(--safe-bottom) + 14px);
   background: rgba(0, 7, 6, 0.84);
-  backdrop-filter: blur(8px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 .modalCard {
   position: relative;
@@ -529,6 +530,11 @@ footer::before { content: "RADAR BUILD // "; }
   background: rgba(2, 20, 17, 0.98);
   box-shadow: 0 24px 80px rgba(0,0,0,0.82), inset 0 0 42px rgba(36,255,202,0.03);
   clip-path: polygon(13px 0, 100% 0, 100% calc(100% - 13px), calc(100% - 13px) 100%, 0 100%, 0 13px);
+  opacity: 1;
+  visibility: visible;
+  filter: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 .modalHeader {
   flex: none;
@@ -549,6 +555,11 @@ footer::before { content: "RADAR BUILD // "; }
   color: var(--accent);
   font-size: 23px;
   clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+}
+/* Modal chrome must remain independent from radar quality. Android Chromium can hide
+   descendants when backdrop-filter is toggled on an already-open overlay. */
+.modalOverlay > .modalCard {
+  isolation: isolate;
 }
 .modalBody { overflow-y: auto; padding: 15px 16px 24px; scrollbar-color: rgba(101,255,208,0.42) rgba(0,0,0,0.22); }
 .modalBody section { margin-bottom: 20px; }
@@ -705,7 +716,10 @@ footer::before { content: "RADAR BUILD // "; }
 .radarSettingButtons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .radarSettingButtons button { min-height: 40px; border: 1px solid var(--line); background: rgba(5,45,36,.92); color: #cffff3; font-size: 11px; font-weight: 800; }
 html[data-radar-quality="minimal"] #app::before { opacity: .06; }
-html[data-radar-motion="off"] #lifecycleText::before,
+html[data-radar-motion="off"] #lifecycleText::before {
+  animation: none;
+  opacity: .72;
+}
 @media (max-width: 620px) {
   .contextMetricGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .radarSettingButtons { grid-template-columns: 1fr; }
@@ -729,15 +743,11 @@ html[data-lifecycle="PLAYING"] footer {
 }
 
 /* v0.17.0 performance profile */
-html[data-radar-quality="minimal"] .modalOverlay { backdrop-filter: none; }
-html[data-radar-quality="minimal"] .panel,
-html[data-radar-quality="minimal"] .modalCard,
-html[data-radar-quality="minimal"] .contextPanel,
-html[data-radar-quality="minimal"] .toolButton,
 html[data-radar-quality="minimal"] #statusBar,
 html[data-radar-quality="minimal"] .combatStats strong,
-html[data-radar-quality="minimal"] .toolButton strong,
-html[data-radar-quality="balanced"] .modalOverlay { backdrop-filter: blur(3px); }
+html[data-radar-quality="minimal"] .toolButton strong {
+  text-shadow: none;
+}
 
 /* v0.17.0 mobile performance safeguards */
 html:not([data-radar-quality="full"]) #app::before {
@@ -747,13 +757,6 @@ html:not([data-radar-quality="full"]) #app::before {
 html:not([data-radar-quality="full"]) #app::after {
   box-shadow: inset 0 0 54px rgba(0, 0, 0, 0.68);
 }
-html:not([data-radar-quality="full"]) .modalOverlay {
-  backdrop-filter: none;
-}
-html[data-radar-quality="balanced"] .panel,
-html[data-radar-quality="balanced"] .modalCard,
-html[data-radar-quality="balanced"] .contextPanel,
-html[data-radar-quality="balanced"] .toolButton,
 
 /* v0.17.1 dedicated base-selection map viewport */
 html[data-lifecycle="BASE_SELECTION"] #mapCanvas {
@@ -1353,3 +1356,34 @@ button, input, select, textarea { font-size: inherit; }
 }
 
 .baseCommandOverview small { display: block; margin-top: 3px; color: #719f94; font-size: 9px; }
+
+
+/* v0.32.9 gameplay camera controls */
+.gameMapControls {
+  top: auto;
+  right: 10px;
+  bottom: calc(var(--safe-bottom) + 112px);
+  z-index: 18;
+}
+.gameMapControls button {
+  width: 40px;
+  height: 40px;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+.gameMapControls button:nth-child(-n + 2) { font-size: 21px; }
+
+@media (max-height: 680px) {
+  .gameMapControls { top: auto; bottom: calc(var(--safe-bottom) + 104px); }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .gameMapControls {
+    top: auto;
+    right: 8px;
+    bottom: calc(var(--safe-bottom) + 86px);
+    transform: none;
+  }
+  .gameMapControls button { width: 36px; height: 36px; }
+}

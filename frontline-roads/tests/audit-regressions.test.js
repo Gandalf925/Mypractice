@@ -162,10 +162,15 @@ test('production source only enables dev fixture on local or explicit test origi
 });
 
 
-test('road loading uses the injected fetch implementation without a script transport', async () => {
+test('road loading keeps injected fetch and isolates the script fallback in an opaque sandbox', async () => {
   const { readFile } = await import('node:fs/promises');
   const bootstrap = await readFile(new URL('../src/app/bootstrap.js', import.meta.url), 'utf8');
   const client = await readFile(new URL('../src/roads/overpass-client.js', import.meta.url), 'utf8');
+  const sandbox = await readFile(new URL('../src/roads/sandbox-jsonp-transport.js', import.meta.url), 'utf8');
   assert.match(bootstrap, /fetchImpl: development\?\.fetchImpl \?\? globalThis\.fetch/);
-  assert.doesNotMatch(client, /JSONP|jsonp|createElement\(['"]script/);
+  assert.match(client, /sandboxJsonpRequest/);
+  assert.doesNotMatch(client, /createElement\(['"]script/);
+  assert.match(sandbox, /createElement\(['"]iframe/);
+  assert.match(sandbox, /setAttribute\(['"]sandbox['"], ['"]allow-scripts['"]\)/);
+  assert.doesNotMatch(sandbox, /allow-same-origin/);
 });
