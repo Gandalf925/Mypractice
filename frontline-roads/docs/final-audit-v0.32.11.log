@@ -1,0 +1,75 @@
+FRONTLINE ROADS v0.32.11 FINAL AUDIT
+
+Scope
+- Remove periodic rendering and state-clone stalls on mobile standard quality
+- Keep the simulation and UI state separation intact
+- Increase actual enemy population and launch density by civilization level
+- Preserve civilization level 0 wave size, timing and former 220-enemy ceiling
+
+Rendering corrections
+- Added an independently invalidated combat canvas layer
+- Reuses the completed combat layer while simulation state and camera are unchanged
+- Consolidated enemy position, road-pressure and lane-distribution scans
+- Batched standard/minimal enemy fills by normal/slowed state
+- Suppressed per-enemy outer rings above 180 visible enemies
+- Limited standard enemy health bars to 20, or 12 in dense scenes
+- Preserved full-quality individual glow and radar response
+
+State and scheduling corrections
+- Added detached UI snapshots that cache the unchanged road graph
+- Periodic HUD refresh shares one UI snapshot across all panels
+- Automatic survey polling is throttled to 30 seconds
+- No survey facility means no full state transaction or graph clone
+- Manual survey remains immediate
+
+Simulation corrections
+- Region anchors are built once per assignment sweep
+- Region distance uses squared values
+- First regional step reuses the existing combat spatial index
+- Empty activity regions skip combat-system updates
+- Threat ranking retains the top eight candidates without sorting the full enemy set
+
+Enemy density
+- Civilization 0: cap 220, wave x1.00, interval x1.00, departure 8.0s
+- Civilization 1: cap 320, wave x1.55, interval x0.86, departure 6.0s
+- Civilization 2: cap 440, wave x2.25, interval x0.70, departure 4.5s
+- Civilization 3: cap 580, wave x3.25, interval x0.56, departure 3.2s
+- Civilization 4: cap 720, wave x4.50, interval x0.44, departure 2.4s
+- Civilization generation grace uses the preceding density tier
+- Enemy-base guard waves retain their fixed composition
+
+Performance evidence
+- Standard direct combat draw operations reduced 45.5% at 220 enemies
+- Standard direct combat draw operations reduced 60.1% at 500 enemies
+- Standard direct combat draw operations reduced 61.6% at 720 enemies
+- Minimal direct combat draw operations reduced 50.8% to 63.9%
+- Forty UI refresh snapshots on a 2025-node / 3960-edge graph: median 958.861ms -> 0.623ms after cached graph warm-up
+- Synthetic 720-enemy, eight-base, five-minute 0.25s-step stress state remained bounded and finite
+
+Verification
+- Parallel regression: 426 passed, 0 failed
+- Serial file-by-file regression: 426 passed, 0 failed across 70 test files
+- JavaScript syntax: passed
+- CSS parser errors: 0
+- Production JavaScript modules: 102
+- Reachable from bootstrap: 102
+- Unreachable modules: 0
+- Unresolved imports: 0
+- Circular dependencies: 0
+- Duplicate HTML IDs: 0
+- Service Worker runtime omissions: 0
+- Unknown Service Worker runtime entries: 0
+- Obsolete lastSurveyEnqueueAt references: 0
+- Local HTTP checks: root, legacy redirect, game entry, CSS, bootstrap, combat renderer, density model and Service Worker returned 200
+- Existing twelve-hour simulation, offline equivalence, road acquisition, intercept, construction and modal recovery regressions passed
+
+Compatibility
+- Save key: frontline_roads_refactor_v2 (unchanged)
+- Save schema: 2 (unchanged)
+- Existing enemies and waves need no migration
+- Existing display-quality preference remains valid
+- Live and offline simulation use the same density functions
+
+Environment limitation
+- Android GPU composition, touch selection, GPS and public Service Worker replacement require verification on the published HTTPS build.
+- Canvas operation counts are deterministic workload proxies, not claimed device FPS measurements.

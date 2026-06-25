@@ -1,6 +1,6 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const CACHE_NAME = `${CACHE_PREFIX}v0-32-10-modal-display-recovery`;
+const CACHE_NAME = `${CACHE_PREFIX}v0-33-1-tab-resume-recovery`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -112,6 +112,52 @@ const APP_SHELL = [
   './src/ui/radar-preferences.js'
 ];
 
+const NETWORK_TIMEOUT_MS = 4500;
+
+function fetchWithTimeout(request, timeoutMs = NETWORK_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(request, { signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
+async function cacheResponse(request, response) {
+  if (response?.ok) {
+    const cache = await caches.open(CACHE_NAME);
+    await cache.put(request, response.clone());
+  }
+  return response;
+}
+
+async function refreshAsset(request) {
+  try {
+    const response = await fetchWithTimeout(request);
+    await cacheResponse(request, response);
+  } catch {
+    // Cached application assets remain usable while the network is suspended.
+  }
+}
+
+async function serveApplicationAsset(request, event) {
+  const cached = await caches.match(request, { ignoreSearch: true });
+  if (cached) {
+    event.waitUntil(refreshAsset(request));
+    return cached;
+  }
+  try {
+    return await cacheResponse(request, await fetchWithTimeout(request));
+  } catch {
+    return Response.error();
+  }
+}
+
+async function serveNavigation(request) {
+  try {
+    return await cacheResponse(request, await fetchWithTimeout(request));
+  } catch {
+    return await caches.match('./index.html') ?? Response.error();
+  }
+}
+
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
 });
@@ -122,15 +168,9 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || new URL(event.request.url).origin !== location.origin) return;
-  event.respondWith(fetch(event.request).then(response => {
-    if (response.ok) {
-      const copy = response.clone();
-      caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
-    }
-    return response;
-  }).catch(() => caches.match(event.request, { ignoreSearch: true }).then(cached => {
-    if (cached) return cached;
-    if (event.request.mode === 'navigate') return caches.match('./index.html');
-    return Response.error();
-  })));
+  if (event.request.mode === 'navigate') {
+    event.respondWith(serveNavigation(event.request));
+    return;
+  }
+  event.respondWith(serveApplicationAsset(event.request, event));
 });
