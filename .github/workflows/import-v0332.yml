@@ -6,6 +6,13 @@ on:
       - codex/v0-33-2-canonical-upload
     paths:
       - .github/workflows/import-v0332.yml
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
 
 permissions:
   contents: write
