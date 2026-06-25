@@ -1,6 +1,6 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const CACHE_NAME = `${CACHE_PREFIX}v0-33-1-tab-resume-recovery`;
+const CACHE_NAME = `${CACHE_PREFIX}v0-33-2-tactical-build-performance`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -30,6 +30,7 @@ const APP_SHELL = [
   './src/civilization/repair-cost.js',
   './src/civilization/settlement-system.js',
   './src/combat/build-system.js',
+  './src/combat/build-site-planner.js',
   './src/combat/combat-geometry.js',
   './src/combat/combat-initializer.js',
   './src/combat/combat-system.js',

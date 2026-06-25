@@ -1,0 +1,29 @@
+{
+  "release": "0.32.1-ui-repair-visibility",
+  "schemaVersion": 2,
+  "productionJavaScriptModules": 98,
+  "productionJavaScriptLines": 14324,
+  "runtimeCssFiles": 1,
+  "testFiles": 62,
+  "testLines": 8045,
+  "reachableFromBootstrap": 98,
+  "unreachableModules": [],
+  "missingRelativeImports": [],
+  "circularDependencies": [],
+  "duplicateHtmlIds": [],
+  "cssBraceBalance": 0,
+  "serviceWorkerMissingRuntimeFiles": [],
+  "legacyStoreApiReferences": {
+    "select": [],
+    "mutate": [],
+    "update": [],
+    "getState": []
+  },
+  "jsonpRuntimeReferences": [],
+  "hudUsesContentSizedResourceStrip": true,
+  "fixedResourceSummaryMaxHeightPresent": false,
+  "ruinedDefenseRenderPresent": true,
+  "ruinsBlockReplacementConstruction": true,
+  "canonicalDefenseIconUsedOnMap": true,
+  "overlappingLegacyFacilitiesCycleSelection": true
+}

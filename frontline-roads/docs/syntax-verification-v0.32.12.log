@@ -1,0 +1,7 @@
+FRONTLINE ROADS v0.32.12 SYNTAX VERIFICATION
+UTC 2026-06-25T05:32:21Z
+
+> frontline-roads-refactor@0.32.12 syntax
+> find src tests tools -type f \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check && node --check sw.js
+
+SYNTAX_STATUS=0

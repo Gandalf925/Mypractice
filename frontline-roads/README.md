@@ -1,4 +1,14 @@
-# FRONTLINE ROADS — modular source v0.33.1 tab resume recovery
+# FRONTLINE ROADS — modular source v0.33.2 tactical build performance
+
+## Tactical build sites, walls and gates v0.33.2
+
+- Construction no longer exposes every OpenStreetMap shape node. Intersections, terminals, major curves and sparse interval points form a cached tactical-site layer, while support facilities receive at most six representative locations per construction anchor.
+- Consecutive road edges are grouped into bounded wall sections. One section accepts one wall or gate, physically duplicate road geometry is rejected, and new walls preserve the exact displayed placement point. Existing saved facilities are retained.
+- Walls now block friendly road routing as well as enemy movement. Gates continue to stop enemies but remain passable to friendly squads, and trade lower durability plus higher cost for that corridor role.
+- Non-blocking facilities no longer invalidate every enemy route. Build geometry is not regenerated for ordinary resource-count changes, immutable combat definitions are cached, and range-only hot paths use squared-distance comparisons.
+- On the fixed 31-node dense-road benchmark, tower candidates fall from 31 to 6 and wall candidates from 30 to 2. The fixed standard civilization level 7 simulation fell from about 4.04 seconds on v0.33.1 to about 2.60 seconds in the same environment.
+
+Implementation and verification are documented in `docs/tactical-build-performance-v0.33.2.md`.
 
 ## Tab resume and boot recovery v0.33.1
 

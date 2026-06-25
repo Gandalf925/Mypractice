@@ -1,0 +1,39 @@
+{
+  "version": "0.32.7-expedition-construction-recovery",
+  "production_js_modules": 103,
+  "production_js_lines": 15082,
+  "production_css_files": 1,
+  "test_js_files": 67,
+  "bootstrap_reachable_modules": 103,
+  "bootstrap_unreachable_modules": [],
+  "unresolved_relative_imports": [],
+  "import_cycles": [],
+  "service_worker_missing_runtime_files": [],
+  "html_duplicate_ids": [],
+  "legacy_cleanup_references": {
+    "fieldAid": [
+      "src/combat/combat-initializer.js:61"
+    ],
+    "recoveryTargetHp": [
+      "src/combat/friendly-force-system.js:123"
+    ],
+    "recoveryFacilityType": [
+      "src/combat/friendly-force-system.js:124"
+    ],
+    "recoveryFacilityId": [
+      "src/combat/friendly-force-system.js:125"
+    ],
+    "recoveryCap": [
+      "src/combat/combat-initializer.js:67",
+      "src/combat/combat-initializer.js:69"
+    ],
+    "recoveryCapacity": [
+      "src/combat/combat-initializer.js:69"
+    ]
+  },
+  "expedition_build_range_meters": 120,
+  "full_regression_tests": 405,
+  "full_regression_failures": 0,
+  "serial_regression_tests": 405,
+  "serial_regression_failures": 0
+}

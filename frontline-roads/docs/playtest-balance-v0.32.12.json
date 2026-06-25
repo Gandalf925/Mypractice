@@ -1,6 +1,6 @@
 {
   "release": "0.32.12-hud-camera-balance-validation",
-  "generatedAt": "2026-06-25T11:13:51.346Z",
+  "generatedAt": "2026-06-25T20:22:24.739Z",
   "simulation": {
     "topology": "nine-front radial road network",
     "baseDistanceMeters": 360,
@@ -48,7 +48,7 @@
       "cityDefeats": 0,
       "minimumCityHp": 100,
       "finalCityHp": 100,
-      "simulationMilliseconds": 478.4,
+      "simulationMilliseconds": 122.6,
       "passed": true
     },
     {
@@ -77,7 +77,7 @@
       "cityDefeats": 0,
       "minimumCityHp": 100,
       "finalCityHp": 100,
-      "simulationMilliseconds": 761.2,
+      "simulationMilliseconds": 165.1,
       "passed": true
     },
     {
@@ -91,11 +91,11 @@
       "towerCount": 10,
       "finalDefenses": 10,
       "destroyedDefenses": 9,
-      "repairEvents": 80,
-      "repairedHp": 1012.5,
+      "repairEvents": 79,
+      "repairedHp": 998.5,
       "repairCost": {
-        "cutStone": 64,
-        "bronzeIngot": 80,
+        "cutStone": 63,
+        "bronzeIngot": 79,
         "timber": 16,
         "rope": 16
       },
@@ -103,13 +103,13 @@
       "enemiesKilled": 189,
       "peakEnemies": 193,
       "peakMovingEnemies": 178,
-      "averageEnemies": 137.7,
-      "averageMovingEnemies": 127.4,
+      "averageEnemies": 137.6,
+      "averageMovingEnemies": 127.3,
       "secondsAtHalfPopulationCap": 0,
       "cityDefeats": 0,
       "minimumCityHp": 67,
       "finalCityHp": 67,
-      "simulationMilliseconds": 4416.6,
+      "simulationMilliseconds": 913.1,
       "passed": true
     },
     {
@@ -141,7 +141,7 @@
       "cityDefeats": 0,
       "minimumCityHp": 100,
       "finalCityHp": 100,
-      "simulationMilliseconds": 4351.3,
+      "simulationMilliseconds": 705.3,
       "passed": true
     },
     {
@@ -173,7 +173,7 @@
       "cityDefeats": 1,
       "minimumCityHp": 10,
       "finalCityHp": 53.2,
-      "simulationMilliseconds": 5552.4,
+      "simulationMilliseconds": 1049.5,
       "passed": true
     },
     {
@@ -205,7 +205,7 @@
       "cityDefeats": 0,
       "minimumCityHp": 100,
       "finalCityHp": 100,
-      "simulationMilliseconds": 4658.4,
+      "simulationMilliseconds": 853.1,
       "passed": true
     },
     {
@@ -236,7 +236,7 @@
       "cityDefeats": 0,
       "minimumCityHp": 100,
       "finalCityHp": 100,
-      "simulationMilliseconds": 5497.6,
+      "simulationMilliseconds": 968,
       "passed": true
     }
   ],

@@ -1,0 +1,13 @@
+{
+  "release": "0.32.3-persistence-survey-reliability",
+  "productionJavascriptModules": 99,
+  "productionCssFiles": 1,
+  "sourceLines": 15924,
+  "entryReachableModules": 99,
+  "unreachableModules": [],
+  "unresolvedImports": [],
+  "circularDependencies": [],
+  "duplicateHtmlIds": [],
+  "serviceWorkerMissingRuntimeFiles": [],
+  "cssStructureIssues": []
+}

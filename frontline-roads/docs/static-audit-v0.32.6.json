@@ -1,0 +1,30 @@
+{
+  "version": "0.32.6-road-expansion-reliability",
+  "production_modules": 102,
+  "production_lines": 15011,
+  "entry": "src/app/bootstrap.js",
+  "reachable_modules": 102,
+  "unreachable_modules": [],
+  "unresolved_imports": [],
+  "cycles": [],
+  "html_id_count": 51,
+  "duplicate_html_ids": {},
+  "service_worker_expected_source_assets": 103,
+  "service_worker_missing_assets": [],
+  "service_worker_extra_source_assets": [],
+  "road_transport": {
+    "fetch_post": true,
+    "fetch_get": true,
+    "opaque_sandbox_jsonp": true,
+    "sandbox_attribute": [
+      "allow-scripts"
+    ],
+    "unsafe_allow_same_origin_occurrences": 0,
+    "parent_document_script_injection_occurrences": 0,
+    "sandbox_document_script_loader_occurrences": 1,
+    "empty_response_confirmation_endpoints": 2
+  },
+  "road_chunk_version": 3,
+  "save_key": "frontline_roads_refactor_v2",
+  "save_schema": 2
+}

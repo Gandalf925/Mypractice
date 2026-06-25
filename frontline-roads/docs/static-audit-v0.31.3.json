@@ -1,0 +1,32 @@
+{
+  "release": "0.31.3-command-capacity-resource-hud",
+  "productionJsModules": 96,
+  "reachableFromBootstrap": 96,
+  "unreachableModules": [],
+  "missingRelativeImports": [],
+  "importCycles": [],
+  "htmlIds": 51,
+  "duplicateHtmlIds": [],
+  "cssBraceDelta": 0,
+  "pwaRuntimeEntries": 102,
+  "pwaMissing": [],
+  "pwaUnlistedModules": [],
+  "pwaStaleModules": [],
+  "emptySourceOrTestFiles": [],
+  "commandCapacity": {
+    "majorFormula": "2 + civilization level",
+    "fieldFormula": "2 + floor(civilization level / 2)",
+    "maximumCoordinatedSquads": 6,
+    "saveSchemaChanged": false
+  },
+  "resourceHud": {
+    "source": "RESOURCE_KEYS",
+    "baseResourcesAlwaysVisible": [
+      "wood",
+      "stone",
+      "fiber"
+    ],
+    "ownedAndOverflowResourcesVisible": true,
+    "layout": "two-row horizontal scroll dock"
+  }
+}

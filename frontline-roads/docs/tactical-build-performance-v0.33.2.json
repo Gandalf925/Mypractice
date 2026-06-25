@@ -1,0 +1,21 @@
+{
+  "version": "0.33.2",
+  "denseRoadBenchmark": {
+    "sourceNodes": 31,
+    "sourceEdges": 30,
+    "v0.33.1": { "towerSites": 31, "wallSites": 30 },
+    "v0.33.2": { "towerSites": 6, "wallSites": 2 },
+    "towerSiteReductionPercent": 80.6,
+    "wallSiteReductionPercent": 93.3
+  },
+  "standardCivilization7CpuBenchmark": {
+    "durationSeconds": 300,
+    "enemyBases": 10,
+    "initialDefenses": 62,
+    "initialFriendlySquads": 22,
+    "v0.33.1Milliseconds": 4037.5,
+    "v0.33.2Milliseconds": 2601.2,
+    "reductionPercent": 35.6,
+    "note": "Single deterministic run in the same container; not an Android FPS measurement."
+  }
+}

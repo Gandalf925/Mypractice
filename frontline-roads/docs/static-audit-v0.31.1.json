@@ -1,0 +1,30 @@
+{
+  "release": "0.31.1-offline-equivalence",
+  "productionJsModules": 96,
+  "reachableFromBootstrap": 96,
+  "unreachableModules": [],
+  "missingRelativeImports": [],
+  "importCycles": [],
+  "htmlIds": 51,
+  "duplicateHtmlIds": [],
+  "cssBraceDelta": 0,
+  "pwaRuntimeEntries": 102,
+  "pwaMissing": [],
+  "pwaUnlistedModules": [],
+  "pwaStaleModules": [],
+  "emptySourceOrTestFiles": [],
+  "offlineEquivalence": {
+    "maximumOfflineStepSeconds": 0.25,
+    "maximumOfflineIterations": 200000,
+    "reloadRemainderPreserved": true,
+    "departureDelayRemainderPreserved": true,
+    "multiEdgeMovementPreserved": true,
+    "barrierCadencePreserved": true,
+    "longDurationCheckpointsSeconds": [
+      1800,
+      3600,
+      14400,
+      43200
+    ]
+  }
+}

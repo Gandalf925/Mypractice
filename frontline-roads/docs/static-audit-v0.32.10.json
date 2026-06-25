@@ -1,0 +1,20 @@
+{
+  "version": "0.32.10",
+  "productionJsModules": 102,
+  "entryModules": [
+    "src/app/bootstrap.js"
+  ],
+  "reachableProductionModules": 102,
+  "unreachableProductionModules": [],
+  "unresolvedImports": [],
+  "circularDependencies": [],
+  "htmlDuplicateIds": [],
+  "serviceWorkerMissingRuntimeFiles": [],
+  "modalDisplayInvariant": {
+    "qualityScopedModalSelectors": [],
+    "modalBackdropBlurHits": [],
+    "selectorCommaBeforeMediaHits": [],
+    "modalCardVisibilityRule": true
+  },
+  "testFiles": 69
+}

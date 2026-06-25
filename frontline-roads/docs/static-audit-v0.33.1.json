@@ -1,0 +1,18 @@
+{
+  "version": "0.33.1",
+  "productionJavaScriptModules": 102,
+  "reachableFromBootstrap": 102,
+  "unconnectedModules": [],
+  "unresolvedImports": [],
+  "cycles": [],
+  "htmlIdCount": 56,
+  "duplicateHtmlIds": {},
+  "serviceWorkerRuntimeAssetCount": 103,
+  "serviceWorkerMissingAssets": [],
+  "saveKeyUnchanged": true,
+  "rootRedirectVersion": true,
+  "legacyRedirectVersion": true,
+  "pagehideDestroysApp": false,
+  "assetNetworkTimeoutMs": 4500,
+  "bootWatchdogMs": 12000
+}
