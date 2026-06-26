@@ -19,7 +19,39 @@
     #assetRecovery button { width: 100%; margin-top: 16px; padding: 12px 14px; border: 1px solid rgba(101,255,208,.72); background: #062019; color: #dffdf4; font: inherit; font-weight: 700; }
   </style>
   <script>
-    globalThis.__FRONTLINE_RELEASE__ = Object.freeze({ version: '0.33.2', directory: 'frontline-roads' });
+    globalThis.__FRONTLINE_RELEASE__ = Object.freeze({ version: '0.33.3', directory: 'frontline-roads' });
+    (() => {
+      const release = globalThis.__FRONTLINE_RELEASE__;
+      const navigatorRef = globalThis.navigator;
+      const locationRef = globalThis.location;
+      const sessionStorageRef = globalThis.sessionStorage;
+      if (!navigatorRef?.serviceWorker || !locationRef) return;
+      const localHost = ['localhost', '127.0.0.1', '::1'].includes(locationRef.hostname);
+      const fixtureRequested = new URLSearchParams(locationRef.search ?? '').get('devFixture') === '1';
+      const fixtureAllowed = localHost || locationRef.protocol === 'file:' || globalThis.__FRONTLINE_TEST_FIXTURE__ === true;
+      if ((fixtureRequested && fixtureAllowed) || (locationRef.protocol !== 'https:' && !localHost)) return;
+      const appRoot = new URL('./', locationRef.href);
+      const workerUrl = new URL('sw.js', appRoot);
+      workerUrl.searchParams.set('v', release.version);
+      const reloadKey = `frontline-sw-reload:${release.version}`;
+      navigatorRef.serviceWorker.addEventListener('controllerchange', () => {
+        try {
+          if (sessionStorageRef?.getItem(reloadKey) === '1') return;
+          sessionStorageRef?.setItem(reloadKey, '1');
+        } catch {}
+        locationRef.reload?.();
+      }, { once: true });
+      globalThis.__FRONTLINE_SW_READY__ = navigatorRef.serviceWorker
+        .register(workerUrl.href, { scope: appRoot.href, updateViaCache: 'none' })
+        .then(async registration => {
+          await registration.update?.().catch?.(() => {});
+          return registration;
+        })
+        .catch(error => {
+          console.warn('Early service worker update failed', error);
+          return null;
+        });
+    })();
     globalThis.__FRONTLINE_STYLES_READY__ = (() => {
       const release = globalThis.__FRONTLINE_RELEASE__;
       const projectSegment = location.pathname.split('/').filter(Boolean)[0] ?? '';

@@ -1,3 +1,6 @@
+> frontline-roads-refactor@0.33.3 playtest:balance
+> node tools/playtest-balance-v03212.mjs
+
 {
   "release": "0.32.12-hud-camera-balance-validation",
   "generatedAt": "2026-06-25T23:46:51.365Z",

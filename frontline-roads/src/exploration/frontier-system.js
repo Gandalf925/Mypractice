@@ -1,11 +1,15 @@
 import { distance, stableId } from '../core/utilities.js';
 import { chunkBounds, chunkForWorldPoint, chunkId } from '../roads/world-chunk-grid.js';
 import { spawnEnemy } from '../combat/enemy-system.js';
+import { activeFieldBases } from '../base/field-bases.js';
+import { activePlayerBases } from '../base/player-bases.js';
+import { reachableRoadNodeIds } from '../roads/road-graph.js';
 
 const MAX_FRONTIER_SOURCES = 8;
 const ACTIVE_FRONTIER_LIMIT = 3;
 const FRONTIER_EDGE_MARGIN_METERS = 130;
 const MIN_SOURCE_SEPARATION_METERS = 720;
+const FRONTIER_SPAWN_RETRY_SECONDS = 12;
 
 const DIRECTIONS = Object.freeze([
   { key: 'W', dx: -1, dy: 0, near: (point, bounds) => point.x - bounds.minX <= FRONTIER_EDGE_MARGIN_METERS },
@@ -44,14 +48,50 @@ function observedChunkIds(state) {
   return result;
 }
 
+function settlementNodeIds(state) {
+  const nodeIds = [
+    state.world.city?.nodeId,
+    ...activePlayerBases(state).map(base => base.nodeId),
+    ...activeFieldBases(state).map(base => base.nodeId)
+  ];
+  return [...new Set(nodeIds.filter(nodeId => state.world.roadGraph?.nodeById?.has(nodeId)))];
+}
+
+function reachableFrontierNodeIds(state) {
+  return reachableRoadNodeIds(state.world.roadGraph, settlementNodeIds(state));
+}
+
+function relocateWaitingFrontierEnemies(state, source, nextNodeId) {
+  if (!nextNodeId) return;
+  for (const enemy of state.combat.enemies ?? []) {
+    if (enemy.hp <= 0 || enemy.sourceBaseId !== source.id || enemy.edgeId) continue;
+    const hasDeparted = enemy.hasDeparted === true
+      || (Number(enemy.pathIndex) || 0) > 0
+      || (Number(enemy.edgeProgress) || 0) > 0;
+    if (hasDeparted || (Number(enemy.departDelay) || 0) <= 0 && enemy.path) continue;
+    if (enemy.nodeId === nextNodeId && enemy.path) continue;
+    enemy.nodeId = nextNodeId;
+    enemy.path = null;
+    enemy.pathIndex = 0;
+    enemy.edgeId = null;
+    enemy.edgeProgress = 0;
+    enemy.reroutePending = true;
+    enemy.routeFailureSeconds = 0;
+    enemy.routeFailureTopologyRevision = null;
+  }
+}
+
+
 export function findFrontierCandidates(state) {
   const graph = state.world.roadGraph;
   const cityNode = graph?.nodeById?.get(state.world.city?.nodeId);
   if (!graph || !cityNode || !state.world.roadChunks) return [];
   const observed = observedChunkIds(state);
+  const reachable = reachableFrontierNodeIds(state);
   const size = state.world.roadChunks.sizeMeters;
   const candidates = [];
   for (const node of graph.terminalNodes ?? graph.nodes) {
+    if (!reachable.has(node.id)) continue;
     const degree = graph.adjacency.get(node.id)?.length ?? 0;
     if (degree !== 1 || distance(node, cityNode) < 260) continue;
     const chunk = chunkForWorldPoint(node, size);
@@ -118,12 +158,17 @@ function createSource(candidate, worldTimeMs) {
   };
 }
 
-function nearestEntryNode(graph, source, candidates) {
-  const pool = candidates.length > 0 ? candidates : graph.nodes.map(node => ({ nodeId: node.id, point: node }));
-  return pool.reduce((best, candidate) => {
+function nearestEntryNode(graph, source, candidates, reachableNodeIds) {
+  const nearest = candidates.reduce((best, candidate) => {
     const gap = distance(candidate.point, source.point);
     return !best || gap < best.gap ? { nodeId: candidate.nodeId, point: candidate.point, gap } : best;
   }, null);
+  if (nearest) return nearest;
+  if (source.entryNodeId && reachableNodeIds.has(source.entryNodeId)) {
+    const current = graph.nodeById.get(source.entryNodeId);
+    if (current) return { nodeId: current.id, point: current, gap: distance(current, source.point), preserved: true };
+  }
+  return null;
 }
 
 function updateSignal(source, playerPoint, sourceChunkLoaded, worldTimeMs) {
@@ -153,15 +198,23 @@ export function reconcileFrontiers(state) {
   const graph = state.world.roadGraph;
   if (!graph?.nodes?.length || !state.world.city || !state.world.roadChunks) return sources;
   const candidates = findFrontierCandidates(state);
+  const reachable = reachableFrontierNodeIds(state);
   const playerObserved = new Set(state.world.roadChunks.playerObserved ?? state.world.roadChunks.loaded ?? []);
   const worldTimeMs = state.runtime?.worldTimeMs ?? Date.now();
 
   for (const source of sources) {
     if (source.status === 'CLEARED') continue;
-    const entry = nearestEntryNode(graph, source, candidates);
+    const previousEntryNodeId = source.entryNodeId;
+    const previousEntryReachable = Boolean(previousEntryNodeId && reachable.has(previousEntryNodeId));
+    const entry = nearestEntryNode(graph, source, candidates, reachable);
     if (entry) {
       source.entryNodeId = entry.nodeId;
       source.direction = normalizeVector({ x: source.point.x - entry.point.x, y: source.point.y - entry.point.y });
+      if (previousEntryNodeId !== entry.nodeId && !previousEntryReachable) {
+        relocateWaitingFrontierEnemies(state, source, entry.nodeId);
+      }
+    } else {
+      source.entryNodeId = null;
     }
     const sourceChunkObserved = playerObserved.has(chunkForWorldPoint(source.point, state.world.roadChunks.sizeMeters).id);
     updateSignal(source, state.player.worldPosition, sourceChunkObserved, worldTimeMs);
@@ -183,9 +236,9 @@ function waveForSource(state, source) {
   return [...profile.waves[tier - 1]];
 }
 
-function activeSources(state) {
+function activeSources(state, reachableNodeIds) {
   return state.world.frontierSources
-    .filter(source => source.status !== 'CLEARED' && source.entryNodeId && state.world.roadGraph.nodeById.has(source.entryNodeId))
+    .filter(source => source.status !== 'CLEARED' && source.entryNodeId && reachableNodeIds.has(source.entryNodeId))
     .sort((a, b) => b.threat - a.threat || a.id.localeCompare(b.id))
     .slice(0, ACTIVE_FRONTIER_LIMIT);
 }
@@ -209,13 +262,19 @@ export class FrontierSystem {
     return reconcileFrontiers(state);
   }
 
-  spawnWave(state, source) {
+  spawnWave(state, source, reachableNodeIds = null) {
+    const reachable = reachableNodeIds ?? reachableFrontierNodeIds(state);
+    if (!source?.entryNodeId || !reachable.has(source.entryNodeId)) return false;
     const wave = waveForSource(state, source);
     const waveId = stableId('frontier_wave', source.id, source.wavesSent, state.runtime?.worldTimeMs ?? Date.now());
     let spawned = 0;
     const pseudoBase = { id: source.id, nodeId: source.entryNodeId, wavesSent: source.wavesSent };
     wave.forEach((type, index) => {
-      if (spawnEnemy(state, pseudoBase, type, index * 7, waveId)) spawned += 1;
+      const enemy = spawnEnemy(state, pseudoBase, type, index * 7, waveId);
+      if (!enemy) return;
+      enemy.waveStartedAt = state.runtime?.worldTimeMs ?? Date.now();
+      enemy.frontierSourceId = source.id;
+      spawned += 1;
     });
     if (spawned <= 0) return false;
     state.combat.waves.active ??= {};
@@ -236,15 +295,23 @@ export class FrontierSystem {
   update(state, deltaSeconds) {
     ensureFrontierState(state);
     state.combat.waves.frontierReconcileClock += deltaSeconds;
-    if (state.combat.waves.frontierReconcileClock >= 30 || state.world.frontierSources.length === 0) {
+    let reachable = reachableFrontierNodeIds(state);
+    const invalidEntryExists = state.world.frontierSources.some(source =>
+      source.status !== 'CLEARED' && source.entryNodeId && !reachable.has(source.entryNodeId)
+    );
+    if (state.combat.waves.frontierReconcileClock >= 30 || state.world.frontierSources.length === 0 || invalidEntryExists) {
       state.combat.waves.frontierReconcileClock = 0;
       this.reconcile(state);
+      reachable = reachableFrontierNodeIds(state);
     }
-    for (const source of activeSources(state)) {
+    for (const source of activeSources(state, reachable)) {
       source.spawnClock += deltaSeconds;
       while (source.spawnClock >= source.spawnIntervalSec) {
+        if (!this.spawnWave(state, source, reachable)) {
+          source.spawnClock = Math.max(0, source.spawnIntervalSec - FRONTIER_SPAWN_RETRY_SECONDS);
+          break;
+        }
         source.spawnClock -= source.spawnIntervalSec;
-        if (!this.spawnWave(state, source)) break;
       }
     }
   }

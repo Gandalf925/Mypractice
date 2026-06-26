@@ -24,9 +24,11 @@ test('visible-tab recovery refreshes ownership and restores the established-game
 
 test('service worker serves installed application assets before background refresh', () => {
   const assetHandler = serviceWorker.match(/async function serveApplicationAsset\(request, event\) \{([\s\S]*?)\n\}/)?.[1] ?? '';
-  assert.ok(assetHandler.indexOf('caches.match') >= 0);
-  assert.ok(assetHandler.indexOf('caches.match') < assetHandler.indexOf('refreshAsset'));
-  assert.match(assetHandler, /ignoreSearch: true/);
+  assert.ok(assetHandler.indexOf('cache.match') >= 0);
+  assert.ok(assetHandler.indexOf('cache.match') < assetHandler.indexOf('refreshAsset'));
+  assert.match(assetHandler, /caches\.open\(CACHE_NAME\)/);
+  assert.doesNotMatch(assetHandler, /ignoreSearch: true/);
+  assert.match(serviceWorker, /requestedVersion && requestedVersion !== RELEASE_VERSION/);
   assert.match(assetHandler, /event\.waitUntil\(refreshAsset\(request\)\)/);
 });
 

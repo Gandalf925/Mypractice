@@ -4,6 +4,7 @@ import { addBundle } from '../civilization/inventory-system.js';
 import { CITY_RECOVERY_DELAY_SECONDS, ENEMY_DEFINITIONS, MAX_ENEMIES, defenseRuntimeDefinition } from './definitions.js';
 import { enemyPopulationCap, normalizeEnemyLevel, scaleEnemyDefinition } from './enemy-scaling.js';
 import { findCombatPath, findCombatPathToTargets } from './routing-system.js';
+import { reachableRoadNodeIds } from '../roads/road-graph.js';
 import { roadUnitPosition } from './road-unit-position.js';
 import { activeFieldBases, fieldBaseById } from '../base/field-bases.js';
 import { activePlayerBases, playerBaseById } from '../base/player-bases.js';
@@ -20,6 +21,8 @@ const FIELD_BASE_PRIORITY_PENALTY_SECONDS = 20;
 const FRIENDLY_SQUAD_ATTACK_RANGE_METERS = 24;
 const DEFAULT_FACILITY_SEARCH_RADIUS_METERS = 480;
 const DEFAULT_SQUAD_HUNT_RADIUS_METERS = 650;
+const ROUTE_RECOVERY_RESET_SECONDS = 8;
+const NO_ROUTE_RETIRE_SECONDS = 45;
 
 function stableRouteBias(text) {
   let hash = 2166136261;
@@ -47,7 +50,7 @@ export function spawnEnemy(state, base, type, departDelay = 0, waveId = null, do
     path: null, pathIndex: 0, edgeId: null, edgeProgress: 0,
     slowTimer: 0, slowMultiplier: 0.52, attackClock: 0, departDelay,
     sourceBaseId: base.id, waveId, doctrineKey, waveResolved: false, rewardGranted: false,
-    reroutePending: false, routeBias: stableRouteBias(id), targetDefenseId: null, targetFieldBaseId: null, targetPlayerBaseId: null, targetSquadId: null,
+    reroutePending: false, routeFailureSeconds: 0, routeFailureTopologyRevision: null, routeRecoveryStage: 0, hasDeparted: false, routeBias: stableRouteBias(id), targetDefenseId: null, targetFieldBaseId: null, targetPlayerBaseId: null, targetSquadId: null,
     notifiedDefenseIds: [], engagedSquadId: null
   };
   state.combat.enemies.push(enemy);
@@ -244,7 +247,7 @@ function attackTargetFacility(state, enemy, definition, deltaSeconds, events) {
   return true;
 }
 
-function resolveWaveEnemy(state, enemy, breached) {
+function resolveWaveEnemy(state, enemy, breached, countOutcome = true) {
   if (!enemy.waveId || enemy.waveResolved) return;
   enemy.waveResolved = true;
   const record = state.combat.waves.active?.[enemy.waveId];
@@ -252,7 +255,7 @@ function resolveWaveEnemy(state, enemy, breached) {
   record.remaining = Math.max(0, record.remaining - 1);
   if (breached) record.breached = true;
   if (record.remaining > 0) return;
-  if (!record.guard) {
+  if (!record.guard && countOutcome) {
     if (record.breached) state.civilization.progress.perfectWaveStreak = 0;
     else state.civilization.progress.perfectWaveStreak = (state.civilization.progress.perfectWaveStreak ?? 0) + 1;
   }
@@ -363,6 +366,56 @@ function attackFriendlySquad(state, enemy, definition, deltaSeconds, events) {
   return true;
 }
 
+function sourceNodeIdForEnemy(state, enemy) {
+  const enemyBase = (state.world.enemyBases ?? []).find(base => base.id === enemy.sourceBaseId && base.alive);
+  if (enemyBase?.nodeId && state.world.roadGraph.nodeById.has(enemyBase.nodeId)) return enemyBase.nodeId;
+  const frontierSource = (state.world.frontierSources ?? []).find(source => source.id === enemy.sourceBaseId && source.status !== 'CLEARED');
+  if (frontierSource?.entryNodeId && state.world.roadGraph.nodeById.has(frontierSource.entryNodeId)) return frontierSource.entryNodeId;
+  return null;
+}
+
+function settlementNodeIds(state) {
+  return [
+    state.world.city?.nodeId,
+    ...activePlayerBases(state).map(base => base.nodeId),
+    ...activeFieldBases(state).map(base => base.nodeId)
+  ].filter(Boolean);
+}
+
+function clearEnemyStrategicTargets(enemy) {
+  enemy.targetDefenseId = null;
+  enemy.targetFieldBaseId = null;
+  enemy.targetPlayerBaseId = null;
+  enemy.targetSquadId = null;
+  enemy.path = null;
+  enemy.pathIndex = 0;
+  enemy.edgeId = null;
+  enemy.edgeProgress = 0;
+  enemy.reroutePending = true;
+}
+
+function relocateWaitingEnemyToCurrentSource(state, enemy) {
+  const hasDeparted = enemy.hasDeparted === true
+    || (Number(enemy.pathIndex) || 0) > 0
+    || (Number(enemy.edgeProgress) || 0) > 0;
+  if (hasDeparted || enemy.edgeId) return false;
+  const sourceNodeId = sourceNodeIdForEnemy(state, enemy);
+  if (!sourceNodeId || sourceNodeId === enemy.nodeId) return false;
+  enemy.nodeId = sourceNodeId;
+  clearEnemyStrategicTargets(enemy);
+  enemy.routeFailureSeconds = 0;
+  enemy.routeFailureTopologyRevision = Math.max(1, Math.floor(Number(state.world.roadGraph.topologyRevision) || 1));
+  enemy.routeRecoveryStage = 1;
+  return true;
+}
+
+function routeFailureCanRetire(state, enemy) {
+  const graph = state.world.roadGraph;
+  const reachable = reachableRoadNodeIds(graph, settlementNodeIds(state));
+  const sourceNodeId = sourceNodeIdForEnemy(state, enemy);
+  return !reachable.has(enemy.nodeId) && (!sourceNodeId || !reachable.has(sourceNodeId));
+}
+
 export class EnemySystem {
   constructor(events) { this.events = events; }
 
@@ -401,10 +454,42 @@ export class EnemySystem {
 
     let transitions = 0;
     while (remainingSeconds > 1e-9 && transitions < 4096) {
-      if (!ensurePath(state, enemy) || !enemy.edgeId) {
-        enemy.slowTimer = Math.max(0, (enemy.slowTimer ?? 0) - remainingSeconds);
-        return false;
+      let routeReady = ensurePath(state, enemy) && Boolean(enemy.edgeId);
+      if (!routeReady) {
+        const topologyRevision = Math.max(1, Math.floor(Number(state.world.roadGraph.topologyRevision) || 1));
+        if (enemy.routeFailureTopologyRevision !== topologyRevision) {
+          enemy.routeFailureTopologyRevision = topologyRevision;
+          enemy.routeFailureSeconds = 0;
+          enemy.routeRecoveryStage = 0;
+          enemy.reroutePending = true;
+          routeReady = ensurePath(state, enemy) && Boolean(enemy.edgeId);
+        }
       }
+      if (!routeReady) {
+        enemy.routeFailureSeconds = Math.max(0, Number(enemy.routeFailureSeconds) || 0) + remainingSeconds;
+        enemy.slowTimer = Math.max(0, (enemy.slowTimer ?? 0) - remainingSeconds);
+
+        if (enemy.routeFailureSeconds >= ROUTE_RECOVERY_RESET_SECONDS && (enemy.routeRecoveryStage ?? 0) < 1) {
+          clearEnemyStrategicTargets(enemy);
+          enemy.routeRecoveryStage = 1;
+          routeReady = ensurePath(state, enemy) && Boolean(enemy.edgeId);
+        }
+        if (!routeReady && enemy.routeFailureSeconds >= ROUTE_RECOVERY_RESET_SECONDS && relocateWaitingEnemyToCurrentSource(state, enemy)) {
+          routeReady = ensurePath(state, enemy) && Boolean(enemy.edgeId);
+        }
+        if (routeReady) {
+          enemy.routeFailureSeconds = 0;
+          enemy.routeRecoveryStage = 0;
+        } else if (enemy.waveId && enemy.routeFailureSeconds >= NO_ROUTE_RETIRE_SECONDS && routeFailureCanRetire(state, enemy)) {
+          resolveWaveEnemy(state, enemy, false, false);
+          this.events?.emit('combat:enemy-route-abandoned', { enemyId: enemy.id, sourceBaseId: enemy.sourceBaseId, reason: 'disconnected-road-fragment' });
+          return true;
+        } else {
+          return false;
+        }
+      }
+      enemy.routeFailureSeconds = 0;
+      enemy.routeRecoveryStage = 0;
       const graph = state.world.roadGraph;
       const edge = graph.edgeById.get(enemy.edgeId);
       if (!edge) { enemy.path = null; return false; }
@@ -455,6 +540,7 @@ export class EnemySystem {
         const timeToBarrier = distanceToBarrier / movementSpeed;
         if (timeToBarrier <= slowWindow + 1e-9) {
           enemy.edgeProgress = barrierPosition - 1;
+          enemy.hasDeparted = true;
           remainingSeconds = Math.max(0, remainingSeconds - timeToBarrier);
           enemy.slowTimer = Math.max(0, (enemy.slowTimer ?? 0) - timeToBarrier);
           continue;
@@ -465,12 +551,14 @@ export class EnemySystem {
       const timeToNode = distanceToNode / movementSpeed;
       if (timeToNode > slowWindow + 1e-9) {
         enemy.edgeProgress += movementSpeed * slowWindow;
+        enemy.hasDeparted = true;
         remainingSeconds = Math.max(0, remainingSeconds - slowWindow);
         enemy.slowTimer = Math.max(0, (enemy.slowTimer ?? 0) - slowWindow);
         continue;
       }
 
       enemy.edgeProgress = edge.length;
+      enemy.hasDeparted = true;
       remainingSeconds = Math.max(0, remainingSeconds - timeToNode);
       enemy.slowTimer = Math.max(0, (enemy.slowTimer ?? 0) - timeToNode);
       enemy.nodeId = enemy.path.nodeIds[enemy.pathIndex + 1];

@@ -151,11 +151,23 @@ function createPlanner(graph) {
 
 export function buildSitePlanner(graph) {
   if (!graph?.nodeById || !graph?.edgeById || !graph?.adjacency) return { tacticalSites: [], barrierSections: [], sectionByEdgeId: new Map() };
-  let planner = plannerCache.get(graph);
-  if (!planner) {
-    planner = createPlanner(graph);
-    plannerCache.set(graph, planner);
+  const topologyRevision = Math.max(1, Math.floor(Number(graph.topologyRevision) || 1));
+  const cached = plannerCache.get(graph);
+  if (cached
+    && cached.topologyRevision === topologyRevision
+    && cached.nodeCount === graph.nodes.length
+    && cached.edgeCount === graph.edges.length
+    && cached.adjacency === graph.adjacency) {
+    return cached.planner;
   }
+  const planner = createPlanner(graph);
+  plannerCache.set(graph, {
+    planner,
+    topologyRevision,
+    nodeCount: graph.nodes.length,
+    edgeCount: graph.edges.length,
+    adjacency: graph.adjacency
+  });
   return planner;
 }
 

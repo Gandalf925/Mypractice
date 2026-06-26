@@ -51,7 +51,7 @@ test('asset loader starts with the current application-relative stylesheet', asy
   await context.__FRONTLINE_STYLES_READY__;
   context.__FRONTLINE_BOOT_COMPLETE__();
   assert.equal(requested.length, 1);
-  assert.equal(requested[0], 'https://example.com/Mypractice/frontline-roads/src/styles/app.css?v=0.33.2');
+  assert.equal(requested[0], 'https://example.com/Mypractice/frontline-roads/src/styles/app.css?v=0.33.3');
 });
 
 test('asset loader recovers a legacy fr path through the canonical frontline-roads directory', async () => {
@@ -61,7 +61,7 @@ test('asset loader recovers a legacy fr path through the canonical frontline-roa
   await context.__FRONTLINE_STYLES_READY__;
   context.__FRONTLINE_BOOT_COMPLETE__();
   assert.deepEqual(requested, [
-    'https://example.com/Mypractice/fr/src/styles/app.css?v=0.33.2',
-    'https://example.com/Mypractice/frontline-roads/src/styles/app.css?v=0.33.2'
+    'https://example.com/Mypractice/fr/src/styles/app.css?v=0.33.3',
+    'https://example.com/Mypractice/frontline-roads/src/styles/app.css?v=0.33.3'
   ]);
 });

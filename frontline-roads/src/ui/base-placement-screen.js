@@ -64,10 +64,12 @@ export class BasePlacementScreen {
     this.scheduleViewportSync();
   }
 
-  showSelection(selection) {
+  showSelection(selection, { roadsPending = false } = {}) {
     this.scheduleViewportSync();
     if (!selection) {
-      this.status.textContent = `現在地から${ROAD_CONFIG.selectionRadiusMeters / 1000}km以内の道路をタップしてください。`;
+      this.status.textContent = roadsPending
+        ? `中心部の道路を先行表示しました。${ROAD_CONFIG.selectionRadiusMeters / 1000}km以内の道路を選びながら、外周道路の取得を待てます。`
+        : `現在地から${ROAD_CONFIG.selectionRadiusMeters / 1000}km以内の道路をタップしてください。`;
       this.confirmButton.disabled = true;
       return;
     }
@@ -76,8 +78,10 @@ export class BasePlacementScreen {
       this.confirmButton.disabled = true;
       return;
     }
-    this.status.textContent = `${formatMeters(selection.distanceFromOrigin)}先の道路を選択中です。確定すると、その道路を中心に即時開始します。`;
-    this.confirmButton.disabled = false;
+    this.status.textContent = roadsPending
+      ? `${formatMeters(selection.distanceFromOrigin)}先の道路を選択中です。外周道路の取得が完了すると確定できます。`
+      : `${formatMeters(selection.distanceFromOrigin)}先の道路を選択中です。確定すると、その道路を中心に即時開始します。`;
+    this.confirmButton.disabled = roadsPending;
   }
 
   hide() {

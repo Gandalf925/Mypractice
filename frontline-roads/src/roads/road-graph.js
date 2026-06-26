@@ -6,6 +6,8 @@ const GRAPH_SPATIAL_CELL_METERS = 400;
 const MIN_EDGE_METERS = 1.5;
 const MAX_EDGE_METERS = 320;
 
+const reachabilityCache = new WeakMap();
+
 function cellKey(x, y) {
   return `${x},${y}`;
 }
@@ -61,6 +63,54 @@ function valuesInBounds(buckets, range) {
     }
   }
   return [...values];
+}
+
+
+function topologyFingerprint(graph) {
+  return [
+    Math.max(1, Math.floor(Number(graph?.topologyRevision) || 1)),
+    graph?.nodes?.length ?? 0,
+    graph?.edges?.length ?? 0
+  ].join(':');
+}
+
+export function reachableRoadNodeIds(graph, startNodeIds = []) {
+  if (!graph?.nodeById || !graph?.adjacency) return new Set();
+  const starts = [...new Set(startNodeIds.filter(nodeId => graph.nodeById.has(nodeId)))].sort();
+  const startKey = starts.join('|');
+  const fingerprint = topologyFingerprint(graph);
+  const cached = reachabilityCache.get(graph);
+  if (cached
+    && cached.adjacency === graph.adjacency
+    && cached.fingerprint === fingerprint
+    && cached.startKey === startKey) {
+    cached.hits += 1;
+    return cached.reachable;
+  }
+
+  const reachable = new Set();
+  const queue = [];
+  for (const nodeId of starts) {
+    reachable.add(nodeId);
+    queue.push(nodeId);
+  }
+  for (let index = 0; index < queue.length; index += 1) {
+    const nodeId = queue[index];
+    for (const connection of graph.adjacency.get(nodeId) ?? []) {
+      if (reachable.has(connection.to) || !graph.nodeById.has(connection.to)) continue;
+      reachable.add(connection.to);
+      queue.push(connection.to);
+    }
+  }
+  reachabilityCache.set(graph, {
+    adjacency: graph.adjacency,
+    fingerprint,
+    startKey,
+    reachable,
+    computations: (cached?.computations ?? 0) + 1,
+    hits: cached?.hits ?? 0
+  });
+  return reachable;
 }
 
 export function graphElementsInBounds(graph, bounds) {
@@ -119,10 +169,11 @@ export function buildRoadGraphFromSegments(segments, center) {
     edges.push(edge);
   }
 
-  return attachGraphIndexes({ nodes: clustered.nodes, edges, center, source: 'osm', roadSpecVersion: 3 });
+  return attachGraphIndexes({ nodes: clustered.nodes, edges, center, source: 'osm', roadSpecVersion: 3, topologyRevision: 1 });
 }
 
 export function attachGraphIndexes(graph) {
+  graph.topologyRevision = Math.max(1, Math.floor(Number(graph.topologyRevision) || 1));
   const nodeById = new Map(graph.nodes.map(node => [node.id, node]));
   const edgeById = new Map();
   const adjacency = new Map(graph.nodes.map(node => [node.id, []]));

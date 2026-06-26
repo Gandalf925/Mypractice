@@ -1,6 +1,7 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const CACHE_NAME = `${CACHE_PREFIX}v0-33-2-tactical-build-performance`;
+const RELEASE_VERSION = '0.33.3';
+const CACHE_NAME = `${CACHE_PREFIX}v0-33-3-road-expansion-combat-integrity`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -138,8 +139,19 @@ async function refreshAsset(request) {
   }
 }
 
+function canonicalRequest(request) {
+  const url = new URL(request.url);
+  const requestedVersion = url.searchParams.get('v');
+  if (requestedVersion && requestedVersion !== RELEASE_VERSION) return null;
+  url.search = '';
+  return new Request(url.href, { method: 'GET', headers: request.headers, mode: request.mode, credentials: request.credentials, redirect: request.redirect });
+}
+
 async function serveApplicationAsset(request, event) {
-  const cached = await caches.match(request, { ignoreSearch: true });
+  const cache = await caches.open(CACHE_NAME);
+  const direct = await cache.match(request);
+  const canonical = direct ? null : canonicalRequest(request);
+  const cached = direct ?? (canonical ? await cache.match(canonical) : null);
   if (cached) {
     event.waitUntil(refreshAsset(request));
     return cached;
@@ -155,7 +167,8 @@ async function serveNavigation(request) {
   try {
     return await cacheResponse(request, await fetchWithTimeout(request));
   } catch {
-    return await caches.match('./index.html') ?? Response.error();
+    const cache = await caches.open(CACHE_NAME);
+    return await cache.match('./index.html') ?? Response.error();
   }
 }
 

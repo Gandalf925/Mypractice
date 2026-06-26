@@ -116,3 +116,37 @@ test('stacked initial enemy bases receive progressively longer opening delays on
   });
   assert.deepEqual(firstWaveDelays, [90, 270, 420, 600]);
 });
+
+test('a full enemy population does not consume an enemy-base wave or announce a false launch', () => {
+  const state = longRoadState();
+  state.runtime.createdAt = 1;
+  state.runtime.worldTimeMs = 2;
+  state.combat.enemies = Array.from({ length: 220 }, (_, index) => ({
+    id: `capacity-${index}`, hp: 1, maxHp: 1, waveResolved: false, waveId: null
+  }));
+  const messages = [];
+  const events = { emit(type, payload) { if (type === 'message') messages.push(payload.text); } };
+  const waves = new WaveSystem(events);
+  const base = state.world.enemyBases[0];
+  base.spawnClock = 1_000_000;
+
+  waves.update(state, 1);
+
+  assert.equal(base.wavesSent, 0);
+  assert.deepEqual(state.combat.waves.active, {});
+  assert.equal(messages.some(message => message.includes('開始しました')), false);
+  assert.ok(base.spawnClock > 0 && base.spawnClock < 1_000_000);
+});
+
+test('a guard wave blocked by the population cap remains eligible for a later launch', () => {
+  const state = longRoadState();
+  state.combat.enemies = Array.from({ length: 220 }, (_, index) => ({
+    id: `capacity-${index}`, hp: 1, maxHp: 1, waveResolved: false, waveId: null
+  }));
+  const base = state.world.enemyBases[0];
+
+  assert.equal(spawnEnemyBaseGuard(state, base), 0);
+  assert.equal(base.guardWaveTriggered, undefined);
+  assert.equal(base.wavesSent, 0);
+  assert.deepEqual(state.combat.waves.active, {});
+});

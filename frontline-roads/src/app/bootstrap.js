@@ -149,6 +149,9 @@ class FrontlineRoadsApp {
     this.selection = null;
     this.basePlacement = null;
     this.roadLoadController = null;
+    this.initialRoadExpansionPending = false;
+    this.initialRoadFallback = false;
+    this.baseConfirmationPending = false;
     this.startupGeneration = 0;
     this.stopLocationWatch = null;
     this.criticalSaveQueued = false;
@@ -308,6 +311,45 @@ class FrontlineRoadsApp {
     }
   }
 
+
+  installInitialRoadGraph(graph, currentLocation, { roadsPending = false, preserveView = false } = {}) {
+    const previousSelectionPoint = this.selection?.point ? { ...this.selection.point } : null;
+    this.store.transaction(draft => {
+      draft.world.roadGraph = graph;
+      const integratedChunkIds = graphCoveredChunkIds(graph);
+      const retentionRadiusMeters = Number(graph.acquisitionReport?.retention?.meters)
+        || ROAD_CONFIG.initialRetentionRadiusMeters;
+      const loadedChunkIds = integratedChunkIds.filter(id => chunkFullyInsideCircle(
+        parseChunkId(id),
+        { x: 0, y: 0 },
+        retentionRadiusMeters
+      ));
+      const refreshChunkIds = integratedChunkIds.filter(id => !loadedChunkIds.includes(id));
+      const playerPoint = latLonToXY(currentLocation.lat, currentLocation.lon, graph.center);
+      const observedChunkId = chunkForWorldPoint(playerPoint).id;
+      draft.world.roadChunks = createRoadChunkState({
+        initialLoadedChunkIds: loadedChunkIds,
+        initialIntegratedChunkIds: integratedChunkIds,
+        initialRefreshChunkIds: refreshChunkIds,
+        initialObservedChunkIds: loadedChunkIds.includes(observedChunkId) ? [observedChunkId] : []
+      });
+    }, roadsPending ? 'roads:preview-loaded' : 'roads:loaded');
+
+    this.basePlacement = new BasePlacementService(graph, currentLocation);
+    this.renderer.setGraph(graph);
+    this.renderer.setHomeBase(null);
+    if (!preserveView) this.renderer.fitGraph();
+    this.selection = previousSelectionPoint
+      ? this.basePlacement.findNearestRoad(previousSelectionPoint, 80)
+      : null;
+    this.renderer.setSelection(this.selection);
+    this.initialRoadExpansionPending = roadsPending;
+    const lifecycle = this.store.read(state => state.lifecycle);
+    if (lifecycle === LifecycleState.ROAD_LOADING) this.lifecycle.startBaseSelection();
+    this.baseScreen.showSelection(this.selection, { roadsPending });
+    this.renderer.render();
+  }
+
   async startNewGame() {
     if (!this.tabCoordinator.isPrimary()) {
       this.baseScreen.showError('別のタブがゲーム進行を担当しています。そちらを閉じると、このタブで開始できます。');
@@ -316,6 +358,9 @@ class FrontlineRoadsApp {
     const generation = ++this.startupGeneration;
     this.roadLoadController?.abort();
     this.roadLoadController = new AbortController();
+    this.initialRoadExpansionPending = false;
+    this.initialRoadFallback = false;
+    this.baseConfirmationPending = false;
     this.selection = null;
     this.renderer.setSelection(null);
     this.baseScreen.showLoading('位置情報を取得しています…');
@@ -334,39 +379,46 @@ class FrontlineRoadsApp {
         draft.runtime.lastError = null;
       }, 'location:resolved');
       this.lifecycle.startRoadLoading();
-      this.baseScreen.showLoading('現在地から1km圏内の道路を読み込んでいます…');
+      this.baseScreen.showLoading('現在地周辺の道路を取得しています…');
 
-      const graph = await this.roadService.loadAround(currentLocation, {
+      const result = await this.roadService.loadInitialProgressive(currentLocation, {
         signal: this.roadLoadController.signal,
-        onAttempt: ({ index, total, transport, attempt, totalAttempts }) => this.baseScreen.showLoading(`道路サーバーへ接続しています… ${transport} (${index}/${total}, 試行 ${attempt}/${totalAttempts})`)
+        onAttempt: ({ index, total, transport, attempt, totalAttempts, acquisition }) => {
+          if (generation !== this.startupGeneration) return;
+          if (this.initialRoadExpansionPending) {
+            this.baseScreen.showSelection(this.selection, { roadsPending: true });
+            return;
+          }
+          const label = acquisition === 'preview' ? '中心部道路' : '全道路';
+          this.baseScreen.showLoading(`${label}を道路サーバーから取得しています… ${transport} (${index}/${total}, 試行 ${attempt}/${totalAttempts})`);
+        },
+        onPhase: ({ phase, acquisition }) => {
+          if (generation !== this.startupGeneration || this.initialRoadExpansionPending) return;
+          if (phase === 'parse') this.baseScreen.showLoading(`${acquisition === 'preview' ? '中心部' : '周辺'}道路を解析しています…`);
+          if (phase === 'graph') this.baseScreen.showLoading('道路地図を構築しています…');
+        },
+        onPreview: graph => {
+          if (generation !== this.startupGeneration) return;
+          this.installInitialRoadGraph(graph, currentLocation, { roadsPending: true });
+        }
       });
       if (generation !== this.startupGeneration) return;
-      this.store.transaction(draft => {
-        draft.world.roadGraph = graph;
-        const integratedChunkIds = graphCoveredChunkIds(graph);
-        const loadedChunkIds = integratedChunkIds.filter(id => chunkFullyInsideCircle(
-          parseChunkId(id),
-          { x: 0, y: 0 },
-          ROAD_CONFIG.initialRetentionRadiusMeters
-        ));
-        const refreshChunkIds = integratedChunkIds.filter(id => !loadedChunkIds.includes(id));
-        const playerPoint = latLonToXY(currentLocation.lat, currentLocation.lon, graph.center);
-        const observedChunkId = chunkForWorldPoint(playerPoint).id;
-        draft.world.roadChunks = createRoadChunkState({
-          initialLoadedChunkIds: loadedChunkIds,
-          initialIntegratedChunkIds: integratedChunkIds,
-          initialRefreshChunkIds: refreshChunkIds,
-          initialObservedChunkIds: loadedChunkIds.includes(observedChunkId) ? [observedChunkId] : []
+
+      if (result.source === 'preview-fallback' && result.previewShown) {
+        this.initialRoadExpansionPending = false;
+        this.initialRoadFallback = true;
+        this.baseScreen.showSelection(this.selection, { roadsPending: false });
+        this.notifications.show('中心部の道路で開始できます。選択地点周辺を確認してから拠点を確定し、外周は移動に合わせて拡張します。', 6500);
+      } else {
+        this.initialRoadFallback = false;
+        this.installInitialRoadGraph(result.graph, currentLocation, {
+          roadsPending: false,
+          preserveView: result.previewShown
         });
-      }, 'roads:loaded');
-      this.basePlacement = new BasePlacementService(graph, currentLocation);
-      this.renderer.setGraph(graph);
-      this.renderer.setHomeBase(null);
-      this.renderer.fitGraph();
-      this.lifecycle.startBaseSelection();
-      this.baseScreen.showSelection(null);
+      }
     } catch (error) {
       if (generation !== this.startupGeneration || error?.name === 'AbortError') return;
+      this.initialRoadExpansionPending = false;
       this.store.setError(error);
       this.baseScreen.showError([error?.message ?? '初期化に失敗しました。', error?.details ? `診断: ${error.details}` : null].filter(Boolean).join('\n'));
     }
@@ -384,16 +436,49 @@ class FrontlineRoadsApp {
     this.selection = selection;
     this.renderer.setSelection(selection);
     this.renderer.render();
-    this.baseScreen.showSelection(selection);
+    this.baseScreen.showSelection(selection, { roadsPending: this.initialRoadExpansionPending });
   }
 
-  confirmBase() {
+  async confirmBase() {
     if (!this.tabCoordinator.isPrimary()) {
       this.notifications.show('別のタブがゲーム進行を担当しています。');
       return;
     }
+    if (this.baseConfirmationPending) return;
+    if (this.initialRoadExpansionPending) {
+      this.notifications.show('外周道路を確認しています。完了後に拠点を確定できます。');
+      return;
+    }
     if (!this.selection?.valid || !this.basePlacement) return;
+
+    this.baseConfirmationPending = true;
     try {
+      if (this.initialRoadFallback) {
+        const selectedPoint = { ...this.selection.point };
+        this.baseScreen.showLoading('選択地点周辺の道路を確認しています…');
+        const coverage = await this.roadWorld.ensureAreaAroundPoint(selectedPoint, {
+          radiusMeters: ROAD_CONFIG.initialBaseCoverageRadiusMeters,
+          observe: true,
+          reason: 'initial-base-coverage'
+        });
+        if (!coverage.ok) {
+          this.baseScreen.showSelection(this.selection, { roadsPending: false });
+          this.notifications.show('選択地点周辺の道路を取得できませんでした。通信状態を確認して、もう一度確定してください。', 6500);
+          return;
+        }
+        const latest = this.store.snapshot();
+        this.basePlacement = new BasePlacementService(latest.world.roadGraph, latest.player.currentPosition);
+        this.selection = this.basePlacement.findNearestRoad(selectedPoint, 80);
+        this.renderer.setSelection(this.selection);
+        this.renderer.render();
+        if (!this.selection?.valid) {
+          this.baseScreen.showSelection(this.selection, { roadsPending: false });
+          this.notifications.show('道路更新後に選択地点を確認できませんでした。道路を選び直してください。', 6500);
+          return;
+        }
+        this.initialRoadFallback = false;
+      }
+
       this.lifecycle.startInitialization();
       const { graph, homeBase } = this.basePlacement.establishHomeBase(this.selection);
       this.store.transaction(draft => {
@@ -419,6 +504,8 @@ class FrontlineRoadsApp {
     } catch (error) {
       this.store.setError(error);
       this.baseScreen.showError(error?.message ?? '拠点の設置に失敗しました。');
+    } finally {
+      this.baseConfirmationPending = false;
     }
   }
 
@@ -634,6 +721,7 @@ class FrontlineRoadsApp {
     this.tabCoordinator.release();
     this.startupGeneration += 1;
     this.roadLoadController?.abort();
+    this.initialRoadExpansionPending = false;
     this.roadWorld.abort();
     await this.roadWorld.clearCurrentWorld();
     const cleared = this.saveRepository.clear();
@@ -651,6 +739,7 @@ class FrontlineRoadsApp {
     this.tabCoordinator.release();
     this.startupGeneration += 1;
     this.roadLoadController?.abort();
+    this.initialRoadExpansionPending = false;
     this.baseScreen.destroy();
     this.mapInput.destroy();
     this.roadWorld.destroy();

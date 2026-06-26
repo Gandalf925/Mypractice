@@ -1,4 +1,35 @@
-# FRONTLINE ROADS — modular source v0.33.2 tactical build performance
+# FRONTLINE ROADS — modular source v0.33.3 road expansion and combat integrity
+
+## Road expansion and combat integrity v0.33.3
+
+- Player-driven map expansion remains independent from combat connectivity analysis. Approaching an acquired-road endpoint, moving toward a chunk boundary, leaving the known road network, or continuing in a travel direction still queues current, frontier and look-ahead chunks.
+- Settlement-to-road connectivity is cached by road-topology revision. Normal combat frames reuse the same reachable-node set; road merge, cache restoration or graph replacement invalidates it immediately.
+- Initial preview fallback no longer starts combat with insufficient roads around a base selected near the 1km limit. The selected area is acquired and integrated before the base is established, while the normal 1.5km complete path remains unchanged.
+- Frontier sources use only settlement-connected roads. The off-map source point remains fixed while future-wave entry roads can advance toward newly acquired outer terminals. Existing units keep their physical position during normal expansion; only still-waiting units at an invalid legacy entry are relocated during repair.
+- Route recovery now clears stale targets and replans before any removal. Only enemies proven to remain on a settlement-disconnected fragment for 45 seconds are retired; temporarily route-less enemies on connected roads remain in play.
+- Live enemies rebuild missing wave records. A population-cap failure creates no false wave, message, dispatch count or guard latch, and retries after 12 seconds rather than consuming a full interval.
+- The active service worker reads only the current release cache. Early and module-level registration share one promise, so old and new modules cannot be mixed and the worker is not registered twice.
+- Obsolete root demonstration assets were removed from the GitHub Pages package.
+
+Implementation, audit and verification are documented in `docs/road-expansion-combat-integrity-v0.33.3.md`.
+
+## Initial road startup acceleration v0.33.3
+
+- The complete 1.5km acquisition begins immediately. If it is still pending after 1.2 seconds, a smaller 1.15km query starts on the next preferred Overpass endpoint so the central map can become interactive first.
+- The central preview retains 1.05km of roads and preserves the full 1km base-placement radius. A fast complete response remains a single request.
+- If the complete acquisition fails after a valid preview, selecting a base triggers a required 420m local coverage acquisition around that exact point before combat starts. Exterior roads then continue expanding through normal player movement and survey facilities.
+- Endpoint rotation, phase timings, abort propagation, selection preservation and fallback-area confirmation are covered by dedicated regression tests.
+
+Implementation and verification are documented in `docs/initial-road-startup-v0.33.3.md`.
+
+## Enemy route and wave recovery v0.33.3
+
+- Disconnected OSM fragments remain rendered and saved but cannot be used as enemy entry roads until physically connected to a settlement.
+- Existing saves repair invalid frontier entries. Only enemies still waiting at the invalid entry move with it; units already on the road preserve their current position.
+- Route recovery uses topology-aware replanning and a 45-second disconnected-fragment retirement threshold rather than deleting every temporarily route-less enemy.
+- Active wave records are rebuilt from living enemies, and zero-unit launches do not consume wave counters or suppress nearby enemy bases.
+
+Implementation and regression coverage are documented in `docs/enemy-route-recovery-v0.33.3.md`.
 
 ## Tactical build sites, walls and gates v0.33.2
 

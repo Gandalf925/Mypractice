@@ -4,7 +4,8 @@ import { registerPwa } from '../src/app/pwa.js';
 
 test('PWA registers the current service worker on HTTPS', async () => {
   const calls = [];
-  const registration = { active: true };
+  let updates = 0;
+  const registration = { active: true, async update() { updates += 1; } };
   const result = await registerPwa({
     navigatorRef: { serviceWorker: { register: async (...args) => { calls.push(args); return registration; } } },
     locationRef: { protocol: 'https:', hostname: 'example.com', search: '' },
@@ -12,7 +13,8 @@ test('PWA registers the current service worker on HTTPS', async () => {
     moduleUrl: 'https://example.com/Mypractice/frontline-roads/src/app/pwa.js'
   });
   assert.equal(result, registration);
-  assert.deepEqual(calls, [['https://example.com/Mypractice/frontline-roads/sw.js', { scope: 'https://example.com/Mypractice/frontline-roads/', updateViaCache: 'none' }]]);
+  assert.deepEqual(calls, [['https://example.com/Mypractice/frontline-roads/sw.js?v=0.33.3', { scope: 'https://example.com/Mypractice/frontline-roads/', updateViaCache: 'none' }]]);
+  assert.equal(updates, 1);
 });
 
 test('PWA is skipped for an allowed development fixture', async () => {
@@ -49,4 +51,16 @@ test('PWA registration failure does not stop the game', async () => {
   } finally {
     console.warn = previousWarn;
   }
+});
+
+test('PWA reuses the early registration promise instead of registering twice', async () => {
+  let called = false;
+  const registration = { active: true };
+  const result = await registerPwa({
+    navigatorRef: { serviceWorker: { register: async () => { called = true; return registration; } } },
+    locationRef: { protocol: 'https:', hostname: 'example.com', search: '' },
+    globalRef: { __FRONTLINE_SW_READY__: Promise.resolve(registration) }
+  });
+  assert.equal(result, registration);
+  assert.equal(called, false);
 });

@@ -1,0 +1,30 @@
+{
+  "benchmark": "initial-road-progressive-v0.33.3",
+  "environment": "Node v22.16.0",
+  "methodology": "Synthetic deterministic Overpass payload and scaled network waits; not a live Overpass or Android measurement.",
+  "scaledScenario": {
+    "completeNetworkWaitMs": 120,
+    "previewStartDelayMs": 20,
+    "previewNetworkWaitMs": 15,
+    "baselineMapVisibleMs": 158.62,
+    "progressiveMapVisibleMs": 96.46,
+    "mapVisibleReductionPercent": 39.2,
+    "completeReadyMs": 158.62,
+    "requests": 2
+  },
+  "fastPath": {
+    "completeNetworkWaitMs": 8,
+    "completeReadyMs": 48.54,
+    "requests": 1,
+    "previewShown": false
+  },
+  "processing": {
+    "responseElements": 62,
+    "nodes": 1922,
+    "edges": 1860,
+    "fetchMs": 0.02070800000001327,
+    "parseMs": 2.3342799999999784,
+    "graphMs": 20.714200000000005,
+    "totalMs": 23.081184999999948
+  }
+}

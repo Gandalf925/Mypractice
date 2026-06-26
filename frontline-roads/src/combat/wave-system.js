@@ -11,10 +11,46 @@ export { INITIAL_BASE_TYPES } from './enemy-base-placement.js';
 const OPENING_WAVE_INTERVAL_MULTIPLIER = 1.35;
 const OPENING_ACTIVE_WAVE_LIMIT = 2;
 const OPENING_GRACE_SECONDS = 15 * 60;
+const WAVE_SPAWN_RETRY_SECONDS = 12;
 
 function activeWaveCount(state) {
   return Object.values(state.combat?.waves?.active ?? {}).filter(wave => (wave?.remaining ?? 0) > 0).length;
 }
+
+export function reconcileActiveWaveRecords(state) {
+  state.combat.waves ??= { active: {} };
+  state.combat.waves.active ??= {};
+  const liveCounts = new Map();
+  const representative = new Map();
+  for (const enemy of state.combat.enemies ?? []) {
+    if (enemy.hp <= 0 || enemy.waveResolved || !enemy.waveId) continue;
+    liveCounts.set(enemy.waveId, (liveCounts.get(enemy.waveId) ?? 0) + 1);
+    if (!representative.has(enemy.waveId)) representative.set(enemy.waveId, enemy);
+  }
+  for (const [waveId, record] of Object.entries(state.combat.waves.active)) {
+    const remaining = liveCounts.get(waveId) ?? 0;
+    if (remaining <= 0) delete state.combat.waves.active[waveId];
+    else record.remaining = remaining;
+  }
+  for (const [waveId, remaining] of liveCounts) {
+    if (state.combat.waves.active[waveId]) continue;
+    const enemy = representative.get(waveId);
+    const frontierSource = (state.world.frontierSources ?? []).find(source => source.id === enemy?.sourceBaseId) ?? null;
+    state.combat.waves.active[waveId] = {
+      id: waveId,
+      baseId: enemy?.sourceBaseId ?? null,
+      frontierSourceId: enemy?.frontierSourceId ?? frontierSource?.id ?? null,
+      remaining,
+      breached: false,
+      guard: Boolean(enemy?.waveGuard),
+      doctrineKey: enemy?.doctrineKey ?? 'frontal',
+      startedAt: Number(enemy?.waveStartedAt) || Number(state.runtime?.worldTimeMs) || Date.now(),
+      recovered: true
+    };
+  }
+  return state.combat.waves.active;
+}
+
 
 function openingPressureLimited(state) {
   if (Math.max(0, Math.floor(Number(state.civilization?.level) || 0)) !== 0) return false;
@@ -204,9 +240,9 @@ function createBase(type, placement, idSeed = placement.node.id) {
 
 export function spawnEnemyBaseGuard(state, base, events = null) {
   if (!base?.alive || base.guardWaveTriggered) return 0;
-  base.guardWaveTriggered = true;
   const spawned = new WaveSystem(events).spawnWave(state, base, true);
   if (spawned > 0) {
+    base.guardWaveTriggered = true;
     events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[base.type].name}の守備隊が迎撃を開始しました。` });
   }
   return spawned;
@@ -226,7 +262,11 @@ export class WaveSystem {
     let spawned = 0;
     wave.forEach((type, index) => {
       const spacing = guard ? 3 : density.departureSpacingSeconds;
-      if (spawnEnemy(state, base, type, index * spacing, waveId, doctrine.key)) spawned += 1;
+      const enemy = spawnEnemy(state, base, type, index * spacing, waveId, doctrine.key);
+      if (!enemy) return;
+      enemy.waveGuard = guard;
+      enemy.waveStartedAt = state.runtime?.worldTimeMs ?? Date.now();
+      spawned += 1;
     });
     if (spawned > 0) {
       state.combat.waves.active[waveId] = {
@@ -235,7 +275,7 @@ export class WaveSystem {
       };
       this.events?.emit('combat:wave-launched', { baseId: base.id, waveId, count: spawned, guard, doctrineKey: doctrine.key, level: base.level ?? 1 });
     }
-    if (!guard) {
+    if (!guard && spawned > 0) {
       base.wavesSent += 1;
       this.events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[base.type].name} Lv.${base.level ?? 1}が「${doctrine.label}」を開始しました。` });
     }
@@ -291,6 +331,7 @@ export class WaveSystem {
   }
 
   update(state, deltaSeconds) {
+    reconcileActiveWaveRecords(state);
     synchronizeEnemyBaseNetwork(state, this.events);
     this.processRespawns(state, deltaSeconds);
     state.combat.waves.resourceBaseCheckClock = (state.combat.waves.resourceBaseCheckClock ?? 30) + deltaSeconds;
@@ -329,8 +370,10 @@ export class WaveSystem {
         }
         // Old saves or a civilization upgrade may carry a large clock. Launch only the
         // currently due wave; offline simulation already advances in bounded time steps.
-        base.spawnClock %= interval;
-        this.spawnWave(state, base);
+        const spawned = this.spawnWave(state, base);
+        base.spawnClock = spawned > 0
+          ? base.spawnClock % interval
+          : Math.max(0, interval - WAVE_SPAWN_RETRY_SECONDS);
       }
     }
   }

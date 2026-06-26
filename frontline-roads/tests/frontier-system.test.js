@@ -49,7 +49,7 @@ test('dead-end roads at unexplored chunk borders become frontier candidates', ()
   assert.equal(candidates[0].directionKey, 'E');
 });
 
-test('frontier source stays fixed while its entry point advances with map expansion', () => {
+test('frontier source stays fixed while future-wave entry advances with map expansion', () => {
   const state = stateForFrontier(false);
   reconcileFrontiers(state);
   assert.equal(state.world.frontierSources.length, 1);

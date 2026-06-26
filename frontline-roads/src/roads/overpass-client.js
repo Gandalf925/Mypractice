@@ -100,9 +100,13 @@ export class OverpassClient {
     }
   }
 
-  orderedEndpoints() {
-    if (!this.preferredEndpoint || !this.endpoints.includes(this.preferredEndpoint)) return [...this.endpoints];
-    return [this.preferredEndpoint, ...this.endpoints.filter(endpoint => endpoint !== this.preferredEndpoint)];
+  orderedEndpoints(offset = 0) {
+    const ordered = !this.preferredEndpoint || !this.endpoints.includes(this.preferredEndpoint)
+      ? [...this.endpoints]
+      : [this.preferredEndpoint, ...this.endpoints.filter(endpoint => endpoint !== this.preferredEndpoint)];
+    if (ordered.length < 2) return ordered;
+    const normalizedOffset = ((Number(offset) || 0) % ordered.length + ordered.length) % ordered.length;
+    return normalizedOffset === 0 ? ordered : [...ordered.slice(normalizedOffset), ...ordered.slice(0, normalizedOffset)];
   }
 
   availableTransports(endpoint) {
@@ -185,6 +189,7 @@ export class OverpassClient {
     signal,
     radiusMeters = ROAD_CONFIG.fetchRadiusMeters,
     queryShape = 'around',
+    endpointOffset = 0,
     onAttempt = null
   } = {}) {
     const query = this.buildQuery(lat, lon, radiusMeters, { shape: queryShape });
@@ -193,7 +198,7 @@ export class OverpassClient {
     const emptyEndpoints = new Set();
     let firstEmpty = null;
     let attempt = 0;
-    const endpoints = this.orderedEndpoints();
+    const endpoints = this.orderedEndpoints(endpointOffset);
     const totalAttempts = endpoints.reduce((sum, endpoint) => sum + this.availableTransports(endpoint).length, 0);
     const requiredEmptyConfirmations = Math.min(ROAD_CONFIG.emptyResultConfirmationEndpoints, Math.max(1, endpoints.length));
 

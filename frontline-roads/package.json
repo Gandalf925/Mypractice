@@ -1,6 +1,6 @@
 {
   "name": "frontline-roads-refactor",
-  "version": "0.33.2",
+  "version": "0.33.3",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,6 +8,7 @@
     "syntax": "find src tests tools -type f \\( -name '*.js' -o -name '*.mjs' \\) -print0 | xargs -0 -n1 node --check && node --check sw.js",
     "verify": "npm run syntax && npm test",
     "playtest:balance": "node tools/playtest-balance-v03212.mjs",
-    "playtest:civilization": "node tools/playtest-civilization-v0330.mjs"
+    "playtest:civilization": "node tools/playtest-civilization-v0330.mjs",
+    "benchmark:initial-road": "node tools/benchmark-initial-road-v0333.mjs"
   }
 }

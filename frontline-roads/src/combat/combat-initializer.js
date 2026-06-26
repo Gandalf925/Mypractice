@@ -84,6 +84,15 @@ export function normalizeCombatState(state) {
   state.combat.defenses = [...normalizedDefenses.values()];
   const activeDefenseIds = new Set(state.combat.defenses.map(defense => defense.id));
   for (const enemy of state.combat.enemies) {
+    enemy.routeFailureSeconds = Math.max(0, Number(enemy.routeFailureSeconds) || 0);
+    const topologyRevision = Number(enemy.routeFailureTopologyRevision);
+    enemy.routeFailureTopologyRevision = Number.isFinite(topologyRevision)
+      ? Math.max(1, Math.floor(topologyRevision))
+      : null;
+    enemy.routeRecoveryStage = Math.max(0, Math.floor(Number(enemy.routeRecoveryStage) || 0));
+    enemy.hasDeparted = enemy.hasDeparted === true
+      || Math.max(0, Math.floor(Number(enemy.pathIndex) || 0)) > 0
+      || Math.max(0, Number(enemy.edgeProgress) || 0) > 0;
     if (enemy.targetDefenseId && !activeDefenseIds.has(enemy.targetDefenseId)) {
       enemy.targetDefenseId = null;
       enemy.reroutePending = true;

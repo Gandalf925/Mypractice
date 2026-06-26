@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.33.2-tactical-build-performance';
+export const APP_VERSION = '0.33.3-road-expansion-combat-integrity';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 
@@ -34,6 +34,11 @@ export const ROAD_CONFIG = Object.freeze({
   selectionRadiusMeters: 1000,
   fetchRadiusMeters: 1500,
   initialRetentionRadiusMeters: 1250,
+  initialPreviewDelayMs: 1200,
+  initialPreviewFetchRadiusMeters: 1150,
+  initialPreviewRetentionRadiusMeters: 1050,
+  initialPreviewMinimumRawSegments: 14,
+  initialBaseCoverageRadiusMeters: 420,
   chunkSizeMeters: 600,
   chunkFetchRadiusMeters: 900,
   chunkRetentionPaddingMeters: 120,

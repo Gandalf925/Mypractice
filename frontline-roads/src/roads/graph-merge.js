@@ -183,6 +183,9 @@ export function mergeRoadGraphs(baseGraph, incomingGraph, { chunkId = null } = {
   }
 
   baseGraph.roadSpecVersion = Math.max(Number(baseGraph.roadSpecVersion) || 1, 3);
+  if (addedNodes > 0 || addedEdges > 0) {
+    baseGraph.topologyRevision = Math.max(1, Math.floor(Number(baseGraph.topologyRevision) || 1)) + 1;
+  }
   attachGraphIndexes(baseGraph);
   return { graph: baseGraph, addedNodes, addedEdges, mergedEdges };
 }

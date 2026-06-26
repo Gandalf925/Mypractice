@@ -158,6 +158,7 @@ export class RoadWorldManager {
     this.now = now;
     this.queue = [];
     this.pending = new Set();
+    this.chunkWaiters = new Map();
     this.running = false;
     this.abortController = null;
     this.lastSurveyCheckAt = 0;
@@ -307,11 +308,58 @@ export class RoadWorldManager {
     return { ok: false, reason: latest?.surveyLastError ? `道路取得に失敗しました：${latest.surveyLastError}` : '測量可能な隣接区域がありません。' };
   }
 
+  waitForChunk(chunkId) {
+    return new Promise(resolve => {
+      if (!this.chunkWaiters.has(chunkId)) this.chunkWaiters.set(chunkId, []);
+      this.chunkWaiters.get(chunkId).push(resolve);
+    });
+  }
+
+  settleChunkWaiters(chunkId, result) {
+    const waiters = this.chunkWaiters.get(chunkId) ?? [];
+    this.chunkWaiters.delete(chunkId);
+    for (const resolve of waiters) resolve(result);
+  }
+
   enqueue(chunk, worldCenter, options = {}) {
-    if (this.pending.has(chunk.id)) return;
+    const completion = this.waitForChunk(chunk.id);
+    if (this.pending.has(chunk.id)) return completion;
     this.pending.add(chunk.id);
     this.queue.push({ chunk, worldCenter, options, generation: this.generation });
     this.processQueue();
+    return completion;
+  }
+
+  async ensureAreaAroundPoint(point, {
+    radiusMeters = ROAD_CONFIG.initialBaseCoverageRadiusMeters,
+    observe = true,
+    reason = 'base-selection'
+  } = {}) {
+    const state = this.store.snapshot();
+    const graph = state.world.roadGraph;
+    const chunks = state.world.roadChunks;
+    if (!graph || !chunks || !point) return { ok: false, requested: [], failed: [] };
+    const requested = chunksIntersectingCircle(point, radiusMeters, chunks.sizeMeters)
+      .sort((left, right) => {
+        const leftCenter = { x: (left.x + 0.5) * chunks.sizeMeters, y: (left.y + 0.5) * chunks.sizeMeters };
+        const rightCenter = { x: (right.x + 0.5) * chunks.sizeMeters, y: (right.y + 0.5) * chunks.sizeMeters };
+        return distance(point, leftCenter) - distance(point, rightCenter) || left.id.localeCompare(right.id);
+      });
+    const results = await Promise.all(requested.map(chunk => this.enqueue(chunk, graph.center, {
+      mode: 'movement',
+      observe,
+      reason
+    })));
+    const latest = this.store.snapshot().world.roadChunks;
+    const failed = requested
+      .filter(chunk => !latest.loaded.includes(chunk.id) && !latest.empty.includes(chunk.id))
+      .map(chunk => chunk.id);
+    return {
+      ok: failed.length === 0,
+      requested: requested.map(chunk => chunk.id),
+      failed,
+      results
+    };
   }
 
   async processQueue() {
@@ -322,14 +370,23 @@ export class RoadWorldManager {
         const next = this.queue.shift();
         if (next.generation !== this.generation) {
           this.pending.delete(next.chunk.id);
+          this.settleChunkWaiters(next.chunk.id, { ok: false, chunkId: next.chunk.id, aborted: true });
           continue;
         }
+        let result = { ok: false, chunkId: next.chunk.id };
         try {
           await this.loadChunk(next.chunk, next.worldCenter, { ...next.options, generation: next.generation });
+          const latest = this.store.snapshot().world.roadChunks;
+          result = {
+            ok: latest.loaded.includes(next.chunk.id) || latest.empty.includes(next.chunk.id),
+            chunkId: next.chunk.id
+          };
         } catch (error) {
+          result = { ok: false, chunkId: next.chunk.id, error: String(error?.message ?? error) };
           this.onStatus?.({ type: 'error', chunkId: next.chunk.id, text: '道路区域の統合に失敗しました。' });
         } finally {
           this.pending.delete(next.chunk.id);
+          this.settleChunkWaiters(next.chunk.id, result);
         }
       }
     } finally {
@@ -528,6 +585,7 @@ export class RoadWorldManager {
   abort() {
     this.generation += 1;
     this.queue.length = 0;
+    for (const chunkId of this.pending) this.settleChunkWaiters(chunkId, { ok: false, chunkId, aborted: true });
     this.pending.clear();
     this.abortController?.abort();
     this.abortController = null;

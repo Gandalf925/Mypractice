@@ -7,7 +7,7 @@ const source = await readFile(new URL('../sw.js', import.meta.url), 'utf8');
 
 function createWorker({ cacheMatch, fetchImpl }) {
   const handlers = new Map();
-  const cache = { put: async () => {} };
+  const cache = { put: async () => {}, match: cacheMatch };
   const context = {
     URL,
     Promise,

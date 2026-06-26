@@ -1,3 +1,15 @@
+> frontline-roads-refactor@0.33.3 playtest:civilization
+> node tools/playtest-civilization-v0330.mjs
+
+[playtest] underbuilt-civ5
+[playtest] standard-civ5
+[playtest] fortified-civ5
+[playtest] underbuilt-civ6
+[playtest] standard-civ6
+[playtest] fortified-civ6
+[playtest] underbuilt-civ7
+[playtest] standard-civ7
+[playtest] fortified-civ7
 {
   "release": "0.33.0-civilization-road-federation",
   "generatedAt": "2026-06-25T23:47:12.443Z",
