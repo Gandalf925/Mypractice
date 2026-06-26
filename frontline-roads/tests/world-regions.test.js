@@ -109,7 +109,7 @@ test('expanded road graphs use compact save encoding and restore gameplay fields
   repository.save(state);
   const raw = storage.getItem('world');
   const saved = JSON.parse(raw);
-  assert.equal(saved.world.roadGraph.format, 'frontline-road-graph-2');
+  assert.equal(saved.world.roadGraph.format, 'frontline-road-graph-3');
   assert.ok(new TextEncoder().encode(raw).length < ordinaryBytes * 0.8);
   const restored = repository.load();
   assert.equal(restored.world.roadGraph.edges.length, state.world.roadGraph.edges.length);

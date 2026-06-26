@@ -157,7 +157,10 @@ export function evaluateProject(state) {
   for (const [key, required] of Object.entries(definition.progress)) {
     const requiredValue = key === 'cityHpStreak' ? required.seconds : required;
     const current = progressCheckValue(state, key, required);
-    checks.push({ kind: 'progress', key, current, required: requiredValue, complete: current >= requiredValue });
+    checks.push({
+      kind: 'progress', key, current, required: requiredValue, complete: current >= requiredValue,
+      ...(key === 'cityHpStreak' ? { threshold: required.threshold } : {})
+    });
   }
   if ((definition.artifactsRequired ?? 0) > 0) {
     const current = Math.max(0, Number(state.civilization.totalArtifactsRecovered) || 0);

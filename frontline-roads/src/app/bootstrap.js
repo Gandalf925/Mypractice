@@ -107,7 +107,8 @@ class FrontlineRoadsApp {
       store: this.store,
       friendlyForceSystem: this.combatSystem.friendlyForceSystem,
       notifications: this.notifications,
-      persist: () => this.persist()
+      persist: () => this.persist(),
+      beginRoutePlanning: options => this.combatUi.beginDeploymentRoutePlanning(options)
     });
     this.baseCommandUi = new BaseCommandUi({
       store: this.store,
@@ -500,7 +501,7 @@ class FrontlineRoadsApp {
       this.baseCommandUi.update();
       this.civilizationUi.updateSummary();
       this.startRuntime();
-      this.notifications.show('拠点を設置しました。移動すると周辺道路を順次偵察し、MAPへ追加します。');
+      this.notifications.show('拠点を設置しました。まず投石台2基を建設し、敵拠点へ部隊を派兵してください。移動すると周辺道路を順次偵察し、MAPへ追加します。', 7000);
     } catch (error) {
       this.store.setError(error);
       this.baseScreen.showError(error?.message ?? '拠点の設置に失敗しました。');
@@ -543,14 +544,16 @@ class FrontlineRoadsApp {
   startLocationTracking() {
     this.stopLocationWatch?.();
     this.stopLocationWatch = this.geolocation.watchPosition(locationValue => {
-      this.store.transaction(state => {
-        state.player.currentPosition = { lat: locationValue.lat, lon: locationValue.lon };
-        state.player.locationAccuracy = locationValue.accuracy;
-        state.player.locationUpdatedAt = locationValue.timestamp ?? Date.now();
-        state.player.worldPosition = latLonToXY(locationValue.lat, locationValue.lon, state.world.roadGraph.center);
+      const state = this.store.renderView();
+      const worldPoint = latLonToXY(locationValue.lat, locationValue.lon, state.world.roadGraph.center);
+      this.store.advance(draft => {
+        draft.player.currentPosition = { lat: locationValue.lat, lon: locationValue.lon };
+        draft.player.locationAccuracy = locationValue.accuracy;
+        draft.player.locationUpdatedAt = locationValue.timestamp ?? Date.now();
+        draft.player.worldPosition = worldPoint;
       }, 'location:watch');
       this.renderer.render();
-      this.roadWorld.considerLocation(locationValue);
+      this.roadWorld.considerLocation(worldPoint);
     }, error => this.notifications.show(`位置追跡：${error.message}`));
   }
 

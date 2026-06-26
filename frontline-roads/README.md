@@ -1,4 +1,34 @@
-# FRONTLINE ROADS — modular source v0.33.3 road expansion and combat integrity
+# FRONTLINE ROADS — modular source v0.33.4 road topology and route command
+
+## Final game-balance and user-journey audit v0.33.4
+
+- Sixteen deterministic early-, mid- and late-game scenarios produce identical gameplay outcomes in v0.33.3 and v0.33.4. Road topology and route-command changes do not alter reference enemy density, damage, resources or victory results.
+- The complete opening journey was simulated from base selection through two initial defenses, first assault, recovery, repairs and civilization level 1. Two-minute and ten-minute decision delays remain survivable.
+- Every civilization level 1–7 requirement has an available source, sufficient settlement slots, attainable field-base limits and an unlocked production path when it appears.
+- Civilization requirements now include actionable Japanese guidance, project statuses no longer expose internal English codes, and the first post-base message explicitly directs the player to build two defenses and attack an enemy base.
+- The offline help text now matches the implemented 24-hour simulation limit. Fortification evaluation now measures surviving network size and enemy suppression instead of assuming that a larger network must lose fewer facilities in absolute terms.
+
+Implementation, results and remaining Android device checks are documented in `docs/game-balance-user-journey-v0.33.4.md` and `docs/game-balance-user-journey-v0.33.4.json`.
+
+## Road topology and deployment route command v0.33.4
+
+- A shared OpenStreetMap node now remains connected when bridge, tunnel or layer tags begin or end at that exact portal. Coordinate-only joins still require compatible elevation metadata.
+- Road chunks repair clipped endpoint gaps and T-junctions locally when roads are acquired or restored. Existing edges are subdivided without deleting their saved identity, and grade-separated roads, parallel carriageways and unrelated nearby roads remain separate.
+- Elevation and topology metadata survive compact saves and cached chunks. v0.33.3 road chunks are marked for gradual reacquisition near the player and survey facilities rather than being trusted without elevation data.
+- Initial deployment can preview up to three routes, choose shortest, safer or support-weighted alternatives, and add up to two map waypoints before committing a squad. The selected route is preserved until a wall or other real obstruction makes it unusable.
+- Walls attached to a road before subdivision also block every routing child created by topology repair. Existing saves remain usable and require no reset.
+
+Implementation and regression coverage are documented in `docs/road-topology-route-command-v0.33.4.md`.
+
+## Road expansion hot path v0.33.4
+
+- GPS updates no longer clone the complete game state and road graph before checking map expansion. The current world point is applied through the narrow runtime update path and passed directly to the road manager.
+- Road bounds are retained with runtime graph indexes, and outer road terminals are found through nearby spatial buckets instead of complete-graph scans.
+- Saved chunk arrays use non-serializable runtime `Set` indexes, retaining the existing save schema while removing repeated linear membership searches.
+- Network and cached road chunks merge without cloning unrelated combat, civilization, inventory and UI state. Multiple cached chunks restore in one update and rebuild graph indexes once.
+- Boundary, terminal, off-network, movement-lookahead, retry and survey acquisition triggers are unchanged. Topology repair runs only when roads are acquired, restored or normalized, never on normal combat frames.
+
+Implementation, benchmark data and regression coverage are documented in `docs/road-expansion-hotpath-v0.33.4.md` and `docs/road-expansion-hotpath-v0.33.4.json`.
 
 ## Road expansion and combat integrity v0.33.3
 

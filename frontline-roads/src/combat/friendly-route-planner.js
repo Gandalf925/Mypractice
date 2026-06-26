@@ -9,7 +9,8 @@ import { graphElementsNearPoint } from '../roads/road-graph.js';
 export const FRIENDLY_ORDER_MODE = Object.freeze({
   RETREAT: 'RETREAT',
   RESUME: 'RESUME',
-  WITHDRAW: 'WITHDRAW'
+  WITHDRAW: 'WITHDRAW',
+  DEPLOYMENT: 'DEPLOYMENT'
 });
 
 const ROUTE_LABELS = Object.freeze({
@@ -261,8 +262,7 @@ export function validateRetreatDestination(state, squad, nodeId) {
   return { ok: true, node };
 }
 
-export function buildFriendlyRouteOptions(state, squad, destinationNodeId, waypointNodeIds = []) {
-  const startId = commandStartNodeId(state, squad);
+function buildRouteOptions(state, squad, startId, destinationNodeId, waypointNodeIds = []) {
   if (!startId || !destinationNodeId) return [];
   const definition = FRIENDLY_SQUAD_DEFINITIONS[squad.type] ?? FRIENDLY_SQUAD_DEFINITIONS.assault;
   const analysis = createRouteAnalysis(state);
@@ -287,6 +287,27 @@ export function buildFriendlyRouteOptions(state, squad, destinationNodeId, waypo
     if (addOption(`detour-${detourIndex}`, `別経路${detourIndex}`, path)) detourIndex += 1;
   }
   return options.slice(0, 3);
+}
+
+export function deploymentRouteSubject(squadType, originNodeId) {
+  return {
+    id: null,
+    type: FRIENDLY_SQUAD_DEFINITIONS[squadType] ? squadType : 'assault',
+    nodeId: originNodeId,
+    edgeId: null,
+    edgeProgress: 0,
+    path: null,
+    pathIndex: 0
+  };
+}
+
+export function buildDeploymentRouteOptions(state, squadType, originNodeId, destinationNodeId, waypointNodeIds = []) {
+  const subject = deploymentRouteSubject(squadType, originNodeId);
+  return buildRouteOptions(state, subject, originNodeId, destinationNodeId, waypointNodeIds);
+}
+
+export function buildFriendlyRouteOptions(state, squad, destinationNodeId, waypointNodeIds = []) {
+  return buildRouteOptions(state, squad, commandStartNodeId(state, squad), destinationNodeId, waypointNodeIds);
 }
 
 function routeWorldPoints(state, squad, route) {

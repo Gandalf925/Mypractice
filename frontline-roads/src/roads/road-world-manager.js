@@ -1,6 +1,6 @@
 import { ROAD_CONFIG } from '../core/constants.js';
 import { distance, stableId } from '../core/utilities.js';
-import { attachGraphIndexes, graphElementsNearPoint } from './road-graph.js';
+import { attachGraphIndexes, graphElementsNearPoint, roadGraphBounds } from './road-graph.js';
 import { pointToSegmentProjection } from './geometry.js';
 import { mergeRoadGraphs } from './graph-merge.js';
 import {
@@ -8,12 +8,23 @@ import {
   chunkForWorldPoint,
   chunksIntersectingCircle,
   chunksNearWorldPoint,
-  ensureRoadChunkState
+  roadChunkAdd,
+  roadChunkDelete,
+  roadChunkHas,
+  roadChunkSet,
+  roadChunkState
 } from './world-chunk-grid.js';
 import { activeSurveyFacilities, surveyChunkCandidates, synchronizeSurveyFacility } from '../exploration/survey-system.js';
 import { defenseRuntimeDefinition } from '../combat/definitions.js';
 
-const ROAD_CHUNK_CACHE_VERSION = 3;
+const ROAD_CHUNK_CACHE_VERSION = 4;
+
+
+function currentStoreState(store) {
+  if (typeof store?.renderView === 'function') return store.renderView();
+  if (typeof store?.read === 'function') return store.read(state => state);
+  return store?.snapshot?.() ?? null;
+}
 
 function nearestRoadDistance(graph, point, radius = ROAD_CONFIG.roadFrontierDistanceMeters * 2) {
   if (!graph?.nodeById || !point) return Infinity;
@@ -29,22 +40,6 @@ function nearestRoadDistance(graph, point, radius = ROAD_CONFIG.roadFrontierDist
   return nearest;
 }
 
-function roadGraphBounds(graph) {
-  const nodes = graph?.nodes ?? [];
-  if (!nodes.length) return null;
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const node of nodes) {
-    minX = Math.min(minX, node.x);
-    minY = Math.min(minY, node.y);
-    maxX = Math.max(maxX, node.x);
-    maxY = Math.max(maxY, node.y);
-  }
-  return { minX, minY, maxX, maxY };
-}
-
 function isOuterTerminal(node, bounds, margin = ROAD_CONFIG.roadFrontierEdgeMarginMeters) {
   if (!bounds) return false;
   return node.x - bounds.minX <= margin
@@ -57,8 +52,8 @@ function nearestTerminalNode(graph, point, radius = ROAD_CONFIG.roadFrontierDist
   const bounds = roadGraphBounds(graph);
   let best = null;
   let bestDistance = radius;
-  for (const node of graph?.terminalNodes ?? []) {
-    if (!isOuterTerminal(node, bounds)) continue;
+  for (const node of graphElementsNearPoint(graph, point, radius).nodes) {
+    if ((graph.adjacency?.get(node.id)?.length ?? 0) !== 1 || !isOuterTerminal(node, bounds)) continue;
     const gap = distance(point, node);
     if (gap <= bestDistance) {
       best = node;
@@ -134,7 +129,7 @@ function compactChunkGraph(graph) {
 
 function usableCachedChunk(graph) {
   return Number(graph?.cacheVersion) === ROAD_CHUNK_CACHE_VERSION
-    && Number(graph?.roadSpecVersion) >= 3
+    && Number(graph?.roadSpecVersion) >= 4
     && Array.isArray(graph?.nodes)
     && Array.isArray(graph.edges)
     && graph.nodes.length > 0
@@ -167,63 +162,78 @@ export class RoadWorldManager {
   }
 
   async restoreCachedChunks() {
-    const state = this.store.snapshot();
+    const state = currentStoreState(this.store);
     const graph = state.world.roadGraph;
     if (!graph || !this.cache?.isAvailable?.()) return { restored: 0 };
-    const chunks = state.world.roadChunks;
+    const chunks = roadChunkState(state.world);
     const worldId = roadWorldId(graph);
-    let restored = 0;
-    for (const id of chunks.cached ?? []) {
-      if (chunks.integrated?.includes(id)) continue;
-      const payload = await this.cache.get(worldId, id).catch(() => null);
-      if (!usableCachedChunk(payload)) {
-        if (payload) await this.cache.remove?.(worldId, id).catch(() => false);
-        this.store.transaction(draft => {
-          const chunkState = ensureRoadChunkState(draft.world);
-          chunkState.cached = chunkState.cached.filter(chunkId => chunkId !== id);
-        }, 'roads:stale-cache-removed');
+    const candidates = (chunks.cached ?? []).filter(id => !roadChunkHas(chunks, 'integrated', id));
+    const payloads = await Promise.all(candidates.map(async id => ({
+      id,
+      payload: await this.cache.get(worldId, id).catch(() => null)
+    })));
+    const staleIds = [];
+    const valid = [];
+    for (const item of payloads) {
+      if (!usableCachedChunk(item.payload)) {
+        if (item.payload) await this.cache.remove?.(worldId, item.id).catch(() => false);
+        staleIds.push(item.id);
         continue;
       }
-      attachGraphIndexes(payload);
-      this.store.transaction(draft => {
-        mergeRoadGraphs(draft.world.roadGraph, payload, { chunkId: id });
-        const chunkState = ensureRoadChunkState(draft.world);
-        if (!chunkState.loaded.includes(id)) chunkState.loaded.push(id);
-        if (!chunkState.cached.includes(id)) chunkState.cached.push(id);
-        if (!chunkState.integrated.includes(id)) chunkState.integrated.push(id);
-      }, 'roads:cache-restored');
-      restored += 1;
+      attachGraphIndexes(item.payload);
+      valid.push(item);
     }
-    if (restored > 0) this.graphChanged({ reason: 'cache', restored });
-    return { restored };
+    if (staleIds.length > 0 || valid.length > 0) {
+      this.store.advance(draft => {
+        const chunkState = roadChunkState(draft.world);
+        for (const id of staleIds) roadChunkDelete(chunkState, 'cached', id);
+        for (const [index, item] of valid.entries()) {
+          mergeRoadGraphs(draft.world.roadGraph, item.payload, {
+            chunkId: item.id,
+            rebuildIndexes: index === valid.length - 1
+          });
+          roadChunkAdd(chunkState, 'loaded', item.id);
+          roadChunkAdd(chunkState, 'cached', item.id);
+          roadChunkAdd(chunkState, 'integrated', item.id);
+        }
+      }, 'roads:cache-restored', { validate: true });
+    }
+    if (valid.length > 0) this.graphChanged({ reason: 'cache', restored: valid.length });
+    return { restored: valid.length };
   }
 
   considerLocation(location) {
-    const state = this.store.snapshot();
+    const state = currentStoreState(this.store);
     const graph = state.world.roadGraph;
     if (!graph || !location) return [];
-    const chunks = state.world.roadChunks;
-    const worldPoint = state.player.worldPosition;
+    const chunks = roadChunkState(state.world);
+    const worldPoint = Number.isFinite(Number(location.x)) && Number.isFinite(Number(location.y))
+      ? location
+      : state.player.worldPosition;
     if (!worldPoint) return [];
 
     const observedChunkId = chunkForWorldPoint(worldPoint, chunks.sizeMeters).id;
-    let observationChanged = false;
-    this.store.transaction(draft => {
-      const chunkState = ensureRoadChunkState(draft.world);
-      if ((chunkState.loaded.includes(observedChunkId) || chunkState.empty.includes(observedChunkId)) && !chunkState.playerObserved.includes(observedChunkId)) {
-        chunkState.playerObserved.push(observedChunkId);
-        observationChanged = true;
-      }
-    }, 'roads:player-observed');
-    if (observationChanged) this.graphChanged({ reason: 'player-observed', chunkId: observedChunkId });
+    const knownObservedChunk = roadChunkHas(chunks, 'loaded', observedChunkId) || roadChunkHas(chunks, 'empty', observedChunkId);
+    if (knownObservedChunk && !roadChunkHas(chunks, 'playerObserved', observedChunkId)) {
+      this.store.advance(draft => {
+        const chunkState = roadChunkState(draft.world);
+        roadChunkAdd(chunkState, 'playerObserved', observedChunkId);
+        chunkState.updatedAt = this.now();
+      }, 'roads:player-observed');
+      // Observation affects exploration and enemy-base eligibility, but not road geometry.
+      this.onGraphChanged?.({ reason: 'player-observed', chunkId: observedChunkId, topologyChanged: false });
+    }
 
     const expansion = movementExpansionCandidates(graph, worldPoint, this.lastMovementPoint, chunks.sizeMeters);
     this.lastMovementPoint = { x: worldPoint.x, y: worldPoint.y };
     const retryCooldownMs = expansion.nearFrontier || expansion.moving
       ? ROAD_CONFIG.movementChunkRetryCooldownMs
       : ROAD_CONFIG.chunkRetryCooldownMs;
+    const refresh = roadChunkSet(chunks, 'refresh');
+    const loaded = roadChunkSet(chunks, 'loaded');
+    const empty = roadChunkSet(chunks, 'empty');
     const candidates = expansion.chunks
-      .filter(chunk => (chunks.refresh?.includes(chunk.id) || (!chunks.loaded.includes(chunk.id) && !chunks.empty.includes(chunk.id))) && !this.pending.has(chunk.id))
+      .filter(chunk => (refresh.has(chunk.id) || (!loaded.has(chunk.id) && !empty.has(chunk.id))) && !this.pending.has(chunk.id))
       .filter(chunk => {
         const failure = chunks.failed?.[chunk.id];
         if (!failure) return true;
@@ -243,11 +253,11 @@ export class RoadWorldManager {
     const realNow = this.now();
     if (!forceDefenseId && realNow - this.lastSurveyCheckAt < 30000) return [];
     this.lastSurveyCheckAt = realNow;
-    const hasSurveyFacility = this.store.read(state => activeSurveyFacilities(state)
-      .some(defense => !forceDefenseId || defense.id === forceDefenseId));
+    const hasSurveyFacility = activeSurveyFacilities(currentStoreState(this.store))
+      .some(defense => !forceDefenseId || defense.id === forceDefenseId);
     if (!hasSurveyFacility) return [];
     let plan = null;
-    this.store.transaction(state => {
+    this.store.advance(state => {
       const worldTimeMs = Number(state.runtime?.worldTimeMs) || realNow;
       const facilities = activeSurveyFacilities(state)
         .filter(defense => !forceDefenseId || defense.id === forceDefenseId);
@@ -292,12 +302,12 @@ export class RoadWorldManager {
   }
 
   requestSurvey(defenseId) {
-    const state = this.store.snapshot();
+    const state = currentStoreState(this.store);
     const defense = activeSurveyFacilities(state).find(item => item.id === defenseId);
     if (!defense) return { ok: false, reason: 'この測量施設は現在稼働できません。' };
     if (defense.disabledTimer > 0) return { ok: false, reason: `機能停止中です。あと${Math.ceil(defense.disabledTimer)}秒待ってください。` };
     const queued = this.considerSurveyFacilities({ forceDefenseId: defenseId });
-    const latest = this.store.snapshot().combat.defenses.find(item => item.id === defenseId);
+    const latest = currentStoreState(this.store).combat.defenses.find(item => item.id === defenseId);
     if (queued.length > 0) return { ok: true, message: '道路測量を開始しました。', chunkId: queued[0] };
     if (latest?.surveyStatus === 'LOADING' || latest?.surveyStatus === 'QUEUED') {
       return { ok: true, message: '道路測量はすでに進行中です。' };
@@ -335,9 +345,9 @@ export class RoadWorldManager {
     observe = true,
     reason = 'base-selection'
   } = {}) {
-    const state = this.store.snapshot();
+    const state = currentStoreState(this.store);
     const graph = state.world.roadGraph;
-    const chunks = state.world.roadChunks;
+    const chunks = roadChunkState(state.world);
     if (!graph || !chunks || !point) return { ok: false, requested: [], failed: [] };
     const requested = chunksIntersectingCircle(point, radiusMeters, chunks.sizeMeters)
       .sort((left, right) => {
@@ -350,9 +360,11 @@ export class RoadWorldManager {
       observe,
       reason
     })));
-    const latest = this.store.snapshot().world.roadChunks;
+    const latest = roadChunkState(currentStoreState(this.store).world);
+    const loaded = roadChunkSet(latest, 'loaded');
+    const empty = roadChunkSet(latest, 'empty');
     const failed = requested
-      .filter(chunk => !latest.loaded.includes(chunk.id) && !latest.empty.includes(chunk.id))
+      .filter(chunk => !loaded.has(chunk.id) && !empty.has(chunk.id))
       .map(chunk => chunk.id);
     return {
       ok: failed.length === 0,
@@ -376,9 +388,9 @@ export class RoadWorldManager {
         let result = { ok: false, chunkId: next.chunk.id };
         try {
           await this.loadChunk(next.chunk, next.worldCenter, { ...next.options, generation: next.generation });
-          const latest = this.store.snapshot().world.roadChunks;
+          const latest = roadChunkState(currentStoreState(this.store).world);
           result = {
-            ok: latest.loaded.includes(next.chunk.id) || latest.empty.includes(next.chunk.id),
+            ok: roadChunkHas(latest, 'loaded', next.chunk.id) || roadChunkHas(latest, 'empty', next.chunk.id),
             chunkId: next.chunk.id
           };
         } catch (error) {
@@ -397,30 +409,35 @@ export class RoadWorldManager {
   async loadChunk(chunk, worldCenter, { mode = 'movement', defenseId = null, observe = mode === 'movement', generation = this.generation } = {}) {
     const stale = () => generation !== this.generation;
     if (stale()) return;
-    const state = this.store.snapshot();
-    const currentChunks = state.world.roadChunks;
-    const refreshRequired = currentChunks.refresh?.includes(chunk.id) === true;
-    if (!refreshRequired && (currentChunks.loaded.includes(chunk.id) || currentChunks.empty.includes(chunk.id))) {
-      this.store.transaction(draft => {
-        const chunkState = ensureRoadChunkState(draft.world);
-        const observationList = mode === 'survey' ? chunkState.surveyed : observe ? chunkState.playerObserved : null;
-        if (observationList && !observationList.includes(chunk.id)) observationList.push(chunk.id);
-        if (defenseId) {
-          const defense = draft.combat.defenses.find(item => item.id === defenseId);
-          if (defense) {
-            defense.surveyStatus = 'WAITING';
-            defense.surveyErrorCount = 0;
-            defense.surveyRetryAt = 0;
-            defense.surveyLastError = null;
+    const state = currentStoreState(this.store);
+    const currentChunks = roadChunkState(state.world);
+    const refreshRequired = roadChunkHas(currentChunks, 'refresh', chunk.id);
+    if (!refreshRequired && (roadChunkHas(currentChunks, 'loaded', chunk.id) || roadChunkHas(currentChunks, 'empty', chunk.id))) {
+      const observationKey = mode === 'survey' ? 'surveyed' : observe ? 'playerObserved' : null;
+      const observationMissing = observationKey ? !roadChunkHas(currentChunks, observationKey, chunk.id) : false;
+      const defense = defenseId ? state.combat.defenses.find(item => item.id === defenseId) : null;
+      const defenseNeedsReset = Boolean(defense && (defense.surveyStatus !== 'WAITING' || defense.surveyErrorCount || defense.surveyRetryAt || defense.surveyLastError));
+      if (observationMissing || defenseNeedsReset) {
+        this.store.advance(draft => {
+          const chunkState = roadChunkState(draft.world);
+          if (observationKey) roadChunkAdd(chunkState, observationKey, chunk.id);
+          if (defenseId) {
+            const currentDefense = draft.combat.defenses.find(item => item.id === defenseId);
+            if (currentDefense) {
+              currentDefense.surveyStatus = 'WAITING';
+              currentDefense.surveyErrorCount = 0;
+              currentDefense.surveyRetryAt = 0;
+              currentDefense.surveyLastError = null;
+            }
           }
-        }
-      }, 'roads:chunk-already-loaded');
+        }, 'roads:chunk-already-loaded');
+      }
       return;
     }
     const worldId = roadWorldId(state.world.roadGraph);
     this.onStatus?.({ type: 'loading', chunkId: chunk.id, text: mode === 'survey' ? '測量施設が周辺道路を解析しています…' : '周辺道路を偵察しています…' });
     if (defenseId) {
-      this.store.transaction(draft => {
+      this.store.advance(draft => {
         const defense = draft.combat.defenses.find(item => item.id === defenseId);
         if (defense) defense.surveyStatus = 'LOADING';
       }, 'survey:loading');
@@ -431,9 +448,9 @@ export class RoadWorldManager {
     if (stale()) return;
     if (graph && !usableCachedChunk(graph)) {
       await this.cache?.remove?.(worldId, chunk.id).catch(() => false);
-      this.store.transaction(draft => {
-        const chunkState = ensureRoadChunkState(draft.world);
-        chunkState.cached = chunkState.cached.filter(chunkId => chunkId !== chunk.id);
+      this.store.advance(draft => {
+        const chunkState = roadChunkState(draft.world);
+        roadChunkDelete(chunkState, 'cached', chunk.id);
       }, 'roads:stale-cache-removed');
       graph = null;
     }
@@ -469,8 +486,8 @@ export class RoadWorldManager {
           && connectionAfter?.confirmedEmpty !== true;
         const processingFailed = communicationSucceeded && !unconfirmedEmpty;
         const failureDetail = String(error?.details ?? error?.message ?? error).replace(/\s+/g, ' ').slice(0, 210);
-        this.store.transaction(draft => {
-          const chunkState = ensureRoadChunkState(draft.world);
+        this.store.advance(draft => {
+          const chunkState = roadChunkState(draft.world);
           chunkState.failed[chunk.id] = { at: this.now(), message: String(error?.message ?? error).slice(0, 160) };
           chunkState.updatedAt = this.now();
           if (defenseId) {
@@ -513,20 +530,20 @@ export class RoadWorldManager {
 
     if (stale()) return;
     let mergeResult = { addedNodes: 0, addedEdges: 0, mergedEdges: 0 };
-    this.store.transaction(draft => {
-      const chunkState = ensureRoadChunkState(draft.world);
+    this.store.advance(draft => {
+      const chunkState = roadChunkState(draft.world);
       delete chunkState.failed[chunk.id];
-      chunkState.refresh = (chunkState.refresh ?? []).filter(chunkId => chunkId !== chunk.id);
+      roadChunkDelete(chunkState, 'refresh', chunk.id);
       if (graph.nodes.length === 0 || graph.edges.length === 0) {
-        if (!chunkState.empty.includes(chunk.id)) chunkState.empty.push(chunk.id);
+        roadChunkAdd(chunkState, 'empty', chunk.id);
       } else {
         mergeResult = mergeRoadGraphs(draft.world.roadGraph, graph, { chunkId: chunk.id });
-        if (!chunkState.loaded.includes(chunk.id)) chunkState.loaded.push(chunk.id);
-        if (!chunkState.cached.includes(chunk.id)) chunkState.cached.push(chunk.id);
-        if (!chunkState.integrated.includes(chunk.id)) chunkState.integrated.push(chunk.id);
+        roadChunkAdd(chunkState, 'loaded', chunk.id);
+        roadChunkAdd(chunkState, 'cached', chunk.id);
+        roadChunkAdd(chunkState, 'integrated', chunk.id);
       }
-      const observationList = mode === 'survey' ? chunkState.surveyed : observe ? chunkState.playerObserved : null;
-      if (observationList && !observationList.includes(chunk.id)) observationList.push(chunk.id);
+      const observationKey = mode === 'survey' ? 'surveyed' : observe ? 'playerObserved' : null;
+      if (observationKey) roadChunkAdd(chunkState, observationKey, chunk.id);
       if (defenseId) {
         const defense = draft.combat.defenses.find(item => item.id === defenseId);
         if (defense) {
@@ -575,7 +592,7 @@ export class RoadWorldManager {
   }
 
   graphChanged(detail) {
-    const graph = this.store.snapshot().world.roadGraph;
+    const graph = currentStoreState(this.store).world.roadGraph;
     this.renderer?.setGraph(graph);
     this.renderer?.invalidateStatic?.();
     this.renderer?.render?.();
@@ -594,7 +611,7 @@ export class RoadWorldManager {
   }
 
   async clearCurrentWorld() {
-    const graph = this.store.snapshot().world.roadGraph;
+    const graph = currentStoreState(this.store).world.roadGraph;
     if (!graph) return false;
     return this.cache?.removeWorld?.(roadWorldId(graph)).catch(() => false) ?? false;
   }

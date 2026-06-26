@@ -5,7 +5,10 @@ import {
   chunkForWorldPoint,
   chunkCenterLocation,
   createRoadChunkState,
-  parseChunkId
+  parseChunkId,
+  roadChunkAdd,
+  roadChunkDelete,
+  roadChunkHas
 } from '../src/roads/world-chunk-grid.js';
 import { attachGraphIndexes } from '../src/roads/road-graph.js';
 import { mergeRoadGraphs } from '../src/roads/graph-merge.js';
@@ -104,4 +107,18 @@ test('RoadService chunk acquisition projects roads into the original world coord
   assert.ok(chunkGraph.nodes.length > 0);
   assert.ok(chunkGraph.nodes.some(node => node.x > 700));
   assert.ok(chunkGraph.nodes.every(node => node.chunkIds.includes('1:0')));
+});
+
+
+test('runtime chunk indexes stay out of save JSON while preserving constant-time membership updates', () => {
+  const state = createRoadChunkState({ initialLoadedChunkIds: ['0:0'] });
+  assert.equal(roadChunkHas(state, 'loaded', '0:0'), true);
+  assert.equal(roadChunkAdd(state, 'loaded', '1:0'), true);
+  assert.equal(roadChunkAdd(state, 'loaded', '1:0'), false);
+  assert.equal(roadChunkHas(state, 'loaded', '1:0'), true);
+  assert.equal(roadChunkDelete(state, 'loaded', '0:0'), true);
+  assert.equal(roadChunkHas(state, 'loaded', '0:0'), false);
+  const serialized = JSON.stringify(state);
+  assert.doesNotMatch(serialized, /RuntimeIndex|loadedSet|Symbol/);
+  assert.deepEqual(JSON.parse(serialized).loaded, ['1:0']);
 });

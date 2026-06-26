@@ -170,7 +170,7 @@ test('old road coverage is marked for reacquisition after the completeness speci
   };
   const chunks = ensureRoadChunkState(state.world);
   assert.equal(chunks.version, 4);
-  assert.equal(chunks.acquisitionSpecVersion, 3);
+  assert.equal(chunks.acquisitionSpecVersion, 4);
   assert.deepEqual(new Set(chunks.refresh), new Set(['0:0', '1:0']));
   assert.deepEqual(chunks.empty, []);
   assert.deepEqual(chunks.cached, []);

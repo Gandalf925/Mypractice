@@ -3,6 +3,7 @@ import { buildRoadGraphFromSegments, attachGraphIndexes } from './road-graph.js'
 import { finalizeRoadGraph } from './graph-cleanup.js';
 import { ROAD_CONFIG } from '../core/constants.js';
 import { chunkBounds, parseChunkId } from './world-chunk-grid.js';
+import { repairRoadGraphTopology } from './road-topology-repair.js';
 
 function acquisitionReport({ mode, diagnostics, graph, queryRadiusMeters, retention, timings = null }) {
   return Object.freeze({
@@ -105,6 +106,7 @@ export class RoadService {
       minimumNodes,
       minimumEdges
     });
+    repairRoadGraphTopology(graph);
     const graphMs = duration(this.clock, graphStartedAt);
     const report = acquisitionReport({
       mode,
@@ -233,7 +235,7 @@ export class RoadService {
     });
     if (rawSegments.length === 0) {
       const graph = attachGraphIndexes({
-        nodes: [], edges: [], center: worldCenter, source: 'osm-chunk', roadSpecVersion: 3, chunkId
+        nodes: [], edges: [], center: worldCenter, source: 'osm-chunk', roadSpecVersion: 4, chunkId
       });
       const report = acquisitionReport({
         mode: 'chunk', diagnostics, graph, queryRadiusMeters: radiusMeters,
@@ -246,8 +248,9 @@ export class RoadService {
       minimumNodes: 0,
       minimumEdges: 0
     });
+    repairRoadGraphTopology(graph);
     graph.source = 'osm-chunk';
-    graph.roadSpecVersion = 3;
+    graph.roadSpecVersion = 4;
     graph.chunkId = chunkId;
     for (const node of graph.nodes) node.chunkIds = [chunkId];
     for (const edge of graph.edges) edge.chunkIds = [chunkId];

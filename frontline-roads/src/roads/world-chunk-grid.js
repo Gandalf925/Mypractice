@@ -2,7 +2,75 @@ import { ROAD_CONFIG } from '../core/constants.js';
 import { latLonToXY, xyToLatLon } from '../location/location-privacy.js';
 
 export const ROAD_CHUNK_VERSION = 4;
-export const ROAD_ACQUISITION_SPEC_VERSION = 3;
+export const ROAD_ACQUISITION_SPEC_VERSION = 4;
+
+const ROAD_CHUNK_RUNTIME_INDEX = Symbol('roadChunkRuntimeIndex');
+const ROAD_CHUNK_LIST_KEYS = ['loaded', 'empty', 'cached', 'integrated', 'refresh', 'playerObserved', 'surveyed'];
+
+function runtimeIndexContainer(chunks) {
+  if (!chunks || typeof chunks !== 'object') return null;
+  let container = chunks[ROAD_CHUNK_RUNTIME_INDEX];
+  if (!container) {
+    container = Object.create(null);
+    Object.defineProperty(chunks, ROAD_CHUNK_RUNTIME_INDEX, {
+      value: container,
+      enumerable: false,
+      configurable: true
+    });
+  }
+  return container;
+}
+
+export function roadChunkSet(chunks, key) {
+  const values = Array.isArray(chunks?.[key]) ? chunks[key] : [];
+  const container = runtimeIndexContainer(chunks);
+  if (!container) return new Set(values.map(String));
+  const entry = container[key];
+  if (!entry || entry.values !== values || entry.length !== values.length) {
+    container[key] = { values, length: values.length, set: new Set(values.map(String)) };
+  }
+  return container[key].set;
+}
+
+export function roadChunkHas(chunks, key, id) {
+  return roadChunkSet(chunks, key).has(String(id));
+}
+
+export function roadChunkAdd(chunks, key, id) {
+  if (!chunks || !ROAD_CHUNK_LIST_KEYS.includes(key)) return false;
+  if (!Array.isArray(chunks[key])) chunks[key] = [];
+  const normalized = String(id);
+  const set = roadChunkSet(chunks, key);
+  if (set.has(normalized)) return false;
+  chunks[key].push(normalized);
+  set.add(normalized);
+  const container = runtimeIndexContainer(chunks);
+  if (container?.[key]) container[key].length = chunks[key].length;
+  return true;
+}
+
+export function roadChunkDelete(chunks, key, id) {
+  if (!chunks || !Array.isArray(chunks[key])) return false;
+  const normalized = String(id);
+  const set = roadChunkSet(chunks, key);
+  if (!set.has(normalized)) return false;
+  chunks[key] = chunks[key].filter(value => String(value) !== normalized);
+  const container = runtimeIndexContainer(chunks);
+  if (container) delete container[key];
+  return true;
+}
+
+export function roadChunkState(world) {
+  const current = world?.roadChunks;
+  if (!current
+    || current.version !== ROAD_CHUNK_VERSION
+    || current.acquisitionSpecVersion !== ROAD_ACQUISITION_SPEC_VERSION
+    || !Array.isArray(current.loaded)) {
+    return ensureRoadChunkState(world);
+  }
+  for (const key of ROAD_CHUNK_LIST_KEYS) roadChunkSet(current, key);
+  return current;
+}
 
 export function chunkId(x, y) {
   return `${x}:${y}`;
@@ -126,7 +194,7 @@ export function createRoadChunkState({
   const integrated = uniqueChunkIds([...initialIntegratedChunkIds, ...loaded]);
   const refresh = uniqueChunkIds(initialRefreshChunkIds).filter(id => integrated.includes(id));
   const observed = uniqueChunkIds(initialObservedChunkIds).filter(id => loaded.includes(id));
-  return {
+  const state = {
     version: ROAD_CHUNK_VERSION,
     acquisitionSpecVersion: ROAD_ACQUISITION_SPEC_VERSION,
     sizeMeters: ROAD_CONFIG.chunkSizeMeters,
@@ -141,6 +209,8 @@ export function createRoadChunkState({
     lastAcquisition: null,
     updatedAt: Date.now()
   };
+  for (const key of ROAD_CHUNK_LIST_KEYS) roadChunkSet(state, key);
+  return state;
 }
 
 function migrateLegacyRoadChunkState(world, legacy) {
@@ -156,7 +226,7 @@ function migrateLegacyRoadChunkState(world, legacy) {
   const known = new Set(loaded);
   const playerObserved = uniqueChunkIds(Array.isArray(legacy?.playerObserved) ? legacy.playerObserved : [])
     .filter(id => known.has(id));
-  return {
+  const state = {
     version: ROAD_CHUNK_VERSION,
     acquisitionSpecVersion: ROAD_ACQUISITION_SPEC_VERSION,
     sizeMeters: ROAD_CONFIG.chunkSizeMeters,
@@ -171,6 +241,8 @@ function migrateLegacyRoadChunkState(world, legacy) {
     lastAcquisition: null,
     updatedAt: Number(legacy?.updatedAt) || Date.now()
   };
+  for (const key of ROAD_CHUNK_LIST_KEYS) roadChunkSet(state, key);
+  return state;
 }
 
 export function ensureRoadChunkState(world) {
@@ -203,5 +275,6 @@ export function ensureRoadChunkState(world) {
   current.integrated = uniqueChunkIds([...current.integrated, ...graphIds]);
   current.playerObserved = uniqueChunkIds(current.playerObserved).filter(id => current.loaded.includes(id) || current.empty.includes(id));
   current.surveyed = uniqueChunkIds(current.surveyed).filter(id => current.loaded.includes(id));
+  for (const key of ROAD_CHUNK_LIST_KEYS) roadChunkSet(current, key);
   return current;
 }

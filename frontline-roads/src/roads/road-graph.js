@@ -1,6 +1,7 @@
 import { distance, stableId } from '../core/utilities.js';
 import { clusterSegmentEndpoints } from './intersection-clustering.js';
 import { segmentAngle, segmentMidpoint } from './geometry.js';
+import { normalizeRoadElevation, roadElevationKey } from './road-elevation.js';
 
 const GRAPH_SPATIAL_CELL_METERS = 400;
 const MIN_EDGE_METERS = 1.5;
@@ -42,6 +43,7 @@ function createSpatialIndex(graph, nodeById, cellSize = GRAPH_SPATIAL_CELL_METER
     nodeBuckets.get(key).push(node);
   }
   for (const edge of graph.edges) {
+    if (edge.routingDisabled) continue;
     const a = nodeById.get(edge.a);
     const b = nodeById.get(edge.b);
     if (!a || !b) continue;
@@ -132,6 +134,23 @@ export function graphElementsNearPoint(graph, point, radius) {
   });
 }
 
+export function roadGraphBounds(graph) {
+  if (graph?.bounds) return graph.bounds;
+  const nodes = graph?.nodes ?? [];
+  if (!nodes.length) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const node of nodes) {
+    minX = Math.min(minX, node.x);
+    minY = Math.min(minY, node.y);
+    maxX = Math.max(maxX, node.x);
+    maxY = Math.max(maxY, node.y);
+  }
+  return { minX, minY, maxX, maxY };
+}
+
 export function buildRoadGraphFromSegments(segments, center) {
   const clustered = clusterSegmentEndpoints(segments, center);
   const edges = [];
@@ -161,6 +180,11 @@ export function buildRoadGraphFromSegments(segments, center) {
       highway: segment.highway,
       name: segment.name,
       oneway: segment.oneway,
+      layer: segment.layer,
+      bridge: segment.bridge,
+      tunnel: segment.tunnel,
+      elevationKey: roadElevationKey(segment),
+      elevationKnown: true,
       sourceWayIds: [wayId],
       mergedSegmentIds: [...(segment.mergedSegmentIds ?? [segment.id])]
     };
@@ -169,7 +193,7 @@ export function buildRoadGraphFromSegments(segments, center) {
     edges.push(edge);
   }
 
-  return attachGraphIndexes({ nodes: clustered.nodes, edges, center, source: 'osm', roadSpecVersion: 3, topologyRevision: 1 });
+  return attachGraphIndexes({ nodes: clustered.nodes, edges, center, source: 'osm', roadSpecVersion: 4, topologyRevision: 1 });
 }
 
 export function attachGraphIndexes(graph) {
@@ -177,9 +201,20 @@ export function attachGraphIndexes(graph) {
   const nodeById = new Map(graph.nodes.map(node => [node.id, node]));
   const edgeById = new Map();
   const adjacency = new Map(graph.nodes.map(node => [node.id, []]));
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
   for (const node of graph.nodes) {
     node.sourceNodeIds = [...new Set((node.sourceNodeIds ?? []).map(String))];
+    node.elevationKeys = [...new Set((node.elevationKeys ?? []).map(String))];
+    node.elevationKnown = node.elevationKnown !== false;
+    minX = Math.min(minX, node.x);
+    minY = Math.min(minY, node.y);
+    maxX = Math.max(maxX, node.x);
+    maxY = Math.max(maxY, node.y);
   }
+  const descendantEdgeIdsByAncestor = new Map();
   for (const edge of graph.edges) {
     const a = nodeById.get(edge.a);
     const b = nodeById.get(edge.b);
@@ -190,18 +225,28 @@ export function attachGraphIndexes(graph) {
     }
     edge.mergedSegmentIds ??= [edge.id];
     edge.sourceWayIds = [...new Set((edge.sourceWayIds ?? []).map(String))];
+    edge.ancestorEdgeIds = [...new Set((edge.ancestorEdgeIds ?? []).map(String))];
+    normalizeRoadElevation(edge);
     edgeById.set(edge.id, edge);
+    if (edge.routingDisabled) continue;
     adjacency.get(edge.a)?.push({ to: edge.b, edgeId: edge.id, length: edge.length });
     adjacency.get(edge.b)?.push({ to: edge.a, edgeId: edge.id, length: edge.length });
+    for (const ancestorId of edge.ancestorEdgeIds) {
+      if (!descendantEdgeIdsByAncestor.has(ancestorId)) descendantEdgeIdsByAncestor.set(ancestorId, new Set());
+      descendantEdgeIdsByAncestor.get(ancestorId).add(edge.id);
+    }
   }
   const spatialIndex = createSpatialIndex(graph, nodeById);
   const terminalNodes = graph.nodes.filter(node => (adjacency.get(node.id)?.length ?? 0) === 1);
+  const bounds = graph.nodes.length > 0 ? { minX, minY, maxX, maxY } : null;
   Object.defineProperties(graph, {
     nodeById: { value: nodeById, enumerable: false, writable: true, configurable: true },
     edgeById: { value: edgeById, enumerable: false, writable: true, configurable: true },
     adjacency: { value: adjacency, enumerable: false, writable: true, configurable: true },
     spatialIndex: { value: spatialIndex, enumerable: false, writable: true, configurable: true },
-    terminalNodes: { value: terminalNodes, enumerable: false, writable: true, configurable: true }
+    terminalNodes: { value: terminalNodes, enumerable: false, writable: true, configurable: true },
+    bounds: { value: bounds, enumerable: false, writable: true, configurable: true },
+    descendantEdgeIdsByAncestor: { value: descendantEdgeIdsByAncestor, enumerable: false, writable: true, configurable: true }
   });
   return graph;
 }

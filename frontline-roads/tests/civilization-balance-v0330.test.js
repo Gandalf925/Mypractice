@@ -22,4 +22,11 @@ test('late civilization balance report covers every level and defense profile', 
   const levelSeven = report.scenarios.find(item => item.profile === 'standard-civ7');
   assert.ok(levelSeven.peakMovingEnemies >= 500);
   assert.ok(levelSeven.averageMovingEnemies >= 300);
+  assert.equal(report.fortificationChecks.length, 3);
+  for (const check of report.fortificationChecks) {
+    assert.equal(check.passed, true);
+    assert.ok(check.fortified.finalDefenses > check.standard.finalDefenses);
+    assert.ok(check.fortified.enemiesKilled >= check.standard.enemiesKilled);
+    assert.ok(check.fortified.averageMovingEnemies < check.standard.averageMovingEnemies);
+  }
 });

@@ -1,6 +1,6 @@
 {
   "release": "0.33.0-civilization-road-federation",
-  "generatedAt": "2026-06-25T23:47:12.443Z",
+  "generatedAt": "2026-06-26T02:42:18.046Z",
   "simulation": {
     "topology": "ten-front radial road network",
     "baseDistanceMeters": 360,
@@ -34,6 +34,7 @@
       "finalFriendlySquads": 3,
       "destroyedFriendlySquads": 3,
       "finalDefenses": 27,
+      "defenseSurvivalRatio": 1,
       "destroyedDefenses": 0,
       "repairEvents": 4,
       "repairedHp": 67,
@@ -51,7 +52,7 @@
       "cityDefeats": 0,
       "minimumCityHp": 200,
       "finalCityHp": 200,
-      "simulationMilliseconds": 1890.3,
+      "simulationMilliseconds": 1924.7,
       "passed": true
     },
     {
@@ -69,6 +70,7 @@
       "finalFriendlySquads": 10,
       "destroyedFriendlySquads": 4,
       "finalDefenses": 37,
+      "defenseSurvivalRatio": 0.804,
       "destroyedDefenses": 9,
       "repairEvents": 55,
       "repairedHp": 1288.6,
@@ -86,7 +88,7 @@
       "cityDefeats": 0,
       "minimumCityHp": 200,
       "finalCityHp": 200,
-      "simulationMilliseconds": 1627.2,
+      "simulationMilliseconds": 1613.7,
       "passed": true
     },
     {
@@ -104,6 +106,7 @@
       "finalFriendlySquads": 13,
       "destroyedFriendlySquads": 7,
       "finalDefenses": 47,
+      "defenseSurvivalRatio": 0.723,
       "destroyedDefenses": 18,
       "repairEvents": 132,
       "repairedHp": 2978.4,
@@ -122,7 +125,7 @@
       "cityDefeats": 0,
       "minimumCityHp": 200,
       "finalCityHp": 200,
-      "simulationMilliseconds": 1363.9,
+      "simulationMilliseconds": 1496.8,
       "passed": true
     },
     {
@@ -140,6 +143,7 @@
       "finalFriendlySquads": 4,
       "destroyedFriendlySquads": 4,
       "finalDefenses": 30,
+      "defenseSurvivalRatio": 0.968,
       "destroyedDefenses": 1,
       "repairEvents": 70,
       "repairedHp": 1975,
@@ -157,7 +161,7 @@
       "cityDefeats": 0,
       "minimumCityHp": 235,
       "finalCityHp": 235,
-      "simulationMilliseconds": 2654.4,
+      "simulationMilliseconds": 2648.6,
       "passed": true
     },
     {
@@ -175,6 +179,7 @@
       "finalFriendlySquads": 18,
       "destroyedFriendlySquads": 0,
       "finalDefenses": 50,
+      "defenseSurvivalRatio": 0.962,
       "destroyedDefenses": 2,
       "repairEvents": 76,
       "repairedHp": 2100.8,
@@ -192,7 +197,7 @@
       "cityDefeats": 0,
       "minimumCityHp": 235,
       "finalCityHp": 235,
-      "simulationMilliseconds": 1708.1,
+      "simulationMilliseconds": 1709.9,
       "passed": true
     },
     {
@@ -210,6 +215,7 @@
       "finalFriendlySquads": 26,
       "destroyedFriendlySquads": 0,
       "finalDefenses": 63,
+      "defenseSurvivalRatio": 0.863,
       "destroyedDefenses": 10,
       "repairEvents": 199,
       "repairedHp": 5636.6,
@@ -229,7 +235,7 @@
       "cityDefeats": 0,
       "minimumCityHp": 235,
       "finalCityHp": 235,
-      "simulationMilliseconds": 1445.3,
+      "simulationMilliseconds": 1469.8,
       "passed": true
     },
     {
@@ -247,6 +253,7 @@
       "finalFriendlySquads": 5,
       "destroyedFriendlySquads": 5,
       "finalDefenses": 35,
+      "defenseSurvivalRatio": 0.946,
       "destroyedDefenses": 2,
       "repairEvents": 49,
       "repairedHp": 1625.4,
@@ -266,7 +273,7 @@
       "cityDefeats": 0,
       "minimumCityHp": 275,
       "finalCityHp": 275,
-      "simulationMilliseconds": 3921.7,
+      "simulationMilliseconds": 4047.6,
       "passed": true
     },
     {
@@ -284,6 +291,7 @@
       "finalFriendlySquads": 19,
       "destroyedFriendlySquads": 3,
       "finalDefenses": 58,
+      "defenseSurvivalRatio": 0.935,
       "destroyedDefenses": 4,
       "repairEvents": 103,
       "repairedHp": 3499.6,
@@ -303,7 +311,7 @@
       "cityDefeats": 0,
       "minimumCityHp": 275,
       "finalCityHp": 275,
-      "simulationMilliseconds": 2793.8,
+      "simulationMilliseconds": 2724.9,
       "passed": true
     },
     {
@@ -321,6 +329,7 @@
       "finalFriendlySquads": 29,
       "destroyedFriendlySquads": 3,
       "finalDefenses": 71,
+      "defenseSurvivalRatio": 0.826,
       "destroyedDefenses": 15,
       "repairEvents": 338,
       "repairedHp": 12461,
@@ -339,7 +348,57 @@
       "cityDefeats": 0,
       "minimumCityHp": 275,
       "finalCityHp": 275,
-      "simulationMilliseconds": 2236,
+      "simulationMilliseconds": 2308.7,
+      "passed": true
+    }
+  ],
+  "fortificationChecks": [
+    {
+      "level": 5,
+      "standard": {
+        "finalDefenses": 37,
+        "defenseSurvivalRatio": 0.804,
+        "enemiesKilled": 172,
+        "averageMovingEnemies": 230.9
+      },
+      "fortified": {
+        "finalDefenses": 47,
+        "defenseSurvivalRatio": 0.723,
+        "enemiesKilled": 217,
+        "averageMovingEnemies": 188.9
+      },
+      "passed": true
+    },
+    {
+      "level": 6,
+      "standard": {
+        "finalDefenses": 50,
+        "defenseSurvivalRatio": 0.962,
+        "enemiesKilled": 354,
+        "averageMovingEnemies": 261.1
+      },
+      "fortified": {
+        "finalDefenses": 63,
+        "defenseSurvivalRatio": 0.863,
+        "enemiesKilled": 439,
+        "averageMovingEnemies": 203.1
+      },
+      "passed": true
+    },
+    {
+      "level": 7,
+      "standard": {
+        "finalDefenses": 58,
+        "defenseSurvivalRatio": 0.935,
+        "enemiesKilled": 450,
+        "averageMovingEnemies": 361.5
+      },
+      "fortified": {
+        "finalDefenses": 71,
+        "defenseSurvivalRatio": 0.826,
+        "enemiesKilled": 540,
+        "averageMovingEnemies": 304.8
+      },
       "passed": true
     }
   ],
@@ -348,7 +407,7 @@
     "Civilization levels 5 through 7 sustain progressively denser moving fronts rather than relying only on enemy health inflation.",
     "Underbuilt profiles must reach an actual defeat or a measurable overrun state within five minutes.",
     "Standard profiles must survive while still losing facilities and requiring repair decisions.",
-    "Fortified profiles must reduce losses without clearing the moving enemy population from the map."
+    "A fortified network must retain more surviving facilities, kill at least as many enemies and reduce average moving pressure. Absolute destroyed-facility count can rise because the larger network exposes more targets."
   ],
   "limits": [
     "The deterministic simulation does not reproduce touch mistakes, GPS movement, player attention, network delay or Android GPU behavior.",

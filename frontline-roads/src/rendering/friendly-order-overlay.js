@@ -1,5 +1,5 @@
 import { friendlySquadPosition } from '../combat/friendly-force-system.js';
-import { FRIENDLY_ORDER_MODE, validateRetreatDestination } from '../combat/friendly-route-planner.js';
+import { FRIENDLY_ORDER_MODE, deploymentRouteSubject, validateRetreatDestination } from '../combat/friendly-route-planner.js';
 import { graphElementsInBounds } from '../roads/road-graph.js';
 
 function visible(point, camera, margin = 20) {
@@ -62,9 +62,11 @@ function drawNode(context, camera, node, style, label = '') {
 }
 
 export function drawFriendlyOrderPlanning(context, state, camera, planning, timeMs = 0) {
-  if (!planning?.squadId) return;
-  const squad = (state.combat.friendlySquads ?? []).find(item => item.id === planning.squadId && item.hp > 0);
-  if (!squad) return;
+  if (!planning) return;
+  const squad = planning.mode === FRIENDLY_ORDER_MODE.DEPLOYMENT
+    ? deploymentRouteSubject(planning.squadType, planning.originNodeId)
+    : (state.combat.friendlySquads ?? []).find(item => item.id === planning.squadId && item.hp > 0);
+  if (!squad || !state.world.roadGraph.nodeById.has(squad.nodeId)) return;
 
   context.save();
   context.globalCompositeOperation = 'source-over';
@@ -78,8 +80,10 @@ export function drawFriendlyOrderPlanning(context, state, camera, planning, time
     ? graphElementsInBounds(state.world.roadGraph, worldBounds).nodes
     : state.world.roadGraph.nodes ?? [];
   const choosingRetreatDestination = planning.mode === FRIENDLY_ORDER_MODE.RETREAT && !planning.destinationNodeId;
+  const choosingDeploymentRoute = planning.mode === FRIENDLY_ORDER_MODE.DEPLOYMENT;
   for (const node of visibleNodes) {
     if (choosingRetreatDestination && !validateRetreatDestination(state, squad, node.id).ok) continue;
+    if (choosingDeploymentRoute && (node.id === planning.originNodeId || node.id === planning.destinationNodeId)) continue;
     const point = camera.worldToScreen(node);
     if (!visible(point, camera, 8)) continue;
     context.fillStyle = 'rgba(105,220,255,.45)';

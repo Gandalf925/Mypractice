@@ -43,11 +43,17 @@ class MinHeap {
 }
 
 
+function barrierRoutingEdgeIds(state, edgeId) {
+  if (!edgeId) return [];
+  const descendants = state.world?.roadGraph?.descendantEdgeIdsByAncestor?.get(edgeId);
+  return descendants?.size ? [...descendants] : [edgeId];
+}
+
 export function activeFriendlyBarrierEdgeIds(state) {
   const blocked = new Set();
   for (const defense of state.combat?.defenses ?? []) {
     if (defense.kind !== 'barrier' || defense.hp <= 0 || defense.isGate) continue;
-    if (defense.edgeId) blocked.add(defense.edgeId);
+    for (const edgeId of barrierRoutingEdgeIds(state, defense.edgeId)) blocked.add(edgeId);
   }
   return blocked;
 }
@@ -57,8 +63,9 @@ function defenseMaps(state) {
   const towers = [];
   for (const defense of state.combat.defenses) {
     if (defense.hp <= 0) continue;
-    if (defense.kind === 'barrier') barriers.set(defense.edgeId, defense);
-    else towers.push(defense);
+    if (defense.kind === 'barrier') {
+      for (const edgeId of barrierRoutingEdgeIds(state, defense.edgeId)) barriers.set(edgeId, defense);
+    } else towers.push(defense);
   }
   return { barriers, towers };
 }

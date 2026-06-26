@@ -24,6 +24,17 @@ function formatDuration(seconds) {
 
 function limitText(value) { return Number.isFinite(value) ? String(value) : '無制限'; }
 
+const PROJECT_STATUS_LABELS = Object.freeze({
+  AVAILABLE: '準備中', CONTRIBUTING: '納入中', READY: '建設開始可能', BUILDING: '建設中', PAUSED: '一時停止'
+});
+
+function projectStatusLabel(status) { return PROJECT_STATUS_LABELS[status] ?? '準備中'; }
+
+function checkProgressText(check) {
+  if (check.key === 'cityHpStreak') return `${formatDuration(check.current)}/${formatDuration(check.required)}`;
+  return `${Math.floor(check.current)}/${Math.floor(check.required)}`;
+}
+
 
 const DEFENSE_LINE_LABELS = Object.freeze({
   barrier: '防壁', single: '単体攻撃', area: '範囲攻撃', slow: '減速支援', repair: '自動修復',
@@ -75,6 +86,44 @@ function checkLabel(check) {
     machineWorksCaptured: '機械工廠制圧'
   };
   return RESOURCE_LABELS[check.key] ?? SETTLEMENT_BUILDINGS[check.key]?.name ?? labels[check.key] ?? check.key;
+}
+
+const DEFENSE_BUILDING_CHECKS = new Set([
+  'barrier0', 'single0', 'otherDefense0', 'upgradedDefenses', 'upgradedDefenseKinds',
+  'barrier2', 'gate2', 'gate3', 'bronzeDefenses', 'bronzeDefenseKinds', 'wallAtLeast2',
+  'ironDefenses', 'ironDefenseKinds', 'gate4', 'steelDefenses', 'steelDefenseKinds', 'gate5',
+  'mechanismDefenses', 'mechanismDefenseKinds', 'gate6'
+]);
+
+export function projectCheckGuidance(check, state) {
+  if (!check || check.complete) return '';
+  if (check.kind === 'artifact') return '敵拠点を破壊し、残された回収物を現地回収するか回収部隊で拠点へ持ち帰ります。';
+  if (check.kind === 'building') {
+    if (SETTLEMENT_BUILDINGS[check.key]) return '「文明」画面の集落施設から建設します。枠が不足している場合は不要施設を解体できます。';
+    if (DEFENSE_BUILDING_CHECKS.has(check.key)) return 'MAPで対象設備を建設し、既設設備を選択して必要なTierまで強化します。門は防壁を選択して変換します。';
+    return 'MAPまたは「文明」画面から必要な施設を建設します。';
+  }
+  const guidance = {
+    totalKills: '防衛戦または派兵で敵部隊を撃破します。',
+    totalCampsCaptured: '敵拠点を選択して部隊を派兵し、拠点HPを0にします。',
+    totalRepairHpPaid: '損傷した防衛設備を選択し、資源を使って手動修理します。',
+    totalProduced: '対応する集落施設を建設し、生産予約を実行します。',
+    selfProducedBronze: '銅炉・錫炉・試験青銅炉または青銅工房を使い、自分の施設で青銅を生産します。',
+    selfProducedWroughtIron: '塊鉄炉で鉄塊を作り、鍛冶場で鍛鉄へ加工します。',
+    selfProducedSteel: '製鋼炉で鍛鉄と木炭から鋼材を生産します。敵拠点の報酬だけでは加算されません。',
+    selfProducedMechanism: '機構工房で鋼材・加工木材・縄から機構部品を生産します。敵拠点の報酬だけでは加算されません。',
+    perfectWaveStreak: '敵を都市へ到達させずに通常ウェーブを全滅させると1回加算されます。突破されると連続数は0へ戻ります。',
+    activeFieldBases: 'BASESから道路上へ簡易拠点を設置します。既存拠点と建設圏が重ならない地点を選びます。',
+    copperCampsCaptured: '「Cu」と表示される銅鉱野営地を破壊します。',
+    tinCampsCaptured: '「Sn」と表示される錫鉱野営地を破壊します。',
+    ironCampsCaptured: '「Fe」と表示される鉄鉱野営地を破壊します。',
+    siegeCaptainsDefeated: '青銅期以降の攻城部隊に現れる攻城隊長を撃破します。',
+    generation5CommandersDefeated: '鋼鉄世代のウェーブに現れる鋼鉄隊長を撃破します。',
+    generation6CommandersDefeated: '機械世代のウェーブに現れる戦列指揮官を撃破します。',
+    machineWorksCaptured: '「Mc」と表示される機械工廠を破壊します。',
+    cityHpStreak: `都市HPを${Math.floor(Number(check.threshold) || 70)}以上に保ちます。下回ると維持時間は0から再計測されます。`
+  };
+  return guidance[check.key] ?? '条件に対応する戦闘・建設・生産を進めます。';
 }
 
 export class CivilizationUi {
@@ -194,12 +243,13 @@ export class CivilizationUi {
       }).join('');
       const conditions = evaluation.checks.filter(check => check.kind !== 'resource').map(check => {
         const fieldDiagnostic = check.key === 'activeFieldBases' ? diagnoseFieldBaseNetwork(state, check.required) : null;
-        return `<div class="conditionRow ${check.complete ? 'complete' : ''}"><span>${check.complete ? '✓' : '○'} ${checkLabel(check)}${fieldDiagnostic ? `<small>${fieldDiagnostic.guidance}</small>` : ''}</span><strong>${Math.floor(check.current)}/${Math.floor(check.required)}</strong></div>`;
+        const guidance = fieldDiagnostic?.guidance ?? projectCheckGuidance(check, state);
+        return `<div class="conditionRow ${check.complete ? 'complete' : ''}"><span>${check.complete ? '✓' : '○'} ${checkLabel(check)}${guidance ? `<small>${guidance}</small>` : ''}</span><strong>${checkProgressText(check)}</strong></div>`;
       }).join('');
       const remaining = Math.max(0, project.durationSec - (project.progressedSec ?? 0));
       projectHtml = `
         <h3>${CIVILIZATIONS[project.targetLevel].name}への発展</h3>
-        <p class="sectionNote">状態：${project.status}${project.status === 'BUILDING' ? `・残り ${formatDuration(remaining)}` : ''}</p>
+        <p class="sectionNote">状態：${projectStatusLabel(project.status)}${project.status === 'BUILDING' ? `・残り ${formatDuration(remaining)}` : ''}</p>
         <div class="requirementList">${contributions}${conditions}</div>
         <div class="buttonRow">
           <button data-action="withdraw" ${['BUILDING','PAUSED'].includes(project.status) ? 'disabled' : ''}>納入を戻す</button>

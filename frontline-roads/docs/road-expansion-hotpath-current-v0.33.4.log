@@ -1,0 +1,70 @@
+
+> frontline-roads-refactor@0.33.4 benchmark:road-expansion
+> node tools/benchmark-road-expansion-hotpath-v0334.mjs
+
+{
+  "benchmark": "road-expansion-hotpath-v0.33.4",
+  "environment": {
+    "runtime": "v22.16.0",
+    "platform": "linux",
+    "architecture": "x64"
+  },
+  "locationUpdates": [
+    {
+      "nodes": 2000,
+      "iterations": 500,
+      "roundsMs": [
+        0.0911,
+        0.0742,
+        0.0452,
+        0.0402
+      ],
+      "medianPerUpdateMs": 0.0597
+    },
+    {
+      "nodes": 5000,
+      "iterations": 500,
+      "roundsMs": [
+        0.0522,
+        0.0375,
+        0.0377,
+        0.0356
+      ],
+      "medianPerUpdateMs": 0.0376
+    },
+    {
+      "nodes": 10000,
+      "iterations": 500,
+      "roundsMs": [
+        0.0384,
+        0.0796,
+        0.0364,
+        0.0395
+      ],
+      "medianPerUpdateMs": 0.0389
+    }
+  ],
+  "cachedRestore": {
+    "graphNodes": 3000,
+    "cachedChunks": 12,
+    "rounds": [
+      {
+        "ms": 127.845,
+        "restored": 12
+      },
+      {
+        "ms": 104.678,
+        "restored": 12
+      },
+      {
+        "ms": 97.014,
+        "restored": 12
+      },
+      {
+        "ms": 114.821,
+        "restored": 12
+      }
+    ],
+    "medianMs": 109.75
+  }
+}

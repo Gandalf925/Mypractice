@@ -13,6 +13,7 @@ export class BasePlacementService {
   findNearestRoad(worldPoint, maxDistanceMeters = Infinity) {
     let best = null;
     for (const edge of this.graph.edges) {
+      if (edge.routingDisabled) continue;
       const a = this.graph.nodeById.get(edge.a);
       const b = this.graph.nodeById.get(edge.b);
       if (!a || !b) continue;

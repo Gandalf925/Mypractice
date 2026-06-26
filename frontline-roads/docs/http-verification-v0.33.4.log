@@ -1,0 +1,10 @@
+HTTP verification v0.33.4
+200 330 /
+200 332 /fr/
+200 17438 /frontline-roads/
+200 6828 /frontline-roads/sw.js
+200 35341 /frontline-roads/src/app/bootstrap.js
+200 13956 /frontline-roads/src/roads/road-topology-repair.js
+200 803 /frontline-roads/src/roads/road-elevation.js
+Browser DOM smoke test skipped because the headless browser remained in the location-acquisition boot flow; HTTP asset checks passed.
+PASS

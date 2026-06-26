@@ -1,5 +1,6 @@
 import { stableId } from '../core/utilities.js';
 import { xyToLatLon } from '../location/location-privacy.js';
+import { roadElevationKey, sameRoadElevation } from './road-elevation.js';
 
 class DisjointSet {
   constructor(size) {
@@ -20,17 +21,14 @@ class DisjointSet {
   }
 }
 
-function sameElevationModel(first, second) {
-  return first.segment.layer === second.segment.layer
-    && first.segment.bridge === second.segment.bridge
-    && first.segment.tunnel === second.segment.tunnel;
-}
-
 function canConnect(first, second) {
-  if (!sameElevationModel(first, second)) return false;
   const firstId = first.sourceNodeId;
   const secondId = second.sourceNodeId;
+  // A shared OSM node is authoritative. Bridge and tunnel tags commonly begin or
+  // end at that same node, so requiring identical elevation tags here severs the
+  // real road at every portal. Coordinate-only fallback remains elevation-safe.
   if (firstId && secondId) return firstId === secondId;
+  if (!sameRoadElevation(first.segment, second.segment)) return false;
   return Math.hypot(first.x - second.x, first.y - second.y) <= 1.5;
 }
 
@@ -92,7 +90,8 @@ export function clusterSegmentEndpoints(segments, center) {
     let sequence = 1;
     while (usedIds.has(id)) id = `${nodeIdForGroup(group)}_${sequence++}`;
     usedIds.add(id);
-    const node = { id, x, y, lat: location.lat, lon: location.lon, sourceNodeIds };
+    const elevationKeys = [...new Set(group.map(point => roadElevationKey(point.segment)))].sort();
+    const node = { id, x, y, lat: location.lat, lon: location.lon, sourceNodeIds, elevationKeys, elevationKnown: true };
     nodes.push(node);
     nodeByRoot.set(root, node);
   }

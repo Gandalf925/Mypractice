@@ -14,8 +14,10 @@ import { recoveryPresentation } from '../combat/friendly-recovery-system.js';
 import { medicalCoverageForSquad } from '../combat/friendly-healing-system.js';
 import {
   FRIENDLY_ORDER_MODE,
+  buildDeploymentRouteOptions,
   buildFriendlyRouteOptions,
   commandStartNodeId,
+  deploymentRouteSubject,
   friendlyRouteIndexAtPoint,
   nearestRoadNode,
   orderDestinationNodeId,
@@ -68,7 +70,12 @@ export class CombatUi {
   }
 
   clearObjectSelection({ hideContext = true } = {}) {
-    if (this.orderPlanning) { this.orderPlanning = null; this.renderer.setFriendlyOrderPlanning(null); }
+    if (this.orderPlanning) {
+      const cancelled = this.orderPlanning;
+      this.orderPlanning = null;
+      this.renderer.setFriendlyOrderPlanning(null);
+      cancelled.onCancel?.();
+    }
     this.selectedObject = null;
     this.pendingDefenseRemovalId = null;
     this.defensePanelMode = 'summary';
@@ -237,7 +244,9 @@ export class CombatUi {
 
   updateOrderPlanningOverlay() {
     this.renderer.setFriendlyOrderPlanning(this.orderPlanning ? {
-      squadId: this.orderPlanning.squadId,
+      squadId: this.orderPlanning.squadId ?? null,
+      originNodeId: this.orderPlanning.originNodeId ?? null,
+      squadType: this.orderPlanning.squadType ?? null,
       mode: this.orderPlanning.mode,
       destinationNodeId: this.orderPlanning.destinationNodeId,
       waypointNodeIds: [...this.orderPlanning.waypointNodeIds],
@@ -246,19 +255,67 @@ export class CombatUi {
     } : null);
   }
 
+  planningSubject(state = this.store.snapshot()) {
+    if (!this.orderPlanning) return null;
+    if (this.orderPlanning.mode === FRIENDLY_ORDER_MODE.DEPLOYMENT) {
+      const originNodeId = this.orderPlanning.originNodeId;
+      return state.world.roadGraph.nodeById.has(originNodeId)
+        ? deploymentRouteSubject(this.orderPlanning.squadType, originNodeId)
+        : null;
+    }
+    return (state.combat.friendlySquads ?? []).find(item => item.id === this.orderPlanning.squadId && item.hp > 0) ?? null;
+  }
+
   rebuildOrderRoutes(state = this.store.snapshot()) {
     if (!this.orderPlanning) return;
-    const squad = (state.combat.friendlySquads ?? []).find(item => item.id === this.orderPlanning.squadId && item.hp > 0);
-    if (!squad) { this.cancelOrderPlanning(); return; }
-    this.orderPlanning.startNodeId = commandStartNodeId(state, squad);
+    const subject = this.planningSubject(state);
+    if (!subject) { this.cancelOrderPlanning(); return; }
+    const deployment = this.orderPlanning.mode === FRIENDLY_ORDER_MODE.DEPLOYMENT;
+    this.orderPlanning.startNodeId = deployment
+      ? this.orderPlanning.originNodeId
+      : commandStartNodeId(state, subject);
     this.orderPlanning.routes = this.orderPlanning.destinationNodeId
-      ? buildFriendlyRouteOptions(state, squad, this.orderPlanning.destinationNodeId, this.orderPlanning.waypointNodeIds)
+      ? deployment
+        ? buildDeploymentRouteOptions(state, this.orderPlanning.squadType, this.orderPlanning.originNodeId, this.orderPlanning.destinationNodeId, this.orderPlanning.waypointNodeIds)
+        : buildFriendlyRouteOptions(state, subject, this.orderPlanning.destinationNodeId, this.orderPlanning.waypointNodeIds)
       : [];
     this.orderPlanning.selectedRouteIndex = Math.min(
       this.orderPlanning.selectedRouteIndex,
       Math.max(0, this.orderPlanning.routes.length - 1)
     );
     this.updateOrderPlanningOverlay();
+  }
+
+  beginDeploymentRoutePlanning({ originNodeId, squadType, destinationNodeId, targetLabel = '敵拠点', onConfirm = null, onCancel = null }) {
+    const state = this.store.snapshot();
+    if (!state.world.roadGraph.nodeById.has(originNodeId) || !state.world.roadGraph.nodeById.has(destinationNodeId)) {
+      this.notifications.show('派兵経路の始点または目的地が道路上にありません。');
+      return false;
+    }
+    this.selectedTool = 'select';
+    this.buildCandidate = null;
+    this.buildSites = [];
+    this.selectedObject = null;
+    this.renderer.setBuildPlacement(null);
+    this.renderer.setFocus(null);
+    this.renderTools();
+    this.orderPlanning = {
+      mode: FRIENDLY_ORDER_MODE.DEPLOYMENT,
+      squadId: null,
+      originNodeId,
+      squadType,
+      destinationNodeId,
+      targetLabel,
+      waypointNodeIds: [],
+      routes: [],
+      selectedRouteIndex: 0,
+      onConfirm,
+      onCancel
+    };
+    this.rebuildOrderRoutes(state);
+    this.renderContext(state);
+    this.notifications.show('派兵経路を選択してください。MAP上で最大2か所の経由地点を追加できます。');
+    return true;
   }
 
   beginOrderPlanning(mode) {
@@ -292,7 +349,7 @@ export class CombatUi {
 
   handleOrderPlanningTap(worldPoint) {
     const state = this.store.snapshot();
-    const squad = this.selectedFriendlySquad(state);
+    const squad = this.planningSubject(state);
     if (!this.orderPlanning || !squad) return;
     if (this.orderPlanning.destinationNodeId && this.orderPlanning.routes.length) {
       const routeIndex = friendlyRouteIndexAtPoint(state, squad, this.orderPlanning.routes, worldPoint, 12 / this.camera.scale);
@@ -315,7 +372,10 @@ export class CombatUi {
       this.renderContext();
       return;
     }
-    if (nodeId === this.orderPlanning.destinationNodeId || nodeId === commandStartNodeId(state, squad)) {
+    const startNodeId = this.orderPlanning.mode === FRIENDLY_ORDER_MODE.DEPLOYMENT
+      ? this.orderPlanning.originNodeId
+      : commandStartNodeId(state, squad);
+    if (nodeId === this.orderPlanning.destinationNodeId || nodeId === startNodeId) {
       this.notifications.show('目的地または現在の進路先とは別の交差点を選択してください。');
       return;
     }
@@ -334,8 +394,10 @@ export class CombatUi {
   }
 
   cancelOrderPlanning() {
+    const cancelled = this.orderPlanning;
     this.orderPlanning = null;
     this.updateOrderPlanningOverlay();
+    cancelled?.onCancel?.();
     this.renderContext();
   }
 
@@ -371,6 +433,18 @@ export class CombatUi {
     this.orderPlanning.selectedRouteIndex = Math.min(priorIndex, Math.max(0, this.orderPlanning.routes.length - 1));
     const route = this.orderPlanning.routes[this.orderPlanning.selectedRouteIndex];
     if (!route) { this.notifications.show('実行可能な道路経路がありません。'); return; }
+    if (this.orderPlanning.mode === FRIENDLY_ORDER_MODE.DEPLOYMENT) {
+      const completed = this.orderPlanning;
+      this.orderPlanning = null;
+      this.updateOrderPlanningOverlay();
+      completed.onConfirm?.({
+        route: { ...route, path: { ...route.path, nodeIds: [...route.path.nodeIds], edgeIds: [...route.path.edgeIds] } },
+        waypointNodeIds: [...completed.waypointNodeIds]
+      });
+      this.notifications.show(`${route.label}ルートを派兵計画へ設定しました。`);
+      this.renderContext();
+      return;
+    }
     const currentState = this.store.snapshot();
     const currentSquad = (currentState.combat.friendlySquads ?? []).find(item => item.id === this.orderPlanning.squadId);
     const order = this.orderPlanning.mode === FRIENDLY_ORDER_MODE.RETREAT
@@ -410,13 +484,13 @@ export class CombatUi {
     this.context.classList?.add('is-order-mode');
     const plan = this.orderPlanning;
     const selectedRoute = plan.routes[plan.selectedRouteIndex] ?? null;
-    const modeLabel = plan.mode === FRIENDLY_ORDER_MODE.RETREAT ? '後退' : plan.mode === FRIENDLY_ORDER_MODE.WITHDRAW ? '撤退' : '進軍再開';
+    const modeLabel = plan.mode === FRIENDLY_ORDER_MODE.DEPLOYMENT ? '派兵' : plan.mode === FRIENDLY_ORDER_MODE.RETREAT ? '後退' : plan.mode === FRIENDLY_ORDER_MODE.WITHDRAW ? '撤退' : '進軍再開';
     const instruction = !plan.destinationNodeId
       ? 'MAP上で後退先の交差点を選択してください。敵基地へ近づく地点は後退先にできません。'
       : selectedRoute
         ? `${modeLabel}ルートを確認してください。MAPタップで最大2か所の経由地点を追加できます。`
         : '選択地点へ到達できる道路経路がありません。目的地または経由地点を変更してください。';
-    this.contextTitle.textContent = `ALLY ORDER // ${modeLabel}`;
+    this.contextTitle.textContent = plan.mode === FRIENDLY_ORDER_MODE.DEPLOYMENT ? `DEPLOY ROUTE // ${plan.targetLabel ?? '目標'}` : `ALLY ORDER // ${modeLabel}`;
     this.setContextContent(instruction, [
       ['ROUTES', String(plan.routes.length)],
       ['SELECT', selectedRoute?.label ?? 'NONE'],
@@ -427,7 +501,9 @@ export class CombatUi {
       ['VIA', `${plan.waypointNodeIds.length}/2`]
     ], [
       plan.mode === FRIENDLY_ORDER_MODE.WITHDRAW ? '撤退を確定すると現在の攻撃任務は破棄され、再開できません。' : '未発見の敵は危険度計算に含まれません。',
-      squad.edgeId && squad.edgeProgress > 0 ? '道路途中では現在の区間を次の交差点まで進んでから選択ルートへ入ります。' : '命令確定後、選択ルートへ直ちに移行します。'
+      plan.mode === FRIENDLY_ORDER_MODE.DEPLOYMENT
+        ? '派兵確定後、部隊は表示中の最初の道路区間から選択経路を進みます。'
+        : squad.edgeId && squad.edgeProgress > 0 ? '道路途中では現在の区間を次の交差点まで進んでから選択ルートへ入ります。' : '命令確定後、選択ルートへ直ちに移行します。'
     ]);
     plan.routes.forEach((route, index) => this.action(
       `${index + 1}. ${route.label}${index === plan.selectedRouteIndex ? ' ✓' : ''}`,
@@ -774,18 +850,18 @@ export class CombatUi {
       return;
     }
     this.context.classList?.remove('is-build-mode', 'has-candidate', 'is-order-mode', 'is-defense-mode', 'is-defense-summary', 'is-defense-details', 'is-defense-upgrade', 'is-target-mode');
-    if (!this.selectedObject) {
-      setVisible(this.context, false);
-      return;
-    }
     this.contextActions.textContent = '';
-    const selected = this.selectedObject;
     if (this.orderPlanning) {
-      const squad = this.selectedFriendlySquad(state);
+      const squad = this.planningSubject(state);
       if (!squad) { this.cancelOrderPlanning(); return; }
       this.renderOrderPlanningContext(state, squad);
       return;
     }
+    if (!this.selectedObject) {
+      setVisible(this.context, false);
+      return;
+    }
+    const selected = this.selectedObject;
     if (selected.kind === 'recoveryItem') {
       const item = (state.world.recoveryItems ?? []).find(value => value.id === selected.id && value.status === 'AVAILABLE');
       if (!item) { this.clearObjectSelection(); return; }
@@ -1107,9 +1183,13 @@ export class CombatUi {
     if (affordability !== this.toolAffordabilitySignature) this.renderTools(state);
     if (this.selectedTool !== 'select') this.refreshBuildPlacement(false, state);
     if (this.orderPlanning) {
-      const squad = this.selectedFriendlySquad(state);
-      const startNodeId = squad ? commandStartNodeId(state, squad) : null;
-      if (!squad) this.cancelOrderPlanning();
+      const subject = this.planningSubject(state);
+      const startNodeId = subject
+        ? this.orderPlanning.mode === FRIENDLY_ORDER_MODE.DEPLOYMENT
+          ? this.orderPlanning.originNodeId
+          : commandStartNodeId(state, subject)
+        : null;
+      if (!subject) this.cancelOrderPlanning();
       else if (startNodeId !== this.orderPlanning.startNodeId) this.rebuildOrderRoutes(state);
     }
     if (!this.context.hidden) this.renderContext(state);

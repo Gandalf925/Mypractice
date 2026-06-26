@@ -26,7 +26,7 @@ function chunkGraph(id) {
       { id: 'node_1', x: 700, y: 0, chunkIds: [id] }
     ],
     edges: [{ id: 'next', a: 'node_0', b: 'node_1', length: 601, roadWidth: 5, lanes: 1, highway: 'residential', name: '', oneway: false, chunkIds: [id] }],
-    center: { lat: 35, lon: 139 }, source: 'test-chunk', roadSpecVersion: 3, chunkId: id, cacheVersion: 3
+    center: { lat: 35, lon: 139 }, source: 'test-chunk', roadSpecVersion: 4, chunkId: id, cacheVersion: 4
   });
 }
 
@@ -338,4 +338,62 @@ test('an old cached empty graph is discarded and reacquired instead of blocking 
   assert.ok(!store.read(state => state.world.roadChunks.empty.includes(id)));
   assert.ok(store.read(state => state.world.roadChunks.cached.includes(id)));
   assert.ok((await cache.get(worldId, id)).edges.length > 0);
+});
+
+test('movement expansion hot path reads live state without taking full snapshots', () => {
+  const store = storeWithWorld();
+  const manager = new RoadWorldManager({ store, cache: new MemoryRoadChunkCache(), roadService: {} });
+  manager.enqueue = () => {};
+  store.snapshot = () => { throw new Error('movement expansion must not clone the full state'); };
+
+  const ids = manager.considerLocation({ x: 590, y: 100 });
+
+  assert.ok(ids.includes('1:0'));
+});
+
+test('cached road chunks are restored in one in-place state update', async () => {
+  const store = storeWithWorld();
+  store.advance(state => {
+    state.world.roadChunks.cached = ['1:0', '2:0'];
+  });
+  const cache = new MemoryRoadChunkCache();
+  const worldId = roadWorldId(store.renderView().world.roadGraph);
+  await cache.put(worldId, '1:0', chunkGraph('1:0'));
+  const second = attachGraphIndexes({
+    nodes: [
+      { id: 'node_1', x: 700, y: 0, chunkIds: ['2:0'] },
+      { id: 'node_2', x: 1300, y: 0, chunkIds: ['2:0'] }
+    ],
+    edges: [{ id: 'next_2', a: 'node_1', b: 'node_2', length: 600, roadWidth: 5, lanes: 1, highway: 'residential', name: '', oneway: false, chunkIds: ['2:0'] }],
+    center: { lat: 35, lon: 139 }, source: 'test-chunk', roadSpecVersion: 4, chunkId: '2:0', cacheVersion: 4
+  });
+  await cache.put(worldId, '2:0', second);
+  let advances = 0;
+  const originalAdvance = store.advance.bind(store);
+  store.advance = (...args) => { advances += 1; return originalAdvance(...args); };
+  const manager = new RoadWorldManager({ store, cache, roadService: {} });
+
+  const result = await manager.restoreCachedChunks();
+
+  assert.equal(result.restored, 2);
+  assert.equal(advances, 1);
+  assert.ok(store.renderView().world.roadChunks.integrated.includes('1:0'));
+  assert.ok(store.renderView().world.roadChunks.integrated.includes('2:0'));
+  assert.ok(store.renderView().world.roadGraph.nodeById.has('node_2'));
+});
+
+test('new road integration mutates only the owned road state instead of cloning the full game', async () => {
+  const store = storeWithWorld();
+  const cache = new MemoryRoadChunkCache();
+  const manager = new RoadWorldManager({
+    store,
+    cache,
+    roadService: { async loadChunk({ chunkId }) { return chunkGraph(chunkId); } }
+  });
+  store.transaction = () => { throw new Error('road integration must not clone the full state'); };
+
+  await manager.loadChunk(parseChunkId('1:0'), store.renderView().world.roadGraph.center);
+
+  assert.ok(store.renderView().world.roadChunks.loaded.includes('1:0'));
+  assert.ok(store.renderView().world.roadGraph.edgeById.has('next'));
 });

@@ -10,13 +10,21 @@ function copyEdgeMetadata(edge) {
     highway: edge.highway,
     name: edge.name,
     oneway: edge.oneway,
-    mergedSegmentIds: [...(edge.mergedSegmentIds ?? [])]
+    layer: edge.layer,
+    bridge: edge.bridge,
+    tunnel: edge.tunnel,
+    elevationKey: edge.elevationKey,
+    sourceWayIds: [...(edge.sourceWayIds ?? [])],
+    mergedSegmentIds: [...(edge.mergedSegmentIds ?? [])],
+    chunkIds: [...(edge.chunkIds ?? [])],
+    parentEdgeId: edge.parentEdgeId ?? null,
+    ancestorEdgeIds: [...new Set([...(edge.ancestorEdgeIds ?? []), edge.id])]
   };
 }
 
 export function insertBaseNodeOnEdge(graph, selection) {
   const sourceEdge = graph.edgeById.get(selection.edgeId);
-  if (!sourceEdge) throw new Error('選択した道路が見つかりません。');
+  if (!sourceEdge || sourceEdge.routingDisabled) throw new Error('選択した道路が見つかりません。');
   const endpointThreshold = 0.04;
   if (selection.t <= endpointThreshold) {
     return { graph, nodeId: sourceEdge.a };
@@ -41,7 +49,10 @@ export function insertBaseNodeOnEdge(graph, selection) {
     y: selection.point.y,
     lat: location.lat,
     lon: location.lon,
-    kind: 'home-base'
+    kind: 'home-base',
+    sourceNodeIds: [],
+    elevationKeys: [sourceEdge.elevationKey].filter(Boolean),
+    topologySynthetic: true
   });
 
   const a = graph.nodeById.get(sourceEdge.a);
@@ -65,5 +76,6 @@ export function insertBaseNodeOnEdge(graph, selection) {
     ...copyEdgeMetadata(sourceEdge)
   });
 
+  nextGraph.topologyRevision = Math.max(1, Math.floor(Number(graph.topologyRevision) || 1)) + 1;
   return { graph: attachGraphIndexes(nextGraph), nodeId };
 }

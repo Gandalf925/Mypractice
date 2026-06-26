@@ -1,7 +1,7 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const RELEASE_VERSION = '0.33.3';
-const CACHE_NAME = `${CACHE_PREFIX}v0-33-3-road-expansion-combat-integrity`;
+const RELEASE_VERSION = '0.33.4';
+const CACHE_NAME = `${CACHE_PREFIX}v0-33-4-road-topology-route-command`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -96,9 +96,11 @@ const APP_SHELL = [
   './src/roads/sandbox-jsonp-transport.js',
   './src/roads/road-constants.js',
   './src/roads/road-filter.js',
+  './src/roads/road-elevation.js',
   './src/roads/road-graph.js',
   './src/roads/road-parser.js',
   './src/roads/road-service.js',
+  './src/roads/road-topology-repair.js',
   './src/roads/road-world-manager.js',
   './src/roads/world-chunk-grid.js',
   './src/styles/app.css',

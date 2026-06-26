@@ -96,6 +96,31 @@ function normalizePath(path) {
   };
 }
 
+function validatedDeploymentPath(state, path, startNodeId, targetNodeId) {
+  const normalized = normalizePath(path);
+  const graph = state.world?.roadGraph;
+  if (!normalized || !graph?.nodeById?.has(startNodeId) || !graph.nodeById.has(targetNodeId)) return null;
+  if (normalized.nodeIds.length !== normalized.edgeIds.length + 1) return null;
+  if (normalized.nodeIds[0] !== startNodeId || normalized.nodeIds.at(-1) !== targetNodeId) return null;
+  const blocked = activeFriendlyBarrierEdgeIds(state);
+  let physicalDistance = 0;
+  for (let index = 0; index < normalized.edgeIds.length; index += 1) {
+    const edge = graph.edgeById.get(normalized.edgeIds[index]);
+    const from = normalized.nodeIds[index];
+    const to = normalized.nodeIds[index + 1];
+    if (!edge || edge.routingDisabled || blocked.has(edge.id)) return null;
+    if (!((edge.a === from && edge.b === to) || (edge.a === to && edge.b === from))) return null;
+    physicalDistance += Math.max(0, Number(edge.length) || 0);
+  }
+  return { ...normalized, cost: physicalDistance, targetId: targetNodeId };
+}
+
+function routePhysicalDistance(state, path) {
+  let total = 0;
+  for (const edgeId of path?.edgeIds ?? []) total += Math.max(0, Number(state.world?.roadGraph?.edgeById?.get(edgeId)?.length) || 0);
+  return total;
+}
+
 export function ensureFriendlyForceState(state) {
   ensurePlayerBaseState(state);
   ensureFieldBaseState(state);
@@ -266,7 +291,7 @@ function unreachableTargetReason(definition, targetKind) {
   return '敵拠点へ到達できる道路経路がありません。';
 }
 
-export function previewFriendlyDeployment(state, squadType, originBaseId, targetId, planning = null, targetKind = 'enemyBase') {
+export function previewFriendlyDeployment(state, squadType, originBaseId, targetId, planning = null, targetKind = 'enemyBase', routeOverride = null) {
   const baseDefinition = FRIENDLY_SQUAD_DEFINITIONS[squadType];
   if (!baseDefinition) return { ok: false, reason: '選択した部隊種類は存在しません。' };
   const definition = friendlySquadRuntimeDefinition(state, squadType);
@@ -276,9 +301,12 @@ export function previewFriendlyDeployment(state, squadType, originBaseId, target
   if (!deploymentBases(state, squadType).some(base => base.id === origin.id)) return { ok: false, reason: `この拠点から${definition.name}は派兵できません。`, definition };
   const resolved = deploymentTarget(state, definition, targetId, targetKind);
   if (!resolved) return { ok: false, reason: unavailableTargetReason(definition, targetKind), definition };
-  const path = findFriendlyRoadPath(state, origin.nodeId, resolved.nodeId);
+  const overriddenPath = routeOverride ? validatedDeploymentPath(state, routeOverride, origin.nodeId, resolved.nodeId) : null;
+  if (routeOverride && !overriddenPath) return { ok: false, reason: '選択した派兵経路は道路更新または防壁によって利用できなくなりました。経路を選び直してください。', definition, origin, target: resolved.target, missionType: resolved.missionType };
+  const path = overriddenPath ?? findFriendlyRoadPath(state, origin.nodeId, resolved.nodeId);
   if (!path) return { ok: false, reason: unreachableTargetReason(definition, targetKind), definition };
 
+  const routeDistance = routePhysicalDistance(state, path);
   const assignedSquads = squadsFromBase(state, origin.id);
   const capacity = friendlySquadCapacityForBase(state, origin);
   const plannedAdditional = planningReservationCount(planning, origin.id);
@@ -292,11 +320,11 @@ export function previewFriendlyDeployment(state, squadType, originBaseId, target
   const plannedGlobal = planning ? [...planning.additionalSquadsByBase.values()].reduce((total, value) => total + value, 0) : 0;
   const globalStatus = friendlyGlobalCommandStatus(state);
   if (!reusableGarrison && !replaceableGarrison && globalStatus.assigned + plannedGlobal >= globalStatus.capacity) {
-    return { ok: false, reason: `全体指揮上限に達しています（${globalStatus.assigned + plannedGlobal}/${globalStatus.capacity}）。既存部隊を帰還・再編成してから派兵してください。`, definition, origin, target: resolved.target, missionType: resolved.missionType, path, routeDistance: path.cost };
+    return { ok: false, reason: `全体指揮上限に達しています（${globalStatus.assigned + plannedGlobal}/${globalStatus.capacity}）。既存部隊を帰還・再編成してから派兵してください。`, definition, origin, target: resolved.target, missionType: resolved.missionType, path, routeDistance };
   }
   const plannedTypeCount = planningTypeReservationCount(planning, origin.id, squadType);
   if (definition.maxPerBase && !reusableGarrison && assignedSquads.filter(squad => squad.type === squadType).length + plannedTypeCount >= definition.maxPerBase) {
-    return { ok: false, reason: `${definition.name}は主要拠点ごとに${definition.maxPerBase}隊までです。`, definition, origin, target: resolved.target, missionType: resolved.missionType, path, routeDistance: path.cost };
+    return { ok: false, reason: `${definition.name}は主要拠点ごとに${definition.maxPerBase}隊までです。`, definition, origin, target: resolved.target, missionType: resolved.missionType, path, routeDistance };
   }
   if (!reusableGarrison && !canCreateNewSquad && !replaceableGarrison) {
     const capacityStatus = friendlySquadCapacityStatus(state, origin);
@@ -309,7 +337,7 @@ export function previewFriendlyDeployment(state, squadType, originBaseId, target
       target: resolved.target,
       missionType: resolved.missionType,
       path,
-      routeDistance: path.cost,
+      routeDistance,
       capacity,
       assignedSquads: capacityStatus.assigned,
       plannedAdditional
@@ -328,7 +356,7 @@ export function previewFriendlyDeployment(state, squadType, originBaseId, target
     missionType: resolved.missionType,
     targetKind: resolved.targetKind,
     path,
-    routeDistance: path.cost,
+    routeDistance,
     cost: { ...deploymentCost },
     missing,
     definition,
@@ -387,8 +415,8 @@ function instantiateFriendlySquad(state, preview, squadType, originBaseId, targe
   return { squad, cost: preview.cost, routeDistance: preview.routeDistance, redeployed: preview.reuseReadySquad, replaced: preview.replaceReadySquad };
 }
 
-export function dispatchFriendlySquad(state, squadType, originBaseId, targetId, events = null, targetKind = 'enemyBase') {
-  const preview = previewFriendlyDeployment(state, squadType, originBaseId, targetId, null, targetKind);
+export function dispatchFriendlySquad(state, squadType, originBaseId, targetId, events = null, targetKind = 'enemyBase', routeOverride = null) {
+  const preview = previewFriendlyDeployment(state, squadType, originBaseId, targetId, null, targetKind, routeOverride);
   if (!preview.ok) return preview;
 
   let reservation = null;
@@ -942,7 +970,11 @@ function routeNeedsBarrierReroute(squad, blockedEdgeIds) {
 
 function rerouteFriendlySquadAroundBarriers(state, squad) {
   const blockedEdgeIds = activeFriendlyBarrierEdgeIds(state);
-  if (!squad.reroutePending && !routeNeedsBarrierReroute(squad, blockedEdgeIds)) return true;
+  const barrierBlocksRoute = routeNeedsBarrierReroute(squad, blockedEdgeIds);
+  if (!barrierBlocksRoute) {
+    squad.reroutePending = false;
+    return true;
+  }
   squad.reroutePending = false;
   if ([FRIENDLY_SQUAD_ORDER.HOLD].includes(squad.order)) return true;
   const targetNodeId = currentOrderDestinationNodeId(state, squad);
@@ -1012,12 +1044,12 @@ export class FriendlyForceSystem {
     this.events = events;
   }
 
-  previewDeployment(state, originBaseId, targetId, squadType = 'assault', targetKind = 'enemyBase') {
-    return previewFriendlyDeployment(state, squadType, originBaseId, targetId, null, targetKind);
+  previewDeployment(state, originBaseId, targetId, squadType = 'assault', targetKind = 'enemyBase', routeOverride = null) {
+    return previewFriendlyDeployment(state, squadType, originBaseId, targetId, null, targetKind, routeOverride);
   }
 
-  dispatch(state, originBaseId, targetId, squadType = 'assault', targetKind = 'enemyBase') {
-    return dispatchFriendlySquad(state, squadType, originBaseId, targetId, this.events, targetKind);
+  dispatch(state, originBaseId, targetId, squadType = 'assault', targetKind = 'enemyBase', routeOverride = null) {
+    return dispatchFriendlySquad(state, squadType, originBaseId, targetId, this.events, targetKind, routeOverride);
   }
 
   previewCoordinatedDeployment(state, targetBaseId, squadTypes) {

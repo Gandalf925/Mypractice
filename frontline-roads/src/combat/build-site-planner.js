@@ -132,7 +132,7 @@ function createBarrierSections(graph) {
   }
   // Closed loops have no degree != 2 node. Split them into bounded sections.
   for (const edge of graph.edges) {
-    if (visited.has(edge.id)) continue;
+    if (edge.routingDisabled || visited.has(edge.id)) continue;
     const section = walkSection(graph, edge.a, edge.id, visited);
     const placement = sectionPlacement(graph, section);
     if (!placement) continue;

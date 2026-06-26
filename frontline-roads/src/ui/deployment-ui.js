@@ -34,11 +34,12 @@ function isRecoveryType(type) {
 }
 
 export class DeploymentUi {
-  constructor({ store, friendlyForceSystem, notifications, persist }) {
+  constructor({ store, friendlyForceSystem, notifications, persist, beginRoutePlanning = null }) {
     this.store = store;
     this.system = friendlyForceSystem;
     this.notifications = notifications;
     this.persist = persist;
+    this.beginRoutePlanning = beginRoutePlanning;
     this.panel = queryRequired('#deploymentPanel');
     this.title = queryRequired('#deploymentTitle');
     this.body = queryRequired('#deploymentBody');
@@ -49,6 +50,7 @@ export class DeploymentUi {
     this.originBaseId = null;
     this.targetId = null;
     this.targetKind = 'enemyBase';
+    this.selectedRoutePlan = null;
     this.lastRenderAt = 0;
     queryRequired('#closeDeployment').addEventListener('click', () => this.close());
     bindDismissibleModal(this.panel, () => this.close());
@@ -58,6 +60,7 @@ export class DeploymentUi {
   openForEnemyBase(targetId) {
     this.missionKind = MISSION_KIND.ATTACK;
     this.targetKind = 'enemyBase';
+    this.selectedRoutePlan = null;
     this.mode = DEPLOYMENT_MODE.SINGLE;
     if (isRecoveryType(this.squadType)) this.squadType = 'assault';
     this.resetGroupSelection();
@@ -84,6 +87,7 @@ export class DeploymentUi {
 
   openTarget(targetId) {
     this.targetId = targetId;
+    this.selectedRoutePlan = null;
     this.originBaseId = null;
     const state = this.store.snapshot();
     this.normalizeSelection(state);
@@ -146,6 +150,8 @@ export class DeploymentUi {
   }
 
   normalizeSelection(state = this.store.snapshot()) {
+    const previousType = this.squadType;
+    const previousOriginBaseId = this.originBaseId;
     const availableTypes = this.availableTypes();
     const selectedDefinition = FRIENDLY_SQUAD_DEFINITIONS[this.squadType];
     if (!availableTypes.includes(this.squadType) || !selectedDefinition || (state.civilization?.level ?? 0) < selectedDefinition.unlockLevel) {
@@ -153,6 +159,7 @@ export class DeploymentUi {
     }
     const bases = deploymentBases(state, this.squadType);
     if (!bases.some(base => base.id === this.originBaseId)) this.originBaseId = bases[0]?.id ?? null;
+    if (previousType !== this.squadType || previousOriginBaseId !== this.originBaseId) this.selectedRoutePlan = null;
     for (const type of Object.keys(this.groupCounts)) {
       if (!availableTypes.includes(type) || (state.civilization?.level ?? 0) < FRIENDLY_SQUAD_DEFINITIONS[type].unlockLevel) delete this.groupCounts[type];
     }
@@ -164,6 +171,7 @@ export class DeploymentUi {
     const { action, baseId, squadType } = button.dataset;
     if (action === 'deployment-mode') {
       this.mode = button.dataset.mode === DEPLOYMENT_MODE.COORDINATED ? DEPLOYMENT_MODE.COORDINATED : DEPLOYMENT_MODE.SINGLE;
+      this.selectedRoutePlan = null;
       if (this.mode === DEPLOYMENT_MODE.COORDINATED && this.groupSquadTypes().length === 0) this.resetGroupSelection();
     }
     if (action === 'select-unit' && squadType) {
@@ -172,6 +180,7 @@ export class DeploymentUi {
       if (!definition || !this.availableTypes().includes(squadType) || (state.civilization?.level ?? 0) < definition.unlockLevel) return;
       this.squadType = squadType;
       this.originBaseId = null;
+      this.selectedRoutePlan = null;
     }
     if (action === 'group-add' && squadType) {
       const total = this.groupSquadTypes().length;
@@ -181,10 +190,41 @@ export class DeploymentUi {
     if (action === 'group-remove' && squadType) {
       this.groupCounts[squadType] = Math.max(0, (this.groupCounts[squadType] ?? 0) - 1);
     }
-    if (action === 'select-origin') this.originBaseId = baseId;
+    if (action === 'select-origin') { this.originBaseId = baseId; this.selectedRoutePlan = null; }
+    if (action === 'plan-route') {
+      const state = this.store.snapshot();
+      const origin = ownedBaseById(state, this.originBaseId);
+      const target = this.currentTarget(state);
+      if (!origin || !target?.nodeId || typeof this.beginRoutePlanning !== 'function') {
+        this.notifications.show('派兵経路を指定できません。出撃元と目標を確認してください。');
+      } else {
+        const targetLabel = this.missionKind === MISSION_KIND.RECOVERY
+          ? recoveryItemPresentation(target).name
+          : this.missionKind === MISSION_KIND.INTERCEPT
+            ? ENEMY_DEFINITIONS[target.type]?.name ?? '敵部隊'
+            : ENEMY_BASE_DEFINITIONS[target.type]?.name ?? '敵拠点';
+        const opened = this.beginRoutePlanning({
+          originNodeId: origin.nodeId,
+          squadType: this.squadType,
+          destinationNodeId: target.nodeId,
+          targetLabel,
+          onConfirm: plan => {
+            this.selectedRoutePlan = plan;
+            this.render();
+            setVisible(this.panel, true);
+          },
+          onCancel: () => {
+            this.render();
+            setVisible(this.panel, true);
+          }
+        });
+        if (opened) { this.close(); return; }
+      }
+    }
     if (action === 'dispatch') {
       let result;
-      this.store.transaction(state => { result = this.system.dispatch(state, this.originBaseId, this.targetId, this.squadType, this.targetKind); }, 'friendly:dispatch', { emit: true, validate: true });
+      const routeOverride = this.selectedRoutePlan?.route?.path ?? null;
+      this.store.transaction(state => { result = this.system.dispatch(state, this.originBaseId, this.targetId, this.squadType, this.targetKind, routeOverride); }, 'friendly:dispatch', { emit: true, validate: true });
       if (!result?.ok) this.notifications.show(result?.reason ?? '派兵できません。');
       else {
         this.notifications.show(`${FRIENDLY_SQUAD_DEFINITIONS[this.squadType].name}を派兵しました。`);
@@ -255,7 +295,7 @@ export class DeploymentUi {
     const bases = deploymentBases(state, this.squadType);
     const recoveryMission = this.missionKind === MISSION_KIND.RECOVERY;
     const preview = this.originBaseId
-      ? this.system.previewDeployment(state, this.originBaseId, this.targetId, this.squadType, this.targetKind)
+      ? this.system.previewDeployment(state, this.originBaseId, this.targetId, this.squadType, this.targetKind, this.selectedRoutePlan?.route?.path ?? null)
       : { ok: false, reason: '出撃元を選択してください。' };
     const originCards = bases.map(base => {
       const capacity = friendlySquadCapacityStatus(state, base);
@@ -269,10 +309,18 @@ export class DeploymentUi {
     }).join('') || `<p class="emptyText">${definition.name}を出撃できる拠点がありません。</p>`;
     const origin = ownedBaseById(state, this.originBaseId, { includeDestroyed: true });
     const globalCommand = friendlyGlobalCommandStatus(state);
+    const selectedRoute = this.selectedRoutePlan?.route ?? null;
+    const fixedTarget = this.missionKind !== MISSION_KIND.INTERCEPT;
+    const routePlannerAvailable = Boolean(origin && preview.path && fixedTarget && typeof this.beginRoutePlanning === 'function');
+    const routeSummary = selectedRoute
+      ? `${selectedRoute.label}・${routeText(selectedRoute.physicalDistance)}・危険度 ${selectedRoute.risk}・経由 ${this.selectedRoutePlan.waypointNodeIds.length}/2`
+      : '自動最短経路。必要なら出撃前に地図上で経路を指定できます。';
     return `<section><h2>部隊種類 <small>全体指揮 ${globalCommand.assigned}/${globalCommand.capacity}</small></h2><div class="deploymentGrid deploymentUnitGrid">${this.unitCardsMarkup(state)}</div></section>
       <section><h2>出撃元</h2><div class="deploymentGrid">${originCards}</div></section>
       <section class="deploymentOrder"><h2>派兵確認</h2>
-        <div class="contextMetricGrid"><span><small>FROM</small><strong>${origin?.name ?? '未選択'}</strong></span><span><small>UNIT</small><strong>${definition.name}</strong></span><span><small>ROUTE</small><strong>${routeText(preview.routeDistance)}</strong></span><span><small>SLOT</small><strong>${preview.capacity ? `${preview.assignedSquads ?? 0}/${preview.capacity}` : '—'}</strong></span><span><small>COST</small><strong>${preview.reuseReadySquad ? '不要' : bundleText(definition.cost)}</strong></span></div>
+        <div class="contextMetricGrid"><span><small>FROM</small><strong>${origin?.name ?? '未選択'}</strong></span><span><small>UNIT</small><strong>${definition.name}</strong></span><span><small>ROUTE</small><strong>${selectedRoute?.label ?? 'AUTO'} ${routeText(preview.routeDistance)}</strong></span><span><small>SLOT</small><strong>${preview.capacity ? `${preview.assignedSquads ?? 0}/${preview.capacity}` : '—'}</strong></span><span><small>COST</small><strong>${preview.reuseReadySquad ? '不要' : bundleText(definition.cost)}</strong></span></div>
+        <p class="sectionNote">${routeSummary}</p>
+        <button class="wideButton" data-action="plan-route" ${routePlannerAvailable ? '' : 'disabled'}>${selectedRoute ? '派兵経路を変更' : '地図で派兵経路を指定'}</button>
         <p class="sectionNote">${preview.ok ? preview.reuseReadySquad ? '再編成済みの同じ部隊を、現在HPのまま追加費用なしで再出撃させます。' : preview.replaceReadySquad ? '待機中の別部隊を解散し、新しい部隊を編成します。' : definition.description : preview.reason}</p>
         <button class="primary wideButton" data-action="dispatch" ${preview.ok ? '' : 'disabled'}>${preview.reuseReadySquad ? `${definition.name}を再出撃` : preview.replaceReadySquad ? `${definition.name}へ再編成` : recoveryMission ? `${definition.name}を派遣` : this.missionKind === MISSION_KIND.INTERCEPT ? `この敵部隊へ${definition.name}を派兵` : `この敵拠点へ${definition.name}を派兵`}</button>
       </section>`;

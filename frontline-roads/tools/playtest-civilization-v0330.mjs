@@ -246,6 +246,7 @@ function runScenario(profile, durationSeconds = 600) {
     finalFriendlySquads: state.combat.friendlySquads.length,
     destroyedFriendlySquads: events.counts['friendly:squad-destroyed'] ?? 0,
     finalDefenses: state.combat.defenses.length,
+    defenseSurvivalRatio: Math.round(state.combat.defenses.length / Math.max(1, initialDefenseCount) * 1000) / 1000,
     destroyedDefenses: events.counts['combat:defense-destroyed'] ?? 0,
     repairEvents: events.counts['combat:defense-repaired'] ?? 0,
     repairedHp: Math.round(events.repairHp * 10) / 10,
@@ -325,6 +326,29 @@ if (process.env.PROFILE) {
     if (!output) throw new Error(`Playtest profile ${profile.name} produced no result. ${child.stderr.trim()}`);
     return JSON.parse(output.split('\n').at(-1));
   });
+  const fortificationChecks = [5, 6, 7].map(level => {
+    const standard = scenarios.find(item => item.profile === `standard-civ${level}`);
+    const fortified = scenarios.find(item => item.profile === `fortified-civ${level}`);
+    return {
+      level,
+      standard: {
+        finalDefenses: standard.finalDefenses,
+        defenseSurvivalRatio: standard.defenseSurvivalRatio,
+        enemiesKilled: standard.enemiesKilled,
+        averageMovingEnemies: standard.averageMovingEnemies
+      },
+      fortified: {
+        finalDefenses: fortified.finalDefenses,
+        defenseSurvivalRatio: fortified.defenseSurvivalRatio,
+        enemiesKilled: fortified.enemiesKilled,
+        averageMovingEnemies: fortified.averageMovingEnemies
+      },
+      passed: fortified.cityDefeats === 0
+        && fortified.finalDefenses > standard.finalDefenses
+        && fortified.enemiesKilled >= standard.enemiesKilled
+        && fortified.averageMovingEnemies < standard.averageMovingEnemies
+    };
+  });
   const report = {
     release: '0.33.0-civilization-road-federation',
     generatedAt: new Date().toISOString(),
@@ -336,12 +360,13 @@ if (process.env.PROFILE) {
       description: 'Deterministic late-game simulation using the production CombatSystem, real wave generation, routing, defense targeting, automatic repair and city recovery.'
     },
     scenarios,
-    allChecksPassed: scenarios.every(item => item.passed),
+    fortificationChecks,
+    allChecksPassed: scenarios.every(item => item.passed) && fortificationChecks.every(item => item.passed),
     interpretation: [
       'Civilization levels 5 through 7 sustain progressively denser moving fronts rather than relying only on enemy health inflation.',
       'Underbuilt profiles must reach an actual defeat or a measurable overrun state within five minutes.',
       'Standard profiles must survive while still losing facilities and requiring repair decisions.',
-      'Fortified profiles must reduce losses without clearing the moving enemy population from the map.'
+      'A fortified network must retain more surviving facilities, kill at least as many enemies and reduce average moving pressure. Absolute destroyed-facility count can rise because the larger network exposes more targets.'
     ],
     limits: [
       'The deterministic simulation does not reproduce touch mistakes, GPS movement, player attention, network delay or Android GPU behavior.',

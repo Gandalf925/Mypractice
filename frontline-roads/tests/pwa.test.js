@@ -13,7 +13,7 @@ test('PWA registers the current service worker on HTTPS', async () => {
     moduleUrl: 'https://example.com/Mypractice/frontline-roads/src/app/pwa.js'
   });
   assert.equal(result, registration);
-  assert.deepEqual(calls, [['https://example.com/Mypractice/frontline-roads/sw.js?v=0.33.3', { scope: 'https://example.com/Mypractice/frontline-roads/', updateViaCache: 'none' }]]);
+  assert.deepEqual(calls, [['https://example.com/Mypractice/frontline-roads/sw.js?v=0.33.4', { scope: 'https://example.com/Mypractice/frontline-roads/', updateViaCache: 'none' }]]);
   assert.equal(updates, 1);
 });
 

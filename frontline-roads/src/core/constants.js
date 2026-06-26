@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.33.3-road-expansion-combat-integrity';
+export const APP_VERSION = '0.33.4-road-topology-route-command';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 
