@@ -1,0 +1,23 @@
+name: Export routing source
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pack source
+        run: tar --exclude=.git --exclude=.github/workflows/export-routing-source.yml -czf /tmp/Mypractice-source.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mypractice-routing-source
+          path: /tmp/Mypractice-source.tar.gz
+          if-no-files-found: error
+          retention-days: 1
