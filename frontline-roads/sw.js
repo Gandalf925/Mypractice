@@ -1,7 +1,7 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
 const RELEASE_VERSION = '0.33.4';
-const CACHE_NAME = `${CACHE_PREFIX}v0-33-4-road-gap-fix`;
+const CACHE_NAME = `${CACHE_PREFIX}v0-33-4-ui-readable-squad-items`;
 const APP_SHELL = [
   './',
   './index.html',

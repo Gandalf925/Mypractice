@@ -1,4 +1,0 @@
-FRONTLINE ROADS v0.33.1 headless Chromium attempt
-Command timed out after 30 seconds before DOM output.
-Environment errors: inotify limit unavailable, DBus socket unavailable, NETLINK permission denied.
-This environment cannot validate Android tab suspension, GPU composition, or BFCache behavior.

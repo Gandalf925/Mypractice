@@ -1,4 +1,0 @@
-
-> frontline-roads-refactor@0.31.3 syntax
-> find src tests -name '*.js' -print0 | xargs -0 -n1 node --check && node --check sw.js
-

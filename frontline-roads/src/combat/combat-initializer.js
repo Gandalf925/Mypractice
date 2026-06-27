@@ -3,7 +3,6 @@ import { ensureCivilizationState } from '../civilization/civilization-system.js'
 import { ENEMY_BASE_DEFINITIONS } from './definitions.js';
 import { selectInitialEnemyBasePlacements } from './enemy-base-placement.js';
 import { reconcileFrontiers, ensureFrontierState } from '../exploration/frontier-system.js';
-import { ensureExplorationState, reconcileExplorationSites } from '../exploration/exploration-system.js';
 
 export const selectEnemyBasePlacements = selectInitialEnemyBasePlacements;
 
@@ -41,7 +40,6 @@ export function initializeCombatState(state) {
     };
   });
   reconcileFrontiers(state);
-  reconcileExplorationSites(state);
   state.runtime.combatInitialized = true;
   return state;
 }
@@ -100,7 +98,6 @@ export function normalizeCombatState(state) {
   }
 
   ensureFrontierState(state);
-  ensureExplorationState(state);
   const establishedCombat = Boolean(state.world?.city && state.world?.homeBase);
   ensureCivilizationState(state, { initializeInventory: !establishedCombat });
   if (establishedCombat) {

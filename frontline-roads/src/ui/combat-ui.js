@@ -26,20 +26,20 @@ import {
 import { remainingRouteDistance } from '../rendering/threat-analysis.js';
 import { bundleText } from '../civilization/inventory-system.js';
 import { frontierPresentation } from '../exploration/frontier-system.js';
-import { EXPLORATION_INTERACTION_RANGE_METERS, explorationSitePresentation } from '../exploration/exploration-system.js';
 import { RECOVERY_COLLECTION_DURATION_SECONDS, RECOVERY_ITEM_STATUS, RECOVERY_RANGE_METERS, recoveryEligibility, recoveryItemPoint, recoveryItemPresentation } from '../exploration/recovery-system.js';
 import { RESOURCE_LABELS } from '../civilization/data.js';
 import { defenseUpgradeStatus } from '../civilization/defense-upgrade.js';
 import { queryRequired, setVisible } from './dom.js';
+import { ensureRoadsideSupplyState } from '../exploration/roadside-supplies.js';
 
 export class CombatUi {
-  constructor({ store, buildSystem, civilizationSystem, explorationSystem, recoverySystem, friendlyForceSystem, camera, renderer, notifications, persist = null, openDeployment = null, requestSurvey = null }) {
+  constructor({ store, buildSystem, civilizationSystem, explorationSystem, recoverySystem, friendlyForceSystem, roadsideSupplySystem = null, camera, renderer, notifications, persist = null, openDeployment = null, requestSurvey = null }) {
     this.store = store;
     this.buildSystem = buildSystem;
     this.civilizationSystem = civilizationSystem;
-    this.explorationSystem = explorationSystem;
     this.recoverySystem = recoverySystem;
     this.friendlyForceSystem = friendlyForceSystem;
+    this.roadsideSupplySystem = roadsideSupplySystem;
     this.persist = persist;
     this.openDeployment = openDeployment;
     this.requestSurvey = requestSurvey;
@@ -191,13 +191,8 @@ export class CombatUi {
       const itemPosition = recoveryItemPoint(state, item);
       candidates.push({ kind: 'recoveryItem', id: item.id, point: itemPosition, distance: distance(point, itemPosition) });
     }
-    for (const site of state.world.explorationSites ?? []) {
-      if (site.status === 'CLEARED') continue;
-      const node = graph.nodeById.get(site.nodeId);
-      if (node) candidates.push({ kind: 'explorationSite', id: site.id, point: node, distance: distance(point, node) });
-    }
     for (const source of state.world.frontierSources ?? []) {
-      if (source.status === 'CLEARED' || (state.world.explorationSites ?? []).some(site => site.sourceId === source.id && site.status !== 'CLEARED')) continue;
+      if (source.status === 'CLEARED') continue;
       const node = graph.nodeById.get(source.entryNodeId);
       if (node) candidates.push({ kind: 'frontier', id: source.id, point: node, distance: distance(point, node) });
     }
@@ -478,6 +473,37 @@ export class CombatUi {
     this.notifications.show(result?.ok ? '部隊を停止させました。' : result?.reason ?? '停止できません。');
     if (result?.ok) this.persist?.();
     this.renderContext();
+  }
+
+  useRoadsideItemOnSelectedSquad(itemKey) {
+    const squad = this.selectedFriendlySquad();
+    if (!squad) { this.notifications.show('味方部隊を選択してください。'); return; }
+    if (!this.roadsideSupplySystem?.useOnSquad) { this.notifications.show('部隊用アイテムを使用できません。'); return; }
+    let result;
+    this.store.transaction(state => {
+      result = this.roadsideSupplySystem.useOnSquad(state, itemKey, squad.id);
+    }, `roadside:squad-${itemKey}`, { emit: true, validate: true });
+    this.notifications.show(result?.ok ? '部隊用アイテムを使用しました。' : result?.reason ?? 'アイテムを使用できません。');
+    if (result?.ok) this.persist?.();
+    this.renderContext();
+    this.renderer.render?.();
+  }
+
+  appendSelectedSquadItemActions(state, squad) {
+    if (!this.roadsideSupplySystem?.useOnSquad || !squad || squad.hp <= 0) return;
+    if ([FRIENDLY_SQUAD_STATUS.RECOVERING, FRIENDLY_SQUAD_STATUS.READY].includes(squad.status)) return;
+    const inventory = ensureRoadsideSupplyState(state).inventory ?? {};
+    const marchCount = Math.max(0, Math.floor(Number(inventory.marchBanner) || 0));
+    const smokeCount = Math.max(0, Math.floor(Number(inventory.smokeScreen) || 0));
+    if (marchCount > 0) {
+      const march = this.action(`行軍加速旗 ×${marchCount}`, () => this.useRoadsideItemOnSelectedSquad('marchBanner'), 'primary');
+      march.title = '選択中の部隊だけを一時加速します。現在地は参照しません。';
+    }
+    if (smokeCount > 0) {
+      const smoke = this.action(`緊急撤退煙幕 ×${smokeCount}`, () => this.useRoadsideItemOnSelectedSquad('smokeScreen'), 'danger');
+      smoke.title = '選択中の通常部隊を出撃元へ緊急撤退させます。現在地は参照しません。';
+      smoke.disabled = Boolean(squad.temporaryDeployment) || [FRIENDLY_SQUAD_ORDER.RETURN, FRIENDLY_SQUAD_ORDER.WITHDRAW].includes(squad.order);
+    }
   }
 
   renderOrderPlanningContext(state, squad) {
@@ -974,6 +1000,7 @@ export class CombatUi {
           if (squad.order !== FRIENDLY_SQUAD_ORDER.HOLD) this.action('停止', () => this.holdSelectedSquad());
           if (squad.order === FRIENDLY_SQUAD_ORDER.HOLD && ((squad.missionTargetBaseId ?? squad.targetBaseId ?? squad.targetEnemyId ?? squad.targetRecoveryItemId) || squad.heldDestinationNodeId)) this.action('移動再開', () => this.beginOrderPlanning(FRIENDLY_ORDER_MODE.RESUME), 'primary');
           if (squad.type === 'engineer') this.action('周辺設備を修復', () => this.mutateAction(draft => this.friendlyForceSystem.repairNearby(draft, squad.id), 'friendly:engineer-repair'), 'primary');
+          this.appendSelectedSquadItemActions(state, squad);
           this.action('後退', () => this.beginOrderPlanning(FRIENDLY_ORDER_MODE.RETREAT));
           this.action('撤退', () => this.beginOrderPlanning(FRIENDLY_ORDER_MODE.WITHDRAW), 'danger');
         }
@@ -1021,26 +1048,6 @@ export class CombatUi {
       ], [behavior.description, `基本目標：${definition.objectiveLabel ?? '都市'}`]);
       const intercept = this.action('この敵部隊へ派兵', () => this.openDeployment?.({ kind: 'enemy', id: enemy.id }), 'primary');
       intercept.disabled = enemy.departDelay > 0 || typeof this.openDeployment !== 'function';
-    } else if (selected.kind === 'explorationSite') {
-      const site = (state.world.explorationSites ?? []).find(item => item.id === selected.id);
-      if (!site || site.status === 'CLEARED') { this.clearObjectSelection(); return; }
-      const presentation = explorationSitePresentation(site);
-      const node = state.world.roadGraph.nodeById.get(site.nodeId);
-      const gap = state.player.worldPosition && node ? distance(state.player.worldPosition, node) : Infinity;
-      this.contextTitle.textContent = `EXPLORE // ${presentation.name}`;
-      this.setContextContent(
-        presentation.description,
-        [
-          ['DIST', Number.isFinite(gap) ? `${Math.round(gap)}m` : 'NO GPS'],
-          ['ENTRY', `${EXPLORATION_INTERACTION_RANGE_METERS}m`],
-          ['STATUS', site.interactionActive ? 'SCANNING' : 'READY'],
-          ['PROGRESS', `${Math.floor(site.progress ?? 0)}/${site.requiredSeconds}s`],
-          ['REWARD', bundleText(site.reward ?? {})]
-        ],
-        [site.type === 'enemySource' ? '周辺にこの発生源から出撃した敵がいる場合、無力化を開始できません。' : '調査中に範囲外へ離れても進捗は保持されます。']
-      );
-      const action = this.action(site.interactionActive ? '調査進行中' : '現地調査を開始', () => this.mutateAction(draft => this.explorationSystem.beginInteraction(draft, site.id), 'exploration:begin'), 'primary');
-      action.disabled = site.interactionActive || gap > EXPLORATION_INTERACTION_RANGE_METERS;
     } else if (selected.kind === 'frontier') {
       const source = (state.world.frontierSources ?? []).find(item => item.id === selected.id);
       if (!source || source.status === 'CLEARED') { this.clearObjectSelection(); return; }

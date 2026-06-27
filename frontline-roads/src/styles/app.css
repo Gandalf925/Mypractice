@@ -1441,3 +1441,38 @@ button, input, select, textarea { font-size: inherit; }
 .supplyInventoryRow button { min-width: 88px; min-height: 36px; border: 1px solid rgba(101,255,208,.38); background: rgba(7, 38, 31, .92); color: #dffff7; font-weight: 900; }
 @media(max-width:720px){ .topActions { grid-template-columns: repeat(4, minmax(0, 1fr)); } .topActions button { font-size: 11px; padding-inline: 5px; } }
 @media(max-width:520px){ .supplyInventoryRow { grid-template-columns: 1fr; } .supplyInventoryRow button { width: 100%; } }
+
+/* v0.33.4 UI readability and selected-squad item controls */
+.baseSummary {
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-overflow: clip;
+  pointer-events: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(101,255,208,.32) transparent;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.baseSummary::-webkit-scrollbar { height: 3px; }
+.baseSummary::-webkit-scrollbar-thumb { background: rgba(101,255,208,.32); }
+.contextPanel.is-build-mode .contextMetricGrid b,
+.contextPanel.is-defense-mode .contextMetricGrid b {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+.contextPanel.is-build-mode .contextMetricGrid > span,
+.contextPanel.is-defense-mode .contextMetricGrid > span {
+  min-height: 36px;
+}
+.contextPanel.is-defense-summary #contextText {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.supplyInventoryRow.is-squad-only button:disabled {
+  opacity: .62;
+  border-color: rgba(101,255,208,.24);
+  color: rgba(223,255,247,.72);
+}

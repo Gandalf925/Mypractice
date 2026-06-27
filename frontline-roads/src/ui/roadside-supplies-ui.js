@@ -72,7 +72,8 @@ export class RoadsideSuppliesUi {
 
     const inventoryHtml = Object.entries(ROADSIDE_USE_DEFINITIONS).map(([key, definition]) => {
       const count = Math.max(0, Math.floor(Number(inventory[key]) || 0));
-      const disabled = count <= 0 ? 'disabled' : '';
+      const squadOnly = key === 'marchBanner' || key === 'smokeScreen';
+      const disabled = count <= 0 || squadOnly ? 'disabled' : '';
       const label = definition.squadType
         ? `${definition.searchRangeMeters}m以内の対象へ一時部隊を出撃`
         : key === 'sweepSignal'
@@ -84,13 +85,14 @@ export class RoadsideSuppliesUi {
               : key === 'lureSignal'
                 ? `周囲${definition.radiusMeters}m以内の敵を現在地付近へ誘導`
                 : key === 'marchBanner'
-                  ? `周囲${definition.radiusMeters}m以内の味方部隊を一時加速`
+                  ? '味方部隊を選択すると下部操作に表示されます'
                   : key === 'smokeScreen'
-                    ? `周囲${definition.radiusMeters}m以内の味方部隊を緊急撤退`
+                    ? '味方部隊を選択すると下部操作に表示されます'
                     : '消耗品を使用';
-      return `<div class="supplyInventoryRow">
+      const buttonText = squadOnly ? `部隊選択で使用 ×${count}` : `使用 ×${count}`;
+      return `<div class="supplyInventoryRow${squadOnly ? ' is-squad-only' : ''}">
         <div><strong>${definition.name}</strong><span>${label}</span></div>
-        <button type="button" data-use-roadside="${key}" ${disabled}>使用 ×${count}</button>
+        <button type="button" data-use-roadside="${key}" ${disabled}>${buttonText}</button>
       </div>`;
     }).join('');
 
@@ -111,6 +113,7 @@ export class RoadsideSuppliesUi {
       </section>
     `;
     for (const button of this.body.querySelectorAll('[data-use-roadside]')) {
+      if (button.disabled) continue;
       button.addEventListener('click', () => this.useItem(button.dataset.useRoadside));
     }
   }

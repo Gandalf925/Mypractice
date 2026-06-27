@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.33.4-road-gap-fix';
+export const APP_VERSION = '0.33.4-ui-readable-squad-items';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 

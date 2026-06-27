@@ -24,9 +24,13 @@ export function createInitialState() {
         version: 1,
         collectedIds: [],
         active: [],
-        inventory: { assaultCall: 0, skirmisherCall: 0, siegeCall: 0, sweepSignal: 0, breachCharge: 0 },
+        inventory: { assaultCall: 0, skirmisherCall: 0, siegeCall: 0, sweepSignal: 0, breachCharge: 0, roadMine: 0, lureSignal: 0, marchBanner: 0, smokeScreen: 0 },
         daily: { epoch: '0', collectedCount: 0, rareCollectedCount: 0 },
-        nextRefreshAt: 0
+        nextRefreshAt: 0,
+        nextCollectionCheckAt: 0,
+        nextMineCheckAt: 0,
+        lastRefreshPoint: null,
+        placedMines: []
       }
     },
     player: {

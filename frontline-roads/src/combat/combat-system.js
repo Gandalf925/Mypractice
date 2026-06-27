@@ -3,7 +3,6 @@ import { EnemySystem, enemyPosition } from './enemy-system.js';
 import { WaveSystem } from './wave-system.js';
 import { buildCombatSpatialIndex } from './combat-spatial-index.js';
 import { FrontierSystem } from '../exploration/frontier-system.js';
-import { ExplorationSystem } from '../exploration/exploration-system.js';
 import { FriendlyForceSystem, friendlySquadPosition } from './friendly-force-system.js';
 import { RecoverySystem } from '../exploration/recovery-system.js';
 import { CITY_RECOVERY_DELAY_SECONDS, CITY_RECOVERY_HP_PER_SECOND } from './definitions.js';
@@ -68,7 +67,6 @@ export class CombatSystem {
     this.friendlyForceSystem = new FriendlyForceSystem(events);
     this.recoverySystem = new RecoverySystem(events);
     this.frontierSystem = new FrontierSystem(events);
-    this.explorationSystem = new ExplorationSystem(events);
     this.events = events;
   }
 
@@ -104,7 +102,6 @@ export class CombatSystem {
   update(state, deltaSeconds) {
     updateCityRecovery(state, deltaSeconds);
     this.recoverySystem.update(state, deltaSeconds);
-    this.explorationSystem.update(state, deltaSeconds);
     this.frontierSystem.update(state, deltaSeconds);
     this.waveSystem.update(state, deltaSeconds);
 

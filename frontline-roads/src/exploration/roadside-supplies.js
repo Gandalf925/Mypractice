@@ -3,7 +3,7 @@ import { addBundle, bundleText } from '../civilization/inventory-system.js';
 import { distance, distanceSquared, stableId } from '../core/utilities.js';
 import { chunkForWorldPoint, neighboringChunks } from '../roads/world-chunk-grid.js';
 import { findFriendlyRoadPath } from '../combat/routing-system.js';
-import { emergencyWithdrawFriendlySquadNear, boostFriendlySquadsNear } from '../combat/friendly-force-system.js';
+import { emergencyWithdrawFriendlySquadById, emergencyWithdrawFriendlySquadNear, boostFriendlySquadById, boostFriendlySquadsNear } from '../combat/friendly-force-system.js';
 import { damageEnemy, enemyPosition } from '../combat/enemy-system.js';
 import { destroyEnemyBase } from '../combat/enemy-base-system.js';
 import { friendlySquadRuntimeDefinition, friendlySquadUnlocked } from '../combat/friendly-force-definitions.js';
@@ -13,8 +13,11 @@ export const ROADSIDE_SUPPLY_VERSION = 1;
 export const ROADSIDE_SUPPLY_COLLECT_RANGE_METERS = 28;
 export const ROADSIDE_SUPPLY_LOCATION_MAX_AGE_MS = 60_000;
 export const ROADSIDE_SUPPLY_MAX_ACCURACY_METERS = 100;
-export const ROADSIDE_SUPPLY_REFRESH_SECONDS = 4;
-export const ROADSIDE_SUPPLY_ACTIVE_LIMIT = 48;
+export const ROADSIDE_SUPPLY_REFRESH_SECONDS = 10;
+export const ROADSIDE_SUPPLY_ACTIVE_LIMIT = 32;
+export const ROADSIDE_SUPPLY_REFRESH_MOVE_METERS = 45;
+export const ROADSIDE_SUPPLY_COLLECT_CHECK_SECONDS = 0.75;
+export const ROADSIDE_MINE_CHECK_SECONDS = 0.75;
 
 export const ROADSIDE_INVENTORY_KEYS = Object.freeze({
   assaultCall: 'assaultCall',
@@ -124,6 +127,7 @@ export function ensureRoadsideSupplyState(state) {
   supplies.version = ROADSIDE_SUPPLY_VERSION;
   supplies.collectedIds = Array.isArray(supplies.collectedIds) ? supplies.collectedIds.map(String).slice(-2400) : [];
   supplies.active = Array.isArray(supplies.active) ? supplies.active.filter(item => item && item.id).slice(0, ROADSIDE_SUPPLY_ACTIVE_LIMIT) : [];
+  supplies.lastRefreshPoint = finitePoint(supplies.lastRefreshPoint) ? { x: Number(supplies.lastRefreshPoint.x), y: Number(supplies.lastRefreshPoint.y) } : null;
   supplies.placedMines = Array.isArray(supplies.placedMines) ? supplies.placedMines.filter(item => item && item.id && finitePoint(item)).slice(-8) : [];
   supplies.inventory = { ...inventoryDefaults(), ...(supplies.inventory && typeof supplies.inventory === 'object' ? supplies.inventory : {}) };
   for (const key of Object.values(ROADSIDE_INVENTORY_KEYS)) supplies.inventory[key] = Math.max(0, Math.floor(Number(supplies.inventory[key]) || 0));
@@ -135,6 +139,8 @@ export function ensureRoadsideSupplyState(state) {
   supplies.daily.collectedCount = Math.max(0, Math.floor(Number(supplies.daily.collectedCount) || 0));
   supplies.daily.rareCollectedCount = Math.max(0, Math.floor(Number(supplies.daily.rareCollectedCount) || 0));
   supplies.nextRefreshAt = Math.max(0, Number(supplies.nextRefreshAt) || 0);
+  supplies.nextCollectionCheckAt = Math.max(0, Number(supplies.nextCollectionCheckAt) || 0);
+  supplies.nextMineCheckAt = Math.max(0, Number(supplies.nextMineCheckAt) || 0);
   return supplies;
 }
 
@@ -250,16 +256,94 @@ function candidateEdgesNearPlayer(state, player) {
   return edges;
 }
 
+function roadsideSector(item, player) {
+  const angle = Math.atan2(Number(item.y) - Number(player.y), Number(item.x) - Number(player.x));
+  return Math.floor((((angle + Math.PI) / (Math.PI * 2)) * 8) % 8);
+}
+
+function spacingForRoadsideItem(item, relaxed = false) {
+  const rare = (RARITY_ORDER[item?.rarity] ?? 1) >= RARITY_ORDER.rare;
+  if (relaxed) return rare ? 90 : 54;
+  return rare ? 120 : 70;
+}
+
+function tooCloseToSelectedRoadsideItem(item, selected, relaxed = false) {
+  const spacing = spacingForRoadsideItem(item, relaxed);
+  const spacing2 = spacing * spacing;
+  return selected.some(other => distanceSquared(item, other) < spacing2);
+}
+
+function selectDistributedRoadsideSupplies(candidates, player, limit = ROADSIDE_SUPPLY_ACTIVE_LIMIT) {
+  const bands = [
+    { min: 0, max: 260, limit: 6 },
+    { min: 260, max: 680, limit: 12 },
+    { min: 680, max: 1150, limit: Math.max(0, limit - 18) }
+  ];
+  const prepared = candidates.map(item => ({
+    item,
+    d2: distanceSquared(item, player),
+    sector: roadsideSector(item, player),
+    rarity: RARITY_ORDER[item.rarity] ?? 1
+  })).sort((a, b) => a.d2 - b.d2 || b.rarity - a.rarity || a.item.id.localeCompare(b.item.id));
+  const selected = [];
+  const sectorCounts = new Map();
+  const takeFromBand = (band, relaxed = false) => {
+    let used = 0;
+    const bandMin2 = band.min * band.min;
+    const bandMax2 = band.max * band.max;
+    const pool = prepared
+      .filter(entry => !entry.selected && entry.d2 >= bandMin2 && entry.d2 < bandMax2)
+      .sort((a, b) => (sectorCounts.get(a.sector) ?? 0) - (sectorCounts.get(b.sector) ?? 0)
+        || a.d2 - b.d2
+        || b.rarity - a.rarity
+        || a.item.id.localeCompare(b.item.id));
+    for (const entry of pool) {
+      if (selected.length >= limit || used >= band.limit) break;
+      const sectorCount = sectorCounts.get(entry.sector) ?? 0;
+      if (!relaxed && sectorCount >= 5) continue;
+      if (tooCloseToSelectedRoadsideItem(entry.item, selected, relaxed)) continue;
+      entry.selected = true;
+      selected.push(entry.item);
+      sectorCounts.set(entry.sector, sectorCount + 1);
+      used += 1;
+    }
+  };
+  for (const band of bands) takeFromBand(band, false);
+  for (const band of bands) {
+    if (selected.length >= limit) break;
+    takeFromBand({ ...band, limit: Math.max(0, band.limit - selected.length) + limit }, true);
+  }
+  if (selected.length < limit) {
+    for (const entry of prepared) {
+      if (selected.length >= limit) break;
+      if (entry.selected) continue;
+      entry.selected = true;
+      selected.push(entry.item);
+    }
+  }
+  return selected.slice(0, limit);
+}
+
+function needsRoadsideRefresh(supplies, player, nowMs, force) {
+  if (force || !Array.isArray(supplies.active) || supplies.active.length === 0) return true;
+  const last = supplies.lastRefreshPoint;
+  const movedFar = !finitePoint(last) || distanceSquared(last, player) >= ROADSIDE_SUPPLY_REFRESH_MOVE_METERS ** 2;
+  return movedFar || nowMs >= supplies.nextRefreshAt;
+}
+
 export function refreshRoadsideSupplies(state, force = false) {
   const supplies = ensureRoadsideSupplyState(state);
   const player = state.player?.worldPosition;
   const nowMs = state.runtime?.worldTimeMs ?? Date.now();
-  if (!force && nowMs < supplies.nextRefreshAt) return supplies.active;
-  supplies.nextRefreshAt = nowMs + ROADSIDE_SUPPLY_REFRESH_SECONDS * 1000;
   if (!finitePoint(player) || !state.world?.roadGraph?.nodeById) {
     supplies.active = [];
+    supplies.lastRefreshPoint = null;
+    supplies.nextRefreshAt = nowMs + ROADSIDE_SUPPLY_REFRESH_SECONDS * 1000;
     return supplies.active;
   }
+  if (!needsRoadsideRefresh(supplies, player, nowMs, force)) return supplies.active;
+  supplies.nextRefreshAt = nowMs + ROADSIDE_SUPPLY_REFRESH_SECONDS * 1000;
+  supplies.lastRefreshPoint = { x: Number(player.x), y: Number(player.y) };
   const epoch = dailyEpoch(nowMs);
   const playerSeed = state.world?.homeBase?.id ?? `${Math.round(state.world.roadGraph.center?.lat ?? 0)}:${Math.round(state.world.roadGraph.center?.lon ?? 0)}`;
   const collected = new Set(supplies.collectedIds);
@@ -270,10 +354,7 @@ export function refreshRoadsideSupplies(state, force = false) {
     if (distanceSquared(item, player) > 1150 * 1150) continue;
     candidates.push(item);
   }
-  candidates.sort((a, b) => distanceSquared(a, player) - distanceSquared(b, player)
-    || (RARITY_ORDER[b.rarity] ?? 0) - (RARITY_ORDER[a.rarity] ?? 0)
-    || a.id.localeCompare(b.id));
-  supplies.active = candidates.slice(0, ROADSIDE_SUPPLY_ACTIVE_LIMIT);
+  supplies.active = selectDistributedRoadsideSupplies(candidates, player, ROADSIDE_SUPPLY_ACTIVE_LIMIT);
   supplies.daily.generatedAt = nowMs;
   return supplies.active;
 }
@@ -542,6 +623,22 @@ export function useLureSignal(state, events = null) {
   return { ok: true, affected };
 }
 
+
+export function useMarchBannerOnSquad(state, squadId, events = null) {
+  if (!consumeInventory(state, 'marchBanner')) return { ok: false, reason: '行軍加速旗を所持していません。' };
+  const definition = ROADSIDE_USE_DEFINITIONS.marchBanner;
+  const result = boostFriendlySquadById(state, squadId, definition.durationSeconds, definition.speedMultiplier, events);
+  if (!result.ok) refundInventory(state, 'marchBanner');
+  return result;
+}
+
+export function useSmokeScreenOnSquad(state, squadId, events = null) {
+  if (!consumeInventory(state, 'smokeScreen')) return { ok: false, reason: '緊急撤退煙幕を所持していません。' };
+  const result = emergencyWithdrawFriendlySquadById(state, squadId, events);
+  if (!result.ok) refundInventory(state, 'smokeScreen');
+  return result;
+}
+
 export function useMarchBanner(state, events = null) {
   const eligibility = locationEligibility(state, { strict: true });
   if (!eligibility.ok) return eligibility;
@@ -565,9 +662,19 @@ export function useSmokeScreen(state, events = null) {
 export class RoadsideSupplySystem {
   constructor(events = null) { this.events = events; }
   update(state, _deltaSeconds = 0) {
+    const supplies = ensureRoadsideSupplyState(state);
+    const now = state.runtime?.worldTimeMs ?? Date.now();
     refreshRoadsideSupplies(state);
-    updateRoadsideMines(state, this.events);
-    return collectNearbyRoadsideSupplies(state, this.events);
+    let collected = [];
+    if (now >= supplies.nextCollectionCheckAt) {
+      supplies.nextCollectionCheckAt = now + ROADSIDE_SUPPLY_COLLECT_CHECK_SECONDS * 1000;
+      collected = collectNearbyRoadsideSupplies(state, this.events);
+    }
+    if ((supplies.placedMines?.length ?? 0) > 0 && now >= supplies.nextMineCheckAt) {
+      supplies.nextMineCheckAt = now + ROADSIDE_MINE_CHECK_SECONDS * 1000;
+      updateRoadsideMines(state, this.events);
+    }
+    return collected;
   }
   refresh(state, force = true) { return refreshRoadsideSupplies(state, force); }
   use(state, key) {
@@ -578,5 +685,10 @@ export class RoadsideSupplySystem {
     if (key === 'marchBanner') return useMarchBanner(state, this.events);
     if (key === 'smokeScreen') return useSmokeScreen(state, this.events);
     return useLocalDeploymentCall(state, key, this.events);
+  }
+  useOnSquad(state, key, squadId) {
+    if (key === 'marchBanner') return useMarchBannerOnSquad(state, squadId, this.events);
+    if (key === 'smokeScreen') return useSmokeScreenOnSquad(state, squadId, this.events);
+    return { ok: false, reason: 'このアイテムは選択部隊への使用に対応していません。' };
   }
 }

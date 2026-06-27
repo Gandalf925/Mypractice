@@ -89,9 +89,9 @@ class FrontlineRoadsApp {
       store: this.store,
       buildSystem: this.buildSystem,
       civilizationSystem: this.civilizationSystem,
-      explorationSystem: this.combatSystem.explorationSystem,
       recoverySystem: this.combatSystem.recoverySystem,
       friendlyForceSystem: this.combatSystem.friendlyForceSystem,
+      roadsideSupplySystem: this.roadsideSupplySystem,
       camera: this.camera,
       renderer: this.renderer,
       notifications: this.notifications,
@@ -111,7 +111,6 @@ class FrontlineRoadsApp {
       onGraphChanged: () => {
         this.store.transaction(state => {
           this.combatSystem.frontierSystem.reconcile(state);
-          this.combatSystem.explorationSystem.reconcile(state);
         }, 'world:graph-expanded');
         this.combatUi.refreshBuildPlacement(true);
         this.combatUi.update();

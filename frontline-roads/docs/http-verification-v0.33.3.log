@@ -1,9 +1,0 @@
-HTTP verification v0.33.3
-/ status=200 bytes=330 content-type=text/html
-/fr/ status=200 bytes=332 content-type=text/html
-/frontline-roads/ status=200 bytes=17438 content-type=text/html
-/frontline-roads/sw.js status=200 bytes=6756 content-type=text/javascript
-/frontline-roads/src/app/bootstrap.js status=200 bytes=35176 content-type=text/javascript
-/frontline-roads/src/app/pwa.js status=200 bytes=1779 content-type=text/javascript
-versioned redirects and app loader: PASS
-PASS

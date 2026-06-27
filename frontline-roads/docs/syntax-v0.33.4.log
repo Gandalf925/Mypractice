@@ -1,4 +1,0 @@
-
-> frontline-roads-refactor@0.33.4 syntax
-> find src tests tools -type f \( -name '*.js' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check && node --check sw.js
-

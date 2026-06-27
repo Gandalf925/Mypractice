@@ -1109,20 +1109,15 @@ function beginAnnihilationRecovery(state, squad, events = null) {
   return { ok: true, squad, recovery };
 }
 
-export function emergencyWithdrawFriendlySquadNear(state, point, radiusMeters, events = null) {
-  if (!point || !Number.isFinite(Number(point.x)) || !Number.isFinite(Number(point.y))) return { ok: false, reason: '現在地を取得してください。' };
-  const radius2 = Math.max(0, Number(radiusMeters) || 0) ** 2;
-  const candidates = (state.combat?.friendlySquads ?? [])
-    .filter(squad => squad.hp > 0 && !squad.temporaryDeployment && ![FRIENDLY_SQUAD_STATUS.RECOVERING, FRIENDLY_SQUAD_STATUS.READY].includes(squad.status))
-    .map(squad => ({ squad, d2: distanceSquared(friendlySquadPosition(state, squad), point) }))
-    .filter(entry => entry.d2 <= radius2)
-    .sort((a, b) => {
-      const aPriority = [FRIENDLY_SQUAD_STATUS.ENGAGED, FRIENDLY_SQUAD_STATUS.ATTACKING_BASE].includes(a.squad.status) ? 0 : 1;
-      const bPriority = [FRIENDLY_SQUAD_STATUS.ENGAGED, FRIENDLY_SQUAD_STATUS.ATTACKING_BASE].includes(b.squad.status) ? 0 : 1;
-      return aPriority - bPriority || a.d2 - b.d2;
-    });
-  const squad = candidates[0]?.squad ?? null;
-  if (!squad) return { ok: false, reason: `半径${Math.round(radiusMeters)}m以内に撤退可能な味方部隊がありません。` };
+function canUseRoadsideSquadItem(squad, { allowTemporary = true } = {}) {
+  return squad
+    && squad.hp > 0
+    && (allowTemporary || !squad.temporaryDeployment)
+    && ![FRIENDLY_SQUAD_STATUS.RECOVERING, FRIENDLY_SQUAD_STATUS.READY].includes(squad.status);
+}
+
+function applyEmergencyWithdraw(state, squad, events = null) {
+  if (!canUseRoadsideSquadItem(squad, { allowTemporary: false })) return { ok: false, reason: '撤退可能な通常味方部隊ではありません。' };
   clearEnemyEngagements(state, squad.id);
   squad.engagedEnemyId = null;
   if (!planReturn(state, squad)) return { ok: false, reason: '撤退経路を確保できません。' };
@@ -1133,25 +1128,60 @@ export function emergencyWithdrawFriendlySquadNear(state, point, radiusMeters, e
   return { ok: true, squad };
 }
 
+function applySpeedBoostToSquads(state, targets, durationSeconds, multiplier = ROADSIDE_SPEED_BOOST_MULTIPLIER, events = null) {
+  const activeTargets = targets.filter(squad => canUseRoadsideSquadItem(squad));
+  if (!activeTargets.length) return { ok: false, reason: '加速可能な味方部隊がありません。' };
+  const now = state.runtime?.worldTimeMs ?? Date.now();
+  for (const squad of activeTargets) {
+    squad.roadsideSpeedBoostUntil = Math.max(Number(squad.roadsideSpeedBoostUntil) || 0, now + Math.max(1, Number(durationSeconds) || 1) * 1000);
+    squad.roadsideSpeedBoostMultiplier = Math.max(Number(squad.roadsideSpeedBoostMultiplier) || 0, Math.max(0, Number(multiplier) || 0));
+  }
+  events?.emit('friendly:squad-speed-boosted', { squadIds: activeTargets.map(squad => squad.id), durationSeconds, multiplier });
+  events?.emit('message', { text: `行軍加速旗で味方部隊${activeTargets.length}隊の移動速度を一時的に上げました。` });
+  return { ok: true, squads: activeTargets };
+}
+
+export function emergencyWithdrawFriendlySquadById(state, squadId, events = null) {
+  const squad = (state.combat?.friendlySquads ?? []).find(item => item.id === squadId) ?? null;
+  if (!squad) return { ok: false, reason: '選択中の味方部隊が見つかりません。' };
+  return applyEmergencyWithdraw(state, squad, events);
+}
+
+export function emergencyWithdrawFriendlySquadNear(state, point, radiusMeters, events = null) {
+  if (!point || !Number.isFinite(Number(point.x)) || !Number.isFinite(Number(point.y))) return { ok: false, reason: '現在地を取得してください。' };
+  const radius2 = Math.max(0, Number(radiusMeters) || 0) ** 2;
+  const candidates = (state.combat?.friendlySquads ?? [])
+    .filter(squad => canUseRoadsideSquadItem(squad, { allowTemporary: false }))
+    .map(squad => ({ squad, d2: distanceSquared(friendlySquadPosition(state, squad), point) }))
+    .filter(entry => entry.d2 <= radius2)
+    .sort((a, b) => {
+      const aPriority = [FRIENDLY_SQUAD_STATUS.ENGAGED, FRIENDLY_SQUAD_STATUS.ATTACKING_BASE].includes(a.squad.status) ? 0 : 1;
+      const bPriority = [FRIENDLY_SQUAD_STATUS.ENGAGED, FRIENDLY_SQUAD_STATUS.ATTACKING_BASE].includes(b.squad.status) ? 0 : 1;
+      return aPriority - bPriority || a.d2 - b.d2;
+    });
+  const squad = candidates[0]?.squad ?? null;
+  if (!squad) return { ok: false, reason: `半径${Math.round(radiusMeters)}m以内に撤退可能な味方部隊がありません。` };
+  return applyEmergencyWithdraw(state, squad, events);
+}
+
+export function boostFriendlySquadById(state, squadId, durationSeconds, multiplier = ROADSIDE_SPEED_BOOST_MULTIPLIER, events = null) {
+  const squad = (state.combat?.friendlySquads ?? []).find(item => item.id === squadId) ?? null;
+  if (!squad) return { ok: false, reason: '選択中の味方部隊が見つかりません。' };
+  return applySpeedBoostToSquads(state, [squad], durationSeconds, multiplier, events);
+}
+
 export function boostFriendlySquadsNear(state, point, radiusMeters, durationSeconds, multiplier = ROADSIDE_SPEED_BOOST_MULTIPLIER, events = null) {
   if (!point || !Number.isFinite(Number(point.x)) || !Number.isFinite(Number(point.y))) return { ok: false, reason: '現在地を取得してください。' };
-  const now = state.runtime?.worldTimeMs ?? Date.now();
   const radius2 = Math.max(0, Number(radiusMeters) || 0) ** 2;
   const targets = (state.combat?.friendlySquads ?? [])
-    .filter(squad => squad.hp > 0 && ![FRIENDLY_SQUAD_STATUS.RECOVERING, FRIENDLY_SQUAD_STATUS.READY].includes(squad.status))
+    .filter(squad => canUseRoadsideSquadItem(squad))
     .map(squad => ({ squad, d2: distanceSquared(friendlySquadPosition(state, squad), point) }))
     .filter(entry => entry.d2 <= radius2)
     .sort((a, b) => a.d2 - b.d2)
     .slice(0, 3)
     .map(entry => entry.squad);
   if (!targets.length) return { ok: false, reason: `半径${Math.round(radiusMeters)}m以内に加速可能な味方部隊がありません。` };
-  for (const squad of targets) {
-    squad.roadsideSpeedBoostUntil = Math.max(Number(squad.roadsideSpeedBoostUntil) || 0, now + Math.max(1, Number(durationSeconds) || 1) * 1000);
-    squad.roadsideSpeedBoostMultiplier = Math.max(Number(squad.roadsideSpeedBoostMultiplier) || 0, Math.max(0, Number(multiplier) || 0));
-  }
-  events?.emit('friendly:squad-speed-boosted', { squadIds: targets.map(squad => squad.id), durationSeconds, multiplier });
-  events?.emit('message', { text: `行軍加速旗で味方部隊${targets.length}隊の移動速度を一時的に上げました。` });
-  return { ok: true, squads: targets };
+  return applySpeedBoostToSquads(state, targets, durationSeconds, multiplier, events);
 }
 
 export class FriendlyForceSystem {

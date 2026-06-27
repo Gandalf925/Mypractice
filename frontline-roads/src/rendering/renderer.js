@@ -10,7 +10,6 @@ import { drawBuildPlacement } from './build-placement-overlay.js';
 import { drawFriendlyOrderPlanning } from './friendly-order-overlay.js';
 import { CombatEffects } from './combat-effects.js';
 import { drawFrontierSignals } from './frontier-renderer.js';
-import { drawExplorationSites } from './exploration-renderer.js';
 
 const ACTIVE_GAME_STATES = new Set(['PLAYING', 'PAUSED']);
 
@@ -238,7 +237,6 @@ export class Renderer {
 
     if (this.graph && ACTIVE_GAME_STATES.has(state?.lifecycle)) {
       drawFrontierSignals(this.context, state, this.camera, visualTime, scenePreferences);
-      drawExplorationSites(this.context, state, this.camera, visualTime, scenePreferences);
       drawThreatRoutes(this.context, state, this.camera, this.focus, scenePreferences);
       if (this.rebuildCombatLayer(state, center, sweepAngle, visualTime, scenePreferences)) this.drawCachedLayer(this.combatLayer);
       else drawCombatState(this.context, state, this.camera, { center, sweepAngle, timeMs: visualTime, preferences: scenePreferences });
