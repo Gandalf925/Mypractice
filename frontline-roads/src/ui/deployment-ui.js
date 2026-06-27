@@ -165,6 +165,21 @@ export class DeploymentUi {
     }
   }
 
+  dispatchCurrent(routeOverride = this.selectedRoutePlan?.route?.path ?? null) {
+    let result;
+    this.store.transaction(state => {
+      result = this.system.dispatch(state, this.originBaseId, this.targetId, this.squadType, this.targetKind, routeOverride);
+    }, 'friendly:dispatch', { emit: true, validate: true });
+    if (!result?.ok) {
+      this.notifications.show(result?.reason ?? '派兵できません。');
+      return result ?? { ok: false };
+    }
+    this.notifications.show(`${FRIENDLY_SQUAD_DEFINITIONS[this.squadType].name}を派兵しました。`);
+    this.persist?.();
+    this.close();
+    return result;
+  }
+
   handleAction(event) {
     const button = event.target.closest('button[data-action]');
     if (!button) return;
@@ -195,7 +210,13 @@ export class DeploymentUi {
       const state = this.store.snapshot();
       const origin = ownedBaseById(state, this.originBaseId);
       const target = this.currentTarget(state);
-      if (!origin || !target?.nodeId || typeof this.beginRoutePlanning !== 'function') {
+      const preview = this.originBaseId
+        ? this.system.previewDeployment(state, this.originBaseId, this.targetId, this.squadType, this.targetKind, this.selectedRoutePlan?.route?.path ?? null)
+        : { ok: false, reason: '出撃元を選択してください。' };
+      const blockedByPreview = !preview.ok && !String(preview.reason ?? '').includes('選択した派兵経路');
+      if (blockedByPreview) {
+        this.notifications.show(preview.reason ?? '派兵条件を満たしていないため、経路指定できません。');
+      } else if (!origin || !target?.nodeId || typeof this.beginRoutePlanning !== 'function') {
         this.notifications.show('派兵経路を指定できません。出撃元と目標を確認してください。');
       } else {
         const targetLabel = this.missionKind === MISSION_KIND.RECOVERY
@@ -208,10 +229,14 @@ export class DeploymentUi {
           squadType: this.squadType,
           destinationNodeId: target.nodeId,
           targetLabel,
+          confirmLabel: this.missionKind === MISSION_KIND.RECOVERY ? 'この経路で回収部隊を派遣' : 'この経路で派兵',
           onConfirm: plan => {
-            this.selectedRoutePlan = plan;
-            this.render();
-            setVisible(this.panel, true);
+            const result = this.dispatchCurrent(plan?.route?.path ?? null);
+            if (!result?.ok) {
+              this.selectedRoutePlan = plan;
+              this.render();
+              setVisible(this.panel, true);
+            }
           },
           onCancel: () => {
             this.render();
@@ -222,16 +247,8 @@ export class DeploymentUi {
       }
     }
     if (action === 'dispatch') {
-      let result;
-      const routeOverride = this.selectedRoutePlan?.route?.path ?? null;
-      this.store.transaction(state => { result = this.system.dispatch(state, this.originBaseId, this.targetId, this.squadType, this.targetKind, routeOverride); }, 'friendly:dispatch', { emit: true, validate: true });
-      if (!result?.ok) this.notifications.show(result?.reason ?? '派兵できません。');
-      else {
-        this.notifications.show(`${FRIENDLY_SQUAD_DEFINITIONS[this.squadType].name}を派兵しました。`);
-        this.persist?.();
-        this.close();
-        return;
-      }
+      const result = this.dispatchCurrent(this.selectedRoutePlan?.route?.path ?? null);
+      if (result?.ok) return;
     }
     if (action === 'dispatch-group') {
       let result;
@@ -311,7 +328,8 @@ export class DeploymentUi {
     const globalCommand = friendlyGlobalCommandStatus(state);
     const selectedRoute = this.selectedRoutePlan?.route ?? null;
     const fixedTarget = this.missionKind !== MISSION_KIND.INTERCEPT;
-    const routePlannerAvailable = Boolean(origin && preview.path && fixedTarget && typeof this.beginRoutePlanning === 'function');
+    const routePlannerBlockedByPreview = !preview.ok && !String(preview.reason ?? '').includes('選択した派兵経路');
+    const routePlannerAvailable = Boolean(origin && preview.path && fixedTarget && typeof this.beginRoutePlanning === 'function' && !routePlannerBlockedByPreview);
     const routeSummary = selectedRoute
       ? `${selectedRoute.label}・${routeText(selectedRoute.physicalDistance)}・危険度 ${selectedRoute.risk}・経由 ${this.selectedRoutePlan.waypointNodeIds.length}/2`
       : '自動最短経路。必要なら出撃前に地図上で経路を指定できます。';

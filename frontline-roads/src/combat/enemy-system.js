@@ -146,6 +146,7 @@ function planPath(state, enemy) {
   }
   enemy.roadsideLureNodeId = null;
   enemy.roadsideLureUntil = 0;
+  enemy.roadsideLureMineId = null;
   if (definition.huntFriendlySquads || behavior.targetMode === 'SQUADS') {
     const squadPath = findCombatPathToTargets(
       state,
@@ -219,6 +220,7 @@ function ensurePath(state, enemy) {
   if (enemy.roadsideLureNodeId && Number(enemy.roadsideLureUntil) <= nowMs) {
     enemy.roadsideLureNodeId = null;
     enemy.roadsideLureUntil = 0;
+    enemy.roadsideLureMineId = null;
     enemy.reroutePending = true;
   }
   const expectedTargetId = enemy.roadsideLureNodeId && state.world.roadGraph?.nodeById?.has(enemy.roadsideLureNodeId)
@@ -598,6 +600,7 @@ export class EnemySystem {
       if (enemy.roadsideLureNodeId && enemy.nodeId === enemy.roadsideLureNodeId) {
         enemy.roadsideLureNodeId = null;
         enemy.roadsideLureUntil = 0;
+        enemy.roadsideLureMineId = null;
         enemy.path = null;
         enemy.pathIndex = 0;
         enemy.edgeId = null;

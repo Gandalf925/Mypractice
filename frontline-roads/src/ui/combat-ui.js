@@ -1,6 +1,6 @@
 import { distance } from '../core/utilities.js';
 import { DEFENSE_DEFINITIONS, ENEMY_BASE_DEFINITIONS, ENEMY_DEFINITIONS, defenseRuntimeDefinition } from '../combat/definitions.js';
-import { ownedBaseById } from '../base/field-bases.js';
+import { deploymentBases, ownedBaseById } from '../base/field-bases.js';
 import { constructionRangeSummary } from '../base/construction-range.js';
 import { defensePresentation, uniqueDefenseDescriptionParagraphs } from '../combat/defense-presentation.js';
 import { surveyFacilityPresentation } from '../exploration/survey-system.js';
@@ -26,11 +26,11 @@ import {
 import { remainingRouteDistance } from '../rendering/threat-analysis.js';
 import { bundleText } from '../civilization/inventory-system.js';
 import { frontierPresentation } from '../exploration/frontier-system.js';
-import { RECOVERY_COLLECTION_DURATION_SECONDS, RECOVERY_ITEM_STATUS, RECOVERY_RANGE_METERS, recoveryEligibility, recoveryItemPoint, recoveryItemPresentation } from '../exploration/recovery-system.js';
+import { RECOVERY_COLLECTION_DURATION_SECONDS, RECOVERY_ITEM_STATUS, RECOVERY_RANGE_METERS, isRecoveryItemVisible, recoveryEligibility, recoveryItemPoint, recoveryItemPresentation, recoveryItemStatusPresentation } from '../exploration/recovery-system.js';
 import { RESOURCE_LABELS } from '../civilization/data.js';
 import { defenseUpgradeStatus } from '../civilization/defense-upgrade.js';
 import { queryRequired, setVisible } from './dom.js';
-import { ensureRoadsideSupplyState } from '../exploration/roadside-supplies.js';
+import { ensureRoadsideSupplyState, ROADSIDE_USE_DEFINITIONS } from '../exploration/roadside-supplies.js';
 
 export class CombatUi {
   constructor({ store, buildSystem, civilizationSystem, explorationSystem, recoverySystem, friendlyForceSystem, roadsideSupplySystem = null, camera, renderer, notifications, persist = null, openDeployment = null, requestSurvey = null }) {
@@ -187,9 +187,14 @@ export class CombatUi {
     const graph = state.world.roadGraph;
     const candidates = [];
     for (const item of state.world.recoveryItems ?? []) {
-      if (item.status !== 'AVAILABLE') continue;
+      if (!isRecoveryItemVisible(item) || item.status === RECOVERY_ITEM_STATUS.CARRIED) continue;
       const itemPosition = recoveryItemPoint(state, item);
-      candidates.push({ kind: 'recoveryItem', id: item.id, point: itemPosition, distance: distance(point, itemPosition) });
+      candidates.push({ kind: 'recoveryItem', id: item.id, point: itemPosition, distance: distance(point, itemPosition), priority: item.status === RECOVERY_ITEM_STATUS.RESERVED ? 1 : 0 });
+    }
+    for (const mine of state.world.roadsideSupplies?.placedMines ?? []) {
+      if (Number.isFinite(Number(mine.x)) && Number.isFinite(Number(mine.y))) {
+        candidates.push({ kind: 'roadsideMine', id: mine.id, point: { x: Number(mine.x), y: Number(mine.y) }, distance: distance(point, mine), priority: -1 });
+      }
     }
     for (const source of state.world.frontierSources ?? []) {
       if (source.status === 'CLEARED') continue;
@@ -281,7 +286,7 @@ export class CombatUi {
     this.updateOrderPlanningOverlay();
   }
 
-  beginDeploymentRoutePlanning({ originNodeId, squadType, destinationNodeId, targetLabel = '敵拠点', onConfirm = null, onCancel = null }) {
+  beginDeploymentRoutePlanning({ originNodeId, squadType, destinationNodeId, targetLabel = '敵拠点', confirmLabel = null, onConfirm = null, onCancel = null }) {
     const state = this.store.snapshot();
     if (!state.world.roadGraph.nodeById.has(originNodeId) || !state.world.roadGraph.nodeById.has(destinationNodeId)) {
       this.notifications.show('派兵経路の始点または目的地が道路上にありません。');
@@ -304,6 +309,7 @@ export class CombatUi {
       waypointNodeIds: [],
       routes: [],
       selectedRouteIndex: 0,
+      confirmLabel,
       onConfirm,
       onCancel
     };
@@ -436,7 +442,7 @@ export class CombatUi {
         route: { ...route, path: { ...route.path, nodeIds: [...route.path.nodeIds], edgeIds: [...route.path.edgeIds] } },
         waypointNodeIds: [...completed.waypointNodeIds]
       });
-      this.notifications.show(`${route.label}ルートを派兵計画へ設定しました。`);
+      this.notifications.show(`${route.label}ルートで派兵を確定しました。`);
       this.renderContext();
       return;
     }
@@ -489,6 +495,40 @@ export class CombatUi {
     this.renderer.render?.();
   }
 
+
+  useLureSignalOnTarget(target) {
+    if (!this.roadsideSupplySystem?.useLureTarget) { this.notifications.show('誘導信号を使用できません。'); return; }
+    let result;
+    this.store.transaction(state => {
+      result = this.roadsideSupplySystem.useLureTarget(state, target);
+    }, 'roadside:lure-target', { emit: true, validate: true });
+    this.notifications.show(result?.ok ? '誘導信号を使用しました。' : result?.reason ?? '誘導信号を使用できません。');
+    if (result?.ok) this.persist?.();
+    this.renderContext();
+    this.renderer.render?.();
+  }
+
+  useStrategicItemOnTarget(itemKey, target) {
+    if (!this.roadsideSupplySystem?.useOnTarget) { this.notifications.show('遠隔支援を使用できません。'); return; }
+    let result;
+    this.store.transaction(state => {
+      result = this.roadsideSupplySystem.useOnTarget(state, itemKey, target);
+    }, `roadside:strategic-${itemKey}`, { emit: true, validate: true });
+    this.notifications.show(result?.ok ? `${ROADSIDE_USE_DEFINITIONS[itemKey]?.name ?? '遠隔支援'}を実行しました。` : result?.reason ?? '遠隔支援を使用できません。');
+    if (result?.ok) this.persist?.();
+    this.renderContext();
+    this.renderer.render?.();
+  }
+
+  removeSelectedMine(mineId) {
+    let result;
+    this.store.transaction(state => { result = this.roadsideSupplySystem.removeMine?.(state, mineId); }, 'roadside:remove-mine', { emit: true, validate: true });
+    this.notifications.show(result?.ok ? '地雷を撤去しました。' : result?.reason ?? '撤去できません。');
+    if (result?.ok) { this.persist?.(); this.clearObjectSelection(); }
+    else this.renderContext();
+    this.renderer.render?.();
+  }
+
   appendSelectedSquadItemActions(state, squad) {
     if (!this.roadsideSupplySystem?.useOnSquad || !squad || squad.hp <= 0) return;
     if ([FRIENDLY_SQUAD_STATUS.RECOVERING, FRIENDLY_SQUAD_STATUS.READY].includes(squad.status)) return;
@@ -504,6 +544,31 @@ export class CombatUi {
       smoke.title = '選択中の通常部隊を出撃元へ緊急撤退させます。現在地は参照しません。';
       smoke.disabled = Boolean(squad.temporaryDeployment) || [FRIENDLY_SQUAD_ORDER.RETURN, FRIENDLY_SQUAD_ORDER.WITHDRAW].includes(squad.order);
     }
+  }
+
+
+  appendStrategicItemActions(state, target) {
+    if (!this.roadsideSupplySystem?.useOnTarget) return;
+    const inventory = ensureRoadsideSupplyState(state).inventory ?? {};
+    for (const key of ['remoteBarrage', 'areaSuppression', 'airSupport']) {
+      const count = Math.max(0, Math.floor(Number(inventory[key]) || 0));
+      if (count <= 0) continue;
+      const definition = ROADSIDE_USE_DEFINITIONS[key];
+      const action = this.action(`${definition.name} ×${count}`, () => this.useStrategicItemOnTarget(key, target), key === 'airSupport' ? 'danger' : 'primary');
+      action.title = '選択中の発見済み対象周辺へ遠隔支援を実行します。現在地は参照しません。';
+    }
+  }
+
+  appendDefenseLureAction(state, defense) {
+    if (!this.roadsideSupplySystem?.useLureTarget) return;
+    const inventory = ensureRoadsideSupplyState(state).inventory ?? {};
+    const lureCount = Math.max(0, Math.floor(Number(inventory.lureSignal) || 0));
+    if (lureCount <= 0) return;
+    const targets = this.roadsideSupplySystem.lureTargets?.(state) ?? [];
+    const cluster = targets.find(target => target.kind === 'defenseCluster' && (target.defenseIds ?? []).includes(defense.id));
+    if (!cluster) return;
+    const lure = this.action(`誘導信号 ×${lureCount}`, () => this.useLureSignalOnTarget({ kind: 'defenseCluster', id: cluster.id }), 'primary');
+    lure.title = '周辺敵をこの防衛密集地点へ誘導します。';
   }
 
   renderOrderPlanningContext(state, squad) {
@@ -529,7 +594,7 @@ export class CombatUi {
       plan.mode === FRIENDLY_ORDER_MODE.WITHDRAW ? '撤退を確定すると現在の攻撃任務は破棄され、再開できません。' : '未発見の敵は危険度計算に含まれません。',
       plan.mode === FRIENDLY_ORDER_MODE.DEPLOYMENT
         ? '派兵確定後、部隊は表示中の最初の道路区間から選択経路を進みます。'
-        : squad.edgeId && squad.edgeProgress > 0 ? '道路途中では現在の区間を次の交差点まで進んでから選択ルートへ入ります。' : '命令確定後、選択ルートへ直ちに移行します。'
+        : squad.edgeId && squad.edgeProgress > 0 ? '道路途中でも撤退・帰還先が後方の場合は現在区間上で即時反転します。前方ルートが短い場合だけ次の交差点へ進みます。' : '命令確定後、選択ルートへ直ちに移行します。'
     ]);
     plan.routes.forEach((route, index) => this.action(
       `${index + 1}. ${route.label}${index === plan.selectedRouteIndex ? ' ✓' : ''}`,
@@ -538,7 +603,8 @@ export class CombatUi {
     ));
     if (plan.waypointNodeIds.length) this.action('最後の経由地点を取消', () => this.removeLastWaypoint());
     if (plan.mode === FRIENDLY_ORDER_MODE.RETREAT && plan.destinationNodeId) this.action('後退地点を選び直す', () => this.resetRetreatDestination());
-    const confirm = this.action(`${modeLabel}を確定`, () => this.confirmOrderPlanning(), 'primary');
+    const confirmText = plan.mode === FRIENDLY_ORDER_MODE.DEPLOYMENT ? (plan.confirmLabel ?? 'この経路で派兵') : `${modeLabel}を確定`;
+    const confirm = this.action(confirmText, () => this.confirmOrderPlanning(), 'primary');
     confirm.disabled = !selectedRoute;
     this.action('命令を取消', () => this.cancelOrderPlanning());
     setVisible(this.context, true);
@@ -889,25 +955,58 @@ export class CombatUi {
     }
     const selected = this.selectedObject;
     if (selected.kind === 'recoveryItem') {
-      const item = (state.world.recoveryItems ?? []).find(value => value.id === selected.id && value.status === 'AVAILABLE');
+      const item = (state.world.recoveryItems ?? []).find(value => value.id === selected.id && isRecoveryItemVisible(value));
       if (!item) { this.clearObjectSelection(); return; }
       const presentation = recoveryItemPresentation(item);
+      const statusPresentation = recoveryItemStatusPresentation(item);
       const itemPosition = recoveryItemPoint(state, item);
       const gap = state.player.worldPosition ? distance(state.player.worldPosition, itemPosition) : Infinity;
-      const eligibility = recoveryEligibility(state, item);
       const collection = state.world.recoveryCollection?.itemId === item.id ? state.world.recoveryCollection : null;
+      const available = item.status === RECOVERY_ITEM_STATUS.AVAILABLE;
+      const eligibility = available ? recoveryEligibility(state, item) : { ok: false, reason: statusPresentation.detail };
       const progress = Math.min(RECOVERY_COLLECTION_DURATION_SECONDS, collection?.progressSec ?? 0);
       this.contextTitle.textContent = `RECOVERY // ${presentation.name}`;
+      const statusLabel = collection ? '現地回収中' : statusPresentation.label;
       this.setContextContent(
-        `${presentation.sourceName}の破壊地点に残された特殊回収物です。現地へ移動し、最新の位置情報で回収してください。`,
-        [['DIST', Number.isFinite(gap) ? `${Math.round(gap)}m` : 'NO GPS'], ['ENTRY', `${RECOVERY_RANGE_METERS}m`], ['STATUS', collection ? 'RECOVERING' : eligibility.ok ? 'READY' : 'FIELD LOCK'], ['TIME', collection ? `${progress.toFixed(1)}/${RECOVERY_COLLECTION_DURATION_SECONDS}s` : `${RECOVERY_COLLECTION_DURATION_SECONDS}s`], ['SOURCE', presentation.sourceName], ['LOOT', presentation.lootText]],
-        [presentation.description, collection ? '回収完了まで範囲内に留まってください。' : eligibility.ok ? '回収後は文明発展の実績として記録されます。' : eligibility.reason]
+        available
+          ? `${presentation.sourceName}の破壊地点に残された特殊回収物です。現地へ移動するか、回収部隊を派遣して回収できます。`
+          : `${presentation.sourceName}の破壊地点に残された特殊回収物です。${statusPresentation.detail}`,
+        [['DIST', Number.isFinite(gap) ? `${Math.round(gap)}m` : 'NO GPS'], ['ENTRY', `${RECOVERY_RANGE_METERS}m`], ['STATUS', statusLabel], ['TIME', collection ? `${progress.toFixed(1)}/${RECOVERY_COLLECTION_DURATION_SECONDS}s` : available ? `${RECOVERY_COLLECTION_DURATION_SECONDS}s` : '--'], ['SOURCE', presentation.sourceName], ['LOOT', presentation.lootText]],
+        [presentation.description, collection ? '回収完了まで範囲内に留まってください。' : available ? (eligibility.ok ? '回収後は文明発展の実績として記録されます。' : eligibility.reason) : statusPresentation.detail]
       );
       this.context.classList?.add('is-target-mode');
       const collect = this.action(collection ? `回収中 ${Math.floor(progress)}/${RECOVERY_COLLECTION_DURATION_SECONDS}秒` : '現地で回収', () => this.mutateAction(draft => this.recoverySystem.beginCollection(draft, item.id), 'recovery:begin'), 'primary');
-      collect.disabled = Boolean(collection) || !eligibility.ok;
-      const dispatch = this.action('回収部隊を派遣', () => this.openDeployment?.({ kind: 'recoveryItem', id: item.id }));
-      dispatch.disabled = Boolean(collection) || typeof this.openDeployment !== 'function';
+      collect.disabled = Boolean(collection) || !available || !eligibility.ok;
+      const retrievalPreview = available && this.friendlyForceSystem
+        ? deploymentBases(state, 'retrieval')
+          .map(base => this.friendlyForceSystem.previewDeployment(state, base.id, item.id, 'retrieval', 'recoveryItem'))
+          .find(result => result.ok)
+        : null;
+      const retrievalReason = available && !retrievalPreview && this.friendlyForceSystem
+        ? deploymentBases(state, 'retrieval')
+          .map(base => this.friendlyForceSystem.previewDeployment(state, base.id, item.id, 'retrieval', 'recoveryItem'))
+          .find(result => result.reason)?.reason ?? '回収部隊を派遣できる拠点がありません。'
+        : statusPresentation.shortLabel;
+      const dispatch = this.action(available ? '回収部隊を派遣' : statusPresentation.shortLabel, () => this.openDeployment?.({ kind: 'recoveryItem', id: item.id }));
+      dispatch.disabled = !available || Boolean(collection) || typeof this.openDeployment !== 'function' || !retrievalPreview;
+      dispatch.title = dispatch.disabled ? retrievalReason : '回収部隊を派遣します。';
+      if (available && !retrievalPreview) this.contextText?.insertAdjacentHTML?.('beforeend', `<p class="sectionNote">${retrievalReason}</p>`);
+    } else if (selected.kind === 'roadsideMine') {
+      const mine = (state.world.roadsideSupplies?.placedMines ?? []).find(item => item.id === selected.id);
+      if (!mine) { this.clearObjectSelection(); return; }
+      const definition = ROADSIDE_USE_DEFINITIONS[mine.itemKey ?? 'roadMine'] ?? ROADSIDE_USE_DEFINITIONS.roadMine;
+      const inventory = ensureRoadsideSupplyState(state).inventory ?? {};
+      const lureCount = Math.max(0, Math.floor(Number(inventory.lureSignal) || 0));
+      this.contextTitle.textContent = `MINE // ${mine.name ?? definition.name}`;
+      this.setContextContent('設置済み地雷です。時間制限はなく、敵が通過するまで残ります。誘導信号弾で敵をこの地点へ誘導できます。', [
+        ['TYPE', definition.name],
+        ['RADIUS', `${definition.radiusMeters}m`],
+        ['TRIGGER', `${definition.triggerRadiusMeters}m`],
+        ['NODE', mine.nodeId ?? '--']
+      ], ['誘導中の敵が踏んだ場合、爆発半径と威力が上昇します。']);
+      const lure = this.action(`誘導信号 ×${lureCount}`, () => this.useLureSignalOnTarget({ kind: 'mine', id: mine.id }), 'primary');
+      lure.disabled = lureCount <= 0;
+      this.action('地雷を撤去', () => this.removeSelectedMine(mine.id), 'danger');
     } else if (selected.kind === 'friendlySquad') {
       const squad = (state.combat.friendlySquads ?? []).find(item => item.id === selected.id);
       if (!squad || squad.hp <= 0) { this.clearObjectSelection(); return; }
@@ -1048,6 +1147,7 @@ export class CombatUi {
       ], [behavior.description, `基本目標：${definition.objectiveLabel ?? '都市'}`]);
       const intercept = this.action('この敵部隊へ派兵', () => this.openDeployment?.({ kind: 'enemy', id: enemy.id }), 'primary');
       intercept.disabled = enemy.departDelay > 0 || typeof this.openDeployment !== 'function';
+      this.appendStrategicItemActions(state, { kind: 'enemy', id: enemy.id });
     } else if (selected.kind === 'frontier') {
       const source = (state.world.frontierSources ?? []).find(item => item.id === selected.id);
       if (!source || source.status === 'CLEARED') { this.clearObjectSelection(); return; }
@@ -1083,6 +1183,7 @@ export class CombatUi {
       );
       const deploy = this.action(attackers ? '追加部隊を派兵' : 'この敵拠点へ派兵', () => this.openDeployment?.({ kind: 'enemyBase', id: base.id }), 'primary');
       deploy.disabled = typeof this.openDeployment !== 'function';
+      this.appendStrategicItemActions(state, { kind: 'enemyBase', id: base.id });
     } else if (selected.kind === 'defense') {
       this.context.classList?.add('is-defense-mode');
       const defense = state.combat.defenses.find(item => item.id === selected.id);
@@ -1146,6 +1247,7 @@ export class CombatUi {
         this.action('説明', () => this.setDefensePanelMode('details', defense.id));
         const repair = this.action(defense.hp >= defense.maxHp ? '修理不要' : '修理', () => this.mutateAction(draft => this.civilizationSystem.progression.repairDefense(draft, defense.id), 'defense:repair'));
         repair.disabled = defense.hp >= defense.maxHp;
+        this.appendDefenseLureAction(state, defense);
         if (survey) {
           const surveyBusy = ['QUEUED', 'LOADING'].includes(survey.status);
           const surveyComplete = survey.status === 'COMPLETE' && survey.remainingChunks <= 0;

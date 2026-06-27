@@ -1,7 +1,7 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const RELEASE_VERSION = '0.33.4';
-const CACHE_NAME = `${CACHE_PREFIX}v0-33-4-immediate-retreat-fix`;
+const RELEASE_VERSION = '0.34.5';
+const CACHE_NAME = `${CACHE_PREFIX}v0-34-5-deployment-route-fix`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -114,6 +114,7 @@ const APP_SHELL = [
   './src/ui/map-input.js',
   './src/ui/menu-ui.js',
   './src/ui/notifications.js',
+  './src/ui/operation-guidance.js',
   './src/ui/radar-preferences.js',
   './src/ui/roadside-supplies-ui.js'
 ];

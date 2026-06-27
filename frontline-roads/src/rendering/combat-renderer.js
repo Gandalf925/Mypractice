@@ -3,7 +3,7 @@ import { defenseWorldPosition } from '../combat/combat-geometry.js';
 import { enemyPosition } from '../combat/enemy-system.js';
 import { friendlySquadPosition } from '../combat/friendly-force-system.js';
 import { friendlySquadDefinition } from '../combat/friendly-force-definitions.js';
-import { recoveryItemPoint } from '../exploration/recovery-system.js';
+import { RECOVERY_ITEM_STATUS, isRecoveryItemVisible, recoveryItemPoint } from '../exploration/recovery-system.js';
 import { roadsideSupplyPoint } from '../exploration/roadside-supplies.js';
 import { defenseRuntimeDefinition } from '../combat/definitions.js';
 import { sweepIntensity } from './radar-renderer.js';
@@ -308,18 +308,31 @@ function drawRoadsideSupply(context, point, item, timeMs, quality) {
   context.restore();
 }
 
-function drawRecoveryItem(context, point, timeMs, quality) {
+function drawRecoveryItem(context, point, timeMs, quality, status = RECOVERY_ITEM_STATUS.AVAILABLE) {
   const pulse = 11 + Math.sin(timeMs * 0.005) * 1.5;
+  const palette = status === RECOVERY_ITEM_STATUS.RESERVED
+    ? { color: '#6ee7ff', fill: 'rgba(110,231,255,0.18)', text: 'WAIT', glow: 12, dashed: true }
+    : status === RECOVERY_ITEM_STATUS.CARRIED
+      ? { color: '#65ffd0', fill: 'rgba(101,255,208,0.18)', text: 'LOAD', glow: 10, dashed: false }
+      : { color: '#ffd166', fill: 'rgba(255,209,102,0.2)', text: 'ITEM', glow: 16, dashed: true };
   context.save();
-  glow(context, '#ffd166', 16, quality);
-  polygon(context, point, 6, 4, Math.PI / 4, 'rgba(255,209,102,0.2)', '#ffd166', 1.5);
-  ring(context, point, pulse, '#ffd166', 1, 0.55, true);
-  context.fillStyle = '#fff1bf';
+  glow(context, palette.color, palette.glow, quality);
+  polygon(context, point, 6, 4, Math.PI / 4, palette.fill, palette.color, 1.5);
+  ring(context, point, pulse, palette.color, 1, status === RECOVERY_ITEM_STATUS.RESERVED ? 0.72 : 0.55, palette.dashed);
+  context.fillStyle = status === RECOVERY_ITEM_STATUS.RESERVED ? '#d8fbff' : status === RECOVERY_ITEM_STATUS.CARRIED ? '#d8fff4' : '#fff1bf';
   context.font = '800 7px ui-monospace, monospace';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
-  context.fillText('ITEM', point.x, point.y + 0.5);
+  context.fillText(palette.text, point.x, point.y + 0.5);
   context.restore();
+}
+
+function recoveryItemDisplayPoint(state, item) {
+  if (item?.status === RECOVERY_ITEM_STATUS.CARRIED && item.assignedSquadId) {
+    const carrier = (state.combat?.friendlySquads ?? []).find(squad => squad.id === item.assignedSquadId && squad.hp > 0);
+    if (carrier) return friendlySquadPosition(state, carrier);
+  }
+  return recoveryItemPoint(state, item);
 }
 
 function drawPlayer(context, point, quality) {
@@ -375,10 +388,15 @@ export function drawCombatState(context, state, camera, radar = {}) {
   }
 
   for (const item of state.world.recoveryItems ?? []) {
-    if (item.status !== 'AVAILABLE') continue;
-    const itemPosition = recoveryItemPoint(state, item);
+    if (!isRecoveryItemVisible(item)) continue;
+    const itemPosition = recoveryItemDisplayPoint(state, item);
     const point = camera.worldToScreen(itemPosition);
-    if (visiblePoint(point, camera, 24)) drawRecoveryItem(context, point, timeMs, quality);
+    if (visiblePoint(point, camera, 24)) drawRecoveryItem(context, point, timeMs, quality, item.status);
+  }
+
+  for (const mine of state.world.roadsideSupplies?.placedMines ?? []) {
+    const point = camera.worldToScreen(mine);
+    if (visiblePoint(point, camera, 24)) drawRoadsideSupply(context, point, { kind: 'tactical', inventoryKey: mine.itemKey ?? 'roadMine', rarity: mine.itemKey === 'armorBreakerMine' ? 'legendary' : mine.itemKey === 'directionalMine' ? 'epic' : 'rare' }, timeMs, quality);
   }
 
   for (const supply of state.world.roadsideSupplies?.active ?? []) {

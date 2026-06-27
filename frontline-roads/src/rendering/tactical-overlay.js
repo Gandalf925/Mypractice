@@ -200,6 +200,9 @@ export function drawTacticalFocus(context, state, camera, focus = null, timeMs =
     color = '#ff5268';
   } else if (focus.kind === 'city') {
     world = graph.nodeById.get(state.world.city.nodeId);
+  } else if (focus.kind === 'roadsideMine') {
+    world = (state.world.roadsideSupplies?.placedMines ?? []).find(item => item.id === focus.id);
+    color = '#ffef79';
   }
   if (world) bracket(context, camera.worldToScreen(world), 17, color, timeMs);
 }

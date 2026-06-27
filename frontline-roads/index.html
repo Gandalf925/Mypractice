@@ -19,7 +19,7 @@
     #assetRecovery button { width: 100%; margin-top: 16px; padding: 12px 14px; border: 1px solid rgba(101,255,208,.72); background: #062019; color: #dffdf4; font: inherit; font-weight: 700; }
   </style>
   <script>
-    globalThis.__FRONTLINE_RELEASE__ = Object.freeze({ version: '0.33.4', directory: 'frontline-roads' });
+    globalThis.__FRONTLINE_RELEASE__ = Object.freeze({ version: '0.34.5', directory: 'frontline-roads' });
     (() => {
       const release = globalThis.__FRONTLINE_RELEASE__;
       const navigatorRef = globalThis.navigator;
@@ -222,23 +222,28 @@
     <section id="menuPanel" class="modalOverlay" hidden aria-label="メニュー">
       <div class="modalCard menuCard">
         <header class="modalHeader"><div><span class="eyebrow">SYSTEM MENU</span><h1>メニュー</h1></div><button id="closeMenu" type="button">×</button></header>
-        <div class="modalBody">
-          <section>
+        <div class="modalBody menuBody">
+          <div class="uiTabBar" role="tablist" aria-label="メニュー表示切替">
+            <button type="button" class="active" data-menu-tab="ops">作戦</button>
+            <button type="button" data-menu-tab="guide">遊び方</button>
+            <button type="button" data-menu-tab="display">表示</button>
+            <button type="button" data-menu-tab="system">保存</button>
+          </div>
+          <section class="uiTabPanel active" data-menu-panel="ops">
+            <div id="operationGuidanceContent"><p class="emptyText">作戦目標を取得しています。</p></div>
+          </section>
+          <section class="uiTabPanel" data-menu-panel="guide">
             <h2>遊び方</h2>
-            <div class="helpGrid">
-              <div><strong>初回拠点</strong><p>現在地から1km以内の道路を直接選び、移動せず即時設置します。</p></div>
-              <div><strong>道路防衛</strong><p>主要拠点・簡易拠点・現在地・出撃中の遠征部隊の範囲内へ設備を置き、敵の経路を誘導します。文明発展による拠点建設圏は段階的に広がりますが上限があり、設置済み施設からは広がりません。</p></div>
-              <div><strong>敵の性格</strong><p>敵は直進、側面迂回、拠点襲撃、施設破壊、部隊追跡、支援など異なる性格で経路と目標を選びます。敵を選択すると性格・作戦・実際の迂回率を確認できます。</p></div>
-              <div><strong>未確認前線</strong><p>MAP端の敵性反応から部隊が侵入します。反応方向へ実際に移動すると道路と情報が追加されます。</p></div>
-              <div><strong>道端物資</strong><p>道路沿いの資源箱は近づくと自動回収します。出撃札・信号弾・爆薬はITEMSから使用し、現在地を起点に一時出撃や掃討を行います。</p></div>
-              <div><strong>発生源の無力化</strong><p>現地へ到達し、周辺部隊を排除して調査を完了すると、その方向からの新規侵攻が止まります。</p></div>
-              <div><strong>敵への派兵</strong><p>敵拠点を選ぶと拠点攻撃、移動中の敵部隊を選ぶと追跡迎撃を開始できます。単独出撃では「地図で派兵経路を指定」から最短・敵回避・味方援護を比較し、最大2か所の経由地点を追加できます。連携出撃は各部隊の経路と出発時刻を自動調整します。特殊アイテムは現地40m以内で手動回収できます。</p></div>
-              <div><strong>文明発展</strong><p>施設・防衛実績・資源納入に加え、現地回収した特殊アイテムで発展します。拠点上限は文明に応じて増加し、Lv.7では主要拠点・簡易拠点とも撤廃されます。</p></div>
-              <div><strong>不在中</strong><p>戦闘・生産・文明建設は同じ規則で最大24時間まで計算されます。</p></div>
-              <div><strong>位置情報</strong><p>正確な移動履歴は保存しません。初期取得と移動先の道路追加時に周辺位置を外部道路データサービスへ送信し、保存時の地図基準点は約10m単位へ丸めます。</p></div>
+            <div class="helpGrid compactHelpGrid">
+              <details open><summary>基本進行</summary><p>現在地周辺の道路に拠点を置き、防衛設備・派兵・文明発展で敵拠点を制圧します。防衛だけでは文明が進みにくいため、敵拠点への派兵が重要です。</p></details>
+              <details><summary>道路防衛</summary><p>主要拠点・簡易拠点・現在地・遠征部隊の範囲内へ設備を置き、敵の経路を誘導します。門は味方を通し、壁は双方を遮断します。</p></details>
+              <details><summary>道端物資</summary><p>資源箱は近づくと自動回収します。地雷・誘導信号・爆撃支援などはITEMSで管理し、対象を選んで使います。</p></details>
+              <details><summary>敵への派兵</summary><p>敵拠点を選ぶと拠点攻撃、敵部隊を選ぶと追跡迎撃を開始できます。単独出撃では地図で派兵経路を指定し、最大2か所の経由地点を追加できます。連携出撃は各部隊の経路と出発時刻を自動調整します。部隊は撤退・加速・煙幕などの消耗品で支援できます。</p></details>
+              <details><summary>文明発展</summary><p>CIV画面で不足条件だけを確認し、安全納入で防衛予備を残しながら資源を投入します。Lv.7では拠点上限が撤廃されます。</p></details>
+              <details><summary>位置情報・不在中</summary><p>正確な移動履歴は保存しません。道路追加時に周辺位置を外部道路データサービスへ送信し、保存時の地図基準点は約10m単位へ丸めます。不在中の戦闘・生産・文明建設は最大24時間まで計算されます。</p></details>
             </div>
           </section>
-          <section class="radarSettings">
+          <section class="uiTabPanel" data-menu-panel="display">
             <h2>レーダー表示</h2>
             <p class="sectionNote">表示だけを変更します。ゲーム進行やセーブ内容には影響しません。</p>
             <div class="radarSettingButtons">
@@ -247,8 +252,14 @@
               <button id="radarRoutesButton" type="button">敵経路：脅威のみ</button>
             </div>
           </section>
-          <button id="manualSave" class="wideButton" type="button">現在の状態を保存</button>
-          <button id="menuReset" class="wideButton danger" type="button">ゲームを完全初期化</button>
+          <section class="uiTabPanel" data-menu-panel="system">
+            <h2>保存・初期化</h2>
+            <p class="sectionNote">通常は自動保存されます。アップロード前や挙動確認前に手動保存できます。完全初期化は道路キャッシュと旧セーブも削除します。</p>
+            <div class="menuActionGrid">
+              <button id="manualSave" class="wideButton" type="button">現在の状態を保存</button>
+              <button id="menuReset" class="wideButton danger" type="button">ゲームを完全初期化</button>
+            </div>
+          </section>
         </div>
       </div>
     </section>

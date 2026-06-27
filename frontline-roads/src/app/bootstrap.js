@@ -148,6 +148,7 @@ class FrontlineRoadsApp {
       persist: options => this.persist(options)
     });
     this.menuUi = new MenuUi({
+      store: this.store,
       onSave: () => this.persist(),
       onReset: () => this.reset(),
       notifications: this.notifications
@@ -166,6 +167,7 @@ class FrontlineRoadsApp {
         this.baseCommandUi.update(view);
         this.civilizationUi.update(view);
         this.roadsideSuppliesUi.update(view);
+        this.menuUi.update(view);
         this.roadWorld.considerSurveyFacilities();
       },
       onError: error => this.notifications.show(error?.message ?? '保存に失敗しました。'),

@@ -35,6 +35,35 @@ function checkProgressText(check) {
   return `${Math.floor(check.current)}/${Math.floor(check.required)}`;
 }
 
+function tabButton(id, label, active) {
+  return `<button type="button" data-ui-tab="${id}" class="${active === id ? 'active' : ''}">${label}</button>`;
+}
+
+function tabPanel(id, active, html) {
+  return `<section class="uiTabPanel ${active === id ? 'active' : ''}" data-panel="${id}">${html}</section>`;
+}
+
+const RESOURCE_CATEGORIES = Object.freeze([
+  ['base', '基本資材', ['wood', 'stone', 'fiber']],
+  ['processed', '加工資材', ['timber', 'rope', 'cutStone', 'charcoal']],
+  ['ore', '鉱石', ['copperOre', 'tinOre', 'ironOre']],
+  ['metal', '金属', ['copperIngot', 'tinIngot', 'bronzeIngot', 'ironBloom', 'wroughtIron', 'steel']],
+  ['parts', '部品', ['mechanism']]
+]);
+
+function resourceCategorySections(state) {
+  return RESOURCE_CATEGORIES.map(([, label, keys]) => {
+    const rows = keys
+      .filter(key => (state.inventory.resources[key] ?? 0) > 0 || (state.inventory.overflow[key]?.amount ?? 0) > 0)
+      .map(key => {
+        const amount = Math.floor(state.inventory.resources[key] ?? 0);
+        const overflow = Math.floor(state.inventory.overflow[key]?.amount ?? 0);
+        return `<div class="resourceRow compact"><span>${RESOURCE_LABELS[key]}</span><strong>${amount}</strong>${overflow ? `<small>保留 ${overflow}</small>` : ''}</div>`;
+      }).join('') || '<p class="emptyText">該当資材なし</p>';
+    return `<details class="compactDisclosure resourceCategory" open><summary>${label}</summary><div class="resourceGrid">${rows}</div></details>`;
+  }).join('');
+}
+
 
 const DEFENSE_LINE_LABELS = Object.freeze({
   barrier: '防壁', single: '単体攻撃', area: '範囲攻撃', slow: '減速支援', repair: '自動修復',
@@ -136,6 +165,7 @@ export class CivilizationUi {
     this.body = queryRequired('#civilizationBody');
     this.resourceSummary = queryRequired('#resourceSummary');
     this.lastPanelRenderAt = 0;
+    this.activeTab = 'progress';
     queryRequired('#civilizationButton').addEventListener('click', () => this.open());
     queryRequired('#closeCivilization').addEventListener('click', () => this.close());
     bindDismissibleModal(this.panel, () => this.close());
@@ -161,10 +191,46 @@ export class CivilizationUi {
   }
 
   handleAction(event) {
+    const tabButton = event.target.closest('button[data-ui-tab]');
+    if (tabButton?.dataset?.uiTab) {
+      this.activeTab = tabButton.dataset.uiTab || 'progress';
+      this.render();
+      return;
+    }
     const button = event.target.closest('button[data-action]');
     if (!button) return;
     const { action, resource, type, buildingId, recipeId, quantity } = button.dataset;
-    if (action === 'contribute-safe') {
+    if (action === 'contribute-safe-all') {
+      const result = this.transaction(state => {
+        let total = 0;
+        const project = state.civilization?.project;
+        const definition = project ? CIVILIZATION_PROJECTS[project.targetLevel] : null;
+        for (const key of Object.keys(definition?.contributions ?? {})) {
+          const amount = safeProjectContributionAmount(state, key);
+          if (amount <= 0) continue;
+          const contributed = this.system.progression.contribute(state, key, amount);
+          if (contributed?.ok) total += contributed.amount;
+        }
+        return total > 0 ? { ok: true, amount: total } : { ok: false, reason: '安全に一括納入できる資源がありません。' };
+      }, 'civilization:contribute-safe-all');
+      if (result?.ok) this.notifications.show(`安全納入で合計${result.amount}資材を納入しました。`);
+    } else if (action === 'contribute-safe-basic') {
+      const protectedKeys = new Set(['bronzeIngot', 'wroughtIron', 'steel', 'mechanism']);
+      const result = this.transaction(state => {
+        let total = 0;
+        const project = state.civilization?.project;
+        const definition = project ? CIVILIZATION_PROJECTS[project.targetLevel] : null;
+        for (const key of Object.keys(definition?.contributions ?? {})) {
+          if (protectedKeys.has(key)) continue;
+          const amount = safeProjectContributionAmount(state, key);
+          if (amount <= 0) continue;
+          const contributed = this.system.progression.contribute(state, key, amount);
+          if (contributed?.ok) total += contributed.amount;
+        }
+        return total > 0 ? { ok: true, amount: total } : { ok: false, reason: '高級資材を除外して安全納入できる資源がありません。' };
+      }, 'civilization:contribute-safe-basic');
+      if (result?.ok) this.notifications.show(`高級資材を除外し、合計${result.amount}資材を納入しました。`);
+    } else if (action === 'contribute-safe') {
       const result = this.transaction(state => this.system.progression.contributeSafely(state, resource), 'civilization:contribute-safe');
       if (result?.ok) this.notifications.show(`${RESOURCE_LABELS[resource]}を${result.amount}安全納入しました。`);
     } else if (action === 'contribute-all') {
@@ -233,26 +299,52 @@ export class CivilizationUi {
     let projectHtml = '<p class="emptyText">最高文明へ到達しています。</p>';
     if (project) {
       const definition = CIVILIZATION_PROJECTS[project.targetLevel];
-      const contributions = Object.entries(definition.contributions).map(([key, required]) => {
+      const locked = ['BUILDING', 'PAUSED'].includes(project.status);
+      const resourceChecks = evaluation.checks.filter(check => check.kind === 'resource');
+      const otherChecks = evaluation.checks.filter(check => check.kind !== 'resource');
+      const allChecks = [...resourceChecks, ...otherChecks];
+      const completeCount = allChecks.filter(check => check.complete).length;
+      const progressPercent = allChecks.length ? Math.floor((completeCount / allChecks.length) * 100) : 100;
+      const contributionRow = check => {
+        const key = check.key;
+        const required = check.required;
         const current = project.contributions[key] ?? 0;
         const available = state.inventory.resources[key] ?? 0;
         const safeAmount = safeProjectContributionAmount(state, key);
         const reserve = projectContributionReserve(state, key);
-        const locked = ['BUILDING', 'PAUSED'].includes(project.status);
-        return `<div class="requirementRow ${current >= required ? 'complete' : ''}"><span>${RESOURCE_LABELS[key]} ${current}/${required}${reserve ? `<small>防衛予備 ${reserve}</small>` : ''}</span><div class="contributionButtons"><button data-action="contribute-safe" data-resource="${key}" ${safeAmount <= 0 || locked ? 'disabled' : ''}>安全納入${safeAmount > 0 ? ` ${safeAmount}` : ''}</button><button data-action="contribute-all" data-resource="${key}" ${available <= 0 || locked ? 'disabled' : ''}>全量</button></div></div>`;
-      }).join('');
-      const conditions = evaluation.checks.filter(check => check.kind !== 'resource').map(check => {
+        const gap = Math.max(0, required - current);
+        const guidance = gap > 0
+          ? `${RESOURCE_LABELS[key]}があと${gap}必要です。${reserve ? `防衛・建設予備として${reserve}を残す安全納入が使えます。` : '所持分を納入できます。'}`
+          : '必要量を納入済みです。';
+        return `<div class="requirementRow ${check.complete ? 'complete' : 'missing'}"><span>${check.complete ? '✓' : '不足'} ${RESOURCE_LABELS[key]} ${current}/${required}${reserve ? `<small>防衛予備 ${reserve}</small>` : ''}<small>${guidance}</small></span><div class="contributionButtons"><button data-action="contribute-safe" data-resource="${key}" ${safeAmount <= 0 || locked ? 'disabled' : ''}>安全納入${safeAmount > 0 ? ` ${safeAmount}` : ''}</button><button data-action="contribute-all" data-resource="${key}" ${available <= 0 || locked ? 'disabled' : ''}>全量</button></div></div>`;
+      };
+      const conditionRow = check => {
         const fieldDiagnostic = check.key === 'activeFieldBases' ? diagnoseFieldBaseNetwork(state, check.required) : null;
         const guidance = fieldDiagnostic?.guidance ?? projectCheckGuidance(check, state);
-        return `<div class="conditionRow ${check.complete ? 'complete' : ''}"><span>${check.complete ? '✓' : '○'} ${checkLabel(check)}${guidance ? `<small>${guidance}</small>` : ''}</span><strong>${checkProgressText(check)}</strong></div>`;
-      }).join('');
+        return `<div class="conditionRow ${check.complete ? 'complete' : 'missing'}"><span>${check.complete ? '✓' : '不足'} ${checkLabel(check)}${guidance ? `<small>${guidance}</small>` : ''}</span><strong>${checkProgressText(check)}</strong></div>`;
+      };
+      const missingRows = [
+        ...resourceChecks.filter(check => !check.complete).map(contributionRow),
+        ...otherChecks.filter(check => !check.complete).map(conditionRow)
+      ].join('') || '<div class="conditionRow complete"><span>✓ 現在の発展条件はすべて達成済みです。</span><strong>OK</strong></div>';
+      const completedRows = [
+        ...resourceChecks.filter(check => check.complete).map(contributionRow),
+        ...otherChecks.filter(check => check.complete).map(conditionRow)
+      ].join('') || '<p class="emptyText">達成済み条件はまだありません。</p>';
       const remaining = Math.max(0, project.durationSec - (project.progressedSec ?? 0));
       projectHtml = `
         <h3>${CIVILIZATIONS[project.targetLevel].name}への発展</h3>
         <p class="sectionNote">状態：${projectStatusLabel(project.status)}${project.status === 'BUILDING' ? `・残り ${formatDuration(remaining)}` : ''}</p>
-        <div class="requirementList">${contributions}${conditions}</div>
+        <div class="civilizationProgressBox"><strong>${progressPercent}%</strong><span>${completeCount}/${allChecks.length} 条件達成</span></div>
         <div class="buttonRow">
-          <button data-action="withdraw" ${['BUILDING','PAUSED'].includes(project.status) ? 'disabled' : ''}>納入を戻す</button>
+          <button data-action="contribute-safe-basic" ${locked ? 'disabled' : ''}>高級資材を除外して一括安全納入</button>
+          <button data-action="contribute-safe-all" ${locked ? 'disabled' : ''}>不足分を一括安全納入</button>
+        </div>
+        <h4>不足している条件</h4>
+        <div class="requirementList missingFirst">${missingRows}</div>
+        <details class="completedRequirements"><summary>達成済み条件 ${completeCount}件</summary><div class="requirementList">${completedRows}</div></details>
+        <div class="buttonRow">
+          <button data-action="withdraw" ${locked ? 'disabled' : ''}>納入を戻す</button>
           <button class="primary" data-action="start-project" ${!evaluation.complete || project.status === 'BUILDING' ? 'disabled' : ''}>建設開始</button>
         </div>`;
     }
@@ -279,13 +371,26 @@ export class CivilizationUi {
     }).join('') || '<p class="emptyText">生産施設はまだありません。</p>';
 
 
+    const active = ['progress', 'resources', 'settlement', 'production', 'reference'].includes(this.activeTab) ? this.activeTab : 'progress';
+    const nextName = project ? CIVILIZATIONS[project.targetLevel]?.name : '到達済み';
     this.body.innerHTML = `
-      <section class="civilizationOverview"><div><span>文明</span><strong>${civilization.name}</strong></div><div><span>中央施設</span><strong>${civilization.central}</strong></div><div><span>集落建設枠</span><strong>${state.civilization.buildings.length}/${civilization.slots}</strong></div><div><span>拠点上限</span><strong>主要 ${limitText(baseLimitForCivilization(state.civilization.level))}・簡易 ${fieldBaseSlotsUsed(state)}/${limitText(fieldBaseLimitForCivilization(state.civilization.level))}</strong></div></section>
-      <section><h2>資源</h2><div class="resourceGrid">${resources}</div></section>
-      <section><h2>文明発展</h2>${projectHtml}</section>
-      <section><h2>防衛設備Tier</h2><p class="sectionNote">通常設備はTier 0、測量施設は文明Lv.1でTier 1から建設できます。文明レベルと同じTierまで、MAP上の既設設備を個別に強化できます。</p><div class="defenseTierGrid">${defenseTierCatalog(state)}</div></section>
-      <section><h2>派兵部隊</h2><p class="sectionNote">文明レベルごとに部隊種類と指揮力が増えます。現在は主要拠点 ${friendlySquadCapacityForBase(state, { kind: 'MAJOR' })}枠、簡易拠点 ${friendlySquadCapacityForBase(state, { kind: 'FIELD' })}枠、全体指揮 ${friendlyGlobalCommandStatus(state).assigned}/${friendlyGlobalCommandStatus(state).capacity}です。簡易拠点からは突撃部隊・遊撃部隊・回収部隊、主要拠点からは全種類を派兵できます。前線兵舎の強化Tierに応じて簡易拠点の部隊枠が増えます。</p><div class="defenseTierGrid">${friendlyUnitCatalog(state)}</div></section>
-      <section><h2>集落施設</h2><div class="catalogGrid">${buildingCatalog}</div></section>
-      <section><h2>生産</h2>${production}</section>`;
+      <div class="uiTabBar" role="tablist" aria-label="文明画面の表示切替">
+        ${tabButton('progress', '発展', active)}
+        ${tabButton('resources', '資源', active)}
+        ${tabButton('settlement', '施設', active)}
+        ${tabButton('production', '生産', active)}
+        ${tabButton('reference', '解禁', active)}
+      </div>
+      <section class="overviewHero civilizationHero">
+        <div><small>現在文明</small><strong>Lv.${state.civilization.level} ${civilization.name}</strong><span>${civilization.central}</span></div>
+        <div><small>次の目標</small><strong>${nextName}</strong><span>建設枠 ${state.civilization.buildings.length}/${civilization.slots}</span></div>
+        <div><small>拠点上限</small><strong>主要 ${limitText(baseLimitForCivilization(state.civilization.level))}</strong><span>簡易 ${fieldBaseSlotsUsed(state)}/${limitText(fieldBaseLimitForCivilization(state.civilization.level))}</span></div>
+      </section>
+      ${tabPanel('progress', active, `<h2>文明発展</h2>${projectHtml}`)}
+      ${tabPanel('resources', active, `<h2>資源一覧</h2><p class="sectionNote">通常資材は文明・建設・生産で使用します。戦術素材はITEMS / 戦術工房で管理します。</p>${resourceCategorySections(state)}`)}
+      ${tabPanel('settlement', active, `<h2>集落施設</h2><p class="sectionNote">施設は役割ごとに確認し、必要なものだけ建設します。</p><div class="catalogGrid compactCatalog">${buildingCatalog}</div>`)}
+      ${tabPanel('production', active, `<h2>生産</h2><p class="sectionNote">稼働中の施設だけ表示します。保留品は施設ごとに回収できます。</p>${production}`)}
+      ${tabPanel('reference', active, `<h2>防衛設備Tier</h2><p class="sectionNote">文明レベルと同じTierまでMAP上の既設設備を個別に強化できます。</p><div class="defenseTierGrid compactReference">${defenseTierCatalog(state)}</div><h2>派兵部隊</h2><p class="sectionNote">現在は主要拠点 ${friendlySquadCapacityForBase(state, { kind: 'MAJOR' })}枠、簡易拠点 ${friendlySquadCapacityForBase(state, { kind: 'FIELD' })}枠、全体指揮 ${friendlyGlobalCommandStatus(state).assigned}/${friendlyGlobalCommandStatus(state).capacity}です。簡易拠点からは突撃部隊・遊撃部隊・回収部隊を派兵できます。</p><div class="defenseTierGrid compactReference">${friendlyUnitCatalog(state)}</div>`)}
+    `;
   }
 }

@@ -1476,3 +1476,253 @@ button, input, select, textarea { font-size: inherit; }
   border-color: rgba(101,255,208,.24);
   color: rgba(223,255,247,.72);
 }
+
+/* v0.34.1 tactical workshop and civilization progress readability */
+.civilizationProgressBox {
+  display: grid;
+  gap: 3px;
+  margin: 8px 0 10px;
+  padding: 10px 11px;
+  border: 1px solid rgba(101,255,208,.22);
+  background: rgba(2, 28, 25, .78);
+}
+.civilizationProgressBox strong {
+  color: var(--accent);
+  font-size: 24px;
+  line-height: 1;
+}
+.civilizationProgressBox span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.missingFirst {
+  margin-top: 7px;
+}
+.completedRequirements {
+  margin-top: 9px;
+  border: 1px solid rgba(101,255,208,.14);
+  background: rgba(2, 18, 18, .56);
+}
+.completedRequirements summary {
+  cursor: pointer;
+  padding: 8px 10px;
+  color: #dffff7;
+  font-weight: 800;
+}
+.completedRequirements .requirementList {
+  padding: 0 8px 8px;
+}
+.requirementRow.missing,
+.conditionRow.missing {
+  border-color: rgba(255,109,109,.32);
+  background: rgba(48, 10, 12, .38);
+}
+.supplyInventoryRow.is-material em {
+  color: var(--accent);
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.supplyInventoryRow.tacticalRecipe.is-locked {
+  opacity: .68;
+}
+.supplyInventoryRow.tacticalRecipe button:disabled {
+  opacity: .62;
+}
+
+/* v0.34.1 audit fix: tactical workflow readability */
+.supplyNearbyList strong,
+.supplyInventoryRow strong {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.supplyNearbyList strong em,
+.supplyInventoryRow strong em {
+  color: var(--accent);
+  font-style: normal;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.supplyInventoryRow small {
+  color: rgba(207,229,226,.78);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.supplyInventoryRow .rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.supplyInventoryRow .rowActions button {
+  min-width: 84px;
+}
+.supplyInventoryRow button.danger,
+.supplyInventoryRow .rowActions button.danger {
+  border-color: rgba(255,109,109,.45);
+  background: rgba(74, 12, 18, .86);
+  color: #ffe7e7;
+}
+.supplyInventoryRow.tacticalRecipe.is-ready {
+  border-color: rgba(101,255,208,.38);
+  background: rgba(3, 43, 34, .74);
+}
+.workshopUnavailable {
+  margin-top: 10px;
+}
+.workshopUnavailable .supplyInventoryList {
+  padding: 8px;
+}
+@media(max-width:520px){
+  .supplyInventoryRow strong { align-items: flex-start; }
+  .supplyInventoryRow .rowActions { justify-content: stretch; }
+  .supplyInventoryRow .rowActions button { flex: 1 1 100%; }
+}
+
+/* v0.34.3 modal information architecture overhaul */
+.uiTabBar {
+  position: sticky;
+  top: -15px;
+  z-index: 8;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: 5px;
+  margin: -15px -16px 12px;
+  padding: 10px 12px 9px;
+  border-bottom: 1px solid rgba(101,255,208,.18);
+  background: linear-gradient(180deg, rgba(2,24,20,.99), rgba(2,16,14,.96));
+}
+.uiTabBar button {
+  min-height: 36px;
+  min-width: 0;
+  border: 1px solid rgba(101,255,208,.2);
+  background: rgba(3,26,22,.86);
+  color: #9dcac0;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .04em;
+  clip-path: polygon(5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 5px);
+}
+.uiTabBar button.active {
+  border-color: rgba(101,255,208,.72);
+  background: rgba(8,63,50,.92);
+  color: #f1fff9;
+  box-shadow: inset 0 0 18px rgba(101,255,208,.06), 0 0 12px rgba(101,255,208,.08);
+}
+.uiTabPanel { display: none; margin-bottom: 14px !important; }
+.uiTabPanel.active { display: block; }
+.overviewHero {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 7px;
+  margin-bottom: 12px;
+}
+.overviewHero > div {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(101,255,208,.16);
+  background: rgba(4,31,26,.74);
+  clip-path: polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px);
+}
+.overviewHero small,
+.overviewHero strong,
+.overviewHero span { display: block; min-width: 0; overflow-wrap: anywhere; }
+.overviewHero small { color: #7eb1a5; font-size: 9px; letter-spacing: .08em; }
+.overviewHero strong { margin-top: 3px; color: #effffb; font-size: 14px; }
+.overviewHero span { margin-top: 3px; color: var(--muted); font-size: 10px; line-height: 1.35; }
+.compactDisclosure {
+  margin: 0 0 8px;
+  border: 1px solid rgba(101,255,208,.14);
+  background: rgba(2,18,16,.58);
+}
+.compactDisclosure summary {
+  min-height: 34px;
+  padding: 8px 10px;
+  color: #dffff7;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  list-style: none;
+}
+.compactDisclosure summary::-webkit-details-marker { display: none; }
+.compactDisclosure summary::after { content: "＋"; float: right; color: var(--accent); }
+.compactDisclosure[open] summary::after { content: "－"; }
+.compactDisclosure[open] summary { border-bottom: 1px solid rgba(101,255,208,.12); }
+.compactDisclosure > .resourceGrid { padding: 8px; }
+.resourceRow.compact { min-height: 36px; padding: 7px 8px; }
+.compactCatalog { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.compactCatalog .catalogCard { align-items: stretch; }
+.compactReference { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.requirementRow,
+.conditionRow { align-items: stretch; }
+.requirementRow > span,
+.conditionRow > span { display: grid; align-content: center; }
+.civilizationProgressBox {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+.civilizationProgressBox strong { font-size: 22px; }
+.baseCommandCard { padding: 10px; }
+.baseCommandCard .contextMetricGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.compactBaseGrid { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.compactBaseGrid .sectionNote,
+.compactBaseGrid .baseRecoveryNotice { display: none; }
+.baseHero { margin-bottom: 12px; }
+.suppliesHero { margin-bottom: 12px; }
+.compactInventory { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.compactInventory .supplyInventoryRow { align-content: start; }
+.menuBody .uiTabBar { margin-top: -15px; }
+.compactHelpGrid { grid-template-columns: repeat(auto-fit, minmax(210px,1fr)); }
+.compactHelpGrid details {
+  border: 1px solid rgba(101,255,208,.14);
+  background: rgba(4,28,23,.72);
+  padding: 0;
+  clip-path: polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);
+}
+.compactHelpGrid summary {
+  padding: 10px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  list-style: none;
+}
+.compactHelpGrid summary::-webkit-details-marker { display: none; }
+.compactHelpGrid p { margin: 0; padding: 0 10px 10px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.menuActionGrid { display: grid; gap: 8px; }
+@media(max-width: 560px) {
+  .uiTabBar { grid-template-columns: repeat(3, minmax(0,1fr)); top: -12px; margin: -15px -16px 10px; }
+  .uiTabBar button { min-height: 34px; font-size: 10px; }
+  .overviewHero { grid-template-columns: 1fr; gap: 6px; }
+  .compactInventory { grid-template-columns: 1fr; }
+  .compactReference { grid-template-columns: 1fr; }
+  .compactCatalog { grid-template-columns: 1fr; }
+  .baseCommandCard .contextMetricGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* v0.34.4 operations guidance: menu-contained, no map marker clustering */
+.opsSummary { margin: 0 0 1rem; }
+.opsSummary h2 { margin: 0 0 .45rem; font-size: 1.05rem; color: var(--accent); letter-spacing: .08em; }
+.opsGrid, .walkTargetGrid { display: grid; gap: .55rem; }
+.opsCard, .walkTargetCard {
+  border: 1px solid rgba(104, 255, 210, .22);
+  background: rgba(4, 34, 28, .72);
+  padding: .72rem .82rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: .65rem;
+  align-items: center;
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+}
+.opsCard span, .walkTargetCard span { display: block; color: rgba(178, 255, 232, .62); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; }
+.opsCard strong, .walkTargetCard strong { display: block; color: #f4fff8; font-size: 1rem; margin-top: .18rem; }
+.opsCard small, .walkTargetCard small { display: block; color: rgba(218, 255, 242, .72); line-height: 1.45; margin-top: .24rem; }
+.opsCard em { color: var(--accent); font-style: normal; border: 1px solid rgba(104,255,210,.28); padding: .36rem .5rem; white-space: nowrap; font-size: .82rem; background: rgba(18, 91, 74, .28); }
+.walkTargetGrid { grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); }
+.walkTargetCard { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 560px) {
+  .opsCard { grid-template-columns: minmax(0, 1fr); }
+  .opsCard em { justify-self: start; }
+}

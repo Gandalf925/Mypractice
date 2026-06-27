@@ -1,13 +1,21 @@
 import { bindDismissibleModal, queryRequired, setVisible } from './dom.js';
+import { buildOperationGuidance, operationGuidanceMarkup } from './operation-guidance.js';
 
 export class MenuUi {
-  constructor({ onSave, onReset, notifications, confirmImpl = globalThis.confirm?.bind(globalThis) }) {
+  constructor({ store = null, onSave, onReset, notifications, confirmImpl = globalThis.confirm?.bind(globalThis) }) {
     this.panel = queryRequired('#menuPanel');
     this.manualSave = queryRequired('#manualSave');
+    this.store = store;
+    this.opsPanel = this.panel.querySelector('#operationGuidanceContent');
     this.confirmImpl = confirmImpl;
-    queryRequired('#menuButton').addEventListener('click', () => setVisible(this.panel, true));
+    this.activeTab = 'ops';
+    queryRequired('#menuButton').addEventListener('click', () => { this.refreshOperations(true); this.setTab(this.activeTab); setVisible(this.panel, true); });
     queryRequired('#closeMenu').addEventListener('click', () => setVisible(this.panel, false));
     bindDismissibleModal(this.panel, () => setVisible(this.panel, false));
+    this.panel.addEventListener('click', event => {
+      const button = event.target.closest('button[data-menu-tab]');
+      if (button) this.setTab(button.dataset.menuTab || 'guide');
+    });
     this.manualSave.addEventListener('click', () => {
       const saved = onSave();
       notifications.show(saved ? '現在の状態を保存しました。' : '保存できません。このタブを閉じると進行状況は失われます。');
@@ -16,6 +24,30 @@ export class MenuUi {
       const confirmed = this.confirmImpl ? this.confirmImpl('ゲームの進行状況を完全に初期化します。元に戻せません。続行しますか？') : false;
       if (confirmed) onReset();
     });
+  }
+
+  setTab(tab) {
+    this.activeTab = tab;
+    if (tab === 'ops') this.refreshOperations(true);
+    for (const button of this.panel.querySelectorAll('[data-menu-tab]')) {
+      button.classList.toggle('active', button.dataset.menuTab === tab);
+    }
+    for (const panel of this.panel.querySelectorAll('[data-menu-panel]')) {
+      panel.classList.toggle('active', panel.dataset.menuPanel === tab);
+    }
+  }
+
+  refreshOperations(force = false) {
+    if (!this.opsPanel || !this.store) return;
+    const now = Date.now();
+    if (!force && this.lastOpsRefreshAt && now - this.lastOpsRefreshAt < 1200) return;
+    this.lastOpsRefreshAt = now;
+    const state = this.store.snapshot ? this.store.snapshot() : null;
+    this.opsPanel.innerHTML = state ? operationGuidanceMarkup(buildOperationGuidance(state)) : '<p class="emptyText">作戦目標を取得できません。</p>';
+  }
+
+  update() {
+    if (!this.panel.hidden && this.activeTab === 'ops') this.refreshOperations(false);
   }
 
   setSaveAvailable(available) {

@@ -17,6 +17,14 @@ const BASE_STATUS_RADIUS_METERS = 300;
 const FACILITY_RADIUS_METERS = 120;
 function limitText(value) { return Number.isFinite(value) ? String(value) : '無制限'; }
 
+function tabButton(id, label, active) {
+  return `<button type="button" data-ui-tab="${id}" class="${active === id ? 'active' : ''}">${label}</button>`;
+}
+
+function tabPanel(id, active, html) {
+  return `<section class="uiTabPanel ${active === id ? 'active' : ''}" data-panel="${id}">${html}</section>`;
+}
+
 
 function defensePoint(state, defense) {
   return defenseWorldPosition(state.world.roadGraph, defense);
@@ -83,6 +91,7 @@ export class BaseCommandUi {
     this.focusedBaseId = null;
     this.focusedBaseKind = 'major';
     this.lastRenderAt = 0;
+    this.activeTab = 'overview';
     queryRequired('#baseCommandButton').addEventListener('click', () => this.open());
     queryRequired('#closeBaseCommand').addEventListener('click', () => this.close());
     bindDismissibleModal(this.panel, () => this.close());
@@ -139,6 +148,12 @@ export class BaseCommandUi {
   }
 
   handleAction(event) {
+    const tabButton = event.target.closest('button[data-ui-tab]');
+    if (tabButton?.dataset?.uiTab) {
+      this.activeTab = tabButton.dataset.uiTab || 'overview';
+      this.render();
+      return;
+    }
     const button = event.target.closest('button[data-action]');
     if (!button) return;
     const { action, baseId, baseKind } = button.dataset;
@@ -238,11 +253,23 @@ export class BaseCommandUi {
       rebuildKind: 'field'
     })).join('') || '<p class="emptyText">簡易拠点はまだありません。</p>';
 
-    this.body.innerHTML = `<section class="baseCommandOverview"><div><span>主要拠点</span><strong>${majorBases.length}/${limitText(majorLimit)}</strong><small>各 ${friendlySquadCapacityForBase(state, { kind: 'MAJOR' })}部隊枠</small></div><div><span>簡易拠点</span><strong>${fieldBaseSlotsUsed(state)}/${limitText(fieldLimit)}</strong><small>各 ${friendlySquadCapacityForBase(state, { kind: 'FIELD' })}部隊枠</small></div><div><span>文明レベル</span><strong>Lv.${state.civilization.level}</strong><small>発展で部隊枠増加</small></div></section>
-      <section><h2>主要拠点</h2><div class="baseCommandGrid">${majorCards}</div></section>
-      <section><h2>簡易拠点</h2><div class="baseCommandGrid">${fieldCards}</div></section>
-      <section class="baseEstablishSection"><h2>現在地に主要拠点</h2><p class="sectionNote">主要拠点は現在の文明Lv.で建設範囲${majorBaseBuildRange(state.civilization?.level)}m。すべての部隊を派兵できます。</p><button class="primary wideButton" data-action="establish-base" ${majorPlacement.ok ? '' : 'disabled'}>現在地に主要拠点を設置</button><p class="sectionNote">費用 ${bundleText(majorPlacement.cost)}・${majorPlacement.ok ? `設置可能・道路まで約${Math.round(majorPlacement.distanceToRoad)}m` : majorPlacement.reason}</p></section>
-      <section class="baseEstablishSection"><h2>現在地に簡易拠点</h2><p class="sectionNote">文明Lv.1で解禁。取得済み道路の交差点から100m以内で設置できます。文明段階に応じた耐久を持ち、現在の建設範囲${fieldBaseBuildRange(state.civilization?.level)}m、突撃／遊撃／回収部隊を派兵できます。破壊後は現地で再建が必要です。</p><div class="fieldBaseDiagnostic ${fieldDiagnostic.sufficient ? 'is-sufficient' : 'is-insufficient'}"><strong>道路網診断：${fieldDiagnostic.active}/${fieldDiagnostic.required}基稼働</strong><span>追加候補 ${fieldDiagnostic.confirmedAdditional}基・破壊済み ${fieldDiagnostic.destroyed}基</span><small>${fieldDiagnostic.guidance}</small></div><button class="primary wideButton" data-action="establish-field-base" ${fieldPlacement.ok ? '' : 'disabled'}>現在地に簡易拠点を設置</button><p class="sectionNote">費用 ${bundleText(fieldPlacement.cost)}・${fieldPlacement.ok ? `設置可能・道路まで約${Math.round(fieldPlacement.distanceToRoad)}m` : fieldPlacement.reason}</p></section>`;
+    const active = ['overview', 'major', 'field', 'build'].includes(this.activeTab) ? this.activeTab : 'overview';
+    this.body.innerHTML = `<div class="uiTabBar" role="tablist" aria-label="拠点画面の表示切替">
+        ${tabButton('overview', '概要', active)}
+        ${tabButton('major', '主要', active)}
+        ${tabButton('field', '簡易', active)}
+        ${tabButton('build', '建設', active)}
+      </div>
+      <section class="overviewHero baseHero">
+        <div><small>主要拠点</small><strong>${majorBases.length}/${limitText(majorLimit)}</strong><span>各 ${friendlySquadCapacityForBase(state, { kind: 'MAJOR' })}部隊枠</span></div>
+        <div><small>簡易拠点</small><strong>${fieldBaseSlotsUsed(state)}/${limitText(fieldLimit)}</strong><span>各 ${friendlySquadCapacityForBase(state, { kind: 'FIELD' })}部隊枠</span></div>
+        <div><small>文明</small><strong>Lv.${state.civilization.level}</strong><span>発展で拠点・部隊枠が増加</span></div>
+      </section>
+      ${tabPanel('overview', active, `<h2>拠点概要</h2><div class="baseCommandGrid compactBaseGrid">${majorCards}${fieldCards}</div>`)}
+      ${tabPanel('major', active, `<h2>主要拠点</h2><p class="sectionNote">すべての部隊を派兵できる中核拠点です。</p><div class="baseCommandGrid">${majorCards}</div>`)}
+      ${tabPanel('field', active, `<h2>簡易拠点</h2><p class="sectionNote">突撃部隊・遊撃部隊・回収部隊の前線運用に使います。前線兵舎で部隊枠を増やせます。</p><div class="baseCommandGrid">${fieldCards}</div>`)}
+      ${tabPanel('build', active, `<h2>現在地に主要拠点</h2><div class="baseEstablishSection"><p class="sectionNote">建設範囲${majorBaseBuildRange(state.civilization?.level)}m。すべての部隊を派兵できます。</p><button class="primary wideButton" data-action="establish-base" ${majorPlacement.ok ? '' : 'disabled'}>現在地に主要拠点を設置</button><p class="sectionNote">費用 ${bundleText(majorPlacement.cost)}・${majorPlacement.ok ? `設置可能・道路まで約${Math.round(majorPlacement.distanceToRoad)}m` : majorPlacement.reason}</p></div><h2>現在地に簡易拠点</h2><div class="baseEstablishSection"><p class="sectionNote">文明Lv.1で解禁。取得済み道路の交差点から100m以内で設置できます。</p><div class="fieldBaseDiagnostic ${fieldDiagnostic.sufficient ? 'is-sufficient' : 'is-insufficient'}"><strong>道路網診断：${fieldDiagnostic.active}/${fieldDiagnostic.required}基稼働</strong><span>追加候補 ${fieldDiagnostic.confirmedAdditional}基・破壊済み ${fieldDiagnostic.destroyed}基</span><small>${fieldDiagnostic.guidance}</small></div><button class="primary wideButton" data-action="establish-field-base" ${fieldPlacement.ok ? '' : 'disabled'}>現在地に簡易拠点を設置</button><p class="sectionNote">費用 ${bundleText(fieldPlacement.cost)}・${fieldPlacement.ok ? `設置可能・道路まで約${Math.round(fieldPlacement.distanceToRoad)}m` : fieldPlacement.reason}</p></div>`)}
+    `;
     this.updateSummary(state);
   }
 }

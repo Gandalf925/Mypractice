@@ -29,6 +29,24 @@ const ARTIFACT_BY_BASE_TYPE = Object.freeze({
   copperCamp: 'surveyCore', tinCamp: 'surveyCore', ironCamp: 'surveyCore', bronzeCamp: 'mechanismCore', siegeWorks: 'siegeArchive'
 });
 const VALID_STATUS = new Set(Object.values(RECOVERY_ITEM_STATUS));
+const VISIBLE_MAP_STATUSES = new Set([RECOVERY_ITEM_STATUS.AVAILABLE, RECOVERY_ITEM_STATUS.RESERVED, RECOVERY_ITEM_STATUS.CARRIED]);
+
+export function isRecoveryItemVisible(item) {
+  return Boolean(item && VISIBLE_MAP_STATUSES.has(item.status));
+}
+
+export function recoveryItemStatusPresentation(item) {
+  switch (item?.status) {
+    case RECOVERY_ITEM_STATUS.RESERVED:
+      return { label: '回収部隊移動中', shortLabel: 'EN ROUTE', detail: '回収部隊が到着するまで、破壊地点に残っています。' };
+    case RECOVERY_ITEM_STATUS.CARRIED:
+      return { label: '搬送中', shortLabel: 'CARRIED', detail: '回収部隊が回収物を持ち帰っています。拠点到着後に資源と実績へ反映されます。' };
+    case RECOVERY_ITEM_STATUS.AVAILABLE:
+      return { label: '未回収', shortLabel: 'READY', detail: '現地回収または回収部隊の派遣が可能です。' };
+    default:
+      return { label: '回収済み', shortLabel: 'DONE', detail: 'この回収物は既に処理されています。' };
+  }
+}
 
 export function recoveryItemPoint(state, item) {
   if (Number.isFinite(Number(item?.x)) && Number.isFinite(Number(item?.y))) return { x: Number(item.x), y: Number(item.y) };
