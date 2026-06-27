@@ -2,7 +2,7 @@ import { deploymentBases, ownedBaseById } from '../base/field-bases.js';
 import { ENEMY_BASE_DEFINITIONS, ENEMY_DEFINITIONS } from '../combat/definitions.js';
 import {
   FRIENDLY_SQUAD_DEFINITIONS, FRIENDLY_SQUAD_TYPES, friendlySquadCapacityStatus,
-  friendlyGlobalCommandStatus, friendlyCoordinatedDeploymentLimit
+  friendlyGlobalCommandStatus, friendlyCoordinatedDeploymentLimit, COORDINATED_DEPLOYMENT_TIMING
 } from '../combat/friendly-force-system.js';
 import { bundleText } from '../civilization/inventory-system.js';
 import { RECOVERY_ITEM_STATUS, recoveryItemPresentation } from '../exploration/recovery-system.js';
@@ -47,6 +47,8 @@ export class DeploymentUi {
     this.mode = DEPLOYMENT_MODE.SINGLE;
     this.squadType = 'assault';
     this.groupCounts = Object.create(null);
+    this.coordinatedTimingMode = COORDINATED_DEPLOYMENT_TIMING.LEAD;
+    this.coordinatedManualDelays = Object.create(null);
     this.originBaseId = null;
     this.targetId = null;
     this.targetKind = 'enemyBase';
@@ -147,6 +149,14 @@ export class DeploymentUi {
 
   groupSquadTypes() {
     return this.availableTypes().flatMap(type => Array.from({ length: Math.max(0, Math.floor(this.groupCounts[type] ?? 0)) }, () => type));
+  }
+
+  coordinatedOptions() {
+    return { timingMode: this.coordinatedTimingMode, manualDelays: this.coordinatedManualDelays };
+  }
+
+  manualDelayFor(type) {
+    return Math.max(0, Math.min(180, Math.floor(Number(this.coordinatedManualDelays[type]) || 0)));
   }
 
   normalizeSelection(state = this.store.snapshot()) {
@@ -250,13 +260,25 @@ export class DeploymentUi {
       const result = this.dispatchCurrent(this.selectedRoutePlan?.route?.path ?? null);
       if (result?.ok) return;
     }
+    if (action === 'coord-timing') {
+      const mode = button.dataset.mode;
+      this.coordinatedTimingMode = Object.values(COORDINATED_DEPLOYMENT_TIMING).includes(mode) ? mode : COORDINATED_DEPLOYMENT_TIMING.LEAD;
+    }
+    if (action === 'delay-minus' && squadType) {
+      this.coordinatedTimingMode = COORDINATED_DEPLOYMENT_TIMING.MANUAL;
+      this.coordinatedManualDelays[squadType] = Math.max(0, this.manualDelayFor(squadType) - 5);
+    }
+    if (action === 'delay-plus' && squadType) {
+      this.coordinatedTimingMode = COORDINATED_DEPLOYMENT_TIMING.MANUAL;
+      this.coordinatedManualDelays[squadType] = Math.min(180, this.manualDelayFor(squadType) + 5);
+    }
     if (action === 'dispatch-group') {
       let result;
       const squadTypes = this.groupSquadTypes();
-      this.store.transaction(state => { result = this.system.dispatchCoordinated(state, this.targetId, squadTypes); }, 'friendly:coordinated-dispatch', { emit: true, validate: true });
+      this.store.transaction(state => { result = this.system.dispatchCoordinated(state, this.targetId, squadTypes, this.coordinatedOptions()); }, 'friendly:coordinated-dispatch', { emit: true, validate: true });
       if (!result?.ok) this.notifications.show(result?.reason ?? '連携出撃できません。');
       else {
-        this.notifications.show(`${result.squads.length}部隊が到着時刻を合わせて連携出撃しました。`);
+        this.notifications.show(`${result.squads.length}部隊が同じルートで連携出撃しました。`);
         this.persist?.();
         this.close();
         return;
@@ -344,17 +366,37 @@ export class DeploymentUi {
       </section>`;
   }
 
+  timingControlsMarkup() {
+    const options = [
+      [COORDINATED_DEPLOYMENT_TIMING.LEAD, '先導', '遊撃を先に出し、攻城を後方に置きます。'],
+      [COORDINATED_DEPLOYMENT_TIMING.SYNCHRONIZED, '同時到着', '遅い部隊を先に出し、到着時刻を寄せます。'],
+      [COORDINATED_DEPLOYMENT_TIMING.MANUAL, '手動', '部隊種類ごとの遅延を指定します。']
+    ];
+    return `<div class="deploymentModeSwitch deploymentTimingSwitch" role="group" aria-label="連携出撃タイミング">${options.map(([mode, label, title]) => `<button data-action="coord-timing" data-mode="${mode}" class="${this.coordinatedTimingMode === mode ? 'selected' : ''}" title="${title}">${label}</button>`).join('')}</div>`;
+  }
+
+  manualDelayControlsMarkup(state) {
+    if (this.coordinatedTimingMode !== COORDINATED_DEPLOYMENT_TIMING.MANUAL) return '';
+    return `<div class="formationAssignments manualDelayList">${this.availableTypes().filter(type => (this.groupCounts[type] ?? 0) > 0).map(type => {
+      const definition = FRIENDLY_SQUAD_DEFINITIONS[type];
+      return `<div><strong>${definition.name}</strong><span class="squadCountControl"><button data-action="delay-minus" data-squad-type="${type}">−5</button><b>${this.manualDelayFor(type)}秒</b><button data-action="delay-plus" data-squad-type="${type}">＋5</button></span></div>`;
+    }).join('')}</div>`;
+  }
+
   coordinatedDeploymentMarkup(state) {
     const squadTypes = this.groupSquadTypes();
     const maximum = friendlyCoordinatedDeploymentLimit(state);
     const globalCommand = friendlyGlobalCommandStatus(state);
-    const preview = this.system.previewCoordinatedDeployment(state, this.targetId, squadTypes);
-    const assignments = (preview.assignments ?? []).map(assignment => `<li><strong>${assignment.definition.name}</strong><span>${assignment.origin.name}・${routeText(assignment.routeDistance)}・待機 ${durationText(assignment.departDelay)}</span></li>`).join('');
-    return `<section><h2>連携編成 <small>${squadTypes.length}/${maximum}部隊・全体指揮 ${globalCommand.assigned}/${globalCommand.capacity}</small></h2><p class="sectionNote">各拠点の空き部隊枠を自動で割り当てます。同じ拠点から複数部隊を出撃でき、部隊ごとの速度を保ったまま出発時刻を調整して到着を揃えます。</p><div class="deploymentGrid coordinatedUnitGrid">${this.groupCardsMarkup(state)}</div></section>
-      <section class="deploymentOrder coordinatedOrder"><h2>連携出撃確認</h2>
-        <div class="contextMetricGrid"><span><small>SQUADS</small><strong>${squadTypes.length}</strong></span><span><small>PACE</small><strong>${preview.assignments?.length ? '自然速度' : '—'}</strong></span><span><small>ARRIVAL</small><strong>${durationText(preview.estimatedArrivalSeconds)}</strong></span><span><small>COST</small><strong>${bundleText(preview.cost ?? {})}</strong></span></div>
+    const preview = this.system.previewCoordinatedDeployment(state, this.targetId, squadTypes, this.coordinatedOptions());
+    const assignments = (preview.assignments ?? []).map(assignment => `<li><strong>${assignment.definition.name}</strong><span>${assignment.formationRole ?? '本隊'}・${assignment.origin.name}・共通${routeText(assignment.routeDistance)}・待機 ${durationText(assignment.departDelay)}</span></li>`).join('');
+    return `<section><h2>連携編成 <small>${squadTypes.length}/${maximum}部隊・全体指揮 ${globalCommand.assigned}/${globalCommand.capacity}</small></h2><p class="sectionNote">連携出撃は、同じ拠点から同じルートで進軍します。遊撃・突撃・攻城の役割が崩れないよう、出撃タイミングを指定できます。</p><div class="deploymentGrid coordinatedUnitGrid">${this.groupCardsMarkup(state)}</div></section>
+      <section class="deploymentOrder coordinatedOrder"><h2>進軍方式</h2>
+        <div class="contextMetricGrid"><span><small>ROUTE</small><strong>共通ルート</strong></span><span><small>ORIGIN</small><strong>${preview.origin?.name ?? '—'}</strong></span><span><small>TIMING</small><strong>${preview.timingLabel ?? '先導'}</strong></span><span><small>ARRIVAL</small><strong>${durationText(preview.estimatedArrivalSeconds)}</strong></span></div>
+        ${this.timingControlsMarkup()}
+        ${this.manualDelayControlsMarkup(state)}
         ${assignments ? `<ol class="formationAssignments">${assignments}</ol>` : ''}
-        <p class="sectionNote">${preview.ok ? '護衛・攻城・迎撃部隊が同時に戦闘へ入れるよう同期します。攻城部隊は単独で出さず、護衛部隊と組み合わせてください。' : preview.reason}</p>
+        <p class="sectionNote">${preview.ok ? 'デフォルトは先導です。遊撃が先に道中の敵を処理し、突撃と攻城が同じ道を後続します。必要なら同時到着・手動遅延へ切り替えてください。' : preview.reason}</p>
+        <div class="contextMetricGrid"><span><small>SQUADS</small><strong>${squadTypes.length}</strong></span><span><small>COST</small><strong>${bundleText(preview.cost ?? {})}</strong></span></div>
         <button class="primary wideButton" data-action="dispatch-group" ${preview.ok ? '' : 'disabled'}>${squadTypes.length}部隊で連携出撃</button>
       </section>`;
   }

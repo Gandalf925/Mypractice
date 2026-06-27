@@ -19,7 +19,7 @@
     #assetRecovery button { width: 100%; margin-top: 16px; padding: 12px 14px; border: 1px solid rgba(101,255,208,.72); background: #062019; color: #dffdf4; font: inherit; font-weight: 700; }
   </style>
   <script>
-    globalThis.__FRONTLINE_RELEASE__ = Object.freeze({ version: '0.34.5', directory: 'frontline-roads' });
+    globalThis.__FRONTLINE_RELEASE__ = Object.freeze({ version: '0.34.6', directory: 'frontline-roads' });
     (() => {
       const release = globalThis.__FRONTLINE_RELEASE__;
       const navigatorRef = globalThis.navigator;
@@ -238,7 +238,7 @@
               <details open><summary>基本進行</summary><p>現在地周辺の道路に拠点を置き、防衛設備・派兵・文明発展で敵拠点を制圧します。防衛だけでは文明が進みにくいため、敵拠点への派兵が重要です。</p></details>
               <details><summary>道路防衛</summary><p>主要拠点・簡易拠点・現在地・遠征部隊の範囲内へ設備を置き、敵の経路を誘導します。門は味方を通し、壁は双方を遮断します。</p></details>
               <details><summary>道端物資</summary><p>資源箱は近づくと自動回収します。地雷・誘導信号・爆撃支援などはITEMSで管理し、対象を選んで使います。</p></details>
-              <details><summary>敵への派兵</summary><p>敵拠点を選ぶと拠点攻撃、敵部隊を選ぶと追跡迎撃を開始できます。単独出撃では地図で派兵経路を指定し、最大2か所の経由地点を追加できます。連携出撃は各部隊の経路と出発時刻を自動調整します。部隊は撤退・加速・煙幕などの消耗品で支援できます。</p></details>
+              <details><summary>敵への派兵</summary><p>敵拠点を選ぶと拠点攻撃、敵部隊を選ぶと追跡迎撃を開始できます。単独出撃では地図で派兵経路を指定し、最大2か所の経由地点を追加できます。連携出撃は同じ拠点から同じルートで進軍し、先導・同時到着・手動遅延を選べます。部隊は撤退・加速・煙幕などの消耗品で支援できます。</p></details>
               <details><summary>文明発展</summary><p>CIV画面で不足条件だけを確認し、安全納入で防衛予備を残しながら資源を投入します。Lv.7では拠点上限が撤廃されます。</p></details>
               <details><summary>位置情報・不在中</summary><p>正確な移動履歴は保存しません。道路追加時に周辺位置を外部道路データサービスへ送信し、保存時の地図基準点は約10m単位へ丸めます。不在中の戦闘・生産・文明建設は最大24時間まで計算されます。</p></details>
             </div>

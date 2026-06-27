@@ -460,61 +460,174 @@ function addCost(total, bundle) {
   return total;
 }
 
-export function previewCoordinatedDeployment(state, targetId, squadTypes) {
-  const requested = (Array.isArray(squadTypes) ? squadTypes : [])
-    .filter(type => FRIENDLY_SQUAD_DEFINITIONS[type]?.missionKind !== 'RECOVERY')
-    .slice(0, friendlyCoordinatedDeploymentLimit(state))
-    .map((type, index) => ({ type, index, definition: FRIENDLY_SQUAD_DEFINITIONS[type] ? friendlySquadRuntimeDefinition(state, type) : null }))
-    .filter(item => item.definition);
-  if (requested.length < 2) return { ok: false, reason: '連携出撃には2部隊以上を選択してください。', assignments: [], squadTypes: requested.map(item => item.type) };
-  const target = state.world.enemyBases.find(base => base.id === targetId && base.alive && base.hp > 0) ?? null;
-  if (!target) return { ok: false, reason: '攻撃可能な敵拠点ではありません。', assignments: [] };
 
+export const COORDINATED_DEPLOYMENT_TIMING = Object.freeze({
+  LEAD: 'LEAD',
+  SYNCHRONIZED: 'SYNCHRONIZED',
+  MANUAL: 'MANUAL'
+});
+
+const FORMATION_ROLE_ORDER = Object.freeze({
+  skirmisher: 0,
+  assault: 1,
+  command: 2,
+  heavy: 3,
+  expedition: 4,
+  siege: 5,
+  engineer: 6,
+  artillery: 7
+});
+
+const LEAD_DEPARTURE_SECONDS = Object.freeze({
+  skirmisher: 0,
+  assault: 10,
+  command: 12,
+  heavy: 14,
+  expedition: 16,
+  siege: 24,
+  engineer: 28,
+  artillery: 30
+});
+
+function normalizedCoordinatedOptions(options = null) {
+  const timingMode = Object.values(COORDINATED_DEPLOYMENT_TIMING).includes(options?.timingMode)
+    ? options.timingMode
+    : COORDINATED_DEPLOYMENT_TIMING.LEAD;
+  const manualDelays = Object.fromEntries(Object.entries(options?.manualDelays ?? {})
+    .map(([type, value]) => [type, Math.max(0, Math.min(180, Math.floor(Number(value) || 0)))]));
+  return { timingMode, manualDelays };
+}
+
+function formationRoleForType(type) {
+  if (type === 'skirmisher') return '先導';
+  if (type === 'assault') return '本隊';
+  if (type === 'siege') return '攻城';
+  if (type === 'heavy') return '護衛';
+  if (type === 'engineer') return '後方支援';
+  if (type === 'artillery') return '後方火力';
+  if (type === 'command') return '指揮';
+  if (type === 'expedition') return '前線支援';
+  return '本隊';
+}
+
+function applyCoordinatedTiming(assignments, options) {
+  const normalized = normalizedCoordinatedOptions(options);
+  const byTypeIndex = new Map();
+  if (normalized.timingMode === COORDINATED_DEPLOYMENT_TIMING.SYNCHRONIZED) {
+    const estimatedArrivalSeconds = Math.max(...assignments.map(assignment => {
+      const naturalSpeed = Math.max(0.1, Number(assignment.definition.speed) || 0.1);
+      return Math.max(0, Number(assignment.routeDistance) || 0) / naturalSpeed;
+    }));
+    for (const assignment of assignments) {
+      const naturalSpeed = Math.max(0.1, Number(assignment.definition.speed) || 0.1);
+      assignment.synchronizedSpeed = naturalSpeed;
+      assignment.travelSeconds = Math.max(0, Number(assignment.routeDistance) || 0) / naturalSpeed;
+      assignment.departDelay = Math.max(0, estimatedArrivalSeconds - assignment.travelSeconds);
+      assignment.formationRole = formationRoleForType(assignment.squadType);
+    }
+    return { timingMode: normalized.timingMode, estimatedArrivalSeconds };
+  }
+  let estimatedArrivalSeconds = 0;
+  const ordered = [...assignments].sort((left, right) =>
+    (FORMATION_ROLE_ORDER[left.squadType] ?? 50) - (FORMATION_ROLE_ORDER[right.squadType] ?? 50)
+    || left.requestIndex - right.requestIndex
+  );
+  for (const assignment of ordered) {
+    const sameTypeIndex = byTypeIndex.get(assignment.squadType) ?? 0;
+    byTypeIndex.set(assignment.squadType, sameTypeIndex + 1);
+    const baseDelay = normalized.timingMode === COORDINATED_DEPLOYMENT_TIMING.MANUAL
+      ? normalized.manualDelays[assignment.squadType] ?? 0
+      : LEAD_DEPARTURE_SECONDS[assignment.squadType] ?? Math.min(30, (FORMATION_ROLE_ORDER[assignment.squadType] ?? 3) * 5);
+    assignment.departDelay = Math.max(0, Number(baseDelay) || 0) + sameTypeIndex * 3;
+    assignment.synchronizedSpeed = Math.max(0.1, Number(assignment.definition.speed) || 0.1);
+    assignment.travelSeconds = Math.max(0, Number(assignment.routeDistance) || 0) / assignment.synchronizedSpeed;
+    assignment.formationRole = formationRoleForType(assignment.squadType);
+    estimatedArrivalSeconds = Math.max(estimatedArrivalSeconds, assignment.departDelay + assignment.travelSeconds);
+  }
+  return { timingMode: normalized.timingMode, estimatedArrivalSeconds };
+}
+
+function coordinatedTimingLabel(mode) {
+  if (mode === COORDINATED_DEPLOYMENT_TIMING.SYNCHRONIZED) return '同時到着';
+  if (mode === COORDINATED_DEPLOYMENT_TIMING.MANUAL) return '手動遅延';
+  return '先導';
+}
+
+function commonDeploymentBaseCandidates(state, requested) {
+  const baseById = new Map();
+  for (const item of requested) {
+    for (const base of deploymentBases(state, item.type)) {
+      baseById.set(base.id, base);
+    }
+  }
+  return [...baseById.values()].filter(base => requested.every(item => deploymentBases(state, item.type).some(candidate => candidate.id === base.id)));
+}
+
+function previewCoordinatedFromOrigin(state, targetId, requested, origin, sharedRoute) {
   const planning = {
     additionalSquadsByBase: new Map(),
     squadTypesByBase: new Map(),
     reservedSquadIds: new Set()
   };
   const assignments = [];
-  const assignmentOrder = [...requested].sort((left, right) =>
-    left.definition.allowedBaseKinds.length - right.definition.allowedBaseKinds.length
-    || right.definition.unlockLevel - left.definition.unlockLevel
-    || left.index - right.index
-  );
-  for (const item of assignmentOrder) {
-    if (!friendlySquadUnlocked(state, item.type)) return { ok: false, reason: `${item.definition.name}は文明Lv.${item.definition.unlockLevel}で解禁されます。`, assignments };
-    const candidates = deploymentBases(state, item.type)
-      .map(base => previewFriendlyDeployment(state, item.type, base.id, targetId, planning, 'enemyBase'))
-      .filter(preview => preview.origin && preview.path && !/部隊枠が満員/.test(preview.reason ?? ''))
-      .sort((left, right) =>
-        (left.routeDistance ?? Infinity) - (right.routeDistance ?? Infinity)
-        || (right.availableSlots ?? 0) - (left.availableSlots ?? 0)
-      );
-    const selected = candidates[0] ?? null;
-    if (!selected) return { ok: false, reason: `${item.definition.name}を出撃できる部隊枠がありません。`, assignments };
-    reservePlanningSlot(planning, selected);
-    assignments.push({ ...selected, squadType: item.type, requestIndex: item.index });
+  for (const item of requested) {
+    const preview = previewFriendlyDeployment(state, item.type, origin.id, targetId, planning, 'enemyBase', sharedRoute);
+    if (!preview.origin || !preview.path) return { ok: false, reason: preview.reason ?? `${item.definition.name}の共通経路を利用できません。`, assignments };
+    if (!preview.ok && Object.keys(preview.missing ?? {}).length === 0) return { ok: false, reason: preview.reason ?? `${item.definition.name}を出撃できません。`, assignments };
+    reservePlanningSlot(planning, preview);
+    assignments.push({ ...preview, squadType: item.type, requestIndex: item.index });
   }
-  assignments.sort((left, right) => left.requestIndex - right.requestIndex);
+  return { ok: true, assignments };
+}
+
+export function previewCoordinatedDeployment(state, targetId, squadTypes, options = null) {
+  const requested = (Array.isArray(squadTypes) ? squadTypes : [])
+    .filter(type => FRIENDLY_SQUAD_DEFINITIONS[type]?.missionKind !== 'RECOVERY')
+    .slice(0, friendlyCoordinatedDeploymentLimit(state))
+    .map((type, index) => ({ type, index, definition: FRIENDLY_SQUAD_DEFINITIONS[type] ? friendlySquadRuntimeDefinition(state, type) : null }))
+    .filter(item => item.definition);
+  if (requested.length < 2) return { ok: false, reason: '連携出撃には2部隊以上を選択してください。', assignments: [], squadTypes: requested.map(item => item.type) };
+  for (const item of requested) {
+    if (!friendlySquadUnlocked(state, item.type)) return { ok: false, reason: `${item.definition.name}は文明Lv.${item.definition.unlockLevel}で解禁されます。`, assignments: [] };
+  }
+  const target = state.world.enemyBases.find(base => base.id === targetId && base.alive && base.hp > 0) ?? null;
+  if (!target) return { ok: false, reason: '攻撃可能な敵拠点ではありません。', assignments: [] };
+
+  const candidates = [];
+  for (const origin of commonDeploymentBaseCandidates(state, requested)) {
+    const seedPreview = previewFriendlyDeployment(state, requested[0].type, origin.id, targetId, null, 'enemyBase');
+    if (!seedPreview.path) continue;
+    const candidate = previewCoordinatedFromOrigin(state, targetId, requested, origin, seedPreview.path);
+    if (!candidate.ok) {
+      candidates.push({ ...candidate, origin, routeDistance: seedPreview.routeDistance ?? Infinity, path: seedPreview.path });
+      continue;
+    }
+    const routeDistance = routePhysicalDistance(state, seedPreview.path);
+    candidates.push({ ...candidate, origin, routeDistance, path: seedPreview.path });
+  }
+  const viable = candidates
+    .filter(candidate => candidate.ok)
+    .sort((left, right) => (left.routeDistance ?? Infinity) - (right.routeDistance ?? Infinity)
+      || String(left.origin?.id ?? '').localeCompare(String(right.origin?.id ?? '')));
+  const selected = viable[0] ?? null;
+  if (!selected) {
+    const reason = candidates.find(candidate => candidate.reason)?.reason;
+    return { ok: false, reason: reason ?? '連携部隊が同じ拠点から共通ルートで出撃できません。部隊枠・解禁Lv・出撃元を確認してください。', assignments: [], target };
+  }
+
+  const assignments = [...selected.assignments].sort((left, right) => left.requestIndex - right.requestIndex);
   const cost = assignments.reduce((total, assignment) => addCost(total, assignment.cost), {});
   const missing = missingBundle(state, cost);
   const slowestSpeed = Math.min(...assignments.map(assignment => Math.max(0.1, Number(assignment.definition.speed) || 0.1)));
   const fastestSpeed = Math.max(...assignments.map(assignment => Math.max(0.1, Number(assignment.definition.speed) || 0.1)));
   const maximumDistance = Math.max(...assignments.map(assignment => Math.max(0, Number(assignment.routeDistance) || 0)));
-  const estimatedArrivalSeconds = Math.max(...assignments.map(assignment => {
-    const naturalSpeed = Math.max(0.1, Number(assignment.definition.speed) || 0.1);
-    return Math.max(0, Number(assignment.routeDistance) || 0) / naturalSpeed;
-  }));
-  for (const assignment of assignments) {
-    const naturalSpeed = Math.max(0.1, Number(assignment.definition.speed) || 0.1);
-    assignment.synchronizedSpeed = naturalSpeed;
-    assignment.travelSeconds = Math.max(0, Number(assignment.routeDistance) || 0) / naturalSpeed;
-    assignment.departDelay = Math.max(0, estimatedArrivalSeconds - assignment.travelSeconds);
-  }
+  const timing = applyCoordinatedTiming(assignments, options);
   return {
     ok: Object.keys(missing).length === 0,
     reason: Object.keys(missing).length ? '連携出撃に必要な合計資源が不足しています。' : null,
     target,
+    origin: selected.origin,
+    commonRoute: normalizePath(selected.path),
     assignments,
     cost,
     missing,
@@ -522,12 +635,15 @@ export function previewCoordinatedDeployment(state, targetId, squadTypes) {
     slowestSpeed,
     fastestSpeed,
     maximumRouteDistance: maximumDistance,
-    estimatedArrivalSeconds
+    estimatedArrivalSeconds: timing.estimatedArrivalSeconds,
+    timingMode: timing.timingMode,
+    timingLabel: coordinatedTimingLabel(timing.timingMode),
+    commonRouteDistance: selected.routeDistance
   };
 }
 
-export function dispatchCoordinatedSquads(state, targetId, squadTypes, events = null) {
-  const preview = previewCoordinatedDeployment(state, targetId, squadTypes);
+export function dispatchCoordinatedSquads(state, targetId, squadTypes, events = null, options = null) {
+  const preview = previewCoordinatedDeployment(state, targetId, squadTypes, options);
   if (!preview.ok) return preview;
   if (!consumeBundle(state, preview.cost)) return { ok: false, reason: '連携出撃確定時に合計資源が不足しました。', preview };
   const worldTime = state.runtime?.worldTimeMs ?? Date.now();
@@ -535,7 +651,9 @@ export function dispatchCoordinatedSquads(state, targetId, squadTypes, events = 
     id: stableId('friendly_formation', targetId, worldTime, state.combat.friendlySquads.length),
     targetId,
     speed: null,
-    size: preview.assignments.length
+    size: preview.assignments.length,
+    timingMode: preview.timingMode,
+    originBaseId: preview.origin?.id ?? null
   };
   const squads = preview.assignments.map(assignment => instantiateFriendlySquad(
     state,
@@ -544,11 +662,16 @@ export function dispatchCoordinatedSquads(state, targetId, squadTypes, events = 
     assignment.origin.id,
     targetId,
     events,
-    { ...formation, speed: assignment.synchronizedSpeed, departDelay: assignment.departDelay }
+    {
+      ...formation,
+      speed: assignment.synchronizedSpeed,
+      departDelay: assignment.departDelay,
+      role: assignment.formationRole
+    }
   ).squad);
-  events?.emit('friendly:formation-deployed', { formationId: formation.id, targetId, squadIds: squads.map(squad => squad.id), cost: preview.cost });
-  events?.emit('message', { text: `${squads.length}部隊が連携出撃しました。各部隊の本来速度を維持し、出発時刻を調整して同時到着を目指します。` });
-  return { ok: true, squads, formationId: formation.id, cost: preview.cost, estimatedArrivalSeconds: preview.estimatedArrivalSeconds };
+  events?.emit('friendly:formation-deployed', { formationId: formation.id, targetId, squadIds: squads.map(squad => squad.id), cost: preview.cost, timingMode: preview.timingMode, originBaseId: formation.originBaseId });
+  events?.emit('message', { text: `${squads.length}部隊が${preview.timingLabel}モードで連携出撃しました。同じ拠点から同じルートを進軍します。` });
+  return { ok: true, squads, formationId: formation.id, cost: preview.cost, estimatedArrivalSeconds: preview.estimatedArrivalSeconds, timingMode: preview.timingMode, originBaseId: formation.originBaseId };
 }
 
 export function previewAssaultDeployment(state, originBaseId, targetBaseId) { return previewFriendlyDeployment(state, 'assault', originBaseId, targetBaseId); }
@@ -1221,12 +1344,12 @@ export class FriendlyForceSystem {
     return dispatchFriendlySquad(state, squadType, originBaseId, targetId, this.events, targetKind, routeOverride);
   }
 
-  previewCoordinatedDeployment(state, targetBaseId, squadTypes) {
-    return previewCoordinatedDeployment(state, targetBaseId, squadTypes);
+  previewCoordinatedDeployment(state, targetBaseId, squadTypes, options = null) {
+    return previewCoordinatedDeployment(state, targetBaseId, squadTypes, options);
   }
 
-  dispatchCoordinated(state, targetBaseId, squadTypes) {
-    return dispatchCoordinatedSquads(state, targetBaseId, squadTypes, this.events);
+  dispatchCoordinated(state, targetBaseId, squadTypes, options = null) {
+    return dispatchCoordinatedSquads(state, targetBaseId, squadTypes, this.events, options);
   }
 
   hold(state, squadId) {
