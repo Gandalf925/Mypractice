@@ -4,6 +4,7 @@ import { enemyPosition } from '../combat/enemy-system.js';
 import { friendlySquadPosition } from '../combat/friendly-force-system.js';
 import { friendlySquadDefinition } from '../combat/friendly-force-definitions.js';
 import { recoveryItemPoint } from '../exploration/recovery-system.js';
+import { roadsideSupplyPoint } from '../exploration/roadside-supplies.js';
 import { defenseRuntimeDefinition } from '../combat/definitions.js';
 import { sweepIntensity } from './radar-renderer.js';
 
@@ -281,6 +282,32 @@ function shouldDrawHealth(value, maximum, quality) {
 }
 
 
+
+function roadsideColor(item) {
+  if (item?.kind === 'resource') return '#8dff99';
+  if (item?.inventoryKey === 'sweepSignal') return '#ffef79';
+  if (item?.inventoryKey === 'breachCharge') return '#ff8c5f';
+  if (item?.inventoryKey === 'siegeCall') return '#ffbd70';
+  if (item?.inventoryKey === 'skirmisherCall') return '#62ffd2';
+  return '#65d7ff';
+}
+
+function drawRoadsideSupply(context, point, item, timeMs, quality) {
+  const color = roadsideColor(item);
+  const pulse = 10 + Math.sin(timeMs * 0.0055 + point.x * 0.01) * 1.4;
+  context.save();
+  glow(context, color, item?.rarity === 'epic' ? 18 : 12, quality);
+  const sides = item?.kind === 'resource' ? 4 : item?.inventoryKey === 'breachCharge' ? 6 : 3;
+  polygon(context, point, 5.8, sides, Math.PI / 4, 'rgba(101,255,208,0.16)', color, 1.35);
+  if (quality !== 'minimal') ring(context, point, pulse, color, 1, item?.rarity === 'epic' ? 0.66 : 0.45, true);
+  context.fillStyle = color;
+  context.font = '800 7px ui-monospace, monospace';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(item?.kind === 'resource' ? 'RES' : 'ITM', point.x, point.y + 0.5);
+  context.restore();
+}
+
 function drawRecoveryItem(context, point, timeMs, quality) {
   const pulse = 11 + Math.sin(timeMs * 0.005) * 1.5;
   context.save();
@@ -352,6 +379,13 @@ export function drawCombatState(context, state, camera, radar = {}) {
     const itemPosition = recoveryItemPoint(state, item);
     const point = camera.worldToScreen(itemPosition);
     if (visiblePoint(point, camera, 24)) drawRecoveryItem(context, point, timeMs, quality);
+  }
+
+  for (const supply of state.world.roadsideSupplies?.active ?? []) {
+    const supplyPosition = roadsideSupplyPoint(state, supply);
+    if (!supplyPosition) continue;
+    const point = camera.worldToScreen(supplyPosition);
+    if (visiblePoint(point, camera, 24)) drawRoadsideSupply(context, point, supply, timeMs, quality);
   }
 
   for (const squad of state.combat.friendlySquads ?? []) {

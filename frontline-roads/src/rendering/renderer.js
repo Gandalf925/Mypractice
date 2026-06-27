@@ -185,7 +185,7 @@ export class Renderer {
       this.camera.x.toFixed(3), this.camera.y.toFixed(3), this.camera.scale.toFixed(5),
       state?.runtime?.worldTimeMs ?? 0, state?.runtime?.updatedAt ?? 0, animatedKey,
       state?.combat?.enemies?.length ?? 0, state?.combat?.defenses?.length ?? 0,
-      state?.combat?.friendlySquads?.length ?? 0, state?.world?.recoveryItems?.length ?? 0,
+      state?.combat?.friendlySquads?.length ?? 0, state?.world?.recoveryItems?.length ?? 0, state?.world?.roadsideSupplies?.active?.length ?? 0,
       state?.world?.enemyBases?.length ?? 0, state?.world?.playerBases?.length ?? 0,
       state?.world?.fieldBases?.length ?? 0
     ].join('|');

@@ -147,7 +147,7 @@ test('late enemy generations and density remain hard-capped', () => {
   const state = levelState(7);
   state.civilization.completedAt = state.runtime.worldTimeMs - 2 * 60 * 60 * 1000;
   assert.deepEqual(enemyDensityForState(state), ENEMY_DENSITY_BY_CIVILIZATION[7]);
-  assert.equal(enemyDensityForState(state).populationCap, 960);
+  assert.equal(enemyDensityForState(state).populationCap, 860);
   assert.equal(enemyBaseLevelForState(state, Number.MAX_SAFE_INTEGER), 8);
 });
 

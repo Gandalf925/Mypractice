@@ -1,10 +1,11 @@
 import { performanceProfile } from './performance-profile.js';
 
 export class GameLoop {
-  constructor({ store, combatSystem, civilizationSystem = null, renderer, saveRepository, onUiUpdate, onError, onSaveDisabled, getPerformanceProfile = null }) {
+  constructor({ store, combatSystem, civilizationSystem = null, roadsideSupplySystem = null, renderer, saveRepository, onUiUpdate, onError, onSaveDisabled, getPerformanceProfile = null }) {
     this.store = store;
     this.combatSystem = combatSystem;
     this.civilizationSystem = civilizationSystem;
+    this.roadsideSupplySystem = roadsideSupplySystem;
     this.renderer = renderer;
     this.saveRepository = saveRepository;
     this.onUiUpdate = onUiUpdate;
@@ -77,6 +78,7 @@ export class GameLoop {
       for (let index = 0; index < steps; index += 1) {
         state.runtime.worldTimeMs = (state.runtime.worldTimeMs ?? Date.now()) + simulationStep * 1000;
         this.combatSystem.update(state, simulationStep);
+        this.roadsideSupplySystem?.update(state, simulationStep);
         this.civilizationAccumulator += simulationStep;
         const civilizationStep = 1 / profile.civilizationHz;
         if (this.civilizationSystem && this.civilizationAccumulator + 1e-9 >= civilizationStep) {

@@ -268,3 +268,47 @@ test('legacy saves without elevation metadata are refreshed without speculative 
   assert.equal(result.splitEdges, 0);
   assert.equal(findFriendlyRoadPath({ world: { roadGraph: graph }, combat: { defenses: [] } }, 'north', 'left'), null);
 });
+
+test('near-miss terminal is bridged to a road edge for visible road seams', () => {
+  const graph = attachGraphIndexes({
+    center: { lat: 35, lon: 139 }, source: 'test', roadSpecVersion: 4,
+    nodes: [
+      { id: 'left', x: -70, y: 0 }, { id: 'right', x: 70, y: 0 },
+      { id: 'tip', x: 0, y: 8.2 }, { id: 'north', x: 0, y: 80 }
+    ],
+    edges: [edge('main', 'left', 'right', 140, { layer: 0 }), edge('branch', 'tip', 'north', 71.8, { layer: 0 })]
+  });
+  const result = repairRoadGraphTopology(graph);
+  assert.equal(result.changed, true);
+  assert.ok(result.splitEdges >= 2);
+  assert.ok(findFriendlyRoadPath({ world: { roadGraph: graph }, combat: { defenses: [] } }, 'north', 'left'));
+});
+
+test('same-grade crossing edges are split into a routable intersection', () => {
+  const graph = attachGraphIndexes({
+    center: { lat: 35, lon: 139 }, source: 'test', roadSpecVersion: 4,
+    nodes: [
+      { id: 'west', x: -70, y: 0 }, { id: 'east', x: 70, y: 0 },
+      { id: 'south', x: 0, y: -70 }, { id: 'north', x: 0, y: 70 }
+    ],
+    edges: [edge('horizontal', 'west', 'east', 140, { layer: 0 }), edge('vertical', 'south', 'north', 140, { layer: 0 })]
+  });
+  const result = repairRoadGraphTopology(graph);
+  assert.equal(result.changed, true);
+  assert.ok(result.edgeIntersectionNodes >= 1);
+  assert.ok(findFriendlyRoadPath({ world: { roadGraph: graph }, combat: { defenses: [] } }, 'south', 'east'));
+});
+
+test('edge crossing repair does not connect bridge roads to ground roads', () => {
+  const graph = attachGraphIndexes({
+    center: { lat: 35, lon: 139 }, source: 'test', roadSpecVersion: 4,
+    nodes: [
+      { id: 'west', x: -70, y: 0 }, { id: 'east', x: 70, y: 0 },
+      { id: 'south', x: 0, y: -70 }, { id: 'north', x: 0, y: 70 }
+    ],
+    edges: [edge('ground', 'west', 'east', 140, { layer: 0 }), edge('bridge', 'south', 'north', 140, { layer: 1, bridge: true })]
+  });
+  const result = repairRoadGraphTopology(graph);
+  assert.equal(result.edgeIntersectionNodes ?? 0, 0);
+  assert.equal(findFriendlyRoadPath({ world: { roadGraph: graph }, combat: { defenses: [] } }, 'south', 'east'), null);
+});

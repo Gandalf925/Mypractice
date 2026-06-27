@@ -28,15 +28,32 @@ import { BuildSystem } from '../combat/build-system.js';
 import { CombatUi } from '../ui/combat-ui.js';
 import { CivilizationUi } from '../ui/civilization-ui.js';
 import { DeploymentUi } from '../ui/deployment-ui.js';
+import { RoadsideSuppliesUi } from '../ui/roadside-supplies-ui.js';
 import { BaseCommandUi } from '../ui/base-command-ui.js';
 import { MenuUi } from '../ui/menu-ui.js';
 import { RadarPreferences } from '../ui/radar-preferences.js';
 import { GameLoop } from './game-loop.js';
 import { OfflineSimulator } from '../persistence/offline-simulator.js';
 import { CivilizationSystem } from '../civilization/civilization-system.js';
+import { RoadsideSupplySystem } from '../exploration/roadside-supplies.js';
 import { RESOURCE_LABELS } from '../civilization/data.js';
 import { TabCoordinator } from '../persistence/tab-coordinator.js';
 import { registerPwa } from './pwa.js';
+
+
+async function clearFrontlineRoadsCaches() {
+  try {
+    const cacheStorage = globalThis.caches;
+    if (!cacheStorage?.keys) return false;
+    const keys = await cacheStorage.keys();
+    await Promise.all(keys
+      .filter(key => String(key).startsWith('frontline-roads-'))
+      .map(key => cacheStorage.delete(key)));
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 class FrontlineRoadsApp {
   constructor() {
@@ -62,6 +79,7 @@ class FrontlineRoadsApp {
     this.notifications = new Notifications(queryRequired('#notification'));
     this.combatSystem = new CombatSystem(this.events);
     this.civilizationSystem = new CivilizationSystem(this.events);
+    this.roadsideSupplySystem = new RoadsideSupplySystem(this.events);
     this.offlineSimulator = new OfflineSimulator({
       combatSystem: new CombatSystem(null),
       civilizationSystem: new CivilizationSystem(null)
@@ -124,6 +142,12 @@ class FrontlineRoadsApp {
       notifications: this.notifications,
       persist: () => this.persist()
     });
+    this.roadsideSuppliesUi = new RoadsideSuppliesUi({
+      store: this.store,
+      roadsideSupplySystem: this.roadsideSupplySystem,
+      notifications: this.notifications,
+      persist: options => this.persist(options)
+    });
     this.menuUi = new MenuUi({
       onSave: () => this.persist(),
       onReset: () => this.reset(),
@@ -133,6 +157,7 @@ class FrontlineRoadsApp {
       store: this.store,
       combatSystem: this.combatSystem,
       civilizationSystem: this.civilizationSystem,
+      roadsideSupplySystem: this.roadsideSupplySystem,
       renderer: this.renderer,
       saveRepository: this.saveRepository,
       onUiUpdate: () => {
@@ -141,6 +166,7 @@ class FrontlineRoadsApp {
         this.deploymentUi.update(view);
         this.baseCommandUi.update(view);
         this.civilizationUi.update(view);
+        this.roadsideSuppliesUi.update(view);
         this.roadWorld.considerSurveyFacilities();
       },
       onError: error => this.notifications.show(error?.message ?? '保存に失敗しました。'),
@@ -500,6 +526,7 @@ class FrontlineRoadsApp {
       this.combatUi.update();
       this.baseCommandUi.update();
       this.civilizationUi.updateSummary();
+      this.roadsideSuppliesUi.update();
       this.startRuntime();
       this.notifications.show('拠点を設置しました。まず投石台2基を建設し、敵拠点へ部隊を派兵してください。移動すると周辺道路を順次偵察し、MAPへ追加します。', 7000);
     } catch (error) {
@@ -522,6 +549,7 @@ class FrontlineRoadsApp {
     this.combatUi.update();
     this.baseCommandUi.update();
     this.civilizationUi.updateSummary();
+    this.roadsideSuppliesUi.update();
     this.renderer.render();
     return true;
   }
@@ -554,6 +582,7 @@ class FrontlineRoadsApp {
       }, 'location:watch');
       this.renderer.render();
       this.roadWorld.considerLocation(worldPoint);
+      this.store.advance(draft => { this.roadsideSupplySystem.refresh(draft, true); }, 'roadside:location-refresh');
     }, error => this.notifications.show(`位置追跡：${error.message}`));
   }
 
@@ -726,7 +755,9 @@ class FrontlineRoadsApp {
     this.roadLoadController?.abort();
     this.initialRoadExpansionPending = false;
     this.roadWorld.abort();
+    await this.roadWorld.clearAllWorlds?.();
     await this.roadWorld.clearCurrentWorld();
+    await clearFrontlineRoadsCaches();
     const cleared = this.saveRepository.clear();
     if (!cleared && this.saveRepository.isAvailable()) {
       this.notifications.show('保存データを初期化できませんでした。');

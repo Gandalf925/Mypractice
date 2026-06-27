@@ -4,12 +4,13 @@ import { attachGraphIndexes, graphElementsNearPoint } from './road-graph.js';
 import { roadElevationKey, roadElevationKnown, sameRoadElevation } from './road-elevation.js';
 
 const SOURCE_ID_MAX_GAP_METERS = 24;
-const TERMINAL_PAIR_MAX_GAP_METERS = 4.5;
-const TERMINAL_TO_NODE_MAX_GAP_METERS = 3.5;
-const TERMINAL_TO_EDGE_MAX_GAP_METERS = 5;
+const TERMINAL_PAIR_MAX_GAP_METERS = 6.5;
+const TERMINAL_TO_NODE_MAX_GAP_METERS = 5.5;
+const TERMINAL_TO_EDGE_MAX_GAP_METERS = 9;
+const EDGE_INTERSECTION_SEARCH_METERS = 0.75;
 const MIN_INTERIOR_SPLIT_METERS = 2.5;
-const MIN_T_JUNCTION_ANGLE_RADIANS = 24 * Math.PI / 180;
-const MAX_OUTWARD_ERROR_RADIANS = 58 * Math.PI / 180;
+const MIN_T_JUNCTION_ANGLE_RADIANS = 18 * Math.PI / 180;
+const MAX_OUTWARD_ERROR_RADIANS = 70 * Math.PI / 180;
 
 function activeEdge(edge) {
   return edge && !edge.routingDisabled;
@@ -19,6 +20,83 @@ function lineAngleDifference(first, second) {
   let difference = Math.abs(first - second) % Math.PI;
   if (difference > Math.PI / 2) difference = Math.PI - difference;
   return difference;
+}
+
+
+function edgeBounds(a, b, padding = 0) {
+  return {
+    minX: Math.min(a.x, b.x) - padding,
+    minY: Math.min(a.y, b.y) - padding,
+    maxX: Math.max(a.x, b.x) + padding,
+    maxY: Math.max(a.y, b.y) + padding
+  };
+}
+
+function boundsOverlap(first, second) {
+  return first.maxX >= second.minX && first.minX <= second.maxX
+    && first.maxY >= second.minY && first.minY <= second.maxY;
+}
+
+
+function repairBucketRange(bounds, cellSize) {
+  return {
+    minX: Math.floor(bounds.minX / cellSize),
+    maxX: Math.floor(bounds.maxX / cellSize),
+    minY: Math.floor(bounds.minY / cellSize),
+    maxY: Math.floor(bounds.maxY / cellSize)
+  };
+}
+
+function repairBucketKey(x, y) {
+  return `${x},${y}`;
+}
+
+function createEdgeRepairBuckets(graph, edges, cellSize = 48) {
+  const buckets = new Map();
+  const boundsByEdgeId = new Map();
+  for (const edge of edges) {
+    const a = graph.nodeById.get(edge.a);
+    const b = graph.nodeById.get(edge.b);
+    if (!a || !b) continue;
+    const bounds = edgeBounds(a, b, EDGE_INTERSECTION_SEARCH_METERS);
+    boundsByEdgeId.set(edge.id, bounds);
+    const range = repairBucketRange(bounds, cellSize);
+    for (let x = range.minX; x <= range.maxX; x += 1) {
+      for (let y = range.minY; y <= range.maxY; y += 1) {
+        const key = repairBucketKey(x, y);
+        if (!buckets.has(key)) buckets.set(key, []);
+        buckets.get(key).push(edge);
+      }
+    }
+  }
+  return { buckets, boundsByEdgeId, cellSize };
+}
+
+function candidateRepairEdges(index, bounds) {
+  const range = repairBucketRange(bounds, index.cellSize);
+  const result = new Set();
+  for (let x = range.minX; x <= range.maxX; x += 1) {
+    for (let y = range.minY; y <= range.maxY; y += 1) {
+      for (const edge of index.buckets.get(repairBucketKey(x, y)) ?? []) result.add(edge);
+    }
+  }
+  return result;
+}
+
+function segmentIntersectionPoint(a, b, c, d) {
+  const r = { x: b.x - a.x, y: b.y - a.y };
+  const s = { x: d.x - c.x, y: d.y - c.y };
+  const denominator = r.x * s.y - r.y * s.x;
+  if (Math.abs(denominator) < 1e-9) return null;
+  const qmp = { x: c.x - a.x, y: c.y - a.y };
+  const t = (qmp.x * s.y - qmp.y * s.x) / denominator;
+  const u = (qmp.x * r.y - qmp.y * r.x) / denominator;
+  if (t <= 1e-6 || t >= 1 - 1e-6 || u <= 1e-6 || u >= 1 - 1e-6) return null;
+  return { point: { x: a.x + t * r.x, y: a.y + t * r.y }, t, u };
+}
+
+function edgeSplitPointKey(point) {
+  return `${Math.round(point.x * 10)}:${Math.round(point.y * 10)}`;
 }
 
 function vectorAngleDifference(a, b) {
@@ -290,6 +368,147 @@ function splitEdgesAndConnect(graph, repairs) {
   return { splitEdges, connectors };
 }
 
+
+function collectEdgeIntersectionRepairs(graph, candidateNodeIds = null) {
+  const repairsByEdge = new Map();
+  const candidateSet = candidateNodeIds ? new Set(candidateNodeIds) : null;
+  const allActiveEdges = graph.edges.filter(edge => activeEdge(edge) && roadElevationKnown(edge));
+  const candidateEdges = candidateSet
+    ? allActiveEdges.filter(edge => candidateSet.has(edge.a) || candidateSet.has(edge.b))
+    : allActiveEdges;
+  const repairIndex = createEdgeRepairBuckets(graph, allActiveEdges);
+  const seenPairs = new Set();
+  for (const edge of candidateEdges) {
+    const a = graph.nodeById.get(edge.a);
+    const b = graph.nodeById.get(edge.b);
+    const search = repairIndex.boundsByEdgeId.get(edge.id);
+    if (!a || !b || !search) continue;
+    for (const other of candidateRepairEdges(repairIndex, search)) {
+      if (!activeEdge(other) || other.id === edge.id || !roadElevationKnown(other) || !sameRoadElevation(edge, other)) continue;
+      if (edge.a === other.a || edge.a === other.b || edge.b === other.a || edge.b === other.b) continue;
+      const pairKey = edge.id < other.id ? `${edge.id}|${other.id}` : `${other.id}|${edge.id}`;
+      if (seenPairs.has(pairKey)) continue;
+      seenPairs.add(pairKey);
+      const c = graph.nodeById.get(other.a);
+      const d = graph.nodeById.get(other.b);
+      if (!c || !d) continue;
+      if (!boundsOverlap(search, repairIndex.boundsByEdgeId.get(other.id) ?? edgeBounds(c, d, EDGE_INTERSECTION_SEARCH_METERS))) continue;
+      const angleGap = lineAngleDifference(edge.angle ?? segmentAngle({ a, b }), other.angle ?? segmentAngle({ a: c, b: d }));
+      if (angleGap < MIN_T_JUNCTION_ANGLE_RADIANS) continue;
+      const intersection = segmentIntersectionPoint(a, b, c, d);
+      if (!intersection) continue;
+      const edgeLength = edge.length ?? distance(a, b);
+      const otherLength = other.length ?? distance(c, d);
+      const edgeAlong = intersection.t * edgeLength;
+      const otherAlong = intersection.u * otherLength;
+      if (edgeAlong < MIN_INTERIOR_SPLIT_METERS || edgeLength - edgeAlong < MIN_INTERIOR_SPLIT_METERS) continue;
+      if (otherAlong < MIN_INTERIOR_SPLIT_METERS || otherLength - otherAlong < MIN_INTERIOR_SPLIT_METERS) continue;
+      const nodeId = stableId('topology-crossing', edgeSplitPointKey(intersection.point), roadElevationKey(edge));
+      const entry = {
+        point: intersection.point,
+        nodeId,
+        template: edge,
+        reason: 'edge-crossing'
+      };
+      const otherEntry = {
+        point: intersection.point,
+        nodeId,
+        template: other,
+        reason: 'edge-crossing'
+      };
+      if (!repairsByEdge.has(edge.id)) repairsByEdge.set(edge.id, []);
+      if (!repairsByEdge.has(other.id)) repairsByEdge.set(other.id, []);
+      repairsByEdge.get(edge.id).push(entry);
+      repairsByEdge.get(other.id).push(otherEntry);
+    }
+  }
+  return repairsByEdge;
+}
+
+function splitEdgesAtSyntheticNodes(graph, repairsByEdge) {
+  if (!repairsByEdge.size) return { splitEdges: 0, createdNodes: 0 };
+  const nodeByKey = new Map();
+  let createdNodes = 0;
+  let splitEdges = 0;
+  for (const [edgeId, entries] of repairsByEdge) {
+    const edge = graph.edgeById.get(edgeId);
+    if (!activeEdge(edge)) continue;
+    const a = graph.nodeById.get(edge.a);
+    const b = graph.nodeById.get(edge.b);
+    if (!a || !b) continue;
+    const uniqueEntries = [];
+    for (const entry of entries) {
+      if (uniqueEntries.some(item => distance(item.point, entry.point) < 1.5)) continue;
+      uniqueEntries.push(entry);
+    }
+    const sorted = uniqueEntries
+      .map(entry => ({ ...entry, projection: pointToSegmentProjection(entry.point, a, b) }))
+      .filter(entry => {
+        const length = edge.length ?? distance(a, b);
+        const along = entry.projection.t * length;
+        return entry.projection.distance <= EDGE_INTERSECTION_SEARCH_METERS
+          && along >= MIN_INTERIOR_SPLIT_METERS
+          && length - along >= MIN_INTERIOR_SPLIT_METERS;
+      })
+      .sort((left, right) => left.projection.t - right.projection.t);
+    if (!sorted.length) continue;
+
+    const splitNodes = [];
+    for (const entry of sorted) {
+      const key = `${entry.nodeId}:${edgeSplitPointKey(entry.projection.point)}`;
+      let node = nodeByKey.get(key);
+      if (!node) {
+        node = {
+          id: entry.nodeId,
+          x: entry.projection.point.x,
+          y: entry.projection.point.y,
+          sourceNodeIds: [],
+          elevationKeys: [roadElevationKey(edge)],
+          topologySynthetic: true,
+          elevationKnown: roadElevationKnown(edge),
+          chunkIds: [...(edge.chunkIds ?? [])]
+        };
+        let sequence = 1;
+        while (graph.nodes.some(item => item.id === node.id)) node.id = `${entry.nodeId}_${sequence++}`;
+        graph.nodes.push(node);
+        nodeByKey.set(key, node);
+        createdNodes += 1;
+      } else {
+        node.chunkIds = [...new Set([...(node.chunkIds ?? []), ...(edge.chunkIds ?? [])])];
+        node.elevationKeys = [...new Set([...(node.elevationKeys ?? []), roadElevationKey(edge)])];
+      }
+      splitNodes.push(node);
+    }
+
+    const chain = [a, ...splitNodes, b];
+    edge.routingDisabled = true;
+    edge.subdivisionEdgeIds = [];
+    const ancestors = [...new Set([...(edge.ancestorEdgeIds ?? []), edge.id])];
+    for (let index = 0; index < chain.length - 1; index += 1) {
+      const from = chain[index];
+      const to = chain[index + 1];
+      if (from.id === to.id) continue;
+      const child = {
+        id: uniqueEdgeId(graph, 'split-edge', edge.id, index, from.id, to.id),
+        a: from.id,
+        b: to.id,
+        length: Math.max(0.1, distance(from, to)),
+        points: [{ x: from.x, y: from.y }, { x: to.x, y: to.y }],
+        parentEdgeId: edge.id,
+        ancestorEdgeIds: ancestors,
+        topologyRepair: 'edge-crossing',
+        ...edgeMetadata(edge)
+      };
+      child.angle = segmentAngle({ a: from, b: to });
+      child.mid = segmentMidpoint({ a: from, b: to });
+      graph.edges.push(child);
+      edge.subdivisionEdgeIds.push(child.id);
+      splitEdges += 1;
+    }
+  }
+  return { splitEdges, createdNodes };
+}
+
 export function repairRoadGraphTopology(graph, { candidateNodeIds = null } = {}) {
   if (!graph?.nodes || !graph?.edges) return { changed: false, sourceConnectors: 0, terminalConnectors: 0, splitEdges: 0 };
   attachGraphIndexes(graph);
@@ -303,7 +522,15 @@ export function repairRoadGraphTopology(graph, { candidateNodeIds = null } = {})
   if (nodeConnectors) attachGraphIndexes(graph);
   const repairs = terminalToEdgeRepairs(graph, candidates);
   const split = splitEdgesAndConnect(graph, repairs);
-  const changed = sourceConnectors > 0 || terminalConnectors > 0 || split.splitEdges > 0 || split.connectors > 0;
+  if (split.splitEdges || split.connectors) attachGraphIndexes(graph);
+  const crossingRepairs = collectEdgeIntersectionRepairs(graph, candidates);
+  const crossingSplit = splitEdgesAtSyntheticNodes(graph, crossingRepairs);
+  const changed = sourceConnectors > 0
+    || terminalConnectors > 0
+    || split.splitEdges > 0
+    || split.connectors > 0
+    || crossingSplit.splitEdges > 0
+    || crossingSplit.createdNodes > 0;
   if (changed) {
     graph.topologyRevision = Math.max(1, Math.floor(Number(graph.topologyRevision) || 1)) + 1;
     attachGraphIndexes(graph);
@@ -312,6 +539,7 @@ export function repairRoadGraphTopology(graph, { candidateNodeIds = null } = {})
     changed,
     sourceConnectors,
     terminalConnectors: terminalConnectors + split.connectors,
-    splitEdges: split.splitEdges
+    splitEdges: split.splitEdges + crossingSplit.splitEdges,
+    edgeIntersectionNodes: crossingSplit.createdNodes
   };
 }

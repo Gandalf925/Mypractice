@@ -8,6 +8,8 @@ import { resolveStorage } from './storage-access.js';
 import { decodeRoadGraph, encodeRoadGraph } from './road-graph-codec.js';
 
 const MAX_SAVE_BYTES = 4_500_000;
+const RESET_MARKER_KEY = 'frontline_roads_reset_marker_v1';
+const APP_STORAGE_PREFIX = 'frontline_roads_';
 
 function sanitizeGraph(graph) {
   if (!graph) return graph;
@@ -39,6 +41,32 @@ function sanitizeState(state, { detached = false } = {}) {
 function restoreEncodedGraph(state) {
   if (state?.world?.roadGraph) state.world.roadGraph = decodeRoadGraph(state.world.roadGraph);
   return state;
+}
+
+function storageKeys(storage) {
+  if (!storage) return [];
+  const keys = [];
+  if (typeof storage.length === 'number' && typeof storage.key === 'function') {
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index);
+      if (key != null) keys.push(String(key));
+    }
+    return keys;
+  }
+  if (storage.values instanceof Map) return [...storage.values.keys()].map(String);
+  return [];
+}
+
+function resetMarkerTime(storage) {
+  if (!storage) return 0;
+  const value = Number(storage.getItem?.(RESET_MARKER_KEY));
+  return Number.isFinite(value) ? value : 0;
+}
+
+function statePredatesReset(state, markerAt) {
+  if (!markerAt) return false;
+  const createdAt = Number(state?.runtime?.createdAt) || 0;
+  return createdAt > 0 && createdAt <= markerAt;
 }
 
 export class SaveRepository {
@@ -126,6 +154,11 @@ export class SaveRepository {
         const { copy } = sanitizeState(state);
         this.storage.setItem(this.key, JSON.stringify(copy));
       }
+      if (statePredatesReset(state, resetMarkerTime(this.storage))) {
+        this.discardInvalid(raw);
+        this.warning = '初期化前の保存データを検出したため、新しいゲームとして開始します。';
+        return null;
+      }
       const validation = validateState(state);
       if (!validation.valid) {
         this.discardInvalid(raw);
@@ -151,6 +184,7 @@ export class SaveRepository {
   saveState(state, { detached }) {
     if (!this.storage) throw new AppError(ErrorCode.STORAGE_UNAVAILABLE, 'ブラウザの保存領域を利用できません。');
     try {
+      if (statePredatesReset(state, resetMarkerTime(this.storage))) return false;
       const { copy, timestamp } = sanitizeState(state, { detached });
       const serialized = JSON.stringify(copy);
       if (new TextEncoder().encode(serialized).length > MAX_SAVE_BYTES) {
@@ -167,8 +201,18 @@ export class SaveRepository {
   clear() {
     if (!this.storage) return false;
     try {
-      for (const key of [this.key, ...this.legacyKeys, this.backupKey, this.corruptBackupKey, 'frontline_roads_primary_tab_v2']) {
-        this.storage.removeItem(key);
+      const resetAt = Date.now();
+      const explicitKeys = new Set([this.key, ...this.legacyKeys, this.backupKey, this.corruptBackupKey, 'frontline_roads_primary_tab_v2']);
+      for (const key of storageKeys(this.storage)) {
+        if (key.startsWith(APP_STORAGE_PREFIX) || explicitKeys.has(key)) this.storage.removeItem(key);
+      }
+      for (const key of explicitKeys) this.storage.removeItem(key);
+      this.storage.setItem(RESET_MARKER_KEY, String(resetAt));
+      try {
+        const session = globalThis.sessionStorage;
+        for (const key of storageKeys(session)) if (key.startsWith(APP_STORAGE_PREFIX)) session.removeItem(key);
+      } catch {
+        // Session storage cleanup is best-effort.
       }
       return true;
     } catch {

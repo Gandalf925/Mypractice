@@ -616,6 +616,10 @@ export class RoadWorldManager {
     return this.cache?.removeWorld?.(roadWorldId(graph)).catch(() => false) ?? false;
   }
 
+  async clearAllWorlds() {
+    return this.cache?.removeAll?.().catch(() => false) ?? false;
+  }
+
   destroy() {
     this.abort();
     this.cache?.close?.();

@@ -1,6 +1,6 @@
 {
   "release": "0.32.12-hud-camera-balance-validation",
-  "generatedAt": "2026-06-26T02:41:56.641Z",
+  "generatedAt": "2026-06-27T04:31:22.514Z",
   "simulation": {
     "topology": "nine-front radial road network",
     "baseDistanceMeters": 360,
@@ -48,7 +48,7 @@
       "cityDefeats": 0,
       "minimumCityHp": 100,
       "finalCityHp": 100,
-      "simulationMilliseconds": 153.3,
+      "simulationMilliseconds": 139.1,
       "passed": true
     },
     {
@@ -77,7 +77,7 @@
       "cityDefeats": 0,
       "minimumCityHp": 100,
       "finalCityHp": 100,
-      "simulationMilliseconds": 198.4,
+      "simulationMilliseconds": 182.1,
       "passed": true
     },
     {
@@ -109,7 +109,7 @@
       "cityDefeats": 0,
       "minimumCityHp": 67,
       "finalCityHp": 67,
-      "simulationMilliseconds": 1079.1,
+      "simulationMilliseconds": 963.5,
       "passed": true
     },
     {
@@ -141,7 +141,7 @@
       "cityDefeats": 0,
       "minimumCityHp": 100,
       "finalCityHp": 100,
-      "simulationMilliseconds": 872.9,
+      "simulationMilliseconds": 782.4,
       "passed": true
     },
     {
@@ -173,7 +173,7 @@
       "cityDefeats": 1,
       "minimumCityHp": 10,
       "finalCityHp": 53.2,
-      "simulationMilliseconds": 1209.5,
+      "simulationMilliseconds": 1078.9,
       "passed": true
     },
     {
@@ -205,7 +205,7 @@
       "cityDefeats": 0,
       "minimumCityHp": 100,
       "finalCityHp": 100,
-      "simulationMilliseconds": 965,
+      "simulationMilliseconds": 875.6,
       "passed": true
     },
     {
@@ -236,7 +236,7 @@
       "cityDefeats": 0,
       "minimumCityHp": 100,
       "finalCityHp": 100,
-      "simulationMilliseconds": 1097.8,
+      "simulationMilliseconds": 977.8,
       "passed": true
     }
   ],

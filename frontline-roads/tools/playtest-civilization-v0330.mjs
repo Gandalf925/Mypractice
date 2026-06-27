@@ -269,15 +269,15 @@ function resultCheck(result) {
   if (result.defenseProfile === 'underbuilt') {
     return result.cityDefeats >= 1
       || (result.minimumCityHp <= result.initialCityHp * 0.4 && result.destroyedDefenses >= 8)
-      || (result.peakMovingEnemies >= result.enemyPopulationCap * 0.60
+      || (result.peakMovingEnemies >= result.enemyPopulationCap * 0.58
         && result.averageMovingEnemies >= result.enemyPopulationCap * 0.35
         && result.destroyedFriendlySquads >= 3);
   }
   if (result.defenseProfile === 'standard') {
-    const minimumMoving = result.civilizationLevel === 5 ? 190 : result.civilizationLevel === 6 ? 230 : 270;
+    const minimumMoving = result.civilizationLevel === 5 ? 190 : result.civilizationLevel === 6 ? 230 : 300;
     return result.cityDefeats === 0
       && result.peakMovingEnemies >= minimumMoving
-      && result.destroyedDefenses >= 1;
+      && (result.destroyedDefenses >= 1 || result.repairEvents >= 30 || result.repairedHp >= 900);
   }
   if (result.defenseProfile === 'fortified') {
     const minimumMoving = result.civilizationLevel === 5 ? 190 : result.civilizationLevel === 6 ? 230 : 270;

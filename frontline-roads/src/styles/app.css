@@ -1421,3 +1421,23 @@ button, input, select, textarea { font-size: inherit; }
     height: 28px;
   }
 }
+
+.suppliesCard { width: min(620px, calc(100vw - 24px)); max-height: min(760px, calc(100vh - 26px)); }
+.supplyStatusGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 10px 0 12px; }
+.supplyStatusGrid span { display: grid; gap: 3px; padding: 9px 10px; border: 1px solid rgba(101,255,208,.18); background: rgba(3, 23, 19, .76); }
+.supplyStatusGrid small { color: var(--muted); font-size: 11px; }
+.supplyStatusGrid strong { color: var(--accent); font-size: 18px; }
+.supplyNearbyList { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.supplyNearbyList li,
+.supplyInventoryRow { border: 1px solid rgba(101,255,208,.18); background: rgba(4, 28, 23, .72); padding: 9px 10px; }
+.supplyNearbyList li { display: grid; gap: 3px; }
+.supplyNearbyList strong,
+.supplyInventoryRow strong { color: #edfff9; font-size: 13px; }
+.supplyNearbyList span,
+.supplyInventoryRow span { color: var(--muted); font-size: 12px; line-height: 1.45; }
+.supplyInventoryList { display: grid; gap: 8px; }
+.supplyInventoryRow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.supplyInventoryRow > div { display: grid; gap: 3px; }
+.supplyInventoryRow button { min-width: 88px; min-height: 36px; border: 1px solid rgba(101,255,208,.38); background: rgba(7, 38, 31, .92); color: #dffff7; font-weight: 900; }
+@media(max-width:720px){ .topActions { grid-template-columns: repeat(4, minmax(0, 1fr)); } .topActions button { font-size: 11px; padding-inline: 5px; } }
+@media(max-width:520px){ .supplyInventoryRow { grid-template-columns: 1fr; } .supplyInventoryRow button { width: 100%; } }

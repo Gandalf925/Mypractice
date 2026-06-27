@@ -19,7 +19,15 @@ export function createInitialState() {
       explorationSites: [],
       exploredSiteChunks: [],
       recoveryItems: [],
-      recoveryCollection: null
+      recoveryCollection: null,
+      roadsideSupplies: {
+        version: 1,
+        collectedIds: [],
+        active: [],
+        inventory: { assaultCall: 0, skirmisherCall: 0, siegeCall: 0, sweepSignal: 0, breachCharge: 0 },
+        daily: { epoch: '0', collectedCount: 0, rareCollectedCount: 0 },
+        nextRefreshAt: 0
+      }
     },
     player: {
       currentPosition: null,

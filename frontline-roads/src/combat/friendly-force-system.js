@@ -16,6 +16,7 @@ import {
 } from './friendly-recovery-system.js';
 import {
   FRIENDLY_SQUAD_DEFINITIONS,
+  friendlySquadDefinition,
   friendlySquadRuntimeDefinition,
   friendlySquadEnemyDamage,
   friendlySquadUnlocked
@@ -47,6 +48,20 @@ export const FRIENDLY_SQUAD_STATUS = Object.freeze({
   RECOVERING: FRIENDLY_RECOVERY_STATUS.RECOVERING,
   READY: FRIENDLY_RECOVERY_STATUS.READY
 });
+
+export const FRIENDLY_ANNIHILATION_RECOVERY_SECONDS = Object.freeze({
+  assault: 180,
+  skirmisher: 240,
+  retrieval: 180,
+  siege: 420,
+  heavy: 480,
+  expedition: 540,
+  engineer: 660,
+  artillery: 720,
+  command: 900
+});
+
+export const ROADSIDE_SPEED_BOOST_MULTIPLIER = 0.20;
 
 export const FRIENDLY_SQUAD_MISSION = Object.freeze({ ATTACK: 'ATTACK', INTERCEPT: 'INTERCEPT', RECOVERY: 'RECOVERY' });
 
@@ -173,6 +188,10 @@ export function ensureFriendlyForceState(state) {
     delete squad.recoveryFacilityType;
     delete squad.recoveryFacilityId;
     squad.readyAt = Number(squad.readyAt) || null;
+    squad.annihilatedRecovery = Boolean(squad.annihilatedRecovery);
+    squad.annihilatedAt = Number(squad.annihilatedAt) || null;
+    squad.roadsideSpeedBoostUntil = Math.max(0, Number(squad.roadsideSpeedBoostUntil) || 0);
+    squad.roadsideSpeedBoostMultiplier = Math.max(0, Number(squad.roadsideSpeedBoostMultiplier) || 0);
   }
   return state.combat.friendlySquads;
 }
@@ -905,7 +924,13 @@ function advanceAlongPath(state, squad, definition, deltaSeconds) {
     state.world.enemyBases.some(base => base.id === squad.formationTargetId && base.alive && base.hp > 0)
   );
   const baseMovementSpeed = formationActive ? Math.min(definition.speed, squad.formationSpeed ?? definition.speed) : definition.speed;
-  const movementSpeed = Math.max(0.001, baseMovementSpeed * (1 + friendlyCommandBonuses(state, squad).speed));
+  const nowMs = state.runtime?.worldTimeMs ?? Date.now();
+  const activeRoadsideBoost = Number(squad.roadsideSpeedBoostUntil) > nowMs ? Math.max(0, Number(squad.roadsideSpeedBoostMultiplier) || 0) : 0;
+  if (activeRoadsideBoost <= 0 && Number(squad.roadsideSpeedBoostUntil) > 0 && Number(squad.roadsideSpeedBoostUntil) <= nowMs) {
+    squad.roadsideSpeedBoostUntil = 0;
+    squad.roadsideSpeedBoostMultiplier = 0;
+  }
+  const movementSpeed = Math.max(0.001, baseMovementSpeed * (1 + friendlyCommandBonuses(state, squad).speed + activeRoadsideBoost));
   let remainingSeconds = Math.max(0, Number(deltaSeconds) || 0);
   let transitions = 0;
   while (squad.path && squad.edgeId && remainingSeconds > 1e-9 && transitions < 4096) {
@@ -1039,6 +1064,96 @@ export function repairNearbyDefenseWithEngineer(state, squadId, events = null) {
   return { ok: true, target, repairHp, cost };
 }
 
+
+function primaryRecoveryBaseId(state) {
+  const primary = activePlayerBases(state).find(base => base.primary && base.hp > 0) ?? activePlayerBases(state).find(base => base.hp > 0) ?? state.world?.homeBase ?? null;
+  return primary?.id ?? null;
+}
+
+function annihilationRecoverySeconds(squad) {
+  const definition = FRIENDLY_SQUAD_DEFINITIONS[squad.type] ?? FRIENDLY_SQUAD_DEFINITIONS.assault;
+  const base = FRIENDLY_ANNIHILATION_RECOVERY_SECONDS[definition.type] ?? 420;
+  const levelBonus = Math.max(0, Math.floor(Number(definition.unlockLevel) || 0)) * 30;
+  return base + levelBonus;
+}
+
+function beginAnnihilationRecovery(state, squad, events = null) {
+  const dropped = releaseSquadRecoveryItem(state, squad, true);
+  if (dropped) {
+    events?.emit('friendly:recovery-item-dropped', { squadId: squad.id, itemId: dropped.id, position: recoveryItemPoint(state, dropped) });
+    events?.emit('message', { text: '回収部隊が壊滅し、特殊アイテムが道路上へ残されました。' });
+  }
+  const baseId = squad.originBaseId ?? primaryRecoveryBaseId(state);
+  squad.hp = 1;
+  squad.maxHp = Math.max(1, Number(squad.maxHp) || friendlySquadRuntimeDefinition(state, squad.type).hp);
+  squad.path = null;
+  squad.edgeId = null;
+  squad.edgeProgress = 0;
+  squad.engagedEnemyId = null;
+  squad.targetEnemyId = null;
+  squad.targetBaseId = null;
+  squad.missionTargetBaseId = null;
+  squad.targetRecoveryItemId = null;
+  squad.recoveryCollectionProgressSec = null;
+  squad.annihilatedRecovery = true;
+  squad.annihilatedAt = state.runtime?.worldTimeMs ?? Date.now();
+  const recovery = beginFriendlyRecovery(state, squad, baseId);
+  if (!recovery.ok) {
+    squad.status = FRIENDLY_SQUAD_STATUS.STRANDED;
+    squad.order = FRIENDLY_SQUAD_ORDER.HOLD;
+    return recovery;
+  }
+  squad.reorganizationRemaining = Math.max(squad.reorganizationRemaining ?? 0, annihilationRecoverySeconds(squad));
+  events?.emit('friendly:squad-annihilated', { squadId: squad.id, originBaseId: baseId, recoverySeconds: squad.reorganizationRemaining });
+  events?.emit('message', { text: `${friendlySquadDefinition(squad.type).name}が壊滅しました。部隊枠を占有したまま長時間の再編成に入ります。` });
+  return { ok: true, squad, recovery };
+}
+
+export function emergencyWithdrawFriendlySquadNear(state, point, radiusMeters, events = null) {
+  if (!point || !Number.isFinite(Number(point.x)) || !Number.isFinite(Number(point.y))) return { ok: false, reason: '現在地を取得してください。' };
+  const radius2 = Math.max(0, Number(radiusMeters) || 0) ** 2;
+  const candidates = (state.combat?.friendlySquads ?? [])
+    .filter(squad => squad.hp > 0 && !squad.temporaryDeployment && ![FRIENDLY_SQUAD_STATUS.RECOVERING, FRIENDLY_SQUAD_STATUS.READY].includes(squad.status))
+    .map(squad => ({ squad, d2: distanceSquared(friendlySquadPosition(state, squad), point) }))
+    .filter(entry => entry.d2 <= radius2)
+    .sort((a, b) => {
+      const aPriority = [FRIENDLY_SQUAD_STATUS.ENGAGED, FRIENDLY_SQUAD_STATUS.ATTACKING_BASE].includes(a.squad.status) ? 0 : 1;
+      const bPriority = [FRIENDLY_SQUAD_STATUS.ENGAGED, FRIENDLY_SQUAD_STATUS.ATTACKING_BASE].includes(b.squad.status) ? 0 : 1;
+      return aPriority - bPriority || a.d2 - b.d2;
+    });
+  const squad = candidates[0]?.squad ?? null;
+  if (!squad) return { ok: false, reason: `半径${Math.round(radiusMeters)}m以内に撤退可能な味方部隊がありません。` };
+  clearEnemyEngagements(state, squad.id);
+  squad.engagedEnemyId = null;
+  if (!planReturn(state, squad)) return { ok: false, reason: '撤退経路を確保できません。' };
+  squad.order = FRIENDLY_SQUAD_ORDER.WITHDRAW;
+  squad.status = FRIENDLY_SQUAD_STATUS.WITHDRAWING;
+  events?.emit('friendly:squad-emergency-withdraw', { squadId: squad.id });
+  events?.emit('message', { text: `${friendlySquadDefinition(squad.type).name}を緊急撤退させました。壊滅再編成を回避します。` });
+  return { ok: true, squad };
+}
+
+export function boostFriendlySquadsNear(state, point, radiusMeters, durationSeconds, multiplier = ROADSIDE_SPEED_BOOST_MULTIPLIER, events = null) {
+  if (!point || !Number.isFinite(Number(point.x)) || !Number.isFinite(Number(point.y))) return { ok: false, reason: '現在地を取得してください。' };
+  const now = state.runtime?.worldTimeMs ?? Date.now();
+  const radius2 = Math.max(0, Number(radiusMeters) || 0) ** 2;
+  const targets = (state.combat?.friendlySquads ?? [])
+    .filter(squad => squad.hp > 0 && ![FRIENDLY_SQUAD_STATUS.RECOVERING, FRIENDLY_SQUAD_STATUS.READY].includes(squad.status))
+    .map(squad => ({ squad, d2: distanceSquared(friendlySquadPosition(state, squad), point) }))
+    .filter(entry => entry.d2 <= radius2)
+    .sort((a, b) => a.d2 - b.d2)
+    .slice(0, 3)
+    .map(entry => entry.squad);
+  if (!targets.length) return { ok: false, reason: `半径${Math.round(radiusMeters)}m以内に加速可能な味方部隊がありません。` };
+  for (const squad of targets) {
+    squad.roadsideSpeedBoostUntil = Math.max(Number(squad.roadsideSpeedBoostUntil) || 0, now + Math.max(1, Number(durationSeconds) || 1) * 1000);
+    squad.roadsideSpeedBoostMultiplier = Math.max(Number(squad.roadsideSpeedBoostMultiplier) || 0, Math.max(0, Number(multiplier) || 0));
+  }
+  events?.emit('friendly:squad-speed-boosted', { squadIds: targets.map(squad => squad.id), durationSeconds, multiplier });
+  events?.emit('message', { text: `行軍加速旗で味方部隊${targets.length}隊の移動速度を一時的に上げました。` });
+  return { ok: true, squads: targets };
+}
+
 export class FriendlyForceSystem {
   constructor(events = null) {
     this.events = events;
@@ -1076,12 +1191,17 @@ export class FriendlyForceSystem {
     const remove = new Set();
     for (const squad of state.combat.friendlySquads) {
       if (squad.hp <= 0) {
-        const dropped = releaseSquadRecoveryItem(state, squad, true);
-        if (dropped) {
-          this.events?.emit('friendly:recovery-item-dropped', { squadId: squad.id, itemId: dropped.id, position: recoveryItemPoint(state, dropped) });
-          this.events?.emit('message', { text: '回収部隊が全滅し、特殊アイテムが道路上へ残されました。' });
+        if (squad.temporaryDeployment || friendlySquadRuntimeDefinition(state, squad.type).missionKind === 'RECOVERY') {
+          const dropped = releaseSquadRecoveryItem(state, squad, true);
+          if (dropped) {
+            this.events?.emit('friendly:recovery-item-dropped', { squadId: squad.id, itemId: dropped.id, position: recoveryItemPoint(state, dropped) });
+            this.events?.emit('message', { text: '現地出撃部隊が壊滅し、特殊アイテムが道路上へ残されました。' });
+          }
+          remove.add(squad.id);
+          this.events?.emit('message', { text: squad.temporaryDeployment ? `${friendlySquadDefinition(squad.type).name}は壊滅し、現地出撃任務を終了しました。` : `${friendlySquadDefinition(squad.type).name}が壊滅しました。` });
+        } else {
+          beginAnnihilationRecovery(state, squad, this.events);
         }
-        remove.add(squad.id);
         continue;
       }
       if (shouldUpdate && !shouldUpdate(squad)) continue;
@@ -1178,6 +1298,12 @@ export class FriendlyForceSystem {
           } else releaseSquadRecoveryItem(state, squad);
           squad.targetRecoveryItemId = null;
           squad.recoveryCollectionProgressSec = null;
+        }
+        if (squad.temporaryDeployment) {
+          remove.add(squad.id);
+          this.events?.emit('friendly:squad-returned', { squadId: squad.id, originBaseId: recoveryBaseId, hp: squad.hp, temporary: true });
+          this.events?.emit('message', { text: `${friendlySquadDefinition(squad.type).name}は現地出撃任務を完了し、解散しました。` });
+          continue;
         }
         const recovery = beginFriendlyRecovery(state, squad, recoveryBaseId);
         if (!recovery.ok) {

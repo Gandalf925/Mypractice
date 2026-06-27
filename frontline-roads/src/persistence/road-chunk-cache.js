@@ -80,6 +80,14 @@ export class RoadChunkCache {
     return true;
   }
 
+  async removeAll() {
+    const database = await this.open();
+    if (!database) return false;
+    const transaction = database.transaction(this.storeName, 'readwrite');
+    await requestResult(transaction.objectStore(this.storeName).clear());
+    return true;
+  }
+
   close() {
     this.databasePromise?.then(database => database?.close?.()).catch(() => {});
     this.databasePromise = null;
@@ -97,5 +105,6 @@ export class MemoryRoadChunkCache {
     for (const key of [...this.records.keys()]) if (key.startsWith(`${worldId}:`)) this.records.delete(key);
     return true;
   }
+  async removeAll() { this.records.clear(); return true; }
   close() {}
 }

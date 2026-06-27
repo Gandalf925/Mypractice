@@ -125,6 +125,27 @@ function friendlySquadTargetCandidates(state, enemy, definition) {
 function planPath(state, enemy) {
   const definition = ENEMY_DEFINITIONS[enemy.type] ?? ENEMY_DEFINITIONS.infantry;
   const behavior = enemyBehaviorForDefinition(definition, enemy.doctrineKey);
+  const nowMs = state.runtime?.worldTimeMs ?? Date.now();
+  if (enemy.roadsideLureNodeId && Number(enemy.roadsideLureUntil) > nowMs && state.world.roadGraph?.nodeById?.has(enemy.roadsideLureNodeId)) {
+    const lurePath = findCombatPathToTargets(
+      state,
+      enemy.nodeId,
+      [{ nodeId: enemy.roadsideLureNodeId, targetObjectId: 'roadside-lure', priorityPenalty: -180 }],
+      enemy.type,
+      enemy.routeBias ?? 1,
+      enemy.level ?? 1,
+      enemy.doctrineKey
+    );
+    if (lurePath) {
+      enemy.targetDefenseId = null;
+      enemy.targetFieldBaseId = null;
+      enemy.targetPlayerBaseId = null;
+      enemy.targetSquadId = null;
+      return lurePath;
+    }
+  }
+  enemy.roadsideLureNodeId = null;
+  enemy.roadsideLureUntil = 0;
   if (definition.huntFriendlySquads || behavior.targetMode === 'SQUADS') {
     const squadPath = findCombatPathToTargets(
       state,
@@ -194,7 +215,15 @@ function ensurePath(state, enemy) {
     enemy.reroutePending = true;
   }
   const targetSquad = activeHuntSquadById(state, enemy.targetSquadId, enemy, definition);
-  const expectedTargetId = enemy.targetDefenseId
+  const nowMs = state.runtime?.worldTimeMs ?? Date.now();
+  if (enemy.roadsideLureNodeId && Number(enemy.roadsideLureUntil) <= nowMs) {
+    enemy.roadsideLureNodeId = null;
+    enemy.roadsideLureUntil = 0;
+    enemy.reroutePending = true;
+  }
+  const expectedTargetId = enemy.roadsideLureNodeId && state.world.roadGraph?.nodeById?.has(enemy.roadsideLureNodeId)
+    ? enemy.roadsideLureNodeId
+    : enemy.targetDefenseId
     ? activeTowerById(state, enemy.targetDefenseId)?.nodeId
     : enemy.targetPlayerBaseId
       ? playerBaseById(state, enemy.targetPlayerBaseId, { includeDestroyed: false })?.nodeId
@@ -565,6 +594,16 @@ export class EnemySystem {
       enemy.pathIndex += 1;
       enemy.edgeProgress = 0;
       transitions += 1;
+
+      if (enemy.roadsideLureNodeId && enemy.nodeId === enemy.roadsideLureNodeId) {
+        enemy.roadsideLureNodeId = null;
+        enemy.roadsideLureUntil = 0;
+        enemy.path = null;
+        enemy.pathIndex = 0;
+        enemy.edgeId = null;
+        enemy.reroutePending = true;
+        continue;
+      }
 
       if (enemy.reroutePending && enemy.nodeId !== enemy.path.targetId) {
         enemy.path = null;

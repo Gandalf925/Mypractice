@@ -8,9 +8,9 @@ export const ENEMY_LEVEL_MULTIPLIERS = Object.freeze({
   3: Object.freeze({ hp: 1.35, attack: 1.22, speed: 1.04 }),
   4: Object.freeze({ hp: 1.60, attack: 1.38, speed: 1.07 }),
   5: Object.freeze({ hp: 1.90, attack: 1.58, speed: 1.10 }),
-  6: Object.freeze({ hp: 2.20, attack: 1.78, speed: 1.12 }),
-  7: Object.freeze({ hp: 2.55, attack: 2.00, speed: 1.14 }),
-  8: Object.freeze({ hp: 2.95, attack: 2.25, speed: 1.16 })
+  6: Object.freeze({ hp: 2.20, attack: 1.86, speed: 1.12 }),
+  7: Object.freeze({ hp: 2.55, attack: 2.16, speed: 1.14 }),
+  8: Object.freeze({ hp: 2.95, attack: 2.48, speed: 1.16 })
 });
 
 export const ENEMY_DENSITY_BY_CIVILIZATION = Object.freeze({
@@ -19,9 +19,9 @@ export const ENEMY_DENSITY_BY_CIVILIZATION = Object.freeze({
   2: Object.freeze({ populationCap: 440, waveMultiplier: 2.25, intervalMultiplier: 0.70, departureSpacingSeconds: 4.5 }),
   3: Object.freeze({ populationCap: 580, waveMultiplier: 3.25, intervalMultiplier: 0.56, departureSpacingSeconds: 3.2 }),
   4: Object.freeze({ populationCap: 720, waveMultiplier: 4.50, intervalMultiplier: 0.44, departureSpacingSeconds: 2.4 }),
-  5: Object.freeze({ populationCap: 800, waveMultiplier: 4.50, intervalMultiplier: 0.46, departureSpacingSeconds: 2.3 }),
-  6: Object.freeze({ populationCap: 880, waveMultiplier: 5.35, intervalMultiplier: 0.39, departureSpacingSeconds: 2.0 }),
-  7: Object.freeze({ populationCap: 960, waveMultiplier: 5.90, intervalMultiplier: 0.35, departureSpacingSeconds: 1.8 })
+  5: Object.freeze({ populationCap: 720, waveMultiplier: 4.30, intervalMultiplier: 0.48, departureSpacingSeconds: 2.45 }),
+  6: Object.freeze({ populationCap: 800, waveMultiplier: 5.00, intervalMultiplier: 0.40, departureSpacingSeconds: 2.1 }),
+  7: Object.freeze({ populationCap: 860, waveMultiplier: 5.45, intervalMultiplier: 0.36, departureSpacingSeconds: 1.9 })
 });
 
 export const ENEMY_WAVE_INTERVAL_MULTIPLIERS = Object.freeze({

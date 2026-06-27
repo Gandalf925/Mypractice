@@ -1,7 +1,7 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
 const RELEASE_VERSION = '0.33.4';
-const CACHE_NAME = `${CACHE_PREFIX}v0-33-4-road-topology-route-command`;
+const CACHE_NAME = `${CACHE_PREFIX}v0-33-4-road-gap-fix`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -66,6 +66,7 @@ const APP_SHELL = [
   './src/exploration/frontier-system.js',
   './src/exploration/exploration-system.js',
   './src/exploration/recovery-system.js',
+  './src/exploration/roadside-supplies.js',
   './src/exploration/survey-system.js',
   './src/location/geolocation-service.js',
   './src/location/location-privacy.js',
@@ -113,7 +114,8 @@ const APP_SHELL = [
   './src/ui/map-input.js',
   './src/ui/menu-ui.js',
   './src/ui/notifications.js',
-  './src/ui/radar-preferences.js'
+  './src/ui/radar-preferences.js',
+  './src/ui/roadside-supplies-ui.js'
 ];
 
 const NETWORK_TIMEOUT_MS = 4500;

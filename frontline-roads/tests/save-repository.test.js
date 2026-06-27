@@ -68,3 +68,27 @@ test('detached-state save consumes one caller-owned snapshot without mutating th
   const restored = repository.load();
   assert.equal(restored.player.currentPosition, null);
 });
+
+test('clear removes all app-prefixed storage and blocks stale tab saves', () => {
+  const storage = new MemoryStorage();
+  const repository = new SaveRepository(storage, 'test-reset');
+  const oldState = stateWithGraph();
+  repository.save(oldState);
+  storage.setItem('frontline_roads_overpass_preference_v2', 'old');
+  storage.setItem('unrelated_key', 'keep');
+
+  assert.equal(repository.clear(), true);
+  assert.equal(storage.getItem('test-reset'), null);
+  assert.equal(storage.getItem('frontline_roads_overpass_preference_v2'), null);
+  assert.equal(storage.getItem('unrelated_key'), 'keep');
+  assert.ok(Number(storage.getItem('frontline_roads_reset_marker_v1')) > 0);
+
+  const staleRepository = new SaveRepository(storage, 'test-reset');
+  assert.equal(staleRepository.saveDetachedState(structuredClone(oldState)), false);
+  assert.equal(storage.getItem('test-reset'), null);
+
+  const newState = stateWithGraph();
+  newState.runtime.createdAt = Date.now() + 1000;
+  assert.ok(staleRepository.saveDetachedState(newState));
+  assert.ok(storage.getItem('test-reset'));
+});

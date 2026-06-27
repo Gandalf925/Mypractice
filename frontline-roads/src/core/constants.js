@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.33.4-road-topology-route-command';
+export const APP_VERSION = '0.33.4-road-gap-fix';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 
