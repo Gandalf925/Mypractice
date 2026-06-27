@@ -1,3 +1,0 @@
-FRONTLINE ROADS v0.33.4-ui-readable-squad-items
-Clean GitHub Pages upload package.
-Runtime files only: root redirect, /fr redirect, /frontline-roads app shell, src, manifest, icons, service worker.

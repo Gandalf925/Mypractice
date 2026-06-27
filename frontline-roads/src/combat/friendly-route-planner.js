@@ -152,18 +152,38 @@ function routeThrough(state, startId, waypointNodeIds, destinationNodeId, strate
   return combineRoadPaths(paths);
 }
 
-function currentEdgeRemainder(state, squad) {
+function currentEdgeEndpoints(state, squad) {
   if (!squad.edgeId || !(squad.edgeProgress > 0)) return null;
-  const edge = state.world.roadGraph.edgeById.get(squad.edgeId);
-  const nextNodeId = squad.path?.nodeIds?.[squad.pathIndex + 1];
-  const nextNode = nextNodeId ? state.world.roadGraph.nodeById.get(nextNodeId) : null;
-  if (!edge || !nextNode || squad.edgeProgress >= edge.length) return null;
+  const graph = state.world.roadGraph;
+  const edge = graph.edgeById.get(squad.edgeId);
+  const fromId = squad.path?.nodeIds?.[squad.pathIndex];
+  const toId = squad.path?.nodeIds?.[squad.pathIndex + 1];
+  const from = fromId ? graph.nodeById.get(fromId) : null;
+  const to = toId ? graph.nodeById.get(toId) : null;
+  if (!edge || !from || !to || squad.edgeProgress >= edge.length) return null;
   return {
     edge,
-    from: friendlySquadPosition(state, squad),
-    to: nextNode,
-    distance: Math.max(0, edge.length - squad.edgeProgress)
+    fromId,
+    toId,
+    from,
+    to,
+    progress: Math.max(0, Math.min(edge.length, Number(squad.edgeProgress) || 0)),
+    remaining: Math.max(0, edge.length - (Number(squad.edgeProgress) || 0))
   };
+}
+
+function currentEdgeLead(state, squad, path) {
+  const endpoints = currentEdgeEndpoints(state, squad);
+  const startNodeId = path?.nodeIds?.[0] ?? null;
+  if (!endpoints || !startNodeId) return null;
+  const current = friendlySquadPosition(state, squad);
+  if (startNodeId === endpoints.toId) {
+    return { edge: endpoints.edge, from: current, to: endpoints.to, distance: endpoints.remaining };
+  }
+  if (startNodeId === endpoints.fromId) {
+    return { edge: endpoints.edge, from: current, to: endpoints.from, distance: endpoints.progress };
+  }
+  return null;
 }
 
 function pathMetrics(state, path, speed, analysis, squad) {
@@ -171,7 +191,7 @@ function pathMetrics(state, path, speed, analysis, squad) {
   let enemyContacts = 0;
   let supportScore = 0;
   const counted = new Set();
-  const leading = currentEdgeRemainder(state, squad);
+  const leading = currentEdgeLead(state, squad, path);
   if (leading) {
     physicalDistance += leading.distance;
     supportScore += analysis.support(leading.edge) * Math.min(1, leading.distance / Math.max(1, leading.edge.length));
@@ -262,6 +282,23 @@ export function validateRetreatDestination(state, squad, nodeId) {
   return { ok: true, node };
 }
 
+function routeFromBestCurrentEdgeExit(state, squad, fallbackStartId, waypointNodeIds, destinationNodeId, strategy, analysis, penalizedEdges = null) {
+  const endpoints = currentEdgeEndpoints(state, squad);
+  if (!endpoints) return routeThrough(state, fallbackStartId, waypointNodeIds, destinationNodeId, strategy, analysis, penalizedEdges);
+  const starts = [
+    { nodeId: endpoints.fromId, leadingDistance: endpoints.progress },
+    { nodeId: endpoints.toId, leadingDistance: endpoints.remaining }
+  ].filter((entry, index, list) => entry.nodeId && list.findIndex(other => other.nodeId === entry.nodeId) === index);
+  let best = null;
+  for (const start of starts) {
+    const path = routeThrough(state, start.nodeId, waypointNodeIds, destinationNodeId, strategy, analysis, penalizedEdges);
+    if (!path) continue;
+    const score = start.leadingDistance + Math.max(0, Number(path.cost) || 0);
+    if (!best || score < best.score) best = { path, score };
+  }
+  return best?.path ?? null;
+}
+
 function buildRouteOptions(state, squad, startId, destinationNodeId, waypointNodeIds = []) {
   if (!startId || !destinationNodeId) return [];
   const definition = FRIENDLY_SQUAD_DEFINITIONS[squad.type] ?? FRIENDLY_SQUAD_DEFINITIONS.assault;
@@ -270,22 +307,23 @@ function buildRouteOptions(state, squad, startId, destinationNodeId, waypointNod
   const signatures = new Set();
   const addOption = (id, label, path) => {
     if (!path) return false;
-    const signature = path.edgeIds.join('|');
+    const signature = `${path.nodeIds.join('>')}|${path.edgeIds.join('|')}`;
     if (signatures.has(signature)) return false;
     signatures.add(signature);
     options.push({ id, label, path, ...pathMetrics(state, path, definition.speed, analysis, squad) });
     return true;
   };
   for (const strategy of ['shortest', 'safe', 'support']) {
-    addOption(strategy, ROUTE_LABELS[strategy], routeThrough(state, startId, waypointNodeIds, destinationNodeId, strategy, analysis));
+    addOption(strategy, ROUTE_LABELS[strategy], routeFromBestCurrentEdgeExit(state, squad, startId, waypointNodeIds, destinationNodeId, strategy, analysis));
   }
   let detourIndex = 1;
   for (const basis of [...options]) {
     if (options.length >= 3) break;
     const penalized = new Set(basis.path.edgeIds);
-    const path = routeThrough(state, startId, waypointNodeIds, destinationNodeId, 'shortest', analysis, penalized);
+    const path = routeFromBestCurrentEdgeExit(state, squad, startId, waypointNodeIds, destinationNodeId, 'shortest', analysis, penalized);
     if (addOption(`detour-${detourIndex}`, `別経路${detourIndex}`, path)) detourIndex += 1;
   }
+  options.sort((a, b) => a.physicalDistance - b.physicalDistance || a.id.localeCompare(b.id));
   return options.slice(0, 3);
 }
 

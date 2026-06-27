@@ -585,27 +585,59 @@ function assignPathAtCurrentPosition(state, squad, route, expectedDestinationNod
   if (!normalized) return false;
   const currentEdge = squad.edgeId ? state.world.roadGraph.edgeById.get(squad.edgeId) : null;
   const movingInsideEdge = Boolean(squad.edgeId && currentEdge && squad.edgeProgress > 0 && squad.edgeProgress < currentEdge.length);
-  const nextNodeId = movingInsideEdge && squad.path?.nodeIds?.[squad.pathIndex + 1]
-    ? squad.path.nodeIds[squad.pathIndex + 1]
-    : squad.nodeId;
-  if (!routeMatchesGraph(state, normalized, nextNodeId, expectedDestinationNodeId)) return false;
   if (movingInsideEdge) {
-    const currentFrom = squad.path.nodeIds[squad.pathIndex];
-    squad.path = {
-      nodeIds: [currentFrom, ...normalized.nodeIds],
-      edgeIds: [squad.edgeId, ...normalized.edgeIds],
-      cost: Math.max(0, currentEdge.length - squad.edgeProgress) + normalized.cost,
-      targetId: normalized.targetId
-    };
-    squad.pathIndex = 0;
-    return true;
+    const currentFrom = squad.path?.nodeIds?.[squad.pathIndex] ?? null;
+    const currentTo = squad.path?.nodeIds?.[squad.pathIndex + 1] ?? null;
+    if (currentTo && routeMatchesGraph(state, normalized, currentTo, expectedDestinationNodeId)) {
+      squad.path = {
+        nodeIds: [currentFrom, ...normalized.nodeIds],
+        edgeIds: [squad.edgeId, ...normalized.edgeIds],
+        cost: Math.max(0, currentEdge.length - squad.edgeProgress) + normalized.cost,
+        targetId: normalized.targetId
+      };
+      squad.pathIndex = 0;
+      return true;
+    }
+    if (currentFrom && routeMatchesGraph(state, normalized, currentFrom, expectedDestinationNodeId)) {
+      squad.path = {
+        nodeIds: [currentTo, ...normalized.nodeIds],
+        edgeIds: [squad.edgeId, ...normalized.edgeIds],
+        cost: Math.max(0, squad.edgeProgress) + normalized.cost,
+        targetId: normalized.targetId
+      };
+      squad.pathIndex = 0;
+      squad.edgeProgress = Math.max(0, currentEdge.length - squad.edgeProgress);
+      return true;
+    }
+    return false;
   }
+  if (!routeMatchesGraph(state, normalized, squad.nodeId, expectedDestinationNodeId)) return false;
   squad.path = normalized;
   squad.pathIndex = 0;
   squad.edgeId = normalized.edgeIds[0] ?? null;
   squad.edgeProgress = 0;
   squad.nodeId = normalized.nodeIds[0] ?? squad.nodeId;
   return true;
+}
+
+function findFriendlyPathFromBestCurrentEdgeExit(state, squad, destinationNodeId) {
+  const currentEdge = squad.edgeId ? state.world.roadGraph.edgeById.get(squad.edgeId) : null;
+  const currentFrom = currentEdge ? squad.path?.nodeIds?.[squad.pathIndex] : null;
+  const currentTo = currentEdge ? squad.path?.nodeIds?.[squad.pathIndex + 1] : null;
+  if (!currentEdge || !(squad.edgeProgress > 0) || squad.edgeProgress >= currentEdge.length || !currentFrom || !currentTo) {
+    return findFriendlyRoadPath(state, squad.nodeId, destinationNodeId);
+  }
+  let best = null;
+  for (const option of [
+    { nodeId: currentFrom, leadingDistance: Math.max(0, squad.edgeProgress) },
+    { nodeId: currentTo, leadingDistance: Math.max(0, currentEdge.length - squad.edgeProgress) }
+  ]) {
+    const path = findFriendlyRoadPath(state, option.nodeId, destinationNodeId);
+    if (!path) continue;
+    const score = option.leadingDistance + Math.max(0, Number(path.cost) || 0);
+    if (!best || score < best.score) best = { path, score };
+  }
+  return best?.path ?? null;
 }
 
 export function holdFriendlySquad(state, squadId, events = null) {
@@ -685,11 +717,7 @@ export function issueFriendlyRouteOrder(state, squadId, { order, path, destinati
 function planReturn(state, squad) {
   const origin = ownedBaseById(state, squad.originBaseId) ?? activePlayerBases(state)[0] ?? null;
   if (!origin) return false;
-  const currentEdge = squad.edgeId ? state.world.roadGraph.edgeById.get(squad.edgeId) : null;
-  const routeStart = currentEdge && squad.edgeProgress > 0 && squad.edgeProgress < currentEdge.length && squad.path?.nodeIds?.[squad.pathIndex + 1]
-    ? squad.path.nodeIds[squad.pathIndex + 1]
-    : squad.nodeId;
-  const path = findFriendlyRoadPath(state, routeStart, origin.nodeId);
+  const path = findFriendlyPathFromBestCurrentEdgeExit(state, squad, origin.nodeId);
   if ([FRIENDLY_SQUAD_MISSION.ATTACK, FRIENDLY_SQUAD_MISSION.INTERCEPT].includes(squad.missionType)) {
     squad.targetBaseId = null;
     squad.missionTargetBaseId = null;
@@ -1004,11 +1032,7 @@ function rerouteFriendlySquadAroundBarriers(state, squad) {
   if ([FRIENDLY_SQUAD_ORDER.HOLD].includes(squad.order)) return true;
   const targetNodeId = currentOrderDestinationNodeId(state, squad);
   if (!targetNodeId) return true;
-  const currentEdge = squad.edgeId ? state.world.roadGraph.edgeById.get(squad.edgeId) : null;
-  const routeStart = currentEdge && squad.edgeProgress > 0 && squad.edgeProgress < currentEdge.length && squad.path?.nodeIds?.[squad.pathIndex + 1]
-    ? squad.path.nodeIds[squad.pathIndex + 1]
-    : squad.nodeId;
-  const path = findFriendlyRoadPath(state, routeStart, targetNodeId);
+  const path = findFriendlyPathFromBestCurrentEdgeExit(state, squad, targetNodeId);
   if (!path || !assignPathAtCurrentPosition(state, squad, path, targetNodeId)) {
     squad.status = FRIENDLY_SQUAD_STATUS.STRANDED;
     squad.path = null;
