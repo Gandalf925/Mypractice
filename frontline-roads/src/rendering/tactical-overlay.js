@@ -113,7 +113,14 @@ function drawCooldown(context, point, defense, definition) {
   context.restore();
 }
 
-function nearestEnemyInRange(state, position, range) {
+function nearestEnemyInRange(state, position, range, lockedEnemyId = null) {
+  if (lockedEnemyId) {
+    const locked = (state.combat.enemies ?? []).find(enemy => enemy.id === lockedEnemyId && enemy.hp > 0 && enemy.departDelay <= 0) ?? null;
+    if (locked) {
+      const lockedPosition = enemyPosition(state, locked);
+      if (distance(position, lockedPosition) <= range + 8) return { enemy: locked, position: lockedPosition, locked: true };
+    }
+  }
   let target = null;
   let best = range;
   for (const enemy of state.combat.enemies ?? []) {
@@ -122,7 +129,7 @@ function nearestEnemyInRange(state, position, range) {
     const gap = distance(position, targetPosition);
     if (gap < best) {
       best = gap;
-      target = { enemy, position: targetPosition };
+      target = { enemy, position: targetPosition, locked: false };
     }
   }
   return target;
@@ -154,7 +161,7 @@ function drawDefenseFocus(context, state, camera, defense, timeMs) {
     context.restore();
     if (defense.type !== 'survey') drawCooldown(context, point, defense, definition);
     if (!['relay', 'survey'].includes(defense.type)) {
-      const target = nearestEnemyInRange(state, world, definition.range);
+      const target = nearestEnemyInRange(state, world, definition.range, defense.currentTargetEnemyId);
       if (target) {
         const targetPoint = camera.worldToScreen(target.position);
         context.save();
@@ -167,6 +174,13 @@ function drawDefenseFocus(context, state, camera, defense, timeMs) {
         context.moveTo(point.x, point.y);
         context.lineTo(targetPoint.x, targetPoint.y);
         context.stroke();
+        if (target.locked && defense.currentSplashRadius > 0) {
+          context.setLineDash([4, 6]);
+          context.globalAlpha = 0.42;
+          context.beginPath();
+          context.arc(targetPoint.x, targetPoint.y, Math.max(6, defense.currentSplashRadius * camera.scale), 0, TAU);
+          context.stroke();
+        }
         context.restore();
       }
     }

@@ -109,7 +109,8 @@ export const ENEMY_DEFINITIONS = Object.freeze({
   },
   heavySiege: {
     name: '重攻城兵', hp: 460, speed: 0.42, cityDamage: 50, barrierDps: 24, settlementDamage: 36, radius: 8, drops: { ironOre: 4, wroughtIron: 1 }, generation: 4, slowResistance: 0.5,
-    personality: 'breacher', barrierStrategy: 'breach', barrierCostFactor: 0.16, routeLabel: '防壁粉砕', objectiveLabel: '都市'
+    personality: 'breacher', barrierStrategy: 'breach', barrierCostFactor: 0.16, routeLabel: '防壁粉砕', objectiveLabel: '防壁・火力施設',
+    targetPriorities: ['mortar', 'gun', 'slow'], facilitySearchRadius: 430, facilityPriorityPenaltySeconds: 45
   },
   commander: {
     name: '指揮官', hp: 310, speed: 0.75, cityDamage: 25, barrierDps: 8, radius: 7, drops: { bronzeIngot: 2, wroughtIron: 2 }, generation: 4,
@@ -137,7 +138,7 @@ export const ENEMY_DEFINITIONS = Object.freeze({
     personality: 'guardian', barrierStrategy: 'breach', barrierCostFactor: 0.55, routeLabel: '鋼装護衛', objectiveLabel: '指揮・破城部隊の護衛'
   },
   demolitionEngineer: {
-    name: '破砕工兵', hp: 340, speed: 0.72, cityDamage: 34, barrierDps: 30, settlementDamage: 42, radius: 6.8, drops: { wroughtIron: 2, steel: 1 }, generation: 5, slowResistance: 0.42,
+    name: '破砕工兵', hp: 340, speed: 0.72, cityDamage: 34, barrierDps: 30, settlementDamage: 42, radius: 6.8, targetPriorities: ['mortar', 'gun', 'slow', 'relay'], facilitySearchRadius: 520, facilityPriorityPenaltySeconds: 34, drops: { wroughtIron: 2, steel: 1 }, generation: 5, slowResistance: 0.42,
     personality: 'breacher', barrierStrategy: 'breach', barrierCostFactor: 0.10, routeLabel: '鋼鉄破砕', objectiveLabel: '防壁・門・都市'
   },
   pursuitCavalry: {
@@ -154,7 +155,8 @@ export const ENEMY_DEFINITIONS = Object.freeze({
   },
   mechanicalSiege: {
     name: '機構破城兵', hp: 620, speed: 0.48, cityDamage: 62, barrierDps: 38, settlementDamage: 55, radius: 8.6, drops: { steel: 2, mechanism: 1 }, generation: 6, slowResistance: 0.62,
-    personality: 'breacher', barrierStrategy: 'breach', barrierCostFactor: 0.08, routeLabel: '機構破城', objectiveLabel: '門・主要拠点'
+    personality: 'breacher', barrierStrategy: 'breach', barrierCostFactor: 0.08, routeLabel: '機構破城', objectiveLabel: '門・火力施設',
+    targetPriorities: ['mortar', 'gun', 'slow', 'relay'], facilitySearchRadius: 620, facilityPriorityPenaltySeconds: 28
   },
   armoredAgent: {
     name: '装甲工作員', hp: 390, speed: 0.96, cityDamage: 28, barrierDps: 10, radius: 6.7, drops: { steel: 1, mechanism: 1 }, generation: 6, slowResistance: 0.45,
@@ -171,7 +173,8 @@ export const ENEMY_DEFINITIONS = Object.freeze({
   },
   fortressBreaker: {
     name: '城塞破砕兵', hp: 880, speed: 0.40, cityDamage: 85, barrierDps: 52, settlementDamage: 70, radius: 9.4, drops: { steel: 3, mechanism: 2 }, generation: 7, slowResistance: 0.70,
-    personality: 'breacher', barrierStrategy: 'breach', barrierCostFactor: 0.05, routeLabel: '城塞破砕', objectiveLabel: '城塞防壁・主要拠点'
+    personality: 'breacher', barrierStrategy: 'breach', barrierCostFactor: 0.05, routeLabel: '城塞破砕', objectiveLabel: '城塞防壁・火力施設',
+    targetPriorities: ['mortar', 'gun', 'slow', 'relay'], facilitySearchRadius: 760, facilityPriorityPenaltySeconds: 18
   },
   roadHunter: {
     name: '道路狩猟隊', hp: 440, speed: 1.42, cityDamage: 34, barrierDps: 8, radius: 7, drops: { steel: 2, mechanism: 1 }, generation: 7, slowResistance: 0.48,

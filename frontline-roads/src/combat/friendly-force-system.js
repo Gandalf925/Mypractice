@@ -66,6 +66,28 @@ export const FRIENDLY_ANNIHILATION_RECOVERY_SECONDS = Object.freeze({
 
 export const ROADSIDE_SPEED_BOOST_MULTIPLIER = 0.20;
 
+const SKIRMISHER_AVOID_ENEMY_TYPES = new Set([
+  'shield', 'heavy', 'siegeBreaker', 'sapper', 'bronzeShield', 'siegeCaptain', 'ironclad', 'heavySiege',
+  'commander', 'ironSaboteur', 'bodyguard', 'steelGuard', 'demolitionEngineer', 'steelCaptain',
+  'mechanicalSiege', 'armoredAgent', 'machineCommander', 'royalGuard', 'fortressBreaker', 'royalCommander'
+]);
+
+function skirmisherTargetRisk(enemy) {
+  if (!enemy) return 0;
+  const count = enemyUnitCount(enemy);
+  const armored = SKIRMISHER_AVOID_ENEMY_TYPES.has(enemy.type) ? 1 : 0;
+  const crowd = count >= 32 ? 3 : count >= 18 ? 2 : count >= 10 ? 1 : 0;
+  return armored * 4 + crowd;
+}
+
+function shouldSkirmisherAutoWithdraw(squad, definition, enemy) {
+  if (squad?.type !== 'skirmisher' || !enemy) return false;
+  const maxHp = Math.max(1, Number(squad.maxHp) || Number(definition.hp) || 1);
+  const hpRatio = Math.max(0, Number(squad.hp) || 0) / maxHp;
+  if (hpRatio > 0.35) return false;
+  return skirmisherTargetRisk(enemy) >= 2 || enemyUnitCount(enemy) >= 12;
+}
+
 export const FRIENDLY_SQUAD_MISSION = Object.freeze({ ATTACK: 'ATTACK', INTERCEPT: 'INTERCEPT', RECOVERY: 'RECOVERY' });
 
 export const FRIENDLY_SQUAD_ORDER = Object.freeze({
@@ -995,7 +1017,12 @@ function acquireEnemy(state, squad, spatial, definition) {
       if (b.enemy.id === squad.targetEnemyId) return 1;
       const rankA = priority.has(a.enemy.type) ? priority.get(a.enemy.type) : Number.MAX_SAFE_INTEGER;
       const rankB = priority.has(b.enemy.type) ? priority.get(b.enemy.type) : Number.MAX_SAFE_INTEGER;
-      return rankA - rankB || distanceSquared(a.position, position) - distanceSquared(b.position, position);
+      const riskA = squad.type === 'skirmisher' ? skirmisherTargetRisk(a.enemy) : 0;
+      const riskB = squad.type === 'skirmisher' ? skirmisherTargetRisk(b.enemy) : 0;
+      const distanceA = distanceSquared(a.position, position);
+      const distanceB = distanceSquared(b.position, position);
+      if (squad.type === 'skirmisher') return rankA - rankB || riskA - riskB || distanceA - distanceB;
+      return rankA - rankB || distanceA - distanceB;
     });
   const target = candidates[0]?.enemy ?? null;
   squad.engagedEnemyId = target?.id ?? null;
@@ -1072,6 +1099,15 @@ function updateEngagement(state, squad, definition, deltaSeconds, spatial, event
   }
   enemy ??= acquireEnemy(state, squad, spatial, definition);
   if (!enemy) return false;
+  if (shouldSkirmisherAutoWithdraw(squad, definition, enemy)) {
+    if (enemy.engagedSquadId === squad.id) enemy.engagedSquadId = null;
+    squad.engagedEnemyId = null;
+    if (planReturn(state, squad)) {
+      events?.emit('friendly:squad-auto-withdraw', { squadId: squad.id, enemyId: enemy.id });
+      events?.emit('message', { text: '遊撃部隊が不利な敵群から自動後退しました。' });
+      return true;
+    }
+  }
   squad.status = FRIENDLY_SQUAD_STATUS.ENGAGED;
   squad.combatCooldown = Math.max(squad.combatCooldown ?? 0, definition.recoveryDelaySeconds ?? 0);
   const commandBonus = friendlyCommandBonuses(state, squad).attack;
@@ -1080,6 +1116,9 @@ function updateEngagement(state, squad, definition, deltaSeconds, spatial, event
   const beforeCount = enemyUnitCount(enemy);
   damageEnemy(state, enemy, primaryDamage, events, spatial);
   const killed = Math.max(0, beforeCount - enemyUnitCount(enemy));
+  if (squad.type === 'skirmisher' && (definition.targetPriorityTypes ?? []).includes(enemy.type)) {
+    awardFriendlySquadExperience(state, squad, Math.max(0.35, deltaSeconds * 2.2), events);
+  }
   if (killed > 0) awardFriendlySquadExperience(state, squad, killed * (enemy.type === 'scout' ? 8 : 12), events);
   if (enemy.hp <= 0) squad.engagedEnemyId = null;
   return true;

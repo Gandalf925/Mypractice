@@ -1,7 +1,7 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const RELEASE_VERSION = '0.35.1';
-const CACHE_NAME = `${CACHE_PREFIX}v0-35-1-enemy-cohorts`;
+const RELEASE_VERSION = '0.35.2';
+const CACHE_NAME = `${CACHE_PREFIX}v0-35-2-battlefield-cohort-balance`;
 const APP_SHELL = [
   './',
   './index.html',

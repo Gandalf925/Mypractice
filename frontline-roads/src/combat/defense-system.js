@@ -10,6 +10,21 @@ import { applyMedicalAreaHealing } from './friendly-healing-system.js';
 
 const MAX_ACTIONS_PER_UPDATE = 128;
 
+function setTowerAim(tower, entry, position, splashRadius = 0) {
+  if (!tower || !entry?.enemy || !entry.position) return;
+  tower.currentTargetEnemyId = entry.enemy.id;
+  tower.currentAimPoint = { x: entry.position.x, y: entry.position.y };
+  tower.currentAimAt = Date.now();
+  tower.currentSplashRadius = Math.max(0, Number(splashRadius) || 0);
+}
+
+function clearTowerAim(tower) {
+  if (!tower) return;
+  tower.currentTargetEnemyId = null;
+  tower.currentAimPoint = null;
+  tower.currentSplashRadius = 0;
+}
+
 function nearestEntry(entries, point) {
   let best = null;
   let bestDistance = Infinity;
@@ -46,13 +61,20 @@ function operateRelay(state, tower, definition, graph, position, events) {
 
 function fireTower(state, tower, definition, position, spatial, events) {
   const targets = spatial.query(position, definition.range).filter(entry => entry.enemy.hp > 0);
-  if (targets.length === 0) return false;
+  if (targets.length === 0) {
+    clearTowerAim(tower);
+    return false;
+  }
 
   if (tower.type === 'gun') {
     const target = nearestEntry(targets, position);
-    if (!target) return false;
+    if (!target) {
+      clearTowerAim(tower);
+      return false;
+    }
+    setTowerAim(tower, target, position);
     damageEnemy(state, target.enemy, definition.damage, events, spatial);
-    events?.emit('combat:shot', { type: tower.type, from: position, to: target.position });
+    events?.emit('combat:shot', { type: tower.type, from: position, to: target.position, targetEnemyId: target.enemy.id, primaryTargetEnemyId: target.enemy.id });
     return true;
   }
 
@@ -66,6 +88,7 @@ function fireTower(state, tower, definition, position, spatial, events) {
       if (count > bestCount) { best = candidate; bestCount = count; }
     }
     const hit = best.position;
+    setTowerAim(tower, best, position, definition.blastRadius);
     const maximumTargets = Math.max(1, Number(definition.maxTargets) || 1);
     const splashMultiplier = Math.max(0, Math.min(1, Number(definition.splashMultiplier) || 0));
     const blastTargets = spatial.query(hit, definition.blastRadius)
@@ -82,7 +105,7 @@ function fireTower(state, tower, definition, position, spatial, events) {
       const damage = (index === 0 ? definition.damage : definition.damage * splashMultiplier) * groupMultiplier;
       damageEnemy(state, entry.enemy, damage, events, spatial);
     }
-    events?.emit('combat:explosion', { position: hit, radius: definition.blastRadius, targets: blastTargets.length });
+    events?.emit('combat:explosion', { position: hit, radius: definition.blastRadius, targets: blastTargets.length, primaryTargetEnemyId: best.enemy.id });
     return true;
   }
 
@@ -90,13 +113,14 @@ function fireTower(state, tower, definition, position, spatial, events) {
     const affected = [...targets]
       .sort((a, b) => distanceSquared(a.position, position) - distanceSquared(b.position, position))
       .slice(0, definition.maxTargets);
+    setTowerAim(tower, affected[0], position);
     for (const entry of affected) {
       const enemy = entry.enemy;
       enemy.slowTimer = Math.max(enemy.slowTimer, definition.slowSeconds);
       enemy.slowMultiplier = 1 - definition.slow;
       damageEnemy(state, enemy, definition.damage, events, spatial);
     }
-    events?.emit('combat:shot', { type: tower.type, from: position, to: affected[0].position });
+    events?.emit('combat:shot', { type: tower.type, from: position, to: affected[0].position, targetEnemyId: affected[0].enemy.id, primaryTargetEnemyId: affected[0].enemy.id });
     return true;
   }
 

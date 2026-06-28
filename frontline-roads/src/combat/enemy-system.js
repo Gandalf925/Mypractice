@@ -3,7 +3,7 @@ import { distanceSquared, stableId } from '../core/utilities.js';
 import { addBundle } from '../civilization/inventory-system.js';
 import { CITY_RECOVERY_DELAY_SECONDS, ENEMY_DEFINITIONS, MAX_ENEMIES, defenseRuntimeDefinition } from './definitions.js';
 import { enemyPopulationCap, normalizeEnemyLevel, scaleEnemyDefinition } from './enemy-scaling.js';
-import { enemyTotalPopulation, enemyUnitCount, enemyUnitHp, groupAttackMultiplier, normalizeEnemyGroup, setEnemyUnitCount } from './enemy-grouping.js';
+import { enemyTotalPopulation, enemyUnitCount, enemyUnitHp, groupAttackMultiplier, mergeEnemyCohorts, normalizeEnemyGroup, setEnemyUnitCount } from './enemy-grouping.js';
 import { findCombatPath, findCombatPathToTargets } from './routing-system.js';
 import { reachableRoadNodeIds } from '../roads/road-graph.js';
 import { roadUnitPosition } from './road-unit-position.js';
@@ -25,6 +25,39 @@ const DEFAULT_FACILITY_SEARCH_RADIUS_METERS = 480;
 const DEFAULT_SQUAD_HUNT_RADIUS_METERS = 650;
 const ROUTE_RECOVERY_RESET_SECONDS = 8;
 const NO_ROUTE_RETIRE_SECONDS = 45;
+
+function barrierContactDamageMultiplier(enemy, definition) {
+  const contactDuration = Math.max(0, Number(enemy.contactDuration) || 0);
+  const type = enemy?.type ?? '';
+  const dps = Math.max(0, Number(definition?.barrierDps) || 0);
+  const eliteBreacher = ['siegeBreaker', 'sapper', 'heavySiege', 'demolitionEngineer', 'mechanicalSiege', 'fortressBreaker'].includes(type) || dps >= 12;
+  if (eliteBreacher) return 1 + Math.min(0.95, contactDuration / 36);
+  if (['engineer', 'ropeCutter', 'heavy'].includes(type) || dps >= 5) return 1 + Math.min(0.45, contactDuration / 62);
+  return 1 + Math.min(0.16, contactDuration / 120);
+}
+
+
+function barrierCrowdPressureMultiplier(state, enemy, barrier, barrierPosition) {
+  if (!barrier?.edgeId) return 1;
+  const currentProgress = Number(enemy.edgeProgress) || 0;
+  let pressureUnits = enemyUnitCount(enemy);
+  for (const other of state.combat?.enemies ?? []) {
+    if (other === enemy || other.hp <= 0 || other.departDelay > 0 || other.edgeId !== barrier.edgeId) continue;
+    const progress = Number(other.edgeProgress) || 0;
+    if (progress < barrierPosition - 46 || progress > barrierPosition + 6) continue;
+    pressureUnits += enemyUnitCount(other);
+  }
+  const rearCompression = Math.max(0, pressureUnits - enemyUnitCount(enemy));
+  const contactBonus = currentProgress >= barrierPosition - 1.5 ? 0.15 : 0;
+  return 1 + contactBonus + Math.min(0.85, rearCompression / 70);
+}
+
+function clearBarrierContact(enemy) {
+  if (!enemy) return;
+  enemy.contactKind = null;
+  enemy.contactDefenseId = null;
+  enemy.contactDuration = 0;
+}
 
 function stableRouteBias(text) {
   let hash = 2166136261;
@@ -580,27 +613,33 @@ export class EnemySystem {
       const barrierPosition = barrier ? barrierEdgeProgress(graph, barrier) : edge.length * 0.5;
       const atBarrier = barrier && enemy.edgeProgress >= barrierPosition - 1 && enemy.edgeProgress <= barrierPosition + 2;
       if (atBarrier) {
+        enemy.contactKind = barrier.isGate ? 'gate' : 'wall';
+        enemy.contactDefenseId = barrier.id;
         const timeToStrike = Math.max(0, 0.5 - (Number(enemy.attackClock) || 0));
         if (remainingSeconds + 1e-9 < timeToStrike) {
           enemy.attackClock = (Number(enemy.attackClock) || 0) + remainingSeconds;
+          enemy.contactDuration = Math.max(0, Number(enemy.contactDuration) || 0) + remainingSeconds;
           enemy.slowTimer = Math.max(0, (enemy.slowTimer ?? 0) - remainingSeconds);
           return false;
         }
         remainingSeconds = Math.max(0, remainingSeconds - timeToStrike);
         enemy.slowTimer = Math.max(0, (enemy.slowTimer ?? 0) - timeToStrike);
+        enemy.contactDuration = Math.max(0, Number(enemy.contactDuration) || 0) + timeToStrike + 0.5;
         enemy.attackClock = 0;
-        barrier.hp -= definition.barrierDps * groupAttackMultiplier(enemy, 'barrier') * 0.5;
+        barrier.hp -= definition.barrierDps * barrierContactDamageMultiplier(enemy, definition) * barrierCrowdPressureMultiplier(state, enemy, barrier, barrierPosition) * groupAttackMultiplier(enemy, 'barrier') * 0.5;
         if (barrier.hp > 0) continue;
         barrier.hp = 0;
         const destroyed = detachDefense(state, barrier.id) ?? barrier;
         beginEnemyRegroup(state, RECOVERY_BALANCE.defenseBreakthroughRegroupSeconds);
         frame.barriers.delete(edge.id);
+        clearBarrierContact(enemy);
         this.invalidateAllPaths(state);
         this.events?.emit('combat:defense-destroyed', { defenseId: destroyed.id, defense: destroyed, position: defenseWorldPosition(graph, destroyed) });
         this.events?.emit('message', { text: `${destroyed.isGate ? '門' : '防壁'}が破壊され、道路から撤去されました。` });
         continue;
       }
 
+      clearBarrierContact(enemy);
       let commandMultiplier = 1;
       const position = enemyPosition(state, enemy);
       for (const entry of frame.spatial.speedAuras ?? frame.spatial.commanders ?? []) {
@@ -760,5 +799,11 @@ export class EnemySystem {
       if (this.updateEnemy(state, enemy, deltaSeconds, frame)) remove.add(enemy.id);
     }
     if (remove.size > 0) state.combat.enemies = state.combat.enemies.filter(enemy => !remove.has(enemy.id) && enemy.hp > 0);
+    state.combat.cohortRegroupClock = Math.max(0, Number(state.combat.cohortRegroupClock) || 0) + Math.max(0, Number(deltaSeconds) || 0);
+    if (state.combat.cohortRegroupClock >= 0.75) {
+      const civilizationLevel = Math.max(0, Math.floor(Number(state.civilization?.level) || 0));
+      mergeEnemyCohorts(state, { maxMergedCount: civilizationLevel >= 6 ? 64 : civilizationLevel >= 4 ? 52 : 40 });
+      state.combat.cohortRegroupClock = 0;
+    }
   }
 }
