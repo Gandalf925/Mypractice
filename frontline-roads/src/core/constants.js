@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.34.6-coordinated-route-fix';
+export const APP_VERSION = '0.35.1-enemy-cohorts';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 

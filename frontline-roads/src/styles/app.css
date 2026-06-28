@@ -954,6 +954,7 @@ html[data-lifecycle="ERROR"] #mapCanvas {
 .baseCommandCard header{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.baseCommandCard header div{display:grid;gap:2px}.baseCommandCard header small{color:#65d7ff;font-size: 9px;letter-spacing:.1em}.baseCommandCard header strong{font-size: 15px}
 .baseCommandCard header>span{padding:4px 6px;border:1px solid rgba(101,255,208,.25);color:#65ffd0;font-size: 10px}.baseCommandCard header>span[data-alert="danger"]{border-color:rgba(255,82,104,.45);color:#ff788d}
 .baseRecoveryNotice{margin:0;padding:6px 8px;border-left:2px solid #ffd166;background:rgba(255,209,102,.07);color:#ffe5a0;font-size: 11px}
+.basePressureNotice{margin:0;padding:6px 8px;border-left:2px solid #65d7ff;background:rgba(101,215,255,.06);color:rgba(223,255,247,.82);font-size:11px;line-height:1.45}
 .baseEstablishSection{padding:12px;border:1px solid rgba(101,255,208,.16);background:rgba(0,14,12,.55)}
 @media(max-width:560px){.baseCommandOverview{grid-template-columns:1fr}.baseCommandGrid{grid-template-columns:1fr}}
 
@@ -1665,10 +1666,11 @@ button, input, select, textarea { font-size: inherit; }
 }
 .civilizationProgressBox strong { font-size: 22px; }
 .baseCommandCard { padding: 10px; }
-.baseCommandCard .contextMetricGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.baseCommandCard .contextMetricGrid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .compactBaseGrid { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
 .compactBaseGrid .sectionNote,
-.compactBaseGrid .baseRecoveryNotice { display: none; }
+.compactBaseGrid .baseRecoveryNotice,
+.compactBaseGrid .basePressureNotice { display: none; }
 .baseHero { margin-bottom: 12px; }
 .suppliesHero { margin-bottom: 12px; }
 .compactInventory { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }

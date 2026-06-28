@@ -82,7 +82,8 @@ class FrontlineRoadsApp {
     this.roadsideSupplySystem = new RoadsideSupplySystem(this.events);
     this.offlineSimulator = new OfflineSimulator({
       combatSystem: new CombatSystem(null),
-      civilizationSystem: new CivilizationSystem(null)
+      civilizationSystem: new CivilizationSystem(null),
+      maximumStepSeconds: 1
     });
     this.buildSystem = new BuildSystem(this.events);
     this.combatUi = new CombatUi({
@@ -538,12 +539,18 @@ class FrontlineRoadsApp {
     }
   }
 
-  restoreEstablishedGameUi({ fitGraph = false } = {}) {
+  restoreEstablishedGameUi({ fitGraph = false, centerOnBase = false } = {}) {
     const state = this.store.snapshot();
     if (!hasEstablishedHomeBase(state) || !state.world.roadGraph) return false;
     this.renderer.setGraph(state.world.roadGraph);
     this.renderer.setHomeBase(state.world.homeBase);
     if (fitGraph) this.renderer.fitGraph();
+    else if (centerOnBase && state.world.homeBase) {
+      this.camera.x = state.world.homeBase.x;
+      this.camera.y = state.world.homeBase.y;
+      this.camera.scale = Math.max(this.camera.scale, 0.9);
+      this.renderer.invalidateStatic();
+    }
     this.baseScreen.hide();
     setVisible(queryRequired('#playingHud'), true);
     queryRequired('#baseSummary').textContent = `保存済み拠点：初回現在地から約${Math.round(state.world.homeBase.selectedDistanceMeters ?? 0)}m`;
@@ -556,7 +563,7 @@ class FrontlineRoadsApp {
   }
 
   openSavedGame() {
-    this.restoreEstablishedGameUi({ fitGraph: true });
+    this.restoreEstablishedGameUi({ fitGraph: false, centerOnBase: true });
     this.startRuntime();
   }
 

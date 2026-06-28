@@ -24,6 +24,13 @@ function formatDuration(seconds) {
 
 function limitText(value) { return Number.isFinite(value) ? String(value) : '無制限'; }
 
+function recipeSummaryText(recipe) {
+  const input = bundleText(recipe.input);
+  const output = bundleText(recipe.output);
+  const projectNote = recipe.projectDelivery ? '・発展計画へ優先納入' : '';
+  return `投入 ${input}・完成 ${output}・${formatDuration(recipe.seconds)}${projectNote}`;
+}
+
 const PROJECT_STATUS_LABELS = Object.freeze({
   AVAILABLE: '準備中', CONTRIBUTING: '納入中', READY: '建設開始可能', BUILDING: '建設中', PAUSED: '一時停止'
 });
@@ -365,7 +372,7 @@ export class CivilizationUi {
       const buffer = bundleText(building.outputBuffer ?? {});
       const recipeCards = recipes.map(recipe => {
         const maximum = this.system.production.maximumProducible(state, building.id, recipe.id).quantity;
-        return `<div class="productionRecipe"><div><strong>${recipe.name}</strong><small>1個：${bundleText(recipe.input)}・${formatDuration(recipe.seconds)}</small></div><div class="productionQuantity"><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="1">+1</button><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="5">+5</button><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="10">+10</button><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="max" ${maximum <= 0 ? 'disabled' : ''}>最大 ${maximum}</button></div></div>`;
+        return `<div class="productionRecipe"><div><strong>${recipe.name}</strong><small>${recipeSummaryText(recipe)}</small></div><div class="productionQuantity"><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="1">+1</button><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="5">+5</button><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="10">+10</button><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="max" ${maximum <= 0 ? 'disabled' : ''}>最大 ${maximum}</button></div></div>`;
       }).join('') || '<span>生産レシピなし</span>';
       return `<div class="productionCard"><strong>${definition.name}</strong><p class="buildingDescription">${definition.description}</p><small>耐久 ${Math.ceil(building.hp)}/${building.maxHp}・${current}${summary.pendingUnits ? `・予約残 ${summary.pendingUnits}` : ''}</small>${buffer !== 'なし' ? `<small>保留：${buffer}</small>` : ''}<div class="recipeButtons">${recipeCards}</div><div class="buttonRow">${building.hp < building.maxHp ? `<button data-action="repair-building" data-building-id="${building.id}">修理</button>` : ''}${buffer !== 'なし' ? `<button data-action="collect-output" data-building-id="${building.id}">保留品を回収</button>` : ''}<button data-action="demolish-building" data-building-id="${building.id}">解体</button></div></div>`;
     }).join('') || '<p class="emptyText">生産施設はまだありません。</p>';

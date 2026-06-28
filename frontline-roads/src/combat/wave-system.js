@@ -1,6 +1,7 @@
 import { stableId } from '../core/utilities.js';
 import { ENEMY_BASE_DEFINITIONS, ENEMY_DEFINITIONS, ENEMY_GENERATIONS } from './definitions.js';
 import { spawnEnemy } from './enemy-system.js';
+import { enemyGroupLimitForState, enemyUnitCount } from './enemy-grouping.js';
 import { enemyBaseLevelForState, enemyDensityForState, expandedWaveSize, waveIntervalForBase } from './enemy-scaling.js';
 import { INITIAL_BASE_TYPES, selectEnemyBaseNode } from './enemy-base-placement.js';
 import { enemyBehaviorForDefinition, waveDoctrineDefinition } from './enemy-personalities.js';
@@ -24,7 +25,7 @@ export function reconcileActiveWaveRecords(state) {
   const representative = new Map();
   for (const enemy of state.combat.enemies ?? []) {
     if (enemy.hp <= 0 || enemy.waveResolved || !enemy.waveId) continue;
-    liveCounts.set(enemy.waveId, (liveCounts.get(enemy.waveId) ?? 0) + 1);
+    liveCounts.set(enemy.waveId, (liveCounts.get(enemy.waveId) ?? 0) + enemyUnitCount(enemy));
     if (!representative.has(enemy.waveId)) representative.set(enemy.waveId, enemy);
   }
   for (const [waveId, record] of Object.entries(state.combat.waves.active)) {
@@ -260,14 +261,27 @@ export class WaveSystem {
     state.combat.waves.active ??= {};
     const waveId = stableId('wave', base.id, base.wavesSent, state.runtime?.worldTimeMs ?? Date.now());
     let spawned = 0;
-    wave.forEach((type, index) => {
-      const spacing = guard ? 3 : density.departureSpacingSeconds;
-      const enemy = spawnEnemy(state, base, type, index * spacing, waveId, doctrine.key);
-      if (!enemy) return;
+    const spacing = guard ? 3 : density.departureSpacingSeconds;
+    const cohorts = [];
+    for (const [index, type] of wave.entries()) {
+      const departDelay = index * spacing;
+      const limit = guard ? 1 : enemyGroupLimitForState(state, type);
+      const windowSeconds = Math.max(spacing * 2.25, guard ? 4 : 5);
+      const previous = cohorts.findLast(cohort =>
+        cohort.type === type
+        && cohort.count < limit
+        && departDelay - cohort.departDelay <= windowSeconds
+      );
+      if (previous) previous.count += 1;
+      else cohorts.push({ type, count: 1, departDelay });
+    }
+    for (const cohort of cohorts) {
+      const enemy = spawnEnemy(state, base, cohort.type, cohort.departDelay, waveId, doctrine.key, { unitCount: cohort.count });
+      if (!enemy) continue;
       enemy.waveGuard = guard;
       enemy.waveStartedAt = state.runtime?.worldTimeMs ?? Date.now();
-      spawned += 1;
-    });
+      spawned += enemyUnitCount(enemy);
+    }
     if (spawned > 0) {
       state.combat.waves.active[waveId] = {
         id: waveId, baseId: base.id, remaining: spawned, breached: false, guard,

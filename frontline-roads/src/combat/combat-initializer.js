@@ -3,6 +3,8 @@ import { ensureCivilizationState } from '../civilization/civilization-system.js'
 import { ENEMY_BASE_DEFINITIONS } from './definitions.js';
 import { selectInitialEnemyBasePlacements } from './enemy-base-placement.js';
 import { reconcileFrontiers, ensureFrontierState } from '../exploration/frontier-system.js';
+import { normalizeEnemyGroup } from './enemy-grouping.js';
+import { reconcileActiveWaveRecords } from './wave-system.js';
 
 export const selectEnemyBasePlacements = selectInitialEnemyBasePlacements;
 
@@ -82,6 +84,7 @@ export function normalizeCombatState(state) {
   state.combat.defenses = [...normalizedDefenses.values()];
   const activeDefenseIds = new Set(state.combat.defenses.map(defense => defense.id));
   for (const enemy of state.combat.enemies) {
+    normalizeEnemyGroup(enemy);
     enemy.routeFailureSeconds = Math.max(0, Number(enemy.routeFailureSeconds) || 0);
     const topologyRevision = Number(enemy.routeFailureTopologyRevision);
     enemy.routeFailureTopologyRevision = Number.isFinite(topologyRevision)
@@ -97,6 +100,7 @@ export function normalizeCombatState(state) {
     }
   }
 
+  reconcileActiveWaveRecords(state);
   ensureFrontierState(state);
   const establishedCombat = Boolean(state.world?.city && state.world?.homeBase);
   ensureCivilizationState(state, { initializeInventory: !establishedCombat });

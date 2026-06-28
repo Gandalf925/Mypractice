@@ -3,6 +3,7 @@ import { pointToSegmentProjection } from '../roads/geometry.js';
 import { DEFENSE_DEFINITIONS, ENEMY_DEFINITIONS, defenseRuntimeDefinition } from './definitions.js';
 import { enemyBehaviorForDefinition } from './enemy-personalities.js';
 import { scaleEnemyDefinition } from './enemy-scaling.js';
+import { enemyUnitCount } from './enemy-grouping.js';
 import { edgeMidpoint } from './combat-geometry.js';
 
 class MinHeap {
@@ -74,7 +75,7 @@ function enemyCountMap(state) {
   const counts = new Map();
   for (const enemy of state.combat.enemies) {
     if (!enemy.edgeId || enemy.hp <= 0) continue;
-    counts.set(enemy.edgeId, (counts.get(enemy.edgeId) ?? 0) + 1);
+    counts.set(enemy.edgeId, (counts.get(enemy.edgeId) ?? 0) + enemyUnitCount(enemy));
   }
   return counts;
 }

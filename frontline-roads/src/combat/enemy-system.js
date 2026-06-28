@@ -3,15 +3,17 @@ import { distanceSquared, stableId } from '../core/utilities.js';
 import { addBundle } from '../civilization/inventory-system.js';
 import { CITY_RECOVERY_DELAY_SECONDS, ENEMY_DEFINITIONS, MAX_ENEMIES, defenseRuntimeDefinition } from './definitions.js';
 import { enemyPopulationCap, normalizeEnemyLevel, scaleEnemyDefinition } from './enemy-scaling.js';
+import { enemyTotalPopulation, enemyUnitCount, enemyUnitHp, groupAttackMultiplier, normalizeEnemyGroup, setEnemyUnitCount } from './enemy-grouping.js';
 import { findCombatPath, findCombatPathToTargets } from './routing-system.js';
 import { reachableRoadNodeIds } from '../roads/road-graph.js';
 import { roadUnitPosition } from './road-unit-position.js';
 import { activeFieldBases, fieldBaseById } from '../base/field-bases.js';
 import { activePlayerBases, playerBaseById } from '../base/player-bases.js';
+import { activeSettlementAttackCounts, basePressureLoadPenaltySeconds, basePressureProfile } from '../base/base-pressure.js';
 import { destroyPlayerBase } from '../base/player-base-system.js';
 import { enemyBehaviorForDefinition } from './enemy-personalities.js';
 import { destroyFieldBase } from '../base/field-base-system.js';
-import { FRIENDLY_SQUAD_DEFINITIONS, friendlySquadDefinition } from './friendly-force-definitions.js';
+import { FRIENDLY_SQUAD_DEFINITIONS, friendlySquadDefinition, friendlySquadRuntimeDefinition } from './friendly-force-definitions.js';
 import { RECOVERY_BALANCE, beginEnemyRegroup } from '../core/recovery-balance.js';
 import { detachDefense } from './defense-lifecycle.js';
 
@@ -37,16 +39,22 @@ export function enemyPosition(state, enemy) {
   return roadUnitPosition(state, enemy);
 }
 
-export function spawnEnemy(state, base, type, departDelay = 0, waveId = null, doctrineKey = 'frontal') {
-  if (state.combat.enemies.length >= Math.min(MAX_ENEMIES, enemyPopulationCap(state))) return null;
+export function spawnEnemy(state, base, type, departDelay = 0, waveId = null, doctrineKey = 'frontal', options = {}) {
+  const populationLimit = Math.min(MAX_ENEMIES, enemyPopulationCap(state));
+  const currentPopulation = enemyTotalPopulation(state);
+  if (currentPopulation >= populationLimit) return null;
   const baseDefinition = ENEMY_DEFINITIONS[type];
   if (!baseDefinition) return null;
+  const requestedCount = Math.max(1, Math.floor(Number(options.unitCount) || 1));
+  const unitCount = Math.min(requestedCount, Math.max(0, populationLimit - currentPopulation));
+  if (unitCount <= 0) return null;
   const level = normalizeEnemyLevel(base.level);
   const definition = scaleEnemyDefinition(baseDefinition, level);
-  const id = stableId('enemy', base.id, type, base.wavesSent, state.combat.enemies.length, state.runtime?.worldTimeMs ?? Date.now());
+  const id = stableId('enemy', base.id, type, base.wavesSent, state.combat.enemies.length, unitCount, Math.round(departDelay * 100), state.runtime?.worldTimeMs ?? Date.now());
   const enemy = {
     id,
-    type, level, hp: definition.hp, maxHp: definition.hp, radius: definition.radius, nodeId: base.nodeId,
+    type, level, unitCount, maxUnitCount: unitCount, unitHp: definition.hp, hpPool: definition.hp * unitCount,
+    hp: definition.hp * unitCount, maxHp: definition.hp * unitCount, radius: definition.radius, nodeId: base.nodeId,
     path: null, pathIndex: 0, edgeId: null, edgeProgress: 0,
     slowTimer: 0, slowMultiplier: 0.52, attackClock: 0, departDelay,
     sourceBaseId: base.id, waveId, doctrineKey, waveResolved: false, rewardGranted: false,
@@ -182,14 +190,29 @@ function planPath(state, enemy) {
   const cityPenalty = Math.max(0, Number(definition.cityPriorityPenalty ?? 0)) + (raid ? 60 : 0);
   const fieldPenalty = Math.max(0, Number(definition.fieldBasePriorityPenalty ?? FIELD_BASE_PRIORITY_PENALTY_SECONDS)) + (raid ? 0 : 0);
   const majorPenalty = Math.max(0, Number(definition.majorBasePriorityPenalty ?? 14)) + (raid ? 0 : 0);
-  const settlementTargets = [
-    { nodeId: state.world.city.nodeId, targetObjectId: 'city', priorityPenalty: cityPenalty },
-    ...activePlayerBases(state).filter(base => !base.primary).map(base => ({ nodeId: base.nodeId, targetObjectId: `major:${base.id}`, priorityPenalty: majorPenalty })),
-    ...activeFieldBases(state).map(base => ({
+  const attackCounts = activeSettlementAttackCounts(state);
+  const majorTargets = activePlayerBases(state).filter(base => !base.primary).map(base => {
+    const pressure = basePressureProfile(state, base, 'MAJOR');
+    const currentAttackers = attackCounts.major.get(base.id) ?? 0;
+    return {
+      nodeId: base.nodeId,
+      targetObjectId: `major:${base.id}`,
+      priorityPenalty: majorPenalty + pressure.targetPenaltySeconds + basePressureLoadPenaltySeconds(pressure, currentAttackers)
+    };
+  });
+  const fieldTargets = activeFieldBases(state).map(base => {
+    const pressure = basePressureProfile(state, base, 'FIELD');
+    const currentAttackers = attackCounts.field.get(base.id) ?? 0;
+    return {
       nodeId: base.nodeId,
       targetObjectId: `field:${base.id}`,
-      priorityPenalty: fieldPenalty
-    }))
+      priorityPenalty: fieldPenalty + pressure.targetPenaltySeconds + basePressureLoadPenaltySeconds(pressure, currentAttackers)
+    };
+  });
+  const settlementTargets = [
+    { nodeId: state.world.city.nodeId, targetObjectId: 'city', priorityPenalty: cityPenalty },
+    ...majorTargets,
+    ...fieldTargets
   ];
   const path = findCombatPathToTargets(state, enemy.nodeId, settlementTargets, enemy.type, enemy.routeBias ?? 1, enemy.level ?? 1, enemy.doctrineKey);
   enemy.targetFieldBaseId = path?.targetObjectId?.startsWith('field:') ? path.targetObjectId.slice(6) : null;
@@ -267,7 +290,7 @@ function attackTargetFacility(state, enemy, definition, deltaSeconds, events) {
     events?.emit('message', { text: definition.attackMessage ?? `${definition.name}が防衛施設を攻撃しています。` });
   }
 
-  target.hp -= Math.max(0.1, definition.facilityDps ?? definition.barrierDps ?? 1) * deltaSeconds;
+  target.hp -= Math.max(0.1, definition.facilityDps ?? definition.barrierDps ?? 1) * groupAttackMultiplier(enemy, 'facility') * deltaSeconds;
   if (target.hp > 0) return true;
 
   target.hp = 0;
@@ -278,12 +301,12 @@ function attackTargetFacility(state, enemy, definition, deltaSeconds, events) {
   return true;
 }
 
-function resolveWaveEnemy(state, enemy, breached, countOutcome = true) {
-  if (!enemy.waveId || enemy.waveResolved) return;
-  enemy.waveResolved = true;
+function resolveWaveUnits(state, enemy, breached, unitCount = 1, countOutcome = true) {
+  if (!enemy.waveId) return;
   const record = state.combat.waves.active?.[enemy.waveId];
   if (!record) return;
-  record.remaining = Math.max(0, record.remaining - 1);
+  const units = Math.max(1, Math.floor(Number(unitCount) || 1));
+  record.remaining = Math.max(0, record.remaining - units);
   if (breached) record.breached = true;
   if (record.remaining > 0) return;
   if (!record.guard && countOutcome) {
@@ -293,8 +316,16 @@ function resolveWaveEnemy(state, enemy, breached, countOutcome = true) {
   delete state.combat.waves.active[enemy.waveId];
 }
 
+function resolveWaveEnemy(state, enemy, breached, countOutcome = true, unitCount = null) {
+  if (!enemy.waveId || enemy.waveResolved) return;
+  enemy.waveResolved = true;
+  resolveWaveUnits(state, enemy, breached, unitCount ?? enemyUnitCount(enemy), countOutcome);
+}
+
 export function damageEnemy(state, enemy, amount, events = null, spatial = null) {
+  normalizeEnemyGroup(enemy);
   if (enemy.hp <= 0 || enemy.rewardGranted) return false;
+  let finalAmount = Math.max(0, Number(amount) || 0);
   if (!(ENEMY_DEFINITIONS[enemy.type]?.shieldAura > 0)) {
     const position = spatial?.positions?.get(enemy.id) ?? enemyPosition(state, enemy);
     const shieldCandidates = spatial ? spatial.query(position, 24) : state.combat.enemies.map(other => ({ enemy: other, position: enemyPosition(state, other) }));
@@ -305,28 +336,46 @@ export function damageEnemy(state, enemy, amount, events = null, spatial = null)
       const range = Math.max(1, Number(ENEMY_DEFINITIONS[other.type]?.shieldRange) || 14);
       if (other !== enemy && other.hp > 0 && shield > 0 && distanceSquared(entry.position, position) <= range * range) strongestShield = Math.max(strongestShield, shield);
     }
-    if (strongestShield > 0) amount *= 1 - strongestShield;
+    if (strongestShield > 0) finalAmount *= 1 - strongestShield;
   }
-  enemy.hp -= amount;
-  if (enemy.hp > 0) return false;
+  const unitHp = enemyUnitHp(enemy);
+  const beforeCount = enemyUnitCount(enemy);
+  enemy.hpPool = Math.max(0, Number(enemy.hpPool ?? enemy.hp) - finalAmount);
+  enemy.hp = enemy.hpPool;
+  const afterCount = enemy.hpPool > 0 ? Math.max(1, Math.ceil(enemy.hpPool / unitHp)) : 0;
+  const killedUnits = Math.max(0, beforeCount - afterCount);
+  if (killedUnits > 0) {
+    const definition = ENEMY_DEFINITIONS[enemy.type];
+    const sourceBase = state.world.enemyBases.find(base => base.id === enemy.sourceBaseId);
+    for (let index = 0; index < killedUnits; index += 1) {
+      let drops = { ...(definition.drops ?? {}) };
+      if (['miner', 'oreCarrier'].includes(enemy.type)) {
+        if (sourceBase?.type === 'tinCamp') drops = { stone: drops.stone ?? 2, tinOre: Math.max(1, drops.tinOre ?? 1) };
+        if (sourceBase?.type === 'ironCamp') drops = { stone: drops.stone ?? 2, ironOre: Math.max(1, drops.ironOre ?? 1) };
+      }
+      addBundle(state, drops);
+      resolveWaveUnits(state, enemy, false, 1);
+      state.statistics.kills += 1;
+      if (['siegeCaptain', 'steelCaptain', 'machineCommander', 'royalCommander'].includes(enemy.type)) {
+        state.civilization.progress.bossesDefeated[enemy.type] = (state.civilization.progress.bossesDefeated[enemy.type] ?? 0) + 1;
+      }
+      events?.emit('combat:enemy-killed', { enemyId: enemy.id, position: enemyPosition(state, enemy), type: enemy.type, drops, unitCount: beforeCount });
+    }
+  }
+  if (afterCount > 0) {
+    enemy.unitCount = afterCount;
+    enemy.maxHp = unitHp * afterCount;
+    enemy.hp = Math.max(0, Math.min(enemy.hpPool, enemy.maxHp));
+    return false;
+  }
   enemy.hp = 0;
+  enemy.hpPool = 0;
+  enemy.unitCount = 0;
   enemy.rewardGranted = true;
-  const definition = ENEMY_DEFINITIONS[enemy.type];
-  let drops = { ...(definition.drops ?? {}) };
-  const sourceBase = state.world.enemyBases.find(base => base.id === enemy.sourceBaseId);
-  if (['miner', 'oreCarrier'].includes(enemy.type)) {
-    if (sourceBase?.type === 'tinCamp') drops = { stone: drops.stone ?? 2, tinOre: Math.max(1, drops.tinOre ?? 1) };
-    if (sourceBase?.type === 'ironCamp') drops = { stone: drops.stone ?? 2, ironOre: Math.max(1, drops.ironOre ?? 1) };
-  }
-  addBundle(state, drops);
-  resolveWaveEnemy(state, enemy, false);
-  state.statistics.kills += 1;
-  if (['siegeCaptain', 'steelCaptain', 'machineCommander', 'royalCommander'].includes(enemy.type)) {
-    state.civilization.progress.bossesDefeated[enemy.type] = (state.civilization.progress.bossesDefeated[enemy.type] ?? 0) + 1;
-  }
-  events?.emit('combat:enemy-killed', { enemyId: enemy.id, position: enemyPosition(state, enemy), type: enemy.type, drops });
+  enemy.waveResolved = true;
   return true;
 }
+
 
 
 function activeFriendlySquadById(state, squadId) {
@@ -384,7 +433,8 @@ function attackFriendlySquad(state, enemy, definition, deltaSeconds, events) {
     return false;
   }
   const fieldDps = Math.max(1, (definition.cityDamage ?? 4) * 0.32 + (definition.barrierDps ?? 1) * 0.22);
-  const totalDamage = fieldDps * deltaSeconds;
+  const squadRuntime = friendlySquadRuntimeDefinition(state, squad.type, squad);
+  const totalDamage = fieldDps * groupAttackMultiplier(enemy, 'friendly') * Math.max(0.5, Number(squadRuntime.incomingDamageMultiplier) || 1) * deltaSeconds;
   const guard = nearbyHeavyGuard(state, squad, squadPoint);
   if (guard) {
     const guardDefinition = FRIENDLY_SQUAD_DEFINITIONS.heavy;
@@ -464,6 +514,7 @@ export class EnemySystem {
       if (remainingSeconds <= 1e-9) return false;
     }
 
+    normalizeEnemyGroup(enemy);
     const baseDefinition = ENEMY_DEFINITIONS[enemy.type] ?? ENEMY_DEFINITIONS.infantry;
     enemy.radius = Math.max(1, Number(enemy.radius) || Number(baseDefinition.radius) || 5);
     enemy.doctrineKey ??= 'frontal';
@@ -538,7 +589,7 @@ export class EnemySystem {
         remainingSeconds = Math.max(0, remainingSeconds - timeToStrike);
         enemy.slowTimer = Math.max(0, (enemy.slowTimer ?? 0) - timeToStrike);
         enemy.attackClock = 0;
-        barrier.hp -= definition.barrierDps * 0.5;
+        barrier.hp -= definition.barrierDps * groupAttackMultiplier(enemy, 'barrier') * 0.5;
         if (barrier.hp > 0) continue;
         barrier.hp = 0;
         const destroyed = detachDefense(state, barrier.id) ?? barrier;
@@ -619,8 +670,8 @@ export class EnemySystem {
       if (enemy.nodeId === enemy.path.targetId && enemy.targetPlayerBaseId) {
         const majorBase = playerBaseById(state, enemy.targetPlayerBaseId, { includeDestroyed: false });
         if (majorBase && majorBase.nodeId === enemy.path.targetId) {
-          majorBase.hp = Math.max(0, majorBase.hp - definition.cityDamage);
-          this.events?.emit('combat:player-base-hit', { baseId: majorBase.id, damage: definition.cityDamage, enemyId: enemy.id });
+          majorBase.hp = Math.max(0, majorBase.hp - definition.cityDamage * groupAttackMultiplier(enemy, 'settlement'));
+          this.events?.emit('combat:player-base-hit', { baseId: majorBase.id, damage: definition.cityDamage * groupAttackMultiplier(enemy, 'settlement'), enemyId: enemy.id, unitCount: enemyUnitCount(enemy) });
           if (majorBase.hp <= 0) destroyPlayerBase(state, majorBase, this.events, { enemyId: enemy.id });
           resolveWaveEnemy(state, enemy, true);
           return true;
@@ -634,8 +685,8 @@ export class EnemySystem {
       if (enemy.nodeId === enemy.path.targetId && enemy.targetFieldBaseId) {
         const fieldBase = activeFieldBaseById(state, enemy.targetFieldBaseId);
         if (fieldBase && fieldBase.nodeId === enemy.path.targetId) {
-          fieldBase.hp = Math.max(0, fieldBase.hp - definition.cityDamage);
-          this.events?.emit('combat:field-base-hit', { baseId: fieldBase.id, damage: definition.cityDamage, enemyId: enemy.id });
+          fieldBase.hp = Math.max(0, fieldBase.hp - definition.cityDamage * groupAttackMultiplier(enemy, 'settlement'));
+          this.events?.emit('combat:field-base-hit', { baseId: fieldBase.id, damage: definition.cityDamage * groupAttackMultiplier(enemy, 'settlement'), enemyId: enemy.id, unitCount: enemyUnitCount(enemy) });
           if (fieldBase.hp <= 0) destroyFieldBase(state, fieldBase, this.events, { enemyId: enemy.id });
           resolveWaveEnemy(state, enemy, true);
           return true;
@@ -647,14 +698,14 @@ export class EnemySystem {
       }
 
       if (enemy.nodeId === enemy.path.targetId && enemy.path.targetId === state.world.city.nodeId) {
-        state.world.city.hp = Math.max(0, state.world.city.hp - definition.cityDamage);
+        state.world.city.hp = Math.max(0, state.world.city.hp - definition.cityDamage * groupAttackMultiplier(enemy, 'settlement'));
         state.combat.cityRecoveryCooldown = CITY_RECOVERY_DELAY_SECONDS;
         if ((definition.settlementDamage ?? 0) > 0) {
           state.combat.pendingSettlementDamage ??= [];
-          state.combat.pendingSettlementDamage.push({ enemyId: enemy.id, enemyType: enemy.type, damage: definition.settlementDamage });
+          state.combat.pendingSettlementDamage.push({ enemyId: enemy.id, enemyType: enemy.type, damage: definition.settlementDamage * groupAttackMultiplier(enemy, 'settlement') });
         }
         resolveWaveEnemy(state, enemy, true);
-        this.events?.emit('combat:city-hit', { damage: definition.cityDamage, enemyId: enemy.id });
+        this.events?.emit('combat:city-hit', { damage: definition.cityDamage * groupAttackMultiplier(enemy, 'settlement'), enemyId: enemy.id, unitCount: enemyUnitCount(enemy) });
         return true;
       }
 
@@ -704,7 +755,7 @@ export class EnemySystem {
     const frame = { spatial, barriers };
     const remove = new Set();
     for (const enemy of state.combat.enemies) {
-      if (enemy.hp <= 0) { remove.add(enemy.id); continue; }
+      if (enemy.hp <= 0 || enemyUnitCount(enemy) <= 0) { remove.add(enemy.id); continue; }
       if (shouldUpdate && !shouldUpdate(enemy)) continue;
       if (this.updateEnemy(state, enemy, deltaSeconds, frame)) remove.add(enemy.id);
     }

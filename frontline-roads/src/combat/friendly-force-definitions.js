@@ -79,6 +79,29 @@ export const FRIENDLY_EQUIPMENT_SCALING = Object.freeze([
   Object.freeze({ hp: 1.42, damage: 1.38, speed: 1.05 })
 ]);
 
+export const FRIENDLY_SQUAD_MAX_LEVEL = 5;
+export const FRIENDLY_SQUAD_XP_PER_LEVEL = Object.freeze([0, 80, 220, 460, 820]);
+
+export function friendlySquadLevel(squad) {
+  return Math.max(1, Math.min(FRIENDLY_SQUAD_MAX_LEVEL, Math.floor(Number(squad?.unitLevel) || 1)));
+}
+
+export function friendlySquadXpForNextLevel(level) {
+  const normalized = Math.max(1, Math.min(FRIENDLY_SQUAD_MAX_LEVEL, Math.floor(Number(level) || 1)));
+  return FRIENDLY_SQUAD_XP_PER_LEVEL[normalized] ?? Infinity;
+}
+
+export function friendlySquadLevelScaling(type, level) {
+  const normalized = friendlySquadLevel({ unitLevel: level });
+  const steps = Math.max(0, normalized - 1);
+  const base = { hp: 1 + steps * 0.11, damage: 1 + steps * 0.10, speed: 1 + steps * 0.012, incomingDamage: 1 - steps * 0.045 };
+  if (type === 'skirmisher') return { hp: 1 + steps * 0.15, damage: 1 + steps * 0.13, speed: 1 + steps * 0.018, incomingDamage: 1 - steps * 0.065 };
+  if (type === 'retrieval') return { hp: 1 + steps * 0.13, damage: 1, speed: 1 + steps * 0.015, incomingDamage: 1 - steps * 0.05 };
+  if (type === 'siege') return { ...base, hp: 1 + steps * 0.12, damage: 1 + steps * 0.12 };
+  if (type === 'heavy') return { ...base, hp: 1 + steps * 0.14, incomingDamage: 1 - steps * 0.06 };
+  return base;
+}
+
 const LIGHT_ENEMY_TYPES = new Set(['scout', 'raider', 'archer', 'ropeCutter', 'oreCarrier', 'ironCarrier', 'pathfinder', 'marauder', 'flankRider', 'warDrummer', 'squadHunter', 'pursuitCavalry', 'mobileLancer', 'roadHunter']);
 const ARMORED_ENEMY_TYPES = new Set(['shield', 'heavy', 'siegeBreaker', 'sapper', 'bronzeShield', 'siegeCaptain', 'ironclad', 'heavySiege', 'commander', 'ironSaboteur', 'bodyguard', 'steelGuard', 'demolitionEngineer', 'steelCaptain', 'mechanicalSiege', 'armoredAgent', 'machineCommander', 'royalGuard', 'fortressBreaker', 'royalCommander']);
 
@@ -93,21 +116,25 @@ export function friendlyEquipmentScaling(level) {
 
 const RUNTIME_DEFINITION_CACHE = new Map();
 
-export function friendlySquadRuntimeDefinition(state, type) {
-  const level = Math.max(0, Math.min(FRIENDLY_EQUIPMENT_SCALING.length - 1, Math.floor(Number(state?.civilization?.level) || 0)));
+export function friendlySquadRuntimeDefinition(state, type, squad = null) {
+  const civilizationLevel = Math.max(0, Math.min(FRIENDLY_EQUIPMENT_SCALING.length - 1, Math.floor(Number(state?.civilization?.level) || 0)));
   const base = friendlySquadDefinition(type);
-  const cacheKey = `${base.type}:${level}`;
+  const unitLevel = friendlySquadLevel(squad);
+  const cacheKey = `${base.type}:${civilizationLevel}:${unitLevel}`;
   if (RUNTIME_DEFINITION_CACHE.has(cacheKey)) return RUNTIME_DEFINITION_CACHE.get(cacheKey);
-  const scaling = friendlyEquipmentScaling(level);
+  const scaling = friendlyEquipmentScaling(civilizationLevel);
+  const levelScaling = friendlySquadLevelScaling(base.type, unitLevel);
   const retrieval = base.nonCombatUnit;
-  const hpMultiplier = retrieval ? 1 + (scaling.hp - 1) * 0.75 : scaling.hp;
-  const damageMultiplier = retrieval ? 1 : scaling.damage;
+  const hpMultiplier = (retrieval ? 1 + (scaling.hp - 1) * 0.75 : scaling.hp) * levelScaling.hp;
+  const damageMultiplier = (retrieval ? 1 : scaling.damage) * levelScaling.damage;
   const runtime = Object.freeze({
     ...base,
+    unitLevel,
     hp: Math.round(base.hp * hpMultiplier),
-    speed: base.speed * scaling.speed,
+    speed: base.speed * scaling.speed * levelScaling.speed,
     enemyDps: base.enemyDps * damageMultiplier,
-    baseDps: base.baseDps * damageMultiplier
+    baseDps: base.baseDps * damageMultiplier,
+    incomingDamageMultiplier: Math.max(0.55, levelScaling.incomingDamage)
   });
   RUNTIME_DEFINITION_CACHE.set(cacheKey, runtime);
   return runtime;

@@ -5,6 +5,7 @@ import { deploymentBases, ensureFieldBaseState, ownedBaseById } from '../base/fi
 import { distanceSquared, stableId } from '../core/utilities.js';
 import { activeFriendlyBarrierEdgeIds, findFriendlyRoadPath } from './routing-system.js';
 import { damageEnemy, enemyPosition } from './enemy-system.js';
+import { enemyUnitCount, splashDamageMultiplierForGroup } from './enemy-grouping.js';
 import { destroyEnemyBase } from './enemy-base-system.js';
 import { spawnEnemyBaseGuard } from './wave-system.js';
 import { roadUnitPosition } from './road-unit-position.js';
@@ -19,7 +20,9 @@ import {
   friendlySquadDefinition,
   friendlySquadRuntimeDefinition,
   friendlySquadEnemyDamage,
-  friendlySquadUnlocked
+  friendlySquadUnlocked,
+  friendlySquadLevel,
+  friendlySquadXpForNextLevel
 } from './friendly-force-definitions.js';
 import { defenseRuntimeDefinition } from './definitions.js';
 import {
@@ -141,8 +144,10 @@ export function ensureFriendlyForceState(state) {
   ensureFieldBaseState(state);
   state.combat.friendlySquads = Array.isArray(state.combat.friendlySquads) ? state.combat.friendlySquads : [];
   for (const squad of state.combat.friendlySquads) {
-    const definition = friendlySquadRuntimeDefinition(state, squad.type);
+    const definition = friendlySquadRuntimeDefinition(state, squad.type, squad);
     squad.type = definition.type;
+    squad.unitLevel = friendlySquadLevel(squad);
+    squad.unitXp = Math.max(0, Number(squad.unitXp) || 0);
     const previousMaxHp = Math.max(1, Number(squad.maxHp) || definition.hp);
     const previousHp = Math.max(0, Math.min(previousMaxHp, Number(squad.hp ?? previousMaxHp) || 0));
     squad.maxHp = Math.max(1, definition.hp);
@@ -399,7 +404,7 @@ function instantiateFriendlySquad(state, preview, squadType, originBaseId, targe
   }
   const squad = preview.reuseReadySquad && preview.garrison ? preview.garrison : {
     id: squadId,
-    type: definition.type, hp: definition.hp, maxHp: definition.hp, members: definition.members, originBaseId, deployedAt: worldTime
+    type: definition.type, hp: definition.hp, maxHp: definition.hp, members: definition.members, originBaseId, deployedAt: worldTime, unitLevel: 1, unitXp: 0
   };
   Object.assign(squad, {
     type: definition.type,
@@ -421,7 +426,7 @@ function instantiateFriendlySquad(state, preview, squadType, originBaseId, targe
     formationSpeed: formation?.speed ?? null,
     formationSize: formation?.size ?? null,
     recoveryBaseId: null, recoveryStartedAt: null, reorganizationRemaining: 0,
-    readyAt: null, deployedAt: worldTime
+    readyAt: null, deployedAt: worldTime, unitLevel: friendlySquadLevel(squad), unitXp: Math.max(0, Number(squad.unitXp) || 0)
   });
   if (!preview.reuseReadySquad) state.combat.friendlySquads.push(squad);
   events?.emit('friendly:squad-deployed', { squad, origin: preview.origin, target: preview.target, cost: preview.cost, redeployed: preview.reuseReadySquad, formationId: formation?.id ?? null });
@@ -1005,12 +1010,33 @@ function friendlyCommandBonuses(state, squad) {
   for (const commander of state.combat?.friendlySquads ?? []) {
     if (commander.id === squad.id || commander.type !== 'command' || commander.hp <= 0) continue;
     if ([FRIENDLY_SQUAD_STATUS.RECOVERING, FRIENDLY_SQUAD_STATUS.READY].includes(commander.status)) continue;
-    const definition = friendlySquadRuntimeDefinition(state, commander.type);
+    const definition = friendlySquadRuntimeDefinition(state, commander.type, commander);
     if (distanceSquared(point, friendlySquadPosition(state, commander)) > (definition.auraRange ?? 0) ** 2) continue;
     attack = Math.max(attack, Number(definition.commandAura) || 0);
     speed = Math.max(speed, Number(definition.speedAura) || 0);
   }
   return { attack, speed };
+}
+
+
+function awardFriendlySquadExperience(state, squad, amount, events = null) {
+  if (!squad || squad.hp <= 0 || amount <= 0) return;
+  squad.unitLevel = friendlySquadLevel(squad);
+  if (squad.unitLevel >= 5) return;
+  squad.unitXp = Math.max(0, Number(squad.unitXp) || 0) + amount;
+  let leveled = false;
+  while (squad.unitLevel < 5 && squad.unitXp >= friendlySquadXpForNextLevel(squad.unitLevel)) {
+    squad.unitLevel += 1;
+    leveled = true;
+  }
+  if (!leveled) return;
+  const previousMaxHp = Math.max(1, Number(squad.maxHp) || 1);
+  const previousRatio = Math.max(0, Math.min(1, Number(squad.hp) / previousMaxHp));
+  const definition = friendlySquadRuntimeDefinition(state, squad.type, squad);
+  squad.maxHp = definition.hp;
+  squad.hp = Math.max(1, Math.min(squad.maxHp, Math.round(squad.maxHp * previousRatio)));
+  events?.emit('friendly:squad-leveled', { squadId: squad.id, type: squad.type, unitLevel: squad.unitLevel });
+  events?.emit('message', { text: `${friendlySquadDefinition(squad.type).name}がLv.${squad.unitLevel}になりました。` });
 }
 
 function applyArtillerySplash(state, squad, definition, primaryEnemy, primaryDamage, spatial, events) {
@@ -1020,7 +1046,13 @@ function applyArtillerySplash(state, squad, definition, primaryEnemy, primaryDam
     .filter(entry => entry.enemy.id !== primaryEnemy.id && entry.enemy.hp > 0 && entry.enemy.departDelay <= 0)
     .sort((left, right) => distanceSquared(left.position, center) - distanceSquared(right.position, center))
     .slice(0, definition.maxSplashTargets - 1);
-  for (const entry of targets) damageEnemy(state, entry.enemy, primaryDamage * (definition.splashMultiplier ?? 0), events, spatial);
+  for (const entry of targets) {
+    const groupMultiplier = splashDamageMultiplierForGroup(entry.enemy, definition, { centered: false });
+    const before = enemyUnitCount(entry.enemy);
+    damageEnemy(state, entry.enemy, primaryDamage * (definition.splashMultiplier ?? 0) * groupMultiplier, events, spatial);
+    const killed = Math.max(0, before - enemyUnitCount(entry.enemy));
+    if (killed > 0) awardFriendlySquadExperience(state, squad, killed * 14, events);
+  }
 }
 
 function updateEngagement(state, squad, definition, deltaSeconds, spatial, events) {
@@ -1045,7 +1077,10 @@ function updateEngagement(state, squad, definition, deltaSeconds, spatial, event
   const commandBonus = friendlyCommandBonuses(state, squad).attack;
   const primaryDamage = friendlySquadEnemyDamage(definition, enemy.type) * (1 + commandBonus) * deltaSeconds;
   applyArtillerySplash(state, squad, definition, enemy, primaryDamage, spatial, events);
+  const beforeCount = enemyUnitCount(enemy);
   damageEnemy(state, enemy, primaryDamage, events, spatial);
+  const killed = Math.max(0, beforeCount - enemyUnitCount(enemy));
+  if (killed > 0) awardFriendlySquadExperience(state, squad, killed * (enemy.type === 'scout' ? 8 : 12), events);
   if (enemy.hp <= 0) squad.engagedEnemyId = null;
   return true;
 }
@@ -1193,7 +1228,7 @@ export function repairNearbyDefenseWithEngineer(state, squadId, events = null) {
   const squad = friendlySquadById(state, squadId);
   if (!squad || squad.type !== 'engineer') return { ok: false, reason: '工兵部隊を選択してください。' };
   if ([FRIENDLY_SQUAD_STATUS.RECOVERING, FRIENDLY_SQUAD_STATUS.READY].includes(squad.status)) return { ok: false, reason: '出撃中の工兵部隊だけが現地修復できます。' };
-  const definition = friendlySquadRuntimeDefinition(state, squad.type);
+  const definition = friendlySquadRuntimeDefinition(state, squad.type, squad);
   const point = friendlySquadPosition(state, squad);
   const target = (state.combat?.defenses ?? [])
     .filter(defense => defense.hp > 0 && defense.hp < defense.maxHp && distanceSquared(point, defense.position) <= definition.repairRange * definition.repairRange)
@@ -1232,7 +1267,7 @@ function beginAnnihilationRecovery(state, squad, events = null) {
   }
   const baseId = squad.originBaseId ?? primaryRecoveryBaseId(state);
   squad.hp = 1;
-  squad.maxHp = Math.max(1, Number(squad.maxHp) || friendlySquadRuntimeDefinition(state, squad.type).hp);
+  squad.maxHp = Math.max(1, Number(squad.maxHp) || friendlySquadRuntimeDefinition(state, squad.type, squad).hp);
   squad.path = null;
   squad.edgeId = null;
   squad.edgeProgress = 0;
@@ -1368,7 +1403,7 @@ export class FriendlyForceSystem {
     const remove = new Set();
     for (const squad of state.combat.friendlySquads) {
       if (squad.hp <= 0) {
-        if (squad.temporaryDeployment || friendlySquadRuntimeDefinition(state, squad.type).missionKind === 'RECOVERY') {
+        if (squad.temporaryDeployment || friendlySquadRuntimeDefinition(state, squad.type, squad).missionKind === 'RECOVERY') {
           const dropped = releaseSquadRecoveryItem(state, squad, true);
           if (dropped) {
             this.events?.emit('friendly:recovery-item-dropped', { squadId: squad.id, itemId: dropped.id, position: recoveryItemPoint(state, dropped) });
@@ -1382,7 +1417,7 @@ export class FriendlyForceSystem {
         continue;
       }
       if (shouldUpdate && !shouldUpdate(squad)) continue;
-      const definition = friendlySquadRuntimeDefinition(state, squad.type);
+      const definition = friendlySquadRuntimeDefinition(state, squad.type, squad);
       synchronizeCarriedItem(state, squad);
       if (squad.status === FRIENDLY_SQUAD_STATUS.READY) continue;
       if (squad.status === FRIENDLY_SQUAD_STATUS.RECOVERING) {

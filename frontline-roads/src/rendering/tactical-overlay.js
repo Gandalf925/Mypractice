@@ -56,7 +56,12 @@ export function drawThreatRoutes(context, state, camera, focus = null, preferenc
   if (preferences.routes === 'off') return;
   const analysis = analyzeThreatCached(state);
   const quality = preferences.quality ?? 'balanced';
-  const maximumRoutes = quality === 'full' ? 24 : quality === 'balanced' ? 6 : 2;
+  const activeEnemyCount = analysis.enemyCount ?? 0;
+  const maximumRoutes = quality === 'full'
+    ? (activeEnemyCount > 180 ? 12 : 24)
+    : quality === 'balanced'
+      ? (activeEnemyCount > 120 ? 3 : 6)
+      : 1;
   const enemies = preferences.routes === 'all'
     ? (state.combat.enemies ?? []).filter(enemy => enemy.hp > 0 && (enemy.departDelay ?? 0) <= 0).slice(0, maximumRoutes)
     : analysis.priorityEnemies.slice(0, maximumRoutes);
@@ -64,7 +69,8 @@ export function drawThreatRoutes(context, state, camera, focus = null, preferenc
     const selected = focus?.kind === 'enemy' && focus.id === enemy.id;
     const remaining = analysis.distanceByEnemyId?.get(enemy.id) ?? remainingRouteDistance(state, enemy);
     const points = enemyRouteWorldPoints(state, enemy, selected ? 9 : 4);
-    drawWorldRoute(context, camera, points, routeColor(remaining), selected ? 0.95 : quality === 'full' ? 0.28 : 0.2, selected, quality);
+    const routeAlpha = selected ? 0.95 : quality === 'full' ? 0.28 : activeEnemyCount > 120 ? 0.14 : 0.2;
+    drawWorldRoute(context, camera, points, routeColor(remaining), routeAlpha, selected, quality);
   }
 }
 

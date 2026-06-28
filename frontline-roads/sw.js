@@ -1,7 +1,7 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const RELEASE_VERSION = '0.34.6';
-const CACHE_NAME = `${CACHE_PREFIX}v0-34-6-coordinated-route-fix`;
+const RELEASE_VERSION = '0.35.1';
+const CACHE_NAME = `${CACHE_PREFIX}v0-35-1-enemy-cohorts`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -17,6 +17,8 @@ const APP_SHELL = [
   './src/base/base-graph.js',
   './src/base/base-placement-service.js',
   './src/base/base-state.js',
+  './src/base/base-pressure.js',
+  './src/base/base-removal.js',
   './src/base/construction-range.js',
   './src/base/field-bases.js',
   './src/base/field-base-system.js',
@@ -41,6 +43,7 @@ const APP_SHELL = [
   './src/combat/defense-presentation.js',
   './src/combat/definitions.js',
   './src/combat/enemy-system.js',
+  './src/combat/enemy-grouping.js',
   './src/combat/enemy-scaling.js',
   './src/combat/enemy-base-system.js',
   './src/combat/enemy-base-placement.js',

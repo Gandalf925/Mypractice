@@ -56,6 +56,10 @@ function cross(context, point, radius, color, alpha, glowEnabled = true) {
   context.restore();
 }
 
+function visiblePoint(point, width, height, margin = 48) {
+  return point.x >= -margin && point.y >= -margin && point.x <= width + margin && point.y <= height + margin;
+}
+
 function objectPosition(state, payload) {
   const graph = state?.world?.roadGraph;
   if (!graph) return null;
@@ -138,6 +142,7 @@ export class CombatEffects {
       if (effect.type === 'shot' && payload.from && payload.to) {
         const from = camera.worldToScreen(payload.from);
         const to = camera.worldToScreen(payload.to);
+        if (!visiblePoint(from, width, height, 72) && !visiblePoint(to, width, height, 72)) continue;
         const color = payload.type === 'slow' ? '#bb8cff' : '#65d7ff';
         const head = easeOut(progress);
         const x = from.x + (to.x - from.x) * head;
@@ -162,6 +167,7 @@ export class CombatEffects {
       const world = objectPosition(state, payload);
       if (!world) continue;
       const point = camera.worldToScreen(world);
+      if (!visiblePoint(point, width, height, 72) && !critical) continue;
 
       if (effect.type === 'explosion') {
         const radius = (payload.radius ?? 28) * camera.scale * easeOut(progress);

@@ -6,6 +6,7 @@ import { friendlySquadDefinition } from '../combat/friendly-force-definitions.js
 import { RECOVERY_ITEM_STATUS, isRecoveryItemVisible, recoveryItemPoint } from '../exploration/recovery-system.js';
 import { roadsideSupplyPoint } from '../exploration/roadside-supplies.js';
 import { defenseRuntimeDefinition } from '../combat/definitions.js';
+import { enemyRepresentativeBlipCount, enemyUnitCount } from '../combat/enemy-grouping.js';
 import { sweepIntensity } from './radar-renderer.js';
 
 const TAU = Math.PI * 2;
@@ -274,6 +275,74 @@ function visiblePoint(point, camera, margin = 28) {
   return point.x >= -margin && point.y >= -margin && point.x <= camera.viewportWidth + margin && point.y <= camera.viewportHeight + margin;
 }
 
+function visibleWorldBounds(camera, marginPixels = 36) {
+  const scale = Math.max(0.001, camera.scale);
+  const margin = marginPixels / scale;
+  const halfWidth = camera.viewportWidth / (2 * scale);
+  const halfHeight = camera.viewportHeight / (2 * scale);
+  return {
+    minX: camera.x - halfWidth - margin,
+    minY: camera.y - halfHeight - margin,
+    maxX: camera.x + halfWidth + margin,
+    maxY: camera.y + halfHeight + margin
+  };
+}
+
+function pointInWorldBounds(point, bounds) {
+  return point
+    && point.x >= bounds.minX
+    && point.y >= bounds.minY
+    && point.x <= bounds.maxX
+    && point.y <= bounds.maxY;
+}
+
+
+function deterministicUnitOffset(id, index, count) {
+  let hash = 2166136261;
+  const text = `${id}:${index}:${count}`;
+  for (const character of text) { hash ^= character.charCodeAt(0); hash = Math.imul(hash, 16777619); }
+  const normalized = (hash >>> 0) / 4294967295;
+  return normalized - 0.5;
+}
+
+function representativeEnemyPositions(enemy, position, edge, normal, tangent, quality) {
+  const count = enemyUnitCount(enemy);
+  const blips = enemyRepresentativeBlipCount(enemy, quality);
+  if (blips <= 1 || !edge || !normal || !tangent) return [position];
+  const length = Math.max(1, Number(edge.length) || 1);
+  const spread = Math.min(34, Math.max(6, 4.5 + Math.sqrt(count) * 4.2));
+  const laneSpread = Math.min(13, Math.max(3.5, 2.8 + Math.sqrt(count) * 1.15));
+  const centeredIndex = (blips - 1) / 2;
+  const positions = [];
+  const a = Number(enemy.edgeProgress) || 0;
+  const startProgress = Math.max(0, Math.min(length, a - spread * 0.45));
+  for (let index = 0; index < blips; index += 1) {
+    const t = blips === 1 ? 0.5 : index / (blips - 1);
+    const progress = Math.max(0, Math.min(length, startProgress + t * spread));
+    const alongDelta = progress - a;
+    const lane = (index - centeredIndex) * Math.min(2.4, laneSpread / Math.max(1, blips - 1)) + deterministicUnitOffset(enemy.id, index, count) * 2.2;
+    positions.push({
+      x: position.x + tangent.x * alongDelta + normal.x * lane,
+      y: position.y + tangent.y * alongDelta + normal.y * lane
+    });
+  }
+  return positions;
+}
+
+function sampledEntries(entries, limit) {
+  if (!Number.isFinite(limit) || entries.length <= limit) return entries;
+  const sampled = [];
+  const step = entries.length / limit;
+  for (let index = 0; index < limit; index += 1) sampled.push(entries[Math.floor(index * step)]);
+  return sampled;
+}
+
+function enemyDrawLimit(quality) {
+  if (quality === 'full') return Infinity;
+  if (quality === 'balanced') return 420;
+  return 180;
+}
+
 function shouldDrawHealth(value, maximum, quality) {
   const ratio = value / Math.max(1, maximum);
   if (quality === 'full') return ratio < 1;
@@ -348,6 +417,7 @@ export function drawCombatState(context, state, camera, radar = {}) {
   const graph = state.world.roadGraph;
   const timeMs = radar.timeMs ?? 0;
   const quality = radar.preferences?.quality ?? 'balanced';
+  const worldBounds = visibleWorldBounds(camera);
 
   for (const base of state.world.enemyBases ?? []) {
     if (!base.alive) continue;
@@ -414,72 +484,57 @@ export function drawCombatState(context, state, camera, radar = {}) {
     if (shouldDrawHealth(squad.hp, squad.maxHp, quality)) drawHealthBar(context, point, squad.hp, squad.maxHp, 22, 10, quality);
   }
 
-  const edgeCounts = new Map();
   const edgeEnemyIndices = new Map();
   const edgeNormals = new Map();
+  const edgeTangents = new Map();
   const visibleEnemies = [];
   for (const enemy of state.combat.enemies ?? []) {
     if (enemy.hp <= 0 || enemy.departDelay > 0) continue;
-    if (enemy.edgeId) edgeCounts.set(enemy.edgeId, (edgeCounts.get(enemy.edgeId) ?? 0) + 1);
     const position = enemyPosition(state, enemy);
-    let renderPosition = position;
+    if (!pointInWorldBounds(position, worldBounds)) continue;
+    let edge = null;
+    let normal = null;
     if (enemy.edgeId) {
-      const edge = graph.edgeById.get(enemy.edgeId);
+      edge = graph.edgeById.get(enemy.edgeId) ?? null;
       if (edge) {
-        let normal = edgeNormals.get(edge.id);
-        if (!normal) {
+        normal = edgeNormals.get(edge.id);
+        let tangent = edgeTangents.get(edge.id);
+        if (!normal || !tangent) {
           const a = graph.nodeById.get(edge.a);
           const b = graph.nodeById.get(edge.b);
           if (a && b) {
             const length = Math.hypot(b.x - a.x, b.y - a.y) || 1;
             normal = { x: -(b.y - a.y) / length, y: (b.x - a.x) / length };
+            tangent = { x: (b.x - a.x) / length, y: (b.y - a.y) / length };
             edgeNormals.set(edge.id, normal);
+            edgeTangents.set(edge.id, tangent);
           }
-        }
-        if (normal) {
-          const index = edgeEnemyIndices.get(enemy.edgeId) ?? 0;
-          edgeEnemyIndices.set(enemy.edgeId, index + 1);
-          const lane = ((index % 7) - 3) * 2.15;
-          renderPosition = { x: position.x + normal.x * lane, y: position.y + normal.y * lane };
         }
       }
     }
-    const point = camera.worldToScreen(renderPosition);
-    if (visiblePoint(point, camera, 20)) visibleEnemies.push({ enemy, point });
-  }
-
-  if (quality !== 'minimal') {
-    context.save();
-    context.lineCap = 'round';
-    context.globalCompositeOperation = quality === 'full' ? 'screen' : 'source-over';
-    for (const [edgeId, count] of edgeCounts) {
-      const edge = graph.edgeById.get(edgeId);
-      if (!edge) continue;
-      const aNode = graph.nodeById.get(edge.a);
-      const bNode = graph.nodeById.get(edge.b);
-      if (!aNode || !bNode) continue;
-      const a = camera.worldToScreen(aNode);
-      const b = camera.worldToScreen(bNode);
-      if ((a.x < -20 && b.x < -20) || (a.y < -20 && b.y < -20) || (a.x > camera.viewportWidth + 20 && b.x > camera.viewportWidth + 20) || (a.y > camera.viewportHeight + 20 && b.y > camera.viewportHeight + 20)) continue;
-      context.strokeStyle = `rgba(255,67,91,${Math.min(0.34, 0.05 + count * 0.012)})`;
-      if (quality === 'full') { context.shadowColor = '#ff435b'; context.shadowBlur = Math.min(12, 3 + count * 0.4); }
-      context.lineWidth = Math.min(12, 1.5 + count * 0.48);
-      context.beginPath(); context.moveTo(a.x, a.y); context.lineTo(b.x, b.y); context.stroke();
+    const baseIndex = edgeEnemyIndices.get(enemy.edgeId ?? enemy.id) ?? 0;
+    edgeEnemyIndices.set(enemy.edgeId ?? enemy.id, baseIndex + 1);
+    const cohortLane = normal ? ((baseIndex % 5) - 2) * 1.8 : 0;
+    const basePosition = normal ? { x: position.x + normal.x * cohortLane, y: position.y + normal.y * cohortLane } : position;
+    const tangent = enemy.edgeId ? edgeTangents.get(enemy.edgeId) : null;
+    for (const renderPosition of representativeEnemyPositions(enemy, basePosition, edge, normal, tangent, quality)) {
+      const point = camera.worldToScreen(renderPosition);
+      if (visiblePoint(point, camera, 20)) visibleEnemies.push({ enemy, point });
     }
-    context.restore();
   }
+  const drawnEnemies = sampledEntries(visibleEnemies, enemyDrawLimit(quality));
 
   if (quality === 'full') {
-    for (const entry of visibleEnemies) {
+    for (const entry of drawnEnemies) {
       const intensity = radar.center ? sweepIntensity(entry.point, radar.center, radar.sweepAngle ?? 0) : 0;
       drawEnemyBlip(context, entry.point, entry.enemy.radius ?? 5, entry.enemy.slowTimer > 0, intensity, timeMs, quality);
     }
   } else {
-    drawEnemyBlipBatch(context, visibleEnemies, timeMs, quality);
+    drawEnemyBlipBatch(context, drawnEnemies, timeMs, quality);
   }
 
   if (quality === 'full') {
-    for (const entry of visibleEnemies) {
+    for (const entry of drawnEnemies) {
       if (shouldDrawHealth(entry.enemy.hp, entry.enemy.maxHp, quality)) {
         drawHealthBar(context, entry.point, entry.enemy.hp, entry.enemy.maxHp, 16, 8, quality);
       }
@@ -487,7 +542,7 @@ export function drawCombatState(context, state, camera, radar = {}) {
   } else if (quality === 'balanced') {
     const healthLimit = visibleEnemies.length > 180 ? 12 : 20;
     const damaged = [];
-    for (const entry of visibleEnemies) {
+    for (const entry of drawnEnemies) {
       if (!shouldDrawHealth(entry.enemy.hp, entry.enemy.maxHp, quality)) continue;
       const ratio = entry.enemy.hp / Math.max(1, entry.enemy.maxHp);
       let insertAt = damaged.findIndex(item => ratio < item.ratio);

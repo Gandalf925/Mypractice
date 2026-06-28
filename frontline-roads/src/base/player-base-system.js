@@ -1,10 +1,12 @@
 import { distance, stableId } from '../core/utilities.js';
 import { graphElementsNearPoint } from '../roads/road-graph.js';
 import { consumeBundle, missingBundle } from '../civilization/inventory-system.js';
+import { clearOwnedBaseReferences } from './base-removal.js';
 import {
   PLAYER_BASE_MINIMUM_SEPARATION_METERS,
   PLAYER_BASE_PLACEMENT_RANGE_METERS,
   activePlayerBases,
+  ensurePlayerBaseState,
   playerBaseById,
   playerBaseSlotsUsed,
   PLAYER_BASE_REBUILD_COST,
@@ -106,6 +108,30 @@ export function destroyPlayerBase(state, base, events = null, { enemyId = null }
   return true;
 }
 
+export function previewPlayerBaseDismantle(state, baseId) {
+  const bases = Array.isArray(state.world?.playerBases) ? state.world.playerBases : [];
+  const base = bases.find(item => item.id === baseId) ?? null;
+  if (!base) return { ok: false, reason: '撤去する主要拠点が見つかりません。' };
+  if (base.primary || bases.indexOf(base) === 0) return { ok: false, reason: '最後に残す主要拠点は撤去できません。' };
+  if (bases.length <= 1) return { ok: false, reason: '主要拠点は最低1つ必要です。' };
+  return { ok: true, base };
+}
+
+export function dismantlePlayerBase(state, baseId, events = null) {
+  ensurePlayerBaseState(state);
+  const preview = previewPlayerBaseDismantle(state, baseId);
+  if (!preview.ok) return preview;
+  const base = preview.base;
+  const index = state.world.playerBases.findIndex(item => item.id === base.id);
+  if (index < 0) return { ok: false, reason: '撤去する主要拠点が見つかりません。' };
+  state.world.playerBases.splice(index, 1);
+  clearOwnedBaseReferences(state, base.id);
+  ensurePlayerBaseState(state);
+  events?.emit('base:player-dismantled', { baseId: base.id, position: { x: base.x, y: base.y } });
+  events?.emit('message', { text: `${base.name}を撤去しました。` });
+  return { ok: true, base };
+}
+
 export class PlayerBaseSystem {
   constructor(events = null) {
     this.events = events;
@@ -155,6 +181,14 @@ export class PlayerBaseSystem {
     this.events?.emit('base:player-rebuilt', { base });
     this.events?.emit('message', { text: `${base.name}を再建しました。` });
     return { ok: true, base, cost: preview.cost };
+  }
+
+  previewDismantle(state, baseId) {
+    return previewPlayerBaseDismantle(state, baseId);
+  }
+
+  dismantle(state, baseId) {
+    return dismantlePlayerBase(state, baseId, this.events);
   }
 
 }

@@ -1,3 +1,4 @@
+import { enemyTotalPopulation } from '../combat/enemy-grouping.js';
 import { distance } from '../core/utilities.js';
 import { DEFENSE_DEFINITIONS, ENEMY_BASE_DEFINITIONS, ENEMY_DEFINITIONS, defenseRuntimeDefinition } from '../combat/definitions.js';
 import { deploymentBases, ownedBaseById } from '../base/field-bases.js';
@@ -1286,7 +1287,7 @@ export class CombatUi {
 
   update(state = this.store.snapshot()) {
     this.cityHp.textContent = `${Math.ceil(state.world.city?.hp ?? 0)}/${Math.ceil(state.world.city?.maxHp ?? 0)}`;
-    this.enemyCount.textContent = state.combat.enemies.length;
+    this.enemyCount.textContent = enemyTotalPopulation(state);
     this.civilizationLevel.textContent = state.civilization.level;
     const affordability = this.affordabilitySignature(state);
     if (affordability !== this.toolAffordabilitySignature) this.renderTools(state);

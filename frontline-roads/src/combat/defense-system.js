@@ -4,6 +4,7 @@ import { repairCostForDefense } from '../civilization/repair-cost.js';
 import { defenseRuntimeDefinition } from './definitions.js';
 import { defenseWorldPosition } from './combat-geometry.js';
 import { damageEnemy } from './enemy-system.js';
+import { enemyUnitCount, splashDamageMultiplierForGroup } from './enemy-grouping.js';
 import { buildCombatSpatialIndex } from './combat-spatial-index.js';
 import { applyMedicalAreaHealing } from './friendly-healing-system.js';
 
@@ -60,7 +61,8 @@ function fireTower(state, tower, definition, position, spatial, events) {
     let bestCount = -1;
     for (const candidate of targets) {
       const count = spatial.query(candidate.position, definition.blastRadius)
-        .filter(entry => entry.enemy.hp > 0).length;
+        .filter(entry => entry.enemy.hp > 0)
+        .reduce((total, entry) => total + Math.min(enemyUnitCount(entry.enemy), Math.max(1, Number(definition.maxTargets) || 1)), 0);
       if (count > bestCount) { best = candidate; bestCount = count; }
     }
     const hit = best.position;
@@ -75,7 +77,9 @@ function fireTower(state, tower, definition, position, spatial, events) {
       })
       .slice(0, maximumTargets);
     for (const [index, entry] of blastTargets.entries()) {
-      const damage = index === 0 ? definition.damage : definition.damage * splashMultiplier;
+      const contactBonus = entry.enemy.edgeId && state.combat.defenses.some(defense => defense.kind === 'barrier' && defense.hp > 0 && defense.edgeId === entry.enemy.edgeId) ? 1.35 : 1;
+      const groupMultiplier = splashDamageMultiplierForGroup(entry.enemy, definition, { centered: index === 0, contactBonus });
+      const damage = (index === 0 ? definition.damage : definition.damage * splashMultiplier) * groupMultiplier;
       damageEnemy(state, entry.enemy, damage, events, spatial);
     }
     events?.emit('combat:explosion', { position: hit, radius: definition.blastRadius, targets: blastTargets.length });

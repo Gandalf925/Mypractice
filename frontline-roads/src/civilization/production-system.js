@@ -1,5 +1,6 @@
 import { deepClone, stableId } from '../core/utilities.js';
 import { CIVILIZATION_PROJECTS, PRODUCTION_RECIPES } from './data.js';
+import { evaluateProject } from './progression-system.js';
 import { addBundle, consumeBundle, hasBundle, missingBundle } from './inventory-system.js';
 
 function queueFor(state, buildingId, create = false) {
@@ -33,23 +34,49 @@ function queuedInputCommitment(state) {
   return committed;
 }
 
-function projectRemainingUnits(state, recipeId, recipe, { includeQueued = true } = {}) {
-  if (!recipe?.projectOnly) return 99;
+function projectOutputRoom(state, resource) {
   const project = state.civilization?.project;
   if (!project || ['BUILDING', 'PAUSED'].includes(project.status)) return 0;
   const definition = CIVILIZATION_PROJECTS[project.targetLevel];
   if (!definition) return 0;
-  const queued = includeQueued ? queuedProductionUnits(state, recipeId) : 0;
-  const limits = Object.entries(recipe.output ?? {}).map(([resource, output]) => {
-    const required = definition.contributions?.[resource] ?? 0;
-    const current = project.contributions?.[resource] ?? 0;
-    return Math.floor(Math.max(0, required - current - queued * output) / Math.max(1, output));
-  });
-  return limits.length ? Math.max(0, Math.min(...limits)) : 0;
+  return Math.max(0, (definition.contributions?.[resource] ?? 0) - (project.contributions?.[resource] ?? 0));
 }
 
-function projectCanAccept(state, recipeId, recipe) {
-  return !recipe?.projectOnly || projectRemainingUnits(state, recipeId, recipe) > 0;
+function deliverOutput(state, recipe) {
+  const projectAccepted = {};
+  const inventoryOutput = {};
+  if (recipe?.projectDelivery) {
+    const project = state.civilization?.project;
+    if (project && !['BUILDING', 'PAUSED'].includes(project.status)) project.contributions ??= {};
+    for (const [resource, amount] of Object.entries(recipe.output ?? {})) {
+      let remaining = Math.max(0, Math.floor(Number(amount) || 0));
+      if (project && remaining > 0) {
+        const accepted = Math.min(remaining, projectOutputRoom(state, resource));
+        if (accepted > 0) {
+          project.contributions[resource] = (project.contributions[resource] ?? 0) + accepted;
+          projectAccepted[resource] = accepted;
+          remaining -= accepted;
+        }
+      }
+      if (remaining > 0) inventoryOutput[resource] = (inventoryOutput[resource] ?? 0) + remaining;
+    }
+  } else {
+    Object.assign(inventoryOutput, recipe.output ?? {});
+  }
+  const inventoryResult = addBundle(state, inventoryOutput);
+  return {
+    accepted: { ...projectAccepted, ...(inventoryResult.accepted ?? {}) },
+    projectAccepted,
+    inventoryAccepted: inventoryResult.accepted ?? {},
+    overflowed: inventoryResult.overflowed ?? {}
+  };
+}
+
+function refreshProjectStatus(state) {
+  const project = state.civilization?.project;
+  if (!project || ['BUILDING', 'PAUSED'].includes(project.status)) return;
+  const evaluation = evaluateProject(state);
+  project.status = evaluation.complete ? 'READY' : Object.keys(project.contributions ?? {}).length ? 'CONTRIBUTING' : 'AVAILABLE';
 }
 
 function baseCompatible(state, building, recipe) {
@@ -60,19 +87,11 @@ function baseCompatible(state, building, recipe) {
 }
 
 function compatible(state, building, recipeId, recipe) {
-  return baseCompatible(state, building, recipe) && projectCanAccept(state, recipeId, recipe);
+  return baseCompatible(state, building, recipe);
 }
 
 function queuedOrderCompatible(state, building, recipe) {
-  if (!baseCompatible(state, building, recipe)) return false;
-  if (!recipe?.projectOnly) return true;
-  const project = state.civilization?.project;
-  if (!project || ['BUILDING', 'PAUSED'].includes(project.status)) return false;
-  const definition = CIVILIZATION_PROJECTS[project.targetLevel];
-  if (!definition) return false;
-  return Object.entries(recipe.output ?? {}).some(([resource]) =>
-    (project.contributions?.[resource] ?? 0) < (definition.contributions?.[resource] ?? 0)
-  );
+  return baseCompatible(state, building, recipe);
 }
 
 export class ProductionSystem {
@@ -108,7 +127,6 @@ export class ProductionSystem {
     });
     let quantity = limits.length ? Math.min(...limits) : Math.max(1, Math.floor(cap));
     quantity = Math.min(Math.max(0, quantity), Math.max(1, Math.min(99, Math.floor(cap))));
-    if (recipe.projectOnly) quantity = Math.min(quantity, projectRemainingUnits(state, recipeId, recipe));
     return {
       ok: quantity > 0,
       quantity,
@@ -122,10 +140,6 @@ export class ProductionSystem {
     const recipe = PRODUCTION_RECIPES[recipeId];
     if (!compatible(state, building, recipeId, recipe)) return { ok: false, reason: 'この施設では生産できません。' };
     let amount = Math.max(1, Math.min(99, Math.floor(Number(quantity) || 1)));
-    if (recipe.projectOnly) {
-      amount = Math.min(amount, projectRemainingUnits(state, recipeId, recipe));
-      if (amount <= 0) return { ok: false, reason: '発展計画に必要な生産量はすでに予約済みです。' };
-    }
     const queue = queueFor(state, buildingId, true);
     queue.orders.push({ id: stableId('order', buildingId, recipeId, state.runtime?.worldTimeMs ?? Date.now(), queue.orders.length), recipeId, remaining: amount });
     this.startNext(state, queue, building);
@@ -158,20 +172,7 @@ export class ProductionSystem {
     const current = queue.current;
     const recipe = PRODUCTION_RECIPES[current.recipeId];
     const order = queue.orders.find(item => item.id === current.orderId);
-    const result = recipe.projectOnly
-      ? { accepted: {}, overflowed: {} }
-      : addBundle(state, recipe.output);
-    if (recipe.projectOnly) {
-      const project = state.civilization.project;
-      project.contributions ??= {};
-      for (const [resource, amount] of Object.entries(recipe.output)) {
-        const definition = CIVILIZATION_PROJECTS[project.targetLevel];
-        const required = definition?.contributions?.[resource] ?? 0;
-        const accepted = Math.max(0, Math.min(amount, required - (project.contributions[resource] ?? 0)));
-        project.contributions[resource] = (project.contributions[resource] ?? 0) + accepted;
-        result.accepted[resource] = accepted;
-      }
-    }
+    const result = deliverOutput(state, recipe);
     for (const [resource, amount] of Object.entries(result.overflowed)) {
       const overflow = state.inventory.overflow[resource];
       if (overflow) {
@@ -190,6 +191,7 @@ export class ProductionSystem {
     if (recipe.output.wroughtIron) state.civilization.progress.selfProducedWroughtIron += recipe.output.wroughtIron;
     if (recipe.output.steel) state.civilization.progress.selfProducedSteel = (state.civilization.progress.selfProducedSteel ?? 0) + recipe.output.steel;
     if (recipe.output.mechanism) state.civilization.progress.selfProducedMechanism = (state.civilization.progress.selfProducedMechanism ?? 0) + recipe.output.mechanism;
+    if (recipe.projectDelivery && Object.keys(result.projectAccepted ?? {}).length > 0) refreshProjectStatus(state);
     queue.current = null;
     while (queue.orders.length && queue.orders[0].remaining <= 0) queue.orders.shift();
     this.events?.emit('civilization:produced', { buildingId: building.id, recipeId: current.recipeId, output: recipe.output, overflowed: result.overflowed });

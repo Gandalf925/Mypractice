@@ -2,6 +2,7 @@ import { distance, stableId } from '../core/utilities.js';
 import { graphElementsNearPoint } from '../roads/road-graph.js';
 import { activePlayerBases, playerBasesView } from './player-bases.js';
 import { consumeBundle, missingBundle } from '../civilization/inventory-system.js';
+import { clearOwnedBaseReferences } from './base-removal.js';
 import {
   FIELD_BASE_ENEMY_EXCLUSION_METERS,
   fieldBaseMaxHpForCivilization,
@@ -207,6 +208,25 @@ export function destroyFieldBase(state, base, events = null, { enemyId = null } 
   return true;
 }
 
+export function previewFieldBaseDismantle(state, baseId) {
+  const base = fieldBaseById(state, baseId, { includeDestroyed: true });
+  if (!base) return { ok: false, reason: '撤去する簡易拠点が見つかりません。' };
+  return { ok: true, base };
+}
+
+export function dismantleFieldBase(state, baseId, events = null) {
+  const preview = previewFieldBaseDismantle(state, baseId);
+  if (!preview.ok) return preview;
+  const base = preview.base;
+  const index = (state.world?.fieldBases ?? []).findIndex(item => item.id === base.id);
+  if (index < 0) return { ok: false, reason: '撤去する簡易拠点が見つかりません。' };
+  state.world.fieldBases.splice(index, 1);
+  clearOwnedBaseReferences(state, base.id);
+  events?.emit('base:field-dismantled', { baseId: base.id, position: { x: base.x, y: base.y } });
+  events?.emit('message', { text: `${base.name}を撤去しました。` });
+  return { ok: true, base };
+}
+
 export class FieldBaseSystem {
   constructor(events = null) {
     this.events = events;
@@ -257,5 +277,13 @@ export class FieldBaseSystem {
     this.events?.emit('base:field-rebuilt', { base });
     this.events?.emit('message', { text: `${base.name}を再建しました。` });
     return { ok: true, base, cost: preview.cost };
+  }
+
+  previewDismantle(state, baseId) {
+    return previewFieldBaseDismantle(state, baseId);
+  }
+
+  dismantle(state, baseId) {
+    return dismantleFieldBase(state, baseId, this.events);
   }
 }
