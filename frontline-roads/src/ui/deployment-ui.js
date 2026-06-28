@@ -6,6 +6,7 @@ import {
 } from '../combat/friendly-force-system.js';
 import { bundleText } from '../civilization/inventory-system.js';
 import { RECOVERY_ITEM_STATUS, recoveryItemPresentation } from '../exploration/recovery-system.js';
+import { friendlySquadXpForNextLevel } from '../combat/friendly-force-definitions.js';
 import { bindDismissibleModal, queryRequired, setVisible } from './dom.js';
 
 const MISSION_KIND = Object.freeze({ ATTACK: 'ATTACK', INTERCEPT: 'INTERCEPT', RECOVERY: 'RECOVERY' });
@@ -31,6 +32,37 @@ function baseKindLabel(base) {
 
 function isRecoveryType(type) {
   return FRIENDLY_SQUAD_DEFINITIONS[type]?.missionKind === MISSION_KIND.RECOVERY;
+}
+
+function squadLevelText(squad) {
+  if (!squad) return '新規 Lv.1';
+  const level = Math.max(1, Math.floor(Number(squad.unitLevel) || 1));
+  if (level >= 5) return `Lv.${level} MAX`;
+  const next = friendlySquadXpForNextLevel(level);
+  return `Lv.${level} XP ${Math.floor(Number(squad.unitXp) || 0)}/${Number.isFinite(next) ? next : 'MAX'}`;
+}
+
+function shortestRecoveryRemainingForBase(state, baseId) {
+  const values = (state.combat?.friendlySquads ?? [])
+    .filter(squad => squad.originBaseId === baseId && squad.status === 'RECOVERING' && squad.hp > 0)
+    .map(squad => Math.max(0, Number(squad.reorganizationRemaining) || 0))
+    .filter(value => value > 0)
+    .sort((a, b) => a - b);
+  return values[0] ?? 0;
+}
+
+function baseSquadLevelSummary(state, baseId, type) {
+  if (!baseId) return '出撃元選択後にLv/XPを表示';
+  const squads = (state.combat?.friendlySquads ?? [])
+    .filter(squad => squad.originBaseId === baseId && squad.type === type && squad.hp > 0)
+    .sort((a, b) => (b.status === 'READY') - (a.status === 'READY') || (b.unitLevel ?? 1) - (a.unitLevel ?? 1) || (b.unitXp ?? 0) - (a.unitXp ?? 0));
+  if (!squads.length) return '新規編成 Lv.1 XP 0/80';
+  const ready = squads.find(squad => squad.status === 'READY');
+  const recovering = squads.find(squad => squad.status === 'RECOVERING');
+  const active = squads.find(squad => !['READY', 'RECOVERING'].includes(squad.status));
+  if (ready) return `待機 ${squadLevelText(ready)}`;
+  if (recovering) return `回復中 ${squadLevelText(recovering)}・残り ${durationText(recovering.reorganizationRemaining)}`;
+  return `運用中 ${squadLevelText(active ?? squads[0])}`;
 }
 
 export class DeploymentUi {
@@ -152,7 +184,7 @@ export class DeploymentUi {
   }
 
   coordinatedOptions() {
-    return { timingMode: this.coordinatedTimingMode, manualDelays: this.coordinatedManualDelays };
+    return { timingMode: this.coordinatedTimingMode, manualDelays: this.coordinatedManualDelays, routeOverride: this.selectedRoutePlan?.route?.path ?? null };
   }
 
   manualDelayFor(type) {
@@ -272,6 +304,38 @@ export class DeploymentUi {
       this.coordinatedTimingMode = COORDINATED_DEPLOYMENT_TIMING.MANUAL;
       this.coordinatedManualDelays[squadType] = Math.min(180, this.manualDelayFor(squadType) + 5);
     }
+    if (action === 'plan-coordinated-route') {
+      const state = this.store.snapshot();
+      const squadTypes = this.groupSquadTypes();
+      const target = this.currentTarget(state);
+      const preview = this.system.previewCoordinatedDeployment(state, this.targetId, squadTypes, this.coordinatedOptions());
+      const fallbackPreview = preview.origin ? preview : this.system.previewCoordinatedDeployment(state, this.targetId, squadTypes, { ...this.coordinatedOptions(), routeOverride: null });
+      const origin = fallbackPreview.origin;
+      if (squadTypes.length < 2) {
+        this.notifications.show('連携出撃には2部隊以上を選択してください。');
+      } else if (!origin || !target?.nodeId || typeof this.beginRoutePlanning !== 'function') {
+        this.notifications.show(fallbackPreview.reason ?? '連携出撃の共通経路を指定できません。');
+      } else {
+        const targetLabel = ENEMY_BASE_DEFINITIONS[target.type]?.name ?? '敵拠点';
+        const opened = this.beginRoutePlanning({
+          originNodeId: origin.nodeId,
+          squadType: squadTypes[0] ?? 'assault',
+          destinationNodeId: target.nodeId,
+          targetLabel,
+          confirmLabel: 'この経路を連携出撃に採用',
+          onConfirm: plan => {
+            this.selectedRoutePlan = plan;
+            this.render();
+            setVisible(this.panel, true);
+          },
+          onCancel: () => {
+            this.render();
+            setVisible(this.panel, true);
+          }
+        });
+        if (opened) { this.close(); return; }
+      }
+    }
     if (action === 'dispatch-group') {
       let result;
       const squadTypes = this.groupSquadTypes();
@@ -313,7 +377,8 @@ export class DeploymentUi {
       const unlocked = civilizationLevel >= item.unlockLevel;
       const selected = type === this.squadType;
       const baseText = item.allowedBaseKinds.includes('FIELD') ? '主要・簡易' : '主要のみ';
-      return `<button class="deploymentCard unitCard ${selected ? 'selected' : ''}" data-action="select-unit" data-squad-type="${type}" ${unlocked ? '' : 'disabled'}><strong>${item.name}</strong><span>${item.role}・${baseText}</span><small>${unlocked ? item.description : `文明Lv.${item.unlockLevel}で解禁`}</small></button>`;
+      const levelSummary = unlocked ? baseSquadLevelSummary(state, this.originBaseId, type) : `文明Lv.${item.unlockLevel}で解禁`;
+      return `<button class="deploymentCard unitCard ${selected ? 'selected' : ''}" data-action="select-unit" data-squad-type="${type}" ${unlocked ? '' : 'disabled'}><strong>${item.name}</strong><span>${item.role}・${baseText}</span><small>${unlocked ? item.description : `文明Lv.${item.unlockLevel}で解禁`}</small><small>${levelSummary}</small></button>`;
     }).join('');
   }
 
@@ -338,11 +403,15 @@ export class DeploymentUi {
       : { ok: false, reason: '出撃元を選択してください。' };
     const originCards = bases.map(base => {
       const capacity = friendlySquadCapacityStatus(state, base);
+      const baseSquads = (state.combat?.friendlySquads ?? []).filter(squad => squad.originBaseId === base.id && squad.hp > 0);
+      const highestLevel = baseSquads.reduce((best, squad) => Math.max(best, Math.floor(Number(squad.unitLevel) || 1)), 1);
+      const recoveryRemaining = shortestRecoveryRemainingForBase(state, base.id);
       const statusParts = [
         `部隊枠 ${capacity.assigned}/${capacity.capacity}`,
         `派兵中 ${capacity.active}`,
-        capacity.recovering ? `回復 ${capacity.recovering}` : null,
-        capacity.ready ? `待機 ${capacity.ready}` : null
+        capacity.recovering ? `回復 ${capacity.recovering}${recoveryRemaining ? ` 最短${durationText(recoveryRemaining)}` : ''}` : null,
+        capacity.ready ? `待機 ${capacity.ready}` : null,
+        baseSquads.length ? `最高Lv.${highestLevel}` : '新規Lv.1'
       ].filter(Boolean).join('・');
       return `<button class="deploymentCard ${base.id === this.originBaseId ? 'selected' : ''}" data-action="select-origin" data-base-id="${base.id}"><strong>${base.name}</strong><span>${baseKindLabel(base)}・HP ${Math.ceil(base.hp)}/${base.maxHp}</span><small>${statusParts}</small></button>`;
     }).join('') || `<p class="emptyText">${definition.name}を出撃できる拠点がありません。</p>`;
@@ -388,14 +457,20 @@ export class DeploymentUi {
     const maximum = friendlyCoordinatedDeploymentLimit(state);
     const globalCommand = friendlyGlobalCommandStatus(state);
     const preview = this.system.previewCoordinatedDeployment(state, this.targetId, squadTypes, this.coordinatedOptions());
+    const selectedRoute = this.selectedRoutePlan?.route ?? null;
+    const routePlannerAvailable = Boolean(squadTypes.length >= 2 && preview.origin && this.currentTarget(state)?.nodeId && typeof this.beginRoutePlanning === 'function');
+    const routeLabel = selectedRoute
+      ? `${selectedRoute.label}・${routeText(selectedRoute.physicalDistance)}・危険度 ${selectedRoute.risk}・経由 ${this.selectedRoutePlan.waypointNodeIds.length}/2`
+      : preview.commonRouteDistance ? `自動共通・${routeText(preview.commonRouteDistance)}` : '未決定';
     const assignments = (preview.assignments ?? []).map(assignment => `<li><strong>${assignment.definition.name}</strong><span>${assignment.formationRole ?? '本隊'}・${assignment.origin.name}・共通${routeText(assignment.routeDistance)}・待機 ${durationText(assignment.departDelay)}</span></li>`).join('');
-    return `<section><h2>連携編成 <small>${squadTypes.length}/${maximum}部隊・全体指揮 ${globalCommand.assigned}/${globalCommand.capacity}</small></h2><p class="sectionNote">連携出撃は、同じ拠点から同じルートで進軍します。遊撃・突撃・攻城の役割が崩れないよう、出撃タイミングを指定できます。</p><div class="deploymentGrid coordinatedUnitGrid">${this.groupCardsMarkup(state)}</div></section>
+    return `<section><h2>連携編成 <small>${squadTypes.length}/${maximum}部隊・全体指揮 ${globalCommand.assigned}/${globalCommand.capacity}</small></h2><p class="sectionNote">連携出撃は、同じ拠点から同じルートで進軍します。出撃前にMAP上で共通経路を指定できます。</p><div class="deploymentGrid coordinatedUnitGrid">${this.groupCardsMarkup(state)}</div></section>
       <section class="deploymentOrder coordinatedOrder"><h2>進軍方式</h2>
-        <div class="contextMetricGrid"><span><small>ROUTE</small><strong>共通ルート</strong></span><span><small>ORIGIN</small><strong>${preview.origin?.name ?? '—'}</strong></span><span><small>TIMING</small><strong>${preview.timingLabel ?? '先導'}</strong></span><span><small>ARRIVAL</small><strong>${durationText(preview.estimatedArrivalSeconds)}</strong></span></div>
+        <div class="contextMetricGrid"><span><small>ROUTE</small><strong>${routeLabel}</strong></span><span><small>ORIGIN</small><strong>${preview.origin?.name ?? '—'}</strong></span><span><small>TIMING</small><strong>${preview.timingLabel ?? '先導'}</strong></span><span><small>ARRIVAL</small><strong>${durationText(preview.estimatedArrivalSeconds)}</strong></span></div>
+        <button class="wideButton" data-action="plan-coordinated-route" ${routePlannerAvailable ? '' : 'disabled'}>${selectedRoute ? '連携経路を変更' : 'MAPで連携経路を指定'}</button>
         ${this.timingControlsMarkup()}
         ${this.manualDelayControlsMarkup(state)}
         ${assignments ? `<ol class="formationAssignments">${assignments}</ol>` : ''}
-        <p class="sectionNote">${preview.ok ? 'デフォルトは先導です。遊撃が先に道中の敵を処理し、突撃と攻城が同じ道を後続します。必要なら同時到着・手動遅延へ切り替えてください。' : preview.reason}</p>
+        <p class="sectionNote">${preview.ok ? selectedRoute ? '選択した共通経路で全連携部隊が進軍します。タイミングだけを変更しても経路は維持されます。' : '自動共通経路で出撃できます。必要ならMAPで経由地点を指定してから連携出撃してください。' : preview.reason}</p>
         <div class="contextMetricGrid"><span><small>SQUADS</small><strong>${squadTypes.length}</strong></span><span><small>COST</small><strong>${bundleText(preview.cost ?? {})}</strong></span></div>
         <button class="primary wideButton" data-action="dispatch-group" ${preview.ok ? '' : 'disabled'}>${squadTypes.length}部隊で連携出撃</button>
       </section>`;

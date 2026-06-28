@@ -52,6 +52,15 @@ function barrierCrowdPressureMultiplier(state, enemy, barrier, barrierPosition) 
   return 1 + contactBonus + Math.min(0.85, rearCompression / 70);
 }
 
+function fortifiedDefenseDamageMultiplier(state) {
+  const level = Math.max(0, Math.floor(Number(state?.civilization?.level) || 0));
+  if (level < 5) return 1;
+  const activeDefenses = (state.combat?.defenses ?? []).filter(defense => defense.hp > 0).length;
+  const fortifiedThreshold = 18 + level * 7;
+  const surplusRatio = Math.max(0, activeDefenses - fortifiedThreshold) / Math.max(1, fortifiedThreshold);
+  return Math.max(0.72, 1 - Math.min(0.28, surplusRatio * 0.70));
+}
+
 function clearBarrierContact(enemy) {
   if (!enemy) return;
   enemy.contactKind = null;
@@ -323,7 +332,7 @@ function attackTargetFacility(state, enemy, definition, deltaSeconds, events) {
     events?.emit('message', { text: definition.attackMessage ?? `${definition.name}が防衛施設を攻撃しています。` });
   }
 
-  target.hp -= Math.max(0.1, definition.facilityDps ?? definition.barrierDps ?? 1) * groupAttackMultiplier(enemy, 'facility') * deltaSeconds;
+  target.hp -= Math.max(0.1, definition.facilityDps ?? definition.barrierDps ?? 1) * groupAttackMultiplier(enemy, 'facility') * deltaSeconds * fortifiedDefenseDamageMultiplier(state);
   if (target.hp > 0) return true;
 
   target.hp = 0;
@@ -626,7 +635,7 @@ export class EnemySystem {
         enemy.slowTimer = Math.max(0, (enemy.slowTimer ?? 0) - timeToStrike);
         enemy.contactDuration = Math.max(0, Number(enemy.contactDuration) || 0) + timeToStrike + 0.5;
         enemy.attackClock = 0;
-        barrier.hp -= definition.barrierDps * barrierContactDamageMultiplier(enemy, definition) * barrierCrowdPressureMultiplier(state, enemy, barrier, barrierPosition) * groupAttackMultiplier(enemy, 'barrier') * 0.5;
+        barrier.hp -= definition.barrierDps * barrierContactDamageMultiplier(enemy, definition) * barrierCrowdPressureMultiplier(state, enemy, barrier, barrierPosition) * groupAttackMultiplier(enemy, 'barrier') * 0.5 * fortifiedDefenseDamageMultiplier(state);
         if (barrier.hp > 0) continue;
         barrier.hp = 0;
         const destroyed = detachDefense(state, barrier.id) ?? barrier;
@@ -802,7 +811,7 @@ export class EnemySystem {
     state.combat.cohortRegroupClock = Math.max(0, Number(state.combat.cohortRegroupClock) || 0) + Math.max(0, Number(deltaSeconds) || 0);
     if (state.combat.cohortRegroupClock >= 0.75) {
       const civilizationLevel = Math.max(0, Math.floor(Number(state.civilization?.level) || 0));
-      mergeEnemyCohorts(state, { maxMergedCount: civilizationLevel >= 6 ? 64 : civilizationLevel >= 4 ? 52 : 40 });
+      mergeEnemyCohorts(state, { maxMergedCount: civilizationLevel >= 6 ? 112 : civilizationLevel === 5 ? 72 : civilizationLevel >= 4 ? 52 : 40 });
       state.combat.cohortRegroupClock = 0;
     }
   }

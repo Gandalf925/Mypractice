@@ -29,8 +29,9 @@ export function enemyGroupLimitForState(state, type = 'infantry') {
   if (level <= 1) return 4;
   if (level === 2) return 8;
   if (level === 3) return 12;
-  if (level <= 5) return 18;
-  return 24;
+  if (level === 4) return 18;
+  if (level === 5) return 26;
+  return 56;
 }
 
 export function normalizeEnemyGroup(enemy) {
@@ -178,24 +179,24 @@ export function groupAttackMultiplier(enemy, mode = 'field') {
   const count = enemyUnitCount(enemy);
   if (count <= 1) return 1;
   const cap = mode === 'friendly'
-    ? 6
+    ? 8
     : mode === 'barrier'
-      ? 9
+      ? 16
       : mode === 'settlement'
-        ? 8
+        ? 13
         : mode === 'facility'
-          ? 7
-          : 5;
+          ? 12
+          : 6;
   const active = Math.min(count, cap);
   const efficiency = mode === 'friendly'
-    ? 0.58
+    ? 0.52
     : mode === 'barrier'
-      ? 0.92
+      ? 0.76
       : mode === 'facility'
-        ? 0.82
+        ? 0.68
         : mode === 'settlement'
-          ? 0.82
-          : 0.72;
+          ? 0.68
+          : 0.66;
   return 1 + (active - 1) * efficiency;
 }
 

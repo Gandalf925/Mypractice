@@ -19,6 +19,14 @@ import {
 export const PLAYER_BASE_LOCATION_MAX_AGE_MS = 5 * 60_000;
 export const PLAYER_BASE_MAX_ACCURACY_METERS = 100;
 
+
+function markEnemyBaseNetworkDirty(state) {
+  state.combat ??= {};
+  state.combat.waves ??= { active: {}, resourceBaseCheckClock: 30 };
+  state.combat.waves.enemyBaseNetworkDirty = true;
+  state.combat.waves.resourceBaseCheckClock = 30;
+}
+
 function nearestRoadNode(state, point) {
   const graph = state.world.roadGraph;
   if (!graph?.nodeById || !point) return null;
@@ -160,6 +168,7 @@ export class PlayerBaseSystem {
       establishedAt
     };
     state.world.playerBases.push(base);
+    markEnemyBaseNetworkDirty(state);
     this.events?.emit('base:player-established', { base });
     this.events?.emit('message', { text: `${base.name}を設置しました。` });
     return { ok: true, base, cost: preview.cost, current: activePlayerBases(state).length, limit: baseLimitForCivilization(state.civilization?.level) };
@@ -178,6 +187,7 @@ export class PlayerBaseSystem {
     base.hp = base.maxHp = majorBaseMaxHpForCivilization(state.civilization?.level);
     base.destroyedAt = null;
     base.rebuiltAt = state.runtime?.worldTimeMs ?? now;
+    markEnemyBaseNetworkDirty(state);
     this.events?.emit('base:player-rebuilt', { base });
     this.events?.emit('message', { text: `${base.name}を再建しました。` });
     return { ok: true, base, cost: preview.cost };

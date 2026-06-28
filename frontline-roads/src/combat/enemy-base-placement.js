@@ -68,8 +68,8 @@ function compareCandidate(a, b, references, target) {
     || a.node.id.localeCompare(b.node.id);
 }
 
-function candidateForNode(node, cityNode, routeDistance) {
-  const angle = bearingFrom(cityNode, node);
+function candidateForNode(node, anchorNode, routeDistance) {
+  const angle = bearingFrom(anchorNode, node);
   return { node, angle, sector: bearingSector(angle), routeDistance };
 }
 
@@ -111,22 +111,34 @@ export function selectInitialEnemyBasePlacements(graph, cityNodeId) {
   return placements;
 }
 
-export function selectEnemyBaseNode(state, type, sourceNodeId = null) {
+function activeOwnedBaseNodes(state) {
+  return [
+    ...(state.world?.playerBases ?? []).filter(base => base.status === 'ESTABLISHED'),
+    ...(state.world?.fieldBases ?? []).filter(base => base.status === 'ESTABLISHED')
+  ].map(base => base.nodeId).filter(Boolean);
+}
+
+export function selectEnemyBaseNode(state, type, sourceNodeId = null, options = {}) {
   const graph = state.world.roadGraph;
   const definition = ENEMY_BASE_DEFINITIONS[type];
-  const cityNode = graph.nodeById.get(state.world.city.nodeId);
-  const distances = distancesFrom(graph, state.world.city.nodeId);
+  if (!graph?.nodeById || !definition || !state.world?.city?.nodeId) return null;
+  const anchorNodeId = options.anchorNodeId && graph.nodeById.has(options.anchorNodeId)
+    ? options.anchorNodeId
+    : state.world.city.nodeId;
+  const anchorNode = graph.nodeById.get(anchorNodeId);
+  const distances = distancesFrom(graph, anchorNodeId);
   const sourceNode = sourceNodeId ? graph.nodeById.get(sourceNodeId) : null;
   const activeBases = state.world.enemyBases.filter(base => base.alive);
   const occupiedNodes = new Set([
     state.world.city.nodeId,
+    ...activeOwnedBaseNodes(state),
     ...activeBases.map(base => base.nodeId)
   ]);
   const occupiedPoints = [...occupiedNodes].map(id => graph.nodeById.get(id)).filter(Boolean);
   const references = activeBases
     .map(base => graph.nodeById.get(base.nodeId))
     .filter(Boolean)
-    .map(node => candidateForNode(node, cityNode, distances.get(node.id) ?? 0));
+    .map(node => candidateForNode(node, anchorNode, distances.get(node.id) ?? 0));
   const target = (definition.range[0] + definition.range[1]) / 2;
   const physicallyObservedChunks = new Set(state.world.roadChunks?.playerObserved ?? state.world.roadChunks?.loaded ?? []);
   const candidates = graph.nodes
@@ -134,7 +146,7 @@ export function selectEnemyBaseNode(state, type, sourceNodeId = null) {
     .filter(node => !occupiedNodes.has(node.id) && (graph.adjacency.get(node.id)?.length ?? 0) >= 2)
     .filter(node => !sourceNode || Math.hypot(node.x - sourceNode.x, node.y - sourceNode.y) >= 150)
     .filter(node => occupiedPoints.every(point => Math.hypot(node.x - point.x, node.y - point.y) >= 100))
-    .map(node => candidateForNode(node, cityNode, distances.get(node.id) ?? Infinity))
+    .map(node => candidateForNode(node, anchorNode, distances.get(node.id) ?? Infinity))
     .filter(item => Number.isFinite(item.routeDistance));
   const inRange = candidates.filter(item => item.routeDistance >= definition.range[0] && item.routeDistance <= definition.range[1]);
   const pool = inRange.length ? inRange : candidates.filter(item => item.routeDistance >= 120);
@@ -144,6 +156,7 @@ export function selectEnemyBaseNode(state, type, sourceNodeId = null) {
     node: chosen.node,
     route: chosen.routeDistance,
     sector: chosen.sector,
+    anchorNodeId,
     ...frontMetadata(references, chosen.sector)
   };
 }

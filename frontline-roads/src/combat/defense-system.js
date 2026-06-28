@@ -36,6 +36,40 @@ function nearestEntry(entries, point) {
   return best;
 }
 
+function automaticRepairCost(state, target, repairHp) {
+  const cost = repairCostForDefense(target, repairHp);
+  const level = Math.max(0, Math.floor(Number(state?.civilization?.level) || 0));
+  if (level < 5) return cost;
+  const activeDefenses = (state.combat?.defenses ?? []).filter(defense => defense.hp > 0).length;
+  const threshold = 18 + level * 7;
+  if (activeDefenses <= threshold) return cost;
+  const discount = 0.72;
+  return Object.fromEntries(
+    Object.entries(cost).map(([resource, amount]) => [resource, Math.max(1, Math.ceil(amount * discount))])
+  );
+}
+
+function automaticRepairLimit(state, target, definition) {
+  const base = target.kind === 'barrier' ? definition.repairBarrier : definition.repairTower;
+  const level = Math.max(0, Math.floor(Number(state?.civilization?.level) || 0));
+  if (level < 5) return base;
+  const activeDefenses = (state.combat?.defenses ?? []).filter(defense => defense.hp > 0).length;
+  const threshold = 18 + level * 7;
+  if (activeDefenses <= threshold) return base;
+  return base;
+}
+
+function shouldDeferAutomaticRepair(state, target, repairLimit) {
+  const level = Math.max(0, Math.floor(Number(state?.civilization?.level) || 0));
+  if (level < 5) return false;
+  const activeDefenses = (state.combat?.defenses ?? []).filter(defense => defense.hp > 0).length;
+  const threshold = 18 + level * 7;
+  if (activeDefenses <= threshold) return false;
+  const missing = Math.max(0, Number(target.maxHp) - Number(target.hp));
+  const hpRatio = Number(target.hp) / Math.max(1, Number(target.maxHp) || 1);
+  return missing < Math.max(8, repairLimit * 0.9) && hpRatio > 0.88;
+}
+
 function operateRelay(state, tower, definition, graph, position, events) {
   let target = null;
   let mostMissing = 0;
@@ -47,9 +81,10 @@ function operateRelay(state, tower, definition, graph, position, events) {
     if (missing > mostMissing) { target = defense; mostMissing = missing; }
   }
   if (!target) return false;
-  const repairLimit = target.kind === 'barrier' ? definition.repairBarrier : definition.repairTower;
+  const repairLimit = automaticRepairLimit(state, target, definition);
+  if (shouldDeferAutomaticRepair(state, target, repairLimit)) return true;
   const repairHp = Math.min(repairLimit, target.maxHp - target.hp);
-  const cost = repairCostForDefense(target, repairHp);
+  const cost = automaticRepairCost(state, target, repairHp);
   if (!consumeBundle(state, cost)) return false;
   target.hp = Math.min(target.maxHp, target.hp + repairHp);
   state.civilization.progress.totalRepairHpPaid += repairHp;

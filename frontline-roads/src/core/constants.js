@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.35.2-battlefield-cohort-balance';
+export const APP_VERSION = '0.35.6-context-panel-and-code-review';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 

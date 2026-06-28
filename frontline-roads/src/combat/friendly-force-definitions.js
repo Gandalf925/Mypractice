@@ -80,7 +80,7 @@ export const FRIENDLY_EQUIPMENT_SCALING = Object.freeze([
 ]);
 
 export const FRIENDLY_SQUAD_MAX_LEVEL = 5;
-export const FRIENDLY_SQUAD_XP_PER_LEVEL = Object.freeze([0, 80, 220, 460, 820]);
+export const FRIENDLY_SQUAD_XP_PER_LEVEL = Object.freeze([0, 45, 140, 310, 560]);
 
 export function friendlySquadLevel(squad) {
   return Math.max(1, Math.min(FRIENDLY_SQUAD_MAX_LEVEL, Math.floor(Number(squad?.unitLevel) || 1)));

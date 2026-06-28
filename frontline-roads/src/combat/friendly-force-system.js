@@ -522,7 +522,7 @@ function normalizedCoordinatedOptions(options = null) {
     : COORDINATED_DEPLOYMENT_TIMING.LEAD;
   const manualDelays = Object.fromEntries(Object.entries(options?.manualDelays ?? {})
     .map(([type, value]) => [type, Math.max(0, Math.min(180, Math.floor(Number(value) || 0)))]));
-  return { timingMode, manualDelays };
+  return { timingMode, manualDelays, routeOverride: normalizePath(options?.routeOverride) };
 }
 
 function formationRoleForType(type) {
@@ -608,6 +608,7 @@ function previewCoordinatedFromOrigin(state, targetId, requested, origin, shared
 }
 
 export function previewCoordinatedDeployment(state, targetId, squadTypes, options = null) {
+  const normalizedOptions = normalizedCoordinatedOptions(options);
   const requested = (Array.isArray(squadTypes) ? squadTypes : [])
     .filter(type => FRIENDLY_SQUAD_DEFINITIONS[type]?.missionKind !== 'RECOVERY')
     .slice(0, friendlyCoordinatedDeploymentLimit(state))
@@ -622,7 +623,7 @@ export function previewCoordinatedDeployment(state, targetId, squadTypes, option
 
   const candidates = [];
   for (const origin of commonDeploymentBaseCandidates(state, requested)) {
-    const seedPreview = previewFriendlyDeployment(state, requested[0].type, origin.id, targetId, null, 'enemyBase');
+    const seedPreview = previewFriendlyDeployment(state, requested[0].type, origin.id, targetId, null, 'enemyBase', normalizedOptions.routeOverride);
     if (!seedPreview.path) continue;
     const candidate = previewCoordinatedFromOrigin(state, targetId, requested, origin, seedPreview.path);
     if (!candidate.ok) {
@@ -648,7 +649,7 @@ export function previewCoordinatedDeployment(state, targetId, squadTypes, option
   const slowestSpeed = Math.min(...assignments.map(assignment => Math.max(0.1, Number(assignment.definition.speed) || 0.1)));
   const fastestSpeed = Math.max(...assignments.map(assignment => Math.max(0.1, Number(assignment.definition.speed) || 0.1)));
   const maximumDistance = Math.max(...assignments.map(assignment => Math.max(0, Number(assignment.routeDistance) || 0)));
-  const timing = applyCoordinatedTiming(assignments, options);
+  const timing = applyCoordinatedTiming(assignments, normalizedOptions);
   return {
     ok: Object.keys(missing).length === 0,
     reason: Object.keys(missing).length ? '連携出撃に必要な合計資源が不足しています。' : null,
@@ -1046,13 +1047,19 @@ function friendlyCommandBonuses(state, squad) {
 }
 
 
+function friendlySquadLevelCap(state) {
+  const civilizationLevel = Math.max(0, Math.floor(Number(state?.civilization?.level) || 0));
+  return Math.max(1, Math.min(5, 1 + civilizationLevel));
+}
+
 function awardFriendlySquadExperience(state, squad, amount, events = null) {
   if (!squad || squad.hp <= 0 || amount <= 0) return;
   squad.unitLevel = friendlySquadLevel(squad);
   if (squad.unitLevel >= 5) return;
   squad.unitXp = Math.max(0, Number(squad.unitXp) || 0) + amount;
+  const levelCap = friendlySquadLevelCap(state);
   let leveled = false;
-  while (squad.unitLevel < 5 && squad.unitXp >= friendlySquadXpForNextLevel(squad.unitLevel)) {
+  while (squad.unitLevel < levelCap && squad.unitLevel < 5 && squad.unitXp >= friendlySquadXpForNextLevel(squad.unitLevel)) {
     squad.unitLevel += 1;
     leveled = true;
   }
@@ -1066,6 +1073,21 @@ function awardFriendlySquadExperience(state, squad, amount, events = null) {
   events?.emit('message', { text: `${friendlySquadDefinition(squad.type).name}がLv.${squad.unitLevel}になりました。` });
 }
 
+function awardFriendlyCombatExperience(state, squad, { damage = 0, seconds = 0, enemyType = null, killed = 0, baseDamage = 0 } = {}, events = null) {
+  if (!squad || squad.hp <= 0) return;
+  let amount = 0;
+  const activeSeconds = Math.max(0, Number(seconds) || 0);
+  const dealtDamage = Math.max(0, Number(damage) || 0);
+  const dealtBaseDamage = Math.max(0, Number(baseDamage) || 0);
+  if (dealtDamage > 0) amount += Math.min(3.2, dealtDamage * 0.11) + activeSeconds * 0.55;
+  if (dealtBaseDamage > 0) amount += Math.min(3.6, dealtBaseDamage * 0.10) + activeSeconds * 0.45;
+  if (killed > 0) amount += Math.max(0, Number(killed) || 0) * (enemyType === 'scout' ? 9 : 13);
+  const definition = friendlySquadDefinition(squad.type);
+  if (squad.type === 'skirmisher' && enemyType && (definition.targetPriorityTypes ?? []).includes(enemyType)) amount *= 1.35;
+  if (squad.type === 'siege' && dealtBaseDamage > 0) amount *= 1.25;
+  awardFriendlySquadExperience(state, squad, amount, events);
+}
+
 function applyArtillerySplash(state, squad, definition, primaryEnemy, primaryDamage, spatial, events) {
   if (!(definition.splashRadius > 0) || !(definition.maxSplashTargets > 1)) return;
   const center = enemyPosition(state, primaryEnemy);
@@ -1076,9 +1098,11 @@ function applyArtillerySplash(state, squad, definition, primaryEnemy, primaryDam
   for (const entry of targets) {
     const groupMultiplier = splashDamageMultiplierForGroup(entry.enemy, definition, { centered: false });
     const before = enemyUnitCount(entry.enemy);
+    const beforeHp = Math.max(0, Number(entry.enemy.hpPool ?? entry.enemy.hp) || 0);
     damageEnemy(state, entry.enemy, primaryDamage * (definition.splashMultiplier ?? 0) * groupMultiplier, events, spatial);
+    const afterHp = Math.max(0, Number(entry.enemy.hpPool ?? entry.enemy.hp) || 0);
     const killed = Math.max(0, before - enemyUnitCount(entry.enemy));
-    if (killed > 0) awardFriendlySquadExperience(state, squad, killed * 14, events);
+    awardFriendlyCombatExperience(state, squad, { damage: beforeHp - afterHp, seconds: 0, enemyType: entry.enemy.type, killed }, events);
   }
 }
 
@@ -1114,12 +1138,16 @@ function updateEngagement(state, squad, definition, deltaSeconds, spatial, event
   const primaryDamage = friendlySquadEnemyDamage(definition, enemy.type) * (1 + commandBonus) * deltaSeconds;
   applyArtillerySplash(state, squad, definition, enemy, primaryDamage, spatial, events);
   const beforeCount = enemyUnitCount(enemy);
+  const beforeHp = Math.max(0, Number(enemy.hpPool ?? enemy.hp) || 0);
   damageEnemy(state, enemy, primaryDamage, events, spatial);
+  const afterHp = Math.max(0, Number(enemy.hpPool ?? enemy.hp) || 0);
   const killed = Math.max(0, beforeCount - enemyUnitCount(enemy));
-  if (squad.type === 'skirmisher' && (definition.targetPriorityTypes ?? []).includes(enemy.type)) {
-    awardFriendlySquadExperience(state, squad, Math.max(0.35, deltaSeconds * 2.2), events);
-  }
-  if (killed > 0) awardFriendlySquadExperience(state, squad, killed * (enemy.type === 'scout' ? 8 : 12), events);
+  awardFriendlyCombatExperience(state, squad, {
+    damage: beforeHp - afterHp,
+    seconds: deltaSeconds,
+    enemyType: enemy.type,
+    killed
+  }, events);
   if (enemy.hp <= 0) squad.engagedEnemyId = null;
   return true;
 }
@@ -1191,8 +1219,12 @@ function attackEnemyBase(state, squad, definition, deltaSeconds, events) {
   squad.status = FRIENDLY_SQUAD_STATUS.ATTACKING_BASE;
   squad.combatCooldown = Math.max(squad.combatCooldown ?? 0, definition.recoveryDelaySeconds ?? 0);
   spawnEnemyBaseGuard(state, target, events);
+  const beforeHp = Math.max(0, Number(target.hp) || 0);
   target.hp = Math.max(0, target.hp - definition.baseDps * deltaSeconds);
+  const baseDamage = Math.max(0, beforeHp - Math.max(0, Number(target.hp) || 0));
+  awardFriendlyCombatExperience(state, squad, { baseDamage, seconds: deltaSeconds }, events);
   if (target.hp > 0) return;
+  awardFriendlySquadExperience(state, squad, 18, events);
   destroyEnemyBase(state, target, events, { squadId: squad.id });
   planReturn(state, squad);
 }

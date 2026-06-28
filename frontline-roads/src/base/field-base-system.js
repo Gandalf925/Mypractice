@@ -22,6 +22,14 @@ import {
   PLAYER_BASE_MAX_ACCURACY_METERS
 } from './player-base-system.js';
 
+
+function markEnemyBaseNetworkDirty(state) {
+  state.combat ??= {};
+  state.combat.waves ??= { active: {}, resourceBaseCheckClock: 30 };
+  state.combat.waves.enemyBaseNetworkDirty = true;
+  state.combat.waves.resourceBaseCheckClock = 30;
+}
+
 function validateLocation(state, now) {
   const player = state.player?.worldPosition;
   if (!player) return { ok: false, reason: '現在地を取得してください。' };
@@ -256,6 +264,7 @@ export class FieldBaseSystem {
       destroyedAt: null
     };
     state.world.fieldBases.push(base);
+    markEnemyBaseNetworkDirty(state);
     this.events?.emit('base:field-established', { base });
     this.events?.emit('message', { text: `${base.name}を設置しました。` });
     return { ok: true, base, cost: preview.cost, current: activeFieldBases(state).length, limit: fieldBaseLimitForCivilization(state.civilization?.level) };
@@ -274,6 +283,7 @@ export class FieldBaseSystem {
     base.hp = base.maxHp = fieldBaseMaxHpForCivilization(state.civilization?.level);
     base.destroyedAt = null;
     base.rebuiltAt = state.runtime?.worldTimeMs ?? now;
+    markEnemyBaseNetworkDirty(state);
     this.events?.emit('base:field-rebuilt', { base });
     this.events?.emit('message', { text: `${base.name}を再建しました。` });
     return { ok: true, base, cost: preview.cost };

@@ -169,6 +169,38 @@ function activeEnemyBaseCount(state) {
   return (state.world?.enemyBases ?? []).filter(base => base.alive).length;
 }
 
+function activeExpansionBases(state) {
+  return [
+    ...(state.world?.playerBases ?? []).filter(base => base.status === 'ESTABLISHED' && !base.primary),
+    ...(state.world?.fieldBases ?? []).filter(base => base.status === 'ESTABLISHED')
+  ].filter(base => base?.id && base.nodeId);
+}
+
+function desiredEnemyBaseCount(state) {
+  const core = unlockedBaseTypes(state).length;
+  const expansion = activeExpansionBases(state).length;
+  return Math.min(MAX_ACTIVE_ENEMY_BASES, core + expansion);
+}
+
+function frontlineBaseTypeForAnchor(state, anchorBase, index) {
+  const available = unlockedBaseTypes(state);
+  if (!available.length) return null;
+  const preferredByCivilization = Math.max(0, Math.floor(Number(state.civilization?.level) || 0)) >= 2
+    ? available
+    : available.filter(type => INITIAL_BASE_TYPES.includes(type));
+  const pool = preferredByCivilization.length ? preferredByCivilization : available;
+  let hash = 2166136261;
+  for (const character of `${anchorBase.id}:${anchorBase.nodeId}:${index}`) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return pool[(hash >>> 0) % pool.length];
+}
+
+function markEnemyBaseNetworkClean(state) {
+  if (state.combat?.waves) state.combat.waves.enemyBaseNetworkDirty = false;
+}
+
 function transformEnemyBase(base, targetType) {
   const definition = ENEMY_BASE_DEFINITIONS[targetType];
   if (!definition) return false;
@@ -224,7 +256,7 @@ export function synchronizeEnemyBaseNetwork(state, events = null) {
   return state.world.enemyBases;
 }
 
-function createBase(type, placement, idSeed = placement.node.id) {
+function createBase(type, placement, idSeed = placement.node.id, metadata = {}) {
   const definition = ENEMY_BASE_DEFINITIONS[type];
   return {
     id: stableId('enemy_base', type, idSeed), type, nodeId: placement.node.id,
@@ -235,7 +267,9 @@ function createBase(type, placement, idSeed = placement.node.id) {
     spawnClock: definition.interval - definition.firstDelay - (placement.initialDelayBonusSec ?? 0),
     initialDelayBonusSec: placement.initialDelayBonusSec ?? 0,
     frontPressureMultiplier: placement.frontPressureMultiplier ?? 1,
-    wavesSent: 0, routeDistance: placement.route
+    wavesSent: 0, routeDistance: placement.route,
+    frontlineAnchorBaseId: metadata.frontlineAnchorBaseId ?? null,
+    frontlineAnchorNodeId: metadata.frontlineAnchorNodeId ?? placement.anchorNodeId ?? null
   };
 }
 
@@ -310,6 +344,31 @@ export class WaveSystem {
       state.world.enemyBases.push(base);
       this.events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[type].name}が道路網に出現しました。` });
     }
+
+    const desiredCount = desiredEnemyBaseCount(state);
+    if (activeEnemyBaseCount(state) >= desiredCount) {
+      markEnemyBaseNetworkClean(state);
+      return;
+    }
+    const expansionBases = activeExpansionBases(state);
+    let spawnedFrontline = 0;
+    for (const anchorBase of expansionBases) {
+      if (activeEnemyBaseCount(state) >= desiredCount || activeEnemyBaseCount(state) >= MAX_ACTIVE_ENEMY_BASES) break;
+      const alreadyLinked = state.world.enemyBases.some(base => base.alive && base.frontlineAnchorBaseId === anchorBase.id);
+      if (alreadyLinked) continue;
+      const type = frontlineBaseTypeForAnchor(state, anchorBase, spawnedFrontline);
+      if (!type) continue;
+      const placement = selectEnemyBaseNode(state, type, null, { anchorNodeId: anchorBase.nodeId });
+      if (!placement) continue;
+      const base = createBase(type, placement, `${anchorBase.id}:${type}:${spawnedFrontline}`, {
+        frontlineAnchorBaseId: anchorBase.id,
+        frontlineAnchorNodeId: anchorBase.nodeId
+      });
+      state.world.enemyBases.push(base);
+      spawnedFrontline += 1;
+      this.events?.emit('message', { text: `${anchorBase.name ?? '新設拠点'}周辺で${ENEMY_BASE_DEFINITIONS[type].name}が活動を開始しました。` });
+    }
+    markEnemyBaseNetworkClean(state);
   }
 
   processRespawns(state, deltaSeconds) {
@@ -349,6 +408,10 @@ export class WaveSystem {
     synchronizeEnemyBaseNetwork(state, this.events);
     this.processRespawns(state, deltaSeconds);
     state.combat.waves.resourceBaseCheckClock = (state.combat.waves.resourceBaseCheckClock ?? 30) + deltaSeconds;
+    if (state.combat.waves.enemyBaseNetworkDirty) {
+      state.combat.waves.resourceBaseCheckClock = 0;
+      this.ensureUnlockedBases(state);
+    }
     while (state.combat.waves.resourceBaseCheckClock >= 30) {
       state.combat.waves.resourceBaseCheckClock -= 30;
       this.ensureUnlockedBases(state);

@@ -10,7 +10,7 @@ import { enemyBehaviorForDefinition, waveDoctrineDefinition } from '../combat/en
 import { defenseWorldPosition } from '../combat/combat-geometry.js';
 import { enemyPosition } from '../combat/enemy-system.js';
 import { FRIENDLY_SQUAD_DEFINITIONS, FRIENDLY_SQUAD_ORDER, FRIENDLY_SQUAD_STATUS, friendlySquadPosition } from '../combat/friendly-force-system.js';
-import { friendlySquadRuntimeDefinition } from '../combat/friendly-force-definitions.js';
+import { friendlySquadRuntimeDefinition, friendlySquadLevel, friendlySquadXpForNextLevel } from '../combat/friendly-force-definitions.js';
 import { recoveryPresentation } from '../combat/friendly-recovery-system.js';
 import { medicalCoverageForSquad } from '../combat/friendly-healing-system.js';
 import {
@@ -32,6 +32,26 @@ import { RESOURCE_LABELS } from '../civilization/data.js';
 import { defenseUpgradeStatus } from '../civilization/defense-upgrade.js';
 import { queryRequired, setVisible } from './dom.js';
 import { ensureRoadsideSupplyState, ROADSIDE_USE_DEFINITIONS } from '../exploration/roadside-supplies.js';
+
+
+function unitProgressText(squad) {
+  const level = friendlySquadLevel(squad);
+  if (level >= 5) return { level, xpText: 'MAX', nextText: '最大' };
+  const next = friendlySquadXpForNextLevel(level);
+  const current = Math.floor(Number(squad?.unitXp) || 0);
+  return { level, xpText: `${current}/${Number.isFinite(next) ? next : 'MAX'}`, nextText: Number.isFinite(next) ? String(Math.max(0, next - current)) : '最大' };
+}
+
+function squadRecoveryRemainingSeconds(recovery, squad) {
+  const reorganization = Math.max(0, Number(recovery?.reorganizationRemaining) || 0);
+  const profile = recovery?.profile;
+  const healingRate = Math.max(0, Number(profile?.healRatioPerSecond) || 0);
+  const targetHp = Math.max(Number(squad?.hp) || 0, Number(recovery?.targetHp) || 0);
+  const healRemaining = healingRate > 0
+    ? Math.max(0, targetHp - (Number(squad?.hp) || 0)) / Math.max(0.0001, (Number(squad?.maxHp) || 1) * healingRate)
+    : 0;
+  return Math.max(reorganization, healRemaining);
+}
 
 export class CombatUi {
   constructor({ store, buildSystem, civilizationSystem, explorationSystem, recoverySystem, friendlyForceSystem, roadsideSupplySystem = null, camera, renderer, notifications, persist = null, openDeployment = null, requestSurvey = null }) {
@@ -913,10 +933,8 @@ export class CombatUi {
     const ranges = constructionRangeSummary(state.civilization?.level);
     const metrics = [
       ...presentation.metrics,
-      ['COST', bundleText(definition.cost)],
       ['STATUS', affordable ? 'READY' : buildStatus.reason ?? '利用不可'],
       ['SITES', String(this.buildSites.length)],
-      ['ZONES', anchors.map(anchor => `${anchor.label} ${Math.round(anchor.range)}m`).join(' + ') || 'NONE'],
       ...(this.buildCandidate ? [['SOURCE', this.buildCandidate.anchorLabel ?? '再計算']] : [])
     ];
     this.setContextContent(instruction, metrics, [
@@ -1011,7 +1029,7 @@ export class CombatUi {
     } else if (selected.kind === 'friendlySquad') {
       const squad = (state.combat.friendlySquads ?? []).find(item => item.id === selected.id);
       if (!squad || squad.hp <= 0) { this.clearObjectSelection(); return; }
-      const definition = friendlySquadRuntimeDefinition(state, squad.type);
+      const definition = friendlySquadRuntimeDefinition(state, squad.type, squad);
       const remaining = remainingRouteDistance(state, squad);
       const origin = ownedBaseById(state, squad.originBaseId, { includeDestroyed: true });
       const target = state.world.enemyBases.find(base => base.id === squad.targetBaseId);
@@ -1020,6 +1038,7 @@ export class CombatUi {
       const recoveryTargetName = recoveryItem ? recoveryItemPresentation(recoveryItem).name : null;
       this.contextTitle.textContent = `ALLY // ${definition.name}`;
       const orderLabel = ({ ADVANCE: '進軍', HOLD: '停止', RETREAT: '後退', WITHDRAW: '撤退', RETURN: '帰還' })[squad.order] ?? squad.order;
+      const progress = unitProgressText(squad);
       const special = definition.type === 'skirmisher'
         ? `軽装敵への攻撃 ×${definition.lightTargetMultiplier}・重装敵 ×${definition.armoredTargetMultiplier}`
         : definition.type === 'heavy'
@@ -1041,6 +1060,7 @@ export class CombatUi {
         const recovery = recoveryPresentation(state, squad);
         const recoveryBase = ownedBaseById(state, squad.recoveryBaseId ?? squad.originBaseId, { includeDestroyed: true });
         const medical = medicalCoverageForSquad(state, squad);
+        const recoveryRemaining = squadRecoveryRemainingSeconds(recovery, squad);
         this.setContextContent(
           squad.status === FRIENDLY_SQUAD_STATUS.READY
             ? recovery.baseHealing
@@ -1051,9 +1071,12 @@ export class CombatUi {
               : '簡易拠点へ帰還し、再編成を行っています。HP回復には回復施設の範囲内での待機が必要です。',
           [
             ['HP', `${Math.ceil(squad.hp)}/${squad.maxHp}`],
+            ['LV', `Lv.${progress.level}`],
+            ['XP', progress.xpText],
+            ['NEXT', progress.nextText],
             ['STATUS', squad.status],
             ['BASE', recoveryBase?.name ?? '不明'],
-            ['REORG', squad.status === FRIENDLY_SQUAD_STATUS.READY ? '完了' : `${Math.ceil(recovery.reorganizationRemaining)}秒`],
+            ['RECOVERY', squad.status === FRIENDLY_SQUAD_STATUS.READY ? '完了' : `${Math.ceil(recoveryRemaining)}秒`],
             ['HEAL', recovery.baseHealing ? '主要拠点補給' : medical ? `${medical.definition.name} ${Math.round(medical.distance)}m` : '範囲外']
           ],
           [special, recovery.baseHealing
@@ -1079,6 +1102,9 @@ export class CombatUi {
                         : `任務を終えて出撃元へ帰還中です。${definition.description}`,
           [
             ['HP', `${Math.ceil(squad.hp)}/${squad.maxHp}`],
+            ['LV', `Lv.${progress.level}`],
+            ['XP', progress.xpText],
+            ['NEXT', progress.nextText],
             ['MEN', String(Math.max(1, Math.ceil((squad.hp / squad.maxHp) * definition.members)))],
             ['ROLE', definition.role],
             ['STATUS', squad.status],

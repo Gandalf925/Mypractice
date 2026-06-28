@@ -2,8 +2,24 @@ import { stableId } from '../core/utilities.js';
 import { CIVILIZATIONS, SETTLEMENT_BUILDINGS } from './data.js';
 import { addBundle, consumeBundle, missingBundle, recalculateCapacity } from './inventory-system.js';
 
+export function isStorageBuildingType(type) {
+  return Boolean(SETTLEMENT_BUILDINGS[type]?.capacityBonus);
+}
+
 export function usedSettlementSlots(state) {
-  return (state.civilization.buildings ?? []).length;
+  const occupied = new Set();
+  let slots = 0;
+  for (const building of state.civilization.buildings ?? []) {
+    if (isStorageBuildingType(building.type)) {
+      const key = `storage:${building.type}`;
+      if (occupied.has(key)) continue;
+      occupied.add(key);
+      slots += 1;
+    } else {
+      slots += 1;
+    }
+  }
+  return slots;
 }
 
 export function settlementSlotLimit(state) {
