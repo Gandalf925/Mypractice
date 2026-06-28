@@ -61,9 +61,7 @@ export function createInitialState() {
     },
     inventory: {
       resources: emptyResourceBundle(),
-      overflow: {},
-      capacity: {},
-      lastOverflowSweepAt: 0
+      capacity: {}
     },
     statistics: {
       kills: 0,

@@ -1728,3 +1728,51 @@ button, input, select, textarea { font-size: inherit; }
   .opsCard { grid-template-columns: minmax(0, 1fr); }
   .opsCard em { justify-self: start; }
 }
+
+
+/* v0.35.9 resource cap text review */
+.storageEffectGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+.storageEffectCard {
+  padding: 10px 11px;
+  border: 1px solid rgba(101,255,208,.16);
+  background: rgba(4,31,26,.68);
+  clip-path: polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px);
+}
+.storageEffectCard header,
+.storageEffectCard strong,
+.storageEffectCard small,
+.storageEffectCard p {
+  display: block;
+  min-width: 0;
+}
+.storageEffectCard strong {
+  color: #effffb;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.storageEffectCard small {
+  margin-top: 3px;
+  color: #ffd166;
+  font-size: 10px;
+  line-height: 1.45;
+}
+.storageEffectCard p {
+  margin: 7px 0 0;
+  color: #c8f8ec;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.statusWarning {
+  color: #ffd166 !important;
+  white-space: normal !important;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: .48;
+}

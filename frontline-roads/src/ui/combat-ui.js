@@ -54,7 +54,7 @@ function squadRecoveryRemainingSeconds(recovery, squad) {
 }
 
 export class CombatUi {
-  constructor({ store, buildSystem, civilizationSystem, explorationSystem, recoverySystem, friendlyForceSystem, roadsideSupplySystem = null, camera, renderer, notifications, persist = null, openDeployment = null, requestSurvey = null }) {
+  constructor({ store, buildSystem, civilizationSystem, explorationSystem, recoverySystem, friendlyForceSystem, roadsideSupplySystem = null, camera, renderer, notifications, persist = null, openDeployment = null, requestSurvey = null, i18n = null }) {
     this.store = store;
     this.buildSystem = buildSystem;
     this.civilizationSystem = civilizationSystem;
@@ -67,6 +67,7 @@ export class CombatUi {
     this.camera = camera;
     this.renderer = renderer;
     this.notifications = notifications;
+    this.i18n = i18n;
     this.selectedTool = 'select';
     this.selectedObject = null;
     this.buildCandidate = null;
@@ -89,6 +90,8 @@ export class CombatUi {
     this.contextActions = queryRequired('#contextActions');
     this.renderTools();
   }
+
+  localize(text = '') { return this.i18n?.copy?.(text) ?? text; }
 
   clearObjectSelection({ hideContext = true } = {}) {
     if (this.orderPlanning) {
@@ -130,7 +133,7 @@ export class CombatUi {
       button.dataset.tool = type;
       button.setAttribute?.('aria-pressed', String(type === this.selectedTool));
       const cost = definition.cost ? bundleText(definition.cost) : '';
-      button.innerHTML = `<strong>${definition.icon}</strong><span>${definition.name}</span>${cost ? `<small>${cost}</small>` : ''}`;
+      button.innerHTML = this.localize(`<strong>${definition.icon}</strong><span>${definition.name}</span>${cost ? `<small>${cost}</small>` : ''}`);
       button.addEventListener('click', () => this.selectTool(type));
       this.tools.appendChild(button);
     }
@@ -716,8 +719,8 @@ export class CombatUi {
       const item = document.createElement('span');
       const key = document.createElement('small');
       const data = document.createElement('b');
-      key.textContent = label;
-      data.textContent = value;
+      key.textContent = this.localize(label);
+      data.textContent = this.localize(value);
       item.append(key, data);
       grid.appendChild(item);
     }
@@ -745,7 +748,7 @@ export class CombatUi {
       .forEach((text, index) => {
         const paragraph = document.createElement('p');
         paragraph.className = index === 0 ? 'contextSummary' : 'contextDetail';
-        paragraph.textContent = text;
+        paragraph.textContent = this.localize(text);
         copy.appendChild(paragraph);
       });
     this.contextText.appendChild(copy);
@@ -770,12 +773,12 @@ export class CombatUi {
       if (this.contextDisclosureKey === disclosureKey) this.contextDisclosureOpen = Boolean(disclosure.open);
     });
     const toggle = document.createElement('summary');
-    toggle.textContent = '説明を表示';
+    toggle.textContent = this.localize('説明を表示');
     disclosure.appendChild(toggle);
     explanation.forEach((detailText, index) => {
       const detail = document.createElement('p');
       detail.className = index === 0 ? 'contextSummary' : 'contextDetail';
-      detail.textContent = detailText;
+      detail.textContent = this.localize(detailText);
       disclosure.appendChild(detail);
     });
     this.contextText.appendChild(disclosure);
@@ -787,15 +790,15 @@ export class CombatUi {
     const heading = document.createElement('div');
     heading.className = 'defenseUpgradeHeading';
     const label = document.createElement('small');
-    label.textContent = status.atMax ? 'UPGRADE COMPLETE' : `NEXT // TIER ${status.nextTier}`;
+    label.textContent = this.localize(status.atMax ? 'UPGRADE COMPLETE' : `NEXT // TIER ${status.nextTier}`);
     const name = document.createElement('strong');
-    name.textContent = status.atMax ? '最高Tierへ到達' : status.nextDefinition?.name ?? '強化先不明';
+    name.textContent = this.localize(status.atMax ? '最高Tierへ到達' : status.nextDefinition?.name ?? '強化先不明');
     heading.append(label, name);
     block.appendChild(heading);
 
     if (status.atMax) {
       const note = document.createElement('p');
-      note.textContent = 'この設備は現在の最終形です。';
+      note.textContent = this.localize('この設備は現在の最終形です。');
       block.appendChild(note);
       this.contextText.appendChild(block);
       return;
@@ -841,8 +844,8 @@ export class CombatUi {
       const item = document.createElement('span');
       const key = document.createElement('small');
       const value = document.createElement('b');
-      key.textContent = keyText;
-      value.textContent = valueText;
+      key.textContent = this.localize(keyText);
+      value.textContent = this.localize(valueText);
       item.append(key, value);
       grid.appendChild(item);
     }
@@ -850,12 +853,12 @@ export class CombatUi {
 
     const cost = document.createElement('p');
     cost.className = 'defenseUpgradeCost';
-    cost.textContent = `強化費用：${bundleText(status.cost)}`;
+    cost.textContent = this.localize(`強化費用：${bundleText(status.cost)}`);
     block.appendChild(cost);
     if (!status.ok) {
       const reason = document.createElement('p');
       reason.className = 'defenseUpgradeReason';
-      reason.textContent = status.reason;
+      reason.textContent = this.localize(status.reason);
       block.appendChild(reason);
     }
     this.contextText.appendChild(block);
@@ -864,7 +867,7 @@ export class CombatUi {
   action(label, handler, className = '') {
     const button = document.createElement('button');
     button.type = 'button';
-    button.textContent = label;
+    button.textContent = this.localize(label);
     button.className = className;
     button.addEventListener('click', handler);
     this.contextActions.appendChild(button);
@@ -875,7 +878,7 @@ export class CombatUi {
     let result;
     this.store.transaction(state => { result = action(state); }, reason, { emit: true, validate: true });
     if (result?.ok) this.persist?.();
-    this.notifications.show(result?.ok ? result?.message ?? '操作を実行しました。' : result?.reason ?? '操作できません。');
+    this.notifications.show(this.localize(result?.ok ? result?.message ?? '操作を実行しました。' : result?.reason ?? '操作できません。'));
     this.renderContext();
     this.renderer.render();
   }
@@ -921,7 +924,7 @@ export class CombatUi {
     this.context.classList?.add('is-build-mode');
     this.context.classList?.toggle('has-candidate', Boolean(this.buildCandidate));
     this.contextActions.textContent = '';
-    this.contextTitle.textContent = `BUILD // ${definition.name} // ${presentation.role}`;
+    this.contextTitle.textContent = this.localize(`BUILD // ${definition.name} // ${presentation.role}`);
     const instruction = !buildStatus.ok && buildStatus.requiredCivilizationLevel
       ? buildStatus.reason
       : this.buildCandidate
@@ -943,8 +946,8 @@ export class CombatUi {
       presentation.placement,
       `新設時はTier ${definition.initialTier ?? 0}です。文明レベル上昇後、既設設備を選択して資源を支払い個別に強化できます。`,
       this.selectedTool === 'survey'
-        ? `測量施設は主要拠点・簡易拠点ごとに1基までです。現在の設置範囲は主要拠点${ranges.major}m、簡易拠点${ranges.field}mです。遠隔取得で見えるのは道路と未確認前線だけで、現地情報は実際の移動後に表示されます。`
-        : `文明Lv.${ranges.level}の建設可能範囲は主要拠点${ranges.major}m、簡易拠点${ranges.field}m、現在地${ranges.player}m、出撃中の遠征部隊${ranges.expedition}mです。拠点範囲は文明レベルに応じて段階的に広がりますが、後半でも現地移動・前線拠点・遠征部隊が必要な上限に抑えられます。設置済み施設は新たな建設基準点にはなりません。移動先の道路は周辺区域の取得完了後に建設へ利用できます。`
+        ? `測量施設は主要拠点・簡易拠点ごとに1基までです。設置範囲は主要拠点${ranges.major}m、簡易拠点${ranges.field}mです。遠隔取得で追加されるのは道路形状です。敵基地・道端物資・現地イベントの正確な位置は、実際に現地へ移動した後に表示されます。`
+        : `文明Lv.${ranges.level}の建設範囲は主要拠点${ranges.major}m、簡易拠点${ranges.field}m、現在地${ranges.player}m、出撃中の遠征部隊${ranges.expedition}mです。設置済み施設は新たな建設基準点になりません。移動先の道路は周辺区域の取得完了後に建設へ利用できます。`
     ]);
     if (this.buildCandidate) {
       const confirm = this.action(affordable ? '建設を確定' : buildStatus.requiredCivilizationLevel ? '文明未解禁' : '資源不足', () => this.confirmBuildCandidate(), 'primary');
@@ -984,7 +987,7 @@ export class CombatUi {
       const available = item.status === RECOVERY_ITEM_STATUS.AVAILABLE;
       const eligibility = available ? recoveryEligibility(state, item) : { ok: false, reason: statusPresentation.detail };
       const progress = Math.min(RECOVERY_COLLECTION_DURATION_SECONDS, collection?.progressSec ?? 0);
-      this.contextTitle.textContent = `RECOVERY // ${presentation.name}`;
+      this.contextTitle.textContent = this.localize(`RECOVERY // ${presentation.name}`);
       const statusLabel = collection ? '現地回収中' : statusPresentation.label;
       this.setContextContent(
         available
@@ -1016,7 +1019,7 @@ export class CombatUi {
       const definition = ROADSIDE_USE_DEFINITIONS[mine.itemKey ?? 'roadMine'] ?? ROADSIDE_USE_DEFINITIONS.roadMine;
       const inventory = ensureRoadsideSupplyState(state).inventory ?? {};
       const lureCount = Math.max(0, Math.floor(Number(inventory.lureSignal) || 0));
-      this.contextTitle.textContent = `MINE // ${mine.name ?? definition.name}`;
+      this.contextTitle.textContent = this.localize(`MINE // ${mine.name ?? definition.name}`);
       this.setContextContent('設置済み地雷です。時間制限はなく、敵が通過するまで残ります。誘導信号弾で敵をこの地点へ誘導できます。', [
         ['TYPE', definition.name],
         ['RADIUS', `${definition.radiusMeters}m`],
@@ -1036,7 +1039,7 @@ export class CombatUi {
       const interceptTarget = state.combat.enemies.find(enemy => enemy.id === squad.targetEnemyId && enemy.hp > 0);
       const recoveryItem = (state.world.recoveryItems ?? []).find(item => item.id === squad.targetRecoveryItemId);
       const recoveryTargetName = recoveryItem ? recoveryItemPresentation(recoveryItem).name : null;
-      this.contextTitle.textContent = `ALLY // ${definition.name}`;
+      this.contextTitle.textContent = this.localize(`ALLY // ${definition.name}`);
       const orderLabel = ({ ADVANCE: '進軍', HOLD: '停止', RETREAT: '後退', WITHDRAW: '撤退', RETURN: '帰還' })[squad.order] ?? squad.order;
       const progress = unitProgressText(squad);
       const special = definition.type === 'skirmisher'
@@ -1160,7 +1163,7 @@ export class CombatUi {
             : '都市へ進行中です。経路は敵の性格と波の作戦に応じて選択されます。';
       const routeMode = ({ FLANK: '側面迂回', EVASIVE: '危険回避', BREACH: '正面突破', SABOTAGE: '施設潜入', RAID: '拠点襲撃', HUNT: '部隊追跡', SUPPORT: '支援同行', GUARD: '護衛進軍', COMMAND: '指揮進軍', DIRECT: '最短進軍' })[enemy.path?.routeMode ?? behavior.routeMode] ?? definition.routeLabel ?? '状況判断';
       const detour = Number(enemy.path?.detourPercent) > 0 ? `+${enemy.path.detourPercent}%` : '—';
-      this.contextTitle.textContent = `TARGET // ${definition.name}`;
+      this.contextTitle.textContent = this.localize(`TARGET // ${definition.name}`);
       this.setContextContent(summary, [
         ['LEVEL', `Lv.${enemy.level ?? 1}`],
         ['HP', `${Math.ceil(enemy.hp)}/${enemy.maxHp}`],
@@ -1182,7 +1185,7 @@ export class CombatUi {
       const entry = state.world.roadGraph.nodeById.get(source.entryNodeId);
       const sourceDistance = entry ? distance(entry, source.point) : Infinity;
       const playerDistance = state.player.worldPosition ? distance(state.player.worldPosition, source.point) : Infinity;
-      this.contextTitle.textContent = `FRONTIER // ${presentation.title}`;
+      this.contextTitle.textContent = this.localize(`FRONTIER // ${presentation.title}`);
       this.setContextContent(
         presentation.stage === 'DISTANT'
           ? '道路網の外側から断続的な敵性反応を検出しています。実際にこの方向へ移動すると情報精度が上がります。'
@@ -1201,7 +1204,7 @@ export class CombatUi {
       const base = state.world.enemyBases.find(item => item.id === selected.id);
       if (!base?.alive) { this.clearObjectSelection(); return; }
       const definition = ENEMY_BASE_DEFINITIONS[base.type];
-      this.contextTitle.textContent = definition.name;
+      this.contextTitle.textContent = this.localize(definition.name);
       const attackers = (state.combat.friendlySquads ?? []).filter(squad => squad.targetBaseId === base.id).length;
       this.context.classList?.add('is-target-mode');
       this.setContextContent(
@@ -1234,7 +1237,7 @@ export class CombatUi {
         ['EXPANDED', `${survey.completedCount}区域`],
         ['REMAIN', String(survey.remainingChunks)],
         ['COMM', survey.lastConnectionAt > 0 ? '成功' : survey.lastTransport === 'CACHE' ? 'キャッシュ' : '未成功'],
-        ['LINK', survey.lastEndpoint ? `${survey.lastEndpoint} ${{ SANDBOX_JSONP: '安全JSONP', GET: 'GET', POST: 'POST', CACHE: 'キャッシュ' }[survey.lastTransport] ?? survey.lastTransport ?? ''}`.trim() : '未成功'],
+        ['LINK', survey.lastEndpoint ? `${survey.lastEndpoint} ${{ SANDBOX_JSONP: '隔離JSONP', GET: 'GET', POST: 'POST', CACHE: 'キャッシュ' }[survey.lastTransport] ?? survey.lastTransport ?? ''}`.trim() : '未成功'],
         ...(survey.lastConnectionAt > 0 ? [['RESPONSE', `${survey.lastResponseElements}件`]] : []),
         ...(survey.lastSuccessAt > 0 ? [['ROADS', String(survey.lastRoadCount)]] : []),
         ...(survey.errorCount > 0 ? [['RETRY', String(survey.errorCount)]] : [])
@@ -1249,11 +1252,11 @@ export class CombatUi {
 
       this.context.classList?.add(`is-defense-${this.defensePanelMode}`);
       if (this.defensePanelMode === 'details') {
-        this.contextTitle.textContent = `DETAIL // ${runtime.name}`;
+        this.contextTitle.textContent = this.localize(`DETAIL // ${runtime.name}`);
         this.setDefenseDetails(presentation, notes);
         this.action('施設情報へ戻る', () => this.setDefensePanelMode('summary', defense.id), 'primary');
       } else if (this.defensePanelMode === 'upgrade') {
-        this.contextTitle.textContent = `UPGRADE // ${runtime.name}`;
+        this.contextTitle.textContent = this.localize(`UPGRADE // ${runtime.name}`);
         this.contextText.textContent = '';
         this.appendDefenseUpgradePreview(state, defense, upgrade);
         this.action('戻る', () => this.setDefensePanelMode('summary', defense.id));
@@ -1263,7 +1266,7 @@ export class CombatUi {
         }, 'primary');
         confirmUpgrade.disabled = !upgrade.ok;
       } else {
-        this.contextTitle.textContent = `${runtime.name} // Tier ${defense.tier ?? 0}`;
+        this.contextTitle.textContent = this.localize(`${runtime.name} // Tier ${defense.tier ?? 0}`);
         this.setContextMetrics([
           ['HP', `${Math.ceil(defense.hp)}/${defense.maxHp}`],
           ['STATUS', operatingStatus],
@@ -1305,7 +1308,7 @@ export class CombatUi {
         if (removalPending) this.action('撤去を中止', () => this.cancelDefenseRemoval());
       }
     } else {
-      this.contextTitle.textContent = '都市';
+      this.contextTitle.textContent = this.localize('都市');
       this.setContextContent('防衛対象となる中枢都市です。', [['HP', `${Math.ceil(state.world.city.hp)}/${state.world.city.maxHp}`], ['CIV', String(state.civilization.level)], ['KILLS', String(state.statistics.kills ?? 0)]]);
     }
     setVisible(this.context, true);

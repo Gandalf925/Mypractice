@@ -62,7 +62,7 @@ function labelForProjectCheck(check) {
   if (check.kind === 'artifact') return `回収物 ${Math.floor(check.current)}/${check.required}`;
   if (check.kind === 'progress') {
     if (check.key === 'totalKills') return `敵撃破 ${Math.floor(check.current)}/${check.required}`;
-    if (check.key === 'totalCampsCaptured') return `敵拠点撃破 ${Math.floor(check.current)}/${check.required}`;
+    if (check.key === 'totalCampsCaptured') return `敵拠点攻略 ${Math.floor(check.current)}/${check.required}`;
     if (check.key === 'cityHpStreak') return `都市HP維持 ${Math.floor(check.current)}/${check.required}秒`;
     return `進行条件 ${Math.floor(check.current)}/${check.required}`;
   }
@@ -80,8 +80,8 @@ function nearestEnemyBaseOperation(state) {
   return [operation(
     'enemy-base-nearest',
     55,
-    '敵拠点を攻略',
-    `${definition?.name ?? '敵拠点'}・${formatMeters(base.meters)}・撃破後に回収物が出ます。`,
+    '敵拠点を攻撃',
+    `${definition?.name ?? '敵拠点'}・${formatMeters(base.meters)}・攻略後に回収物が出ます。`,
     'マップで選択',
     '攻略'
   )];
@@ -137,9 +137,9 @@ function firstTenMinuteOperations(state) {
   const defenses = (state.combat?.defenses ?? []).filter(defense => defense.hp > 0);
   const captures = Number(state.statistics?.campsCaptured) || Number(state.civilization?.progress?.campsCapturedByType?.raiderCamp) || 0;
   const level = Number(state.civilization?.level) || 0;
-  if (!defenses.length) results.push(operation('first-defense', 95, 'まず防衛施設を置く', '拠点周辺の道路へ投石台・柵・蔓縄罠を配置します。', 'BASESを開く', '初回'));
-  else if (captures <= 0) results.push(operation('first-attack-base', 90, '敵拠点を1つ攻略', '文明発展には敵拠点撃破と回収物が重要です。', '敵拠点を選択', '初回'));
-  else if (level <= 0) results.push(operation('first-civ1', 88, '文明Lv.1へ発展', 'CIVで不足資源を安全納入して発展を開始します。', 'CIVを開く', '初回'));
+  if (!defenses.length) results.push(operation('first-defense', 95, 'まず防衛施設を置く', '拠点周辺の道路へ投石台・丸太柵・蔓縄罠を配置します。', 'BASESを開く', '初回'));
+  else if (captures <= 0) results.push(operation('first-attack-base', 90, '敵拠点を1つ攻略', '文明発展には敵拠点の攻略と回収物の確保が必要です。', '敵拠点を選択', '初回'));
+  else if (level <= 0) results.push(operation('first-civ1', 88, '文明Lv.1へ発展', 'CIVで不足資源を納入して発展を開始します。', 'CIVを開く', '初回'));
   return results;
 }
 
@@ -208,5 +208,5 @@ export function operationGuidanceMarkup(guidance) {
   const walkTargets = guidance?.walkTargets ?? [];
   const opHtml = operations.length ? operations.map(item => `<article class="opsCard"><div><span>${esc(item.tag)}</span><strong>${esc(item.title)}</strong><small>${esc(item.detail)}</small></div>${item.action ? `<em>${esc(item.action)}</em>` : ''}</article>`).join('') : '<p class="emptyText">現在は緊急の作戦目標はありません。周辺の敵・物資・文明条件を確認してください。</p>';
   const walkHtml = walkTargets.length ? walkTargets.map(item => `<article class="walkTargetCard"><span>${esc(item.kind)}</span><strong>${esc(item.title)}</strong><small>${esc(item.detail)}</small></article>`).join('') : '<p class="emptyText">現在地周辺に優先表示する徒歩目標はありません。</p>';
-  return `<section class="opsSummary"><h2>NEXT OPS // 作戦目標</h2><p class="sectionNote">新規ミッションは生成しません。現在の状態から、次に有効な行動だけを整理します。</p><div class="opsGrid">${opHtml}</div></section><section class="opsSummary"><h2>WALK TARGETS // 徒歩目標</h2><div class="walkTargetGrid">${walkHtml}</div></section>`;
+  return `<section class="opsSummary"><h2>NEXT OPS // 次の行動</h2><p class="sectionNote">現在の状況から、次に有効な行動を優先順に表示します。</p><div class="opsGrid">${opHtml}</div></section><section class="opsSummary"><h2>WALK TARGETS // 近くの目標</h2><div class="walkTargetGrid">${walkHtml}</div></section>`;
 }

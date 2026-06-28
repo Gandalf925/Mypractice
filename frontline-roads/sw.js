@@ -1,7 +1,7 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const RELEASE_VERSION = '0.35.6';
-const CACHE_NAME = `${CACHE_PREFIX}v0-35-6-context-panel-and-code-review`;
+const RELEASE_VERSION = '0.36.2';
+const CACHE_NAME = `${CACHE_PREFIX}v0-36-2-dynamic-copy-localization`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -66,6 +66,8 @@ const APP_SHELL = [
   './src/core/runtime-state.js',
   './src/core/state-normalizer.js',
   './src/core/utilities.js',
+  './src/i18n/catalog.js',
+  './src/i18n/user-facing-copy-ja.js',
   './src/exploration/frontier-system.js',
   './src/exploration/exploration-system.js',
   './src/exploration/recovery-system.js',

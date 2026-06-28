@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.35.6-context-panel-and-code-review';
+export const APP_VERSION = '0.36.2-dynamic-copy-localization';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 

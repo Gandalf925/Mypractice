@@ -288,7 +288,7 @@ export class FrontierSystem {
     };
     source.wavesSent += 1;
     this.events?.emit('combat:wave-launched', { frontierSourceId: source.id, waveId, count: spawned });
-    this.events?.emit('message', { text: '未確認前線から敵部隊が侵入しました。進入方向を確認してください。' });
+    this.events?.emit('message', { text: '未踏破の道路方面から敵部隊が侵入しました。進入方向を確認してください。' });
     return true;
   }
 

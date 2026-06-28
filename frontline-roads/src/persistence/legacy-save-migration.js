@@ -152,7 +152,6 @@ export function migrateLegacySave(legacy) {
   state.combat.enemies = (legacy.enemies ?? []).map(normalizeEnemy);
   state.combat.defenses = normalizeDefenses(legacy, graph);
   state.inventory.resources = normalizeResources(legacy);
-  state.inventory.overflow = deepClone(legacy.inventory?.overflow ?? {});
   state.civilization.level = Math.max(0, Number(legacy.civilization?.level) || 0);
   state.civilization.completedAt = legacy.civilization?.completedAt ?? null;
   state.civilization.gracePeriodUntil = legacy.civilization?.gracePeriodUntil ?? null;

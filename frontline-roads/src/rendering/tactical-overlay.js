@@ -2,77 +2,9 @@ import { distance } from '../core/utilities.js';
 import { DEFENSE_DEFINITIONS, ENEMY_DEFINITIONS, defenseRuntimeDefinition } from '../combat/definitions.js';
 import { defenseWorldPosition } from '../combat/combat-geometry.js';
 import { enemyPosition } from '../combat/enemy-system.js';
-import { analyzeThreatCached, enemyRouteWorldPoints, remainingRouteDistance } from './threat-analysis.js';
+import { remainingRouteDistance } from './threat-analysis.js';
 
 const TAU = Math.PI * 2;
-
-function routeColor(remaining) {
-  if (remaining <= 50) return '#ff5268';
-  if (remaining <= 140) return '#ff9f43';
-  return '#ffd166';
-}
-
-function drawArrow(context, a, b, color, alpha = 1) {
-  const angle = Math.atan2(b.y - a.y, b.x - a.x);
-  const x = (a.x + b.x) / 2;
-  const y = (a.y + b.y) / 2;
-  context.save();
-  context.globalAlpha = alpha;
-  context.translate(x, y);
-  context.rotate(angle);
-  context.strokeStyle = color;
-  context.lineWidth = 1.1;
-  context.beginPath();
-  context.moveTo(-4, -3);
-  context.lineTo(1, 0);
-  context.lineTo(-4, 3);
-  context.stroke();
-  context.restore();
-}
-
-function drawWorldRoute(context, camera, worldPoints, color, alpha, selected = false, quality = 'balanced') {
-  if (worldPoints.length < 2) return;
-  const points = worldPoints.map(point => camera.worldToScreen(point));
-  context.save();
-  context.globalCompositeOperation = quality === 'full' ? 'screen' : 'source-over';
-  context.globalAlpha = alpha;
-  context.strokeStyle = color;
-  if (quality === 'full') {
-    context.shadowColor = color;
-    context.shadowBlur = selected ? 12 : 5;
-  }
-  context.lineWidth = selected ? 2.1 : 1.1;
-  context.setLineDash(selected ? [7, 4] : [3, 7]);
-  context.beginPath();
-  context.moveTo(points[0].x, points[0].y);
-  for (const point of points.slice(1)) context.lineTo(point.x, point.y);
-  context.stroke();
-  context.setLineDash([]);
-  for (let index = 0; index < points.length - 1; index += 1) drawArrow(context, points[index], points[index + 1], color, alpha);
-  context.restore();
-}
-
-export function drawThreatRoutes(context, state, camera, focus = null, preferences = {}) {
-  if (preferences.routes === 'off') return;
-  const analysis = analyzeThreatCached(state);
-  const quality = preferences.quality ?? 'balanced';
-  const activeEnemyCount = analysis.enemyCount ?? 0;
-  const maximumRoutes = quality === 'full'
-    ? (activeEnemyCount > 180 ? 12 : 24)
-    : quality === 'balanced'
-      ? (activeEnemyCount > 120 ? 3 : 6)
-      : 1;
-  const enemies = preferences.routes === 'all'
-    ? (state.combat.enemies ?? []).filter(enemy => enemy.hp > 0 && (enemy.departDelay ?? 0) <= 0).slice(0, maximumRoutes)
-    : analysis.priorityEnemies.slice(0, maximumRoutes);
-  for (const enemy of enemies) {
-    const selected = focus?.kind === 'enemy' && focus.id === enemy.id;
-    const remaining = analysis.distanceByEnemyId?.get(enemy.id) ?? remainingRouteDistance(state, enemy);
-    const points = enemyRouteWorldPoints(state, enemy, selected ? 9 : 4);
-    const routeAlpha = selected ? 0.95 : quality === 'full' ? 0.28 : activeEnemyCount > 120 ? 0.14 : 0.2;
-    drawWorldRoute(context, camera, points, routeColor(remaining), routeAlpha, selected, quality);
-  }
-}
 
 function bracket(context, point, radius, color, timeMs = 0) {
   const size = radius + 6 + Math.sin(timeMs * 0.006) * 1.2;

@@ -57,8 +57,9 @@ export class SettlementSystem {
     const definition = SETTLEMENT_BUILDINGS[type];
     if (!definition) return { ok: false, reason: '不明な施設です。' };
     if (!isBuildingUnlocked(state, type)) return { ok: false, reason: '文明レベルが不足しています。' };
-    if (usedSettlementSlots(state) >= settlementSlotLimit(state)) return { ok: false, reason: '集落の建設枠がありません。' };
     const existing = state.civilization.buildings.filter(building => building.type === type).length;
+    const sameStorageSlot = isStorageBuildingType(type) && existing > 0;
+    if (usedSettlementSlots(state) >= settlementSlotLimit(state) && !sameStorageSlot) return { ok: false, reason: '集落の建設枠がありません。' };
     if (definition.limit && existing >= definition.limit) return { ok: false, reason: 'この施設はこれ以上建設できません。' };
     if (!consumeBundle(state, definition.cost)) return { ok: false, reason: '資源が不足しています。', missing: missingBundle(state, definition.cost) };
     const building = {

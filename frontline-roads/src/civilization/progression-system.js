@@ -178,7 +178,7 @@ export class ProgressionSystem {
     const amount = safeProjectContributionAmount(state, resource);
     if (amount <= 0) {
       const reserve = projectContributionReserve(state, resource);
-      return { ok: false, reason: reserve > 0 ? `防衛・建設用の予備資源を${reserve}残しています。必要なら「全量納入」を選んでください。` : '安全に納入できる資源がありません。', reserve };
+      return { ok: false, reason: reserve > 0 ? `防衛・建設用の予備資源を${reserve}残しています。必要なら「全量納入」を選んでください。` : '予備を残して納入できる資源がありません。', reserve };
     }
     return this.contribute(state, resource, amount);
   }

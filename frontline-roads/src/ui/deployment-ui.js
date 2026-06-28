@@ -66,12 +66,13 @@ function baseSquadLevelSummary(state, baseId, type) {
 }
 
 export class DeploymentUi {
-  constructor({ store, friendlyForceSystem, notifications, persist, beginRoutePlanning = null }) {
+  constructor({ store, friendlyForceSystem, notifications, persist, beginRoutePlanning = null, i18n = null }) {
     this.store = store;
     this.system = friendlyForceSystem;
     this.notifications = notifications;
     this.persist = persist;
     this.beginRoutePlanning = beginRoutePlanning;
+    this.i18n = i18n;
     this.panel = queryRequired('#deploymentPanel');
     this.title = queryRequired('#deploymentTitle');
     this.body = queryRequired('#deploymentBody');
@@ -90,6 +91,8 @@ export class DeploymentUi {
     bindDismissibleModal(this.panel, () => this.close());
     this.body.addEventListener('click', event => this.handleAction(event));
   }
+
+  localize(text = '') { return this.i18n?.copy?.(text) ?? text; }
 
   openForEnemyBase(targetId) {
     this.missionKind = MISSION_KIND.ATTACK;
@@ -131,7 +134,7 @@ export class DeploymentUi {
         : this.missionKind === MISSION_KIND.INTERCEPT
           ? 'この敵部隊は現在迎撃対象にできません。'
           : 'この敵拠点は現在攻撃対象にできません。';
-      this.notifications.show(message);
+      this.notifications.show(this.localize(message));
       return false;
     }
     this.render(state);
@@ -213,10 +216,10 @@ export class DeploymentUi {
       result = this.system.dispatch(state, this.originBaseId, this.targetId, this.squadType, this.targetKind, routeOverride);
     }, 'friendly:dispatch', { emit: true, validate: true });
     if (!result?.ok) {
-      this.notifications.show(result?.reason ?? '派兵できません。');
+      this.notifications.show(this.localize(result?.reason ?? '派兵できません。'));
       return result ?? { ok: false };
     }
-    this.notifications.show(`${FRIENDLY_SQUAD_DEFINITIONS[this.squadType].name}を派兵しました。`);
+    this.notifications.show(this.localize(`${FRIENDLY_SQUAD_DEFINITIONS[this.squadType].name}を派兵しました。`));
     this.persist?.();
     this.close();
     return result;
@@ -484,10 +487,10 @@ export class DeploymentUi {
     const recoveryMission = this.missionKind === MISSION_KIND.RECOVERY;
     const interceptMission = this.missionKind === MISSION_KIND.INTERCEPT;
     if (recoveryMission || interceptMission) this.mode = DEPLOYMENT_MODE.SINGLE;
-    this.title.textContent = recoveryMission ? '選択回収物への派遣' : interceptMission ? '選択敵部隊への迎撃派兵' : '選択敵拠点への派兵';
+    this.title.textContent = this.localize(recoveryMission ? '選択回収物への派遣' : interceptMission ? '選択敵部隊への迎撃派兵' : '選択敵拠点への派兵');
     const content = this.mode === DEPLOYMENT_MODE.COORDINATED && !recoveryMission && !interceptMission
       ? this.coordinatedDeploymentMarkup(state)
       : this.singleDeploymentMarkup(state);
-    this.body.innerHTML = `<section class="deploymentTargetSection"><h2>選択中の目標</h2>${this.targetMarkup(target)}</section>${this.modeMarkup()}${content}`;
+    this.body.innerHTML = this.localize(`<section class="deploymentTargetSection"><h2>選択中の目標</h2>${this.targetMarkup(target)}</section>${this.modeMarkup()}${content}`);
   }
 }

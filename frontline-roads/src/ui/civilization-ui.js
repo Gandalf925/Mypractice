@@ -2,10 +2,10 @@ import {
   CIVILIZATIONS, CIVILIZATION_PROJECTS, DEFENSE_LINES, PRODUCTION_RECIPES,
   RESOURCE_KEYS, RESOURCE_LABELS, SETTLEMENT_BUILDINGS, MAX_CIVILIZATION_LEVEL
 } from '../civilization/data.js';
-import { bundleText, currentCivilization } from '../civilization/inventory-system.js';
+import { bundleText, currentCivilization, hasBundle } from '../civilization/inventory-system.js';
 import { evaluateProject, projectContributionReserve, safeProjectContributionAmount } from '../civilization/progression-system.js';
 import { bindDismissibleModal, queryRequired, setVisible } from './dom.js';
-import { usedSettlementSlots, isStorageBuildingType } from '../civilization/settlement-system.js';
+import { usedSettlementSlots, settlementSlotLimit, isStorageBuildingType } from '../civilization/settlement-system.js';
 import { baseLimitForCivilization } from '../base/player-bases.js';
 import { fieldBaseLimitForCivilization, fieldBaseSlotsUsed } from '../base/field-bases.js';
 import { diagnoseFieldBaseNetwork } from '../base/field-base-system.js';
@@ -23,7 +23,26 @@ function formatDuration(seconds) {
   return `${secs}秒`;
 }
 
-function limitText(value) { return Number.isFinite(value) ? String(value) : '無制限'; }
+function limitText(value) { return Number.isFinite(value) ? String(value) : '上限なし'; }
+
+function resourceAmountParts(state, key) {
+  const stored = Math.floor(state.inventory.resources[key] ?? 0);
+  const category = RESOURCE_CATEGORY_BY_KEY[key];
+  const capacity = Math.floor(state.inventory.capacity?.[category] ?? 0);
+  return { stored, capacity };
+}
+
+function buildingBuildStatus(state, type) {
+  const definition = SETTLEMENT_BUILDINGS[type];
+  if (!definition) return { ok: false, label: '未定義', reason: '不明な施設です。' };
+  if (definition.level > (state.civilization?.level ?? 0)) return { ok: false, label: '未解禁', reason: `文明Lv.${definition.level}で解禁` };
+  const existing = state.civilization.buildings.filter(building => building.type === type).length;
+  if (definition.limit && existing >= definition.limit) return { ok: false, label: '上限', reason: '建設上限に達しています。' };
+  const sameStorageSlot = isStorageBuildingType(type) && existing > 0;
+  if (usedSettlementSlots(state) >= settlementSlotLimit(state) && !sameStorageSlot) return { ok: false, label: '枠不足', reason: '集落の建設枠がありません。' };
+  if (!hasBundle(state, definition.cost)) return { ok: false, label: '資源不足', reason: `不足：${bundleText(definition.cost)}` };
+  return { ok: true, label: '建設', reason: '建設できます。' };
+}
 
 function recipeSummaryText(recipe) {
   const input = bundleText(recipe.input);
@@ -55,9 +74,11 @@ const RESOURCE_CATEGORIES = Object.freeze([
   ['base', '基本資材', ['wood', 'stone', 'fiber']],
   ['processed', '加工資材', ['timber', 'rope', 'cutStone', 'charcoal']],
   ['ore', '鉱石', ['copperOre', 'tinOre', 'ironOre']],
-  ['metal', '金属', ['copperIngot', 'tinIngot', 'bronzeIngot', 'ironBloom', 'wroughtIron', 'steel']],
-  ['parts', '部品', ['mechanism']]
+  ['metal', '金属・部品', ['copperIngot', 'tinIngot', 'bronzeIngot', 'ironBloom', 'wroughtIron', 'steel', 'mechanism']]
 ]);
+const RESOURCE_CATEGORY_BY_KEY = Object.freeze(Object.fromEntries(
+  RESOURCE_CATEGORIES.flatMap(([category, , keys]) => keys.map(key => [key, category]))
+));
 
 
 const CAPACITY_CATEGORY_LABELS = Object.freeze({
@@ -98,10 +119,10 @@ function storageGroups(state) {
 function storageSummaryMarkup(state) {
   const groups = storageGroups(state);
   if (!groups.length) return '<p class="emptyText">倉庫系施設は未建設です。</p>';
-  return `<div class="resourceGrid storageEffectGrid">${groups.map(group => {
+  return `<div class="storageEffectGrid">${groups.map(group => {
     const count = group.buildings.length;
     const damaged = group.buildings.filter(building => building.hp < building.maxHp).length;
-    return `<div class="resourceRow compact storageEffectRow"><span><strong>${group.definition.name}</strong><small>稼働 ${count}基・建設枠 1・${damaged ? `損傷 ${damaged}基` : '全基稼働'}</small></span><strong>${storageBonusText(group.definition, count)}</strong></div>`;
+    return `<article class="storageEffectCard"><header><strong>${group.definition.name}</strong><small>稼働 ${count}基・建設枠 1・${damaged ? `損傷 ${damaged}基` : '全基稼働'}</small></header><p>${storageBonusText(group.definition, count)}</p></article>`;
   }).join('')}</div>`;
 }
 
@@ -114,11 +135,10 @@ function storageActionButtons(group) {
 function resourceCategorySections(state) {
   return RESOURCE_CATEGORIES.map(([, label, keys]) => {
     const rows = keys
-      .filter(key => (state.inventory.resources[key] ?? 0) > 0 || (state.inventory.overflow[key]?.amount ?? 0) > 0)
+      .filter(key => (state.inventory.resources[key] ?? 0) > 0)
       .map(key => {
-        const amount = Math.floor(state.inventory.resources[key] ?? 0);
-        const overflow = Math.floor(state.inventory.overflow[key]?.amount ?? 0);
-        return `<div class="resourceRow compact"><span>${RESOURCE_LABELS[key]}</span><strong>${amount}</strong>${overflow ? `<small>保留 ${overflow}</small>` : ''}</div>`;
+        const { stored, capacity } = resourceAmountParts(state, key);
+        return `<div class="resourceRow compact"><span>${RESOURCE_LABELS[key]}</span><strong>${stored}/${capacity}</strong></div>`;
       }).join('') || '<p class="emptyText">該当資材なし</p>';
     return `<details class="compactDisclosure resourceCategory" open><summary>${label}</summary><div class="resourceGrid">${rows}</div></details>`;
   }).join('');
@@ -216,11 +236,12 @@ export function projectCheckGuidance(check, state) {
 }
 
 export class CivilizationUi {
-  constructor({ store, civilizationSystem, notifications, persist }) {
+  constructor({ store, civilizationSystem, notifications, persist, i18n = null }) {
     this.store = store;
     this.system = civilizationSystem;
     this.notifications = notifications;
     this.persist = persist;
+    this.i18n = i18n;
     this.panel = queryRequired('#civilizationPanel');
     this.body = queryRequired('#civilizationBody');
     this.resourceSummary = queryRequired('#resourceSummary');
@@ -231,6 +252,8 @@ export class CivilizationUi {
     bindDismissibleModal(this.panel, () => this.close());
     this.body.addEventListener('click', event => this.handleAction(event));
   }
+
+  localize(text = '') { return this.i18n?.copy?.(text) ?? text; }
 
   open() {
     this.render();
@@ -244,7 +267,7 @@ export class CivilizationUi {
   transaction(action, reason) {
     let result;
     this.store.transaction(state => { result = action(state); }, reason, { emit: true, validate: true });
-    if (!result?.ok) this.notifications.show(result?.reason ?? '操作できません。');
+    if (!result?.ok) this.notifications.show(this.localize(result?.reason ?? '操作できません。'));
     else this.persist?.();
     this.render();
     return result;
@@ -271,9 +294,9 @@ export class CivilizationUi {
           const contributed = this.system.progression.contribute(state, key, amount);
           if (contributed?.ok) total += contributed.amount;
         }
-        return total > 0 ? { ok: true, amount: total } : { ok: false, reason: '安全に一括納入できる資源がありません。' };
+        return total > 0 ? { ok: true, amount: total } : { ok: false, reason: '予備を残して一括納入できる資源がありません。' };
       }, 'civilization:contribute-safe-all');
-      if (result?.ok) this.notifications.show(`安全納入で合計${result.amount}資材を納入しました。`);
+      if (result?.ok) this.notifications.show(this.localize(`予備を残して合計${result.amount}資材を納入しました。`));
     } else if (action === 'contribute-safe-basic') {
       const protectedKeys = new Set(['bronzeIngot', 'wroughtIron', 'steel', 'mechanism']);
       const result = this.transaction(state => {
@@ -287,22 +310,22 @@ export class CivilizationUi {
           const contributed = this.system.progression.contribute(state, key, amount);
           if (contributed?.ok) total += contributed.amount;
         }
-        return total > 0 ? { ok: true, amount: total } : { ok: false, reason: '高級資材を除外して安全納入できる資源がありません。' };
+        return total > 0 ? { ok: true, amount: total } : { ok: false, reason: '加工・金属資材を除外し、予備を残して納入できる資源がありません。' };
       }, 'civilization:contribute-safe-basic');
-      if (result?.ok) this.notifications.show(`高級資材を除外し、合計${result.amount}資材を納入しました。`);
+      if (result?.ok) this.notifications.show(this.localize(`加工・金属資材を除外し、合計${result.amount}資材を納入しました。`));
     } else if (action === 'contribute-safe') {
       const result = this.transaction(state => this.system.progression.contributeSafely(state, resource), 'civilization:contribute-safe');
-      if (result?.ok) this.notifications.show(`${RESOURCE_LABELS[resource]}を${result.amount}安全納入しました。`);
+      if (result?.ok) this.notifications.show(this.localize(`${RESOURCE_LABELS[resource]} ${result.amount}を納入しました。`));
     } else if (action === 'contribute-all') {
       const result = this.transaction(state => this.system.progression.contribute(state, resource), 'civilization:contribute-all');
-      if (result?.ok) this.notifications.show(`${RESOURCE_LABELS[resource]}を${result.amount}納入しました。`);
+      if (result?.ok) this.notifications.show(this.localize(`${RESOURCE_LABELS[resource]} ${result.amount}を納入しました。`));
     } else if (action === 'withdraw') {
       this.transaction(state => this.system.progression.withdraw(state), 'civilization:withdraw');
     } else if (action === 'start-project') {
       this.transaction(state => this.system.progression.start(state), 'civilization:start-project');
     } else if (action === 'build-building') {
       const result = this.transaction(state => this.system.settlement.build(state, type), 'civilization:build');
-      if (result?.ok) this.notifications.show(`${SETTLEMENT_BUILDINGS[type].name}を建設しました。`);
+      if (result?.ok) this.notifications.show(this.localize(`${SETTLEMENT_BUILDINGS[type].name}を建設しました。`));
     } else if (action === 'produce') {
       const result = this.transaction(state => {
         const requested = quantity === 'max'
@@ -311,7 +334,7 @@ export class CivilizationUi {
         if (requested <= 0) return this.system.production.maximumProducible(state, buildingId, recipeId);
         return this.system.production.enqueue(state, buildingId, recipeId, requested);
       }, 'civilization:produce');
-      if (result?.ok) this.notifications.show(`${PRODUCTION_RECIPES[recipeId].name}を${result.quantity}個、生産予約しました。`);
+      if (result?.ok) this.notifications.show(this.localize(`${PRODUCTION_RECIPES[recipeId].name} ${result.quantity}個、生産予約しました。`));
     } else if (action === 'repair-building') {
       this.transaction(state => this.system.settlement.repair(state, buildingId), 'civilization:repair-building');
     } else if (action === 'demolish-building') {
@@ -329,17 +352,18 @@ export class CivilizationUi {
   updateSummary(state = this.store.snapshot()) {
     const visibleResources = RESOURCE_KEYS.filter(key =>
       (state.inventory.resources[key] ?? 0) > 0
-      || (state.inventory.overflow[key]?.amount ?? 0) > 0
       || ['wood', 'stone', 'fiber'].includes(key)
     );
-    this.resourceSummary.innerHTML = visibleResources.map(key => {
-      const amount = Math.floor(state.inventory.resources[key] ?? 0);
-      const overflow = Math.floor(state.inventory.overflow[key]?.amount ?? 0);
-      return `<span class="resourceChip" data-resource="${key}"><small>${RESOURCE_LABELS[key]}</small><strong>${amount}</strong>${overflow ? `<em>保留+${overflow}</em>` : ''}</span>`;
-    }).join('');
+    this.resourceSummary.innerHTML = this.localize(visibleResources.map(key => {
+      const { stored, capacity } = resourceAmountParts(state, key);
+      return `<span class="resourceChip" data-resource="${key}"><small>${RESOURCE_LABELS[key]}</small><strong>${stored}</strong><em>上限 ${capacity}</em></span>`;
+    }).join(''));
     this.resourceSummary.setAttribute(
       'aria-label',
-      visibleResources.map(key => `${RESOURCE_LABELS[key]} ${Math.floor(state.inventory.resources[key] ?? 0)}`).join('、')
+      this.localize(visibleResources.map(key => {
+        const { stored, capacity } = resourceAmountParts(state, key);
+        return `${RESOURCE_LABELS[key]} ${stored}、上限 ${capacity}`;
+      }).join('、'))
     );
   }
 
@@ -350,10 +374,10 @@ export class CivilizationUi {
     const project = state.civilization.project;
     const evaluation = evaluateProject(state);
     const resources = RESOURCE_KEYS
-      .filter(key => (state.inventory.resources[key] ?? 0) > 0 || (state.inventory.overflow[key]?.amount ?? 0) > 0)
+      .filter(key => (state.inventory.resources[key] ?? 0) > 0)
       .map(key => {
-        const overflow = state.inventory.overflow[key]?.amount ?? 0;
-        return `<div class="resourceRow"><span>${RESOURCE_LABELS[key]}</span><strong>${Math.floor(state.inventory.resources[key] ?? 0)}</strong>${overflow ? `<small>保留 ${overflow}</small>` : ''}</div>`;
+        const { stored, capacity } = resourceAmountParts(state, key);
+        return `<div class="resourceRow"><span>${RESOURCE_LABELS[key]}</span><strong>${stored}/${capacity}</strong></div>`;
       }).join('') || '<p class="emptyText">保有資源はありません。</p>';
 
     let projectHtml = '<p class="emptyText">最高文明へ到達しています。</p>';
@@ -374,9 +398,9 @@ export class CivilizationUi {
         const reserve = projectContributionReserve(state, key);
         const gap = Math.max(0, required - current);
         const guidance = gap > 0
-          ? `${RESOURCE_LABELS[key]}があと${gap}必要です。${reserve ? `防衛・建設予備として${reserve}を残す安全納入が使えます。` : '所持分を納入できます。'}`
+          ? `${RESOURCE_LABELS[key]}があと${gap}必要です。${reserve ? `防衛・建設用に${reserve}を残して納入できます。` : '所持分を納入できます。'}`
           : '必要量を納入済みです。';
-        return `<div class="requirementRow ${check.complete ? 'complete' : 'missing'}"><span>${check.complete ? '✓' : '不足'} ${RESOURCE_LABELS[key]} ${current}/${required}${reserve ? `<small>防衛予備 ${reserve}</small>` : ''}<small>${guidance}</small></span><div class="contributionButtons"><button data-action="contribute-safe" data-resource="${key}" ${safeAmount <= 0 || locked ? 'disabled' : ''}>安全納入${safeAmount > 0 ? ` ${safeAmount}` : ''}</button><button data-action="contribute-all" data-resource="${key}" ${available <= 0 || locked ? 'disabled' : ''}>全量</button></div></div>`;
+        return `<div class="requirementRow ${check.complete ? 'complete' : 'missing'}"><span>${check.complete ? '✓' : '不足'} ${RESOURCE_LABELS[key]} ${current}/${required}${reserve ? `<small>防衛予備 ${reserve}</small>` : ''}<small>${guidance}</small></span><div class="contributionButtons"><button data-action="contribute-safe" data-resource="${key}" ${safeAmount <= 0 || locked ? 'disabled' : ''}>予備を残す${safeAmount > 0 ? ` ${safeAmount}` : ''}</button><button data-action="contribute-all" data-resource="${key}" ${available <= 0 || locked ? 'disabled' : ''}>全量納入</button></div></div>`;
       };
       const conditionRow = check => {
         const fieldDiagnostic = check.key === 'activeFieldBases' ? diagnoseFieldBaseNetwork(state, check.required) : null;
@@ -397,8 +421,8 @@ export class CivilizationUi {
         <p class="sectionNote">状態：${projectStatusLabel(project.status)}${project.status === 'BUILDING' ? `・残り ${formatDuration(remaining)}` : ''}</p>
         <div class="civilizationProgressBox"><strong>${progressPercent}%</strong><span>${completeCount}/${allChecks.length} 条件達成</span></div>
         <div class="buttonRow">
-          <button data-action="contribute-safe-basic" ${locked ? 'disabled' : ''}>高級資材を除外して一括安全納入</button>
-          <button data-action="contribute-safe-all" ${locked ? 'disabled' : ''}>不足分を一括安全納入</button>
+          <button data-action="contribute-safe-basic" ${locked ? 'disabled' : ''}>基本資源だけ予備を残して一括納入</button>
+          <button data-action="contribute-safe-all" ${locked ? 'disabled' : ''}>不足分を予備を残して一括納入</button>
         </div>
         <h4>不足している条件</h4>
         <div class="requirementList missingFirst">${missingRows}</div>
@@ -415,16 +439,18 @@ export class CivilizationUi {
       .filter(([type]) => isStorageBuildingType(type))
       .map(([type, definition]) => {
         const count = state.civilization.buildings.filter(building => building.type === type).length;
-        return `<div class="catalogCard storageCatalogCard"><div><strong>${definition.name}</strong><p>${definition.description}</p><small>所有 ${count}基・建設枠は同種で1枠・費用 ${bundleText(definition.cost)}</small><small>効果：${storageBonusText(definition, Math.max(1, count || 1))}</small></div><button data-action="build-building" data-type="${type}">建設</button></div>`;
+        const status = buildingBuildStatus(state, type);
+        return `<div class="catalogCard storageCatalogCard"><div><strong>${definition.name}</strong><p>${definition.description}</p><small>所有 ${count}基・建設枠は同種で1枠・費用 ${bundleText(definition.cost)}</small><small>効果：${storageBonusText(definition, Math.max(1, count || 1))}</small>${!status.ok ? `<small class="statusWarning">${status.reason}</small>` : ''}</div><button data-action="build-building" data-type="${type}" ${status.ok ? '' : 'disabled'}>${status.label}</button></div>`;
       }).join('') || '<p class="emptyText">倉庫系施設はまだ解放されていません。</p>';
     const productiveCatalog = unlockedBuildings
       .filter(([type]) => !isStorageBuildingType(type))
       .map(([type, definition]) => {
         const count = state.civilization.buildings.filter(building => building.type === type).length;
-        return `<div class="catalogCard"><div><strong>${definition.name}</strong><p>${definition.description}</p><small>所有 ${count}・費用 ${bundleText(definition.cost)}</small></div><button data-action="build-building" data-type="${type}">建設</button></div>`;
+        const status = buildingBuildStatus(state, type);
+        return `<div class="catalogCard"><div><strong>${definition.name}</strong><p>${definition.description}</p><small>所有 ${count}・費用 ${bundleText(definition.cost)}</small>${!status.ok ? `<small class="statusWarning">${status.reason}</small>` : ''}</div><button data-action="build-building" data-type="${type}" ${status.ok ? '' : 'disabled'}>${status.label}</button></div>`;
       }).join('') || '<p class="emptyText">生産施設はまだ解放されていません。</p>';
     const storageOperations = storageGroups(state).map(group => `<div class="productionCard storageOperationCard"><strong>${group.definition.name}</strong><p class="buildingDescription">${group.definition.description}</p><small>稼働 ${group.buildings.length}基・建設枠 1・保管上限 ${storageBonusText(group.definition, group.buildings.length)}</small>${storageActionButtons(group)}</div>`).join('');
-    const buildingCatalog = `<h3>倉庫・保管</h3><p class="sectionNote">同じ倉庫を複数建てても建設枠は1枠として扱い、効果は合計表示します。</p>${storageSummaryMarkup(state)}${storageOperations ? `<h4>稼働中の倉庫</h4>${storageOperations}` : ''}<div class="catalogGrid compactCatalog">${storageCatalog}</div><h3>生産・加工</h3><div class="catalogGrid compactCatalog">${productiveCatalog}</div>`;
+    const buildingCatalog = `<h3>倉庫・保管</h3><p class="sectionNote">同じ倉庫を複数建てても建設枠は1枠として扱い、保管上限の増加効果は合計表示します。</p>${storageSummaryMarkup(state)}${storageOperations ? `<h4>稼働中の倉庫</h4>${storageOperations}` : ''}<div class="catalogGrid compactCatalog">${storageCatalog}</div><h3>生産・加工</h3><div class="catalogGrid compactCatalog">${productiveCatalog}</div>`;
 
     const productionBuildings = state.civilization.buildings.filter(building => !isStorageBuildingType(building.type));
     const production = productionBuildings.map(building => {
@@ -436,15 +462,15 @@ export class CivilizationUi {
       const buffer = bundleText(building.outputBuffer ?? {});
       const recipeCards = recipes.map(recipe => {
         const maximum = this.system.production.maximumProducible(state, building.id, recipe.id).quantity;
-        return `<div class="productionRecipe"><div><strong>${recipe.name}</strong><small>${recipeSummaryText(recipe)}</small></div><div class="productionQuantity"><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="1">+1</button><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="5">+5</button><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="10">+10</button><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="max" ${maximum <= 0 ? 'disabled' : ''}>最大 ${maximum}</button></div></div>`;
+        return `<div class="productionRecipe"><div><strong>${recipe.name}</strong><small>${recipeSummaryText(recipe)}</small>${maximum <= 0 ? '<small class="statusWarning">投入資材が不足しています。</small>' : ''}</div><div class="productionQuantity"><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="1" ${maximum < 1 ? 'disabled' : ''}>+1</button><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="5" ${maximum < 5 ? 'disabled' : ''}>+5</button><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="10" ${maximum < 10 ? 'disabled' : ''}>+10</button><button data-action="produce" data-building-id="${building.id}" data-recipe-id="${recipe.id}" data-quantity="max" ${maximum <= 0 ? 'disabled' : ''}>最大 ${maximum}</button></div></div>`;
       }).join('') || '<span>稼働レシピ未解禁</span>';
-      return `<div class="productionCard"><strong>${definition.name}</strong><p class="buildingDescription">${definition.description}</p><small>耐久 ${Math.ceil(building.hp)}/${building.maxHp}・${current}${summary.pendingUnits ? `・予約残 ${summary.pendingUnits}` : ''}</small>${buffer !== 'なし' ? `<small>保留：${buffer}</small>` : ''}<div class="recipeButtons">${recipeCards}</div><div class="buttonRow">${building.hp < building.maxHp ? `<button data-action="repair-building" data-building-id="${building.id}">修理</button>` : ''}${buffer !== 'なし' ? `<button data-action="collect-output" data-building-id="${building.id}">保留品を回収</button>` : ''}<button data-action="demolish-building" data-building-id="${building.id}">解体</button></div></div>`;
+      return `<div class="productionCard"><strong>${definition.name}</strong><p class="buildingDescription">${definition.description}</p><small>耐久 ${Math.ceil(building.hp)}/${building.maxHp}・${current}${summary.pendingUnits ? `・予約残 ${summary.pendingUnits}` : ''}</small>${buffer !== 'なし' ? `<small>未回収：${buffer}</small>` : ''}<div class="recipeButtons">${recipeCards}</div><div class="buttonRow">${building.hp < building.maxHp ? `<button data-action="repair-building" data-building-id="${building.id}">修理</button>` : ''}${buffer !== 'なし' ? `<button data-action="collect-output" data-building-id="${building.id}">未回収品を回収</button>` : ''}<button data-action="demolish-building" data-building-id="${building.id}">解体</button></div></div>`;
     }).join('') || '<p class="emptyText">稼働中の生産施設はまだありません。</p>';
 
 
     const active = ['progress', 'resources', 'settlement', 'production', 'reference'].includes(this.activeTab) ? this.activeTab : 'progress';
     const nextName = project ? CIVILIZATIONS[project.targetLevel]?.name : '到達済み';
-    this.body.innerHTML = `
+    this.body.innerHTML = this.localize(`
       <div class="uiTabBar" role="tablist" aria-label="文明画面の表示切替">
         ${tabButton('progress', '発展', active)}
         ${tabButton('resources', '資源', active)}
@@ -458,10 +484,10 @@ export class CivilizationUi {
         <div><small>拠点上限</small><strong>主要 ${limitText(baseLimitForCivilization(state.civilization.level))}</strong><span>簡易 ${fieldBaseSlotsUsed(state)}/${limitText(fieldBaseLimitForCivilization(state.civilization.level))}</span></div>
       </section>
       ${tabPanel('progress', active, `<h2>文明発展</h2>${projectHtml}`)}
-      ${tabPanel('resources', active, `<h2>資源一覧</h2><p class="sectionNote">通常資材は文明・建設・生産で使用します。戦術素材はITEMS / 戦術工房で管理します。</p><h3>倉庫効果</h3>${storageSummaryMarkup(state)}${resourceCategorySections(state)}`)}
-      ${tabPanel('settlement', active, `<h2>集落施設</h2><p class="sectionNote">施設は役割ごとに確認し、必要なものだけ建設します。</p>${buildingCatalog}`)}
+      ${tabPanel('resources', active, `<h2>資源一覧</h2><p class="sectionNote">通常資材は文明・建設・生産で使用します。所持数は保管上限を超えられず、上限超過分は取得されません。戦術素材はITEMS / 戦術工房で管理します。</p><h3>倉庫効果</h3>${storageSummaryMarkup(state)}${resourceCategorySections(state)}`)}
+      ${tabPanel('settlement', active, `<h2>集落施設</h2><p class="sectionNote">施設は役割ごとに確認できます。倉庫は同じ種類を複数建てても建設枠は1枠扱いになり、効果は合計されます。</p>${buildingCatalog}`)}
       ${tabPanel('production', active, `<h2>生産</h2><p class="sectionNote">加工・精錬を行う稼働施設だけ表示します。倉庫は資源・施設タブで合計効果を確認します。</p>${production}`)}
       ${tabPanel('reference', active, `<h2>防衛設備Tier</h2><p class="sectionNote">文明レベルと同じTierまでMAP上の既設設備を個別に強化できます。</p><div class="defenseTierGrid compactReference">${defenseTierCatalog(state)}</div><h2>派兵部隊</h2><p class="sectionNote">現在は主要拠点 ${friendlySquadCapacityForBase(state, { kind: 'MAJOR' })}枠、簡易拠点 ${friendlySquadCapacityForBase(state, { kind: 'FIELD' })}枠、全体指揮 ${friendlyGlobalCommandStatus(state).assigned}/${friendlyGlobalCommandStatus(state).capacity}です。簡易拠点からは突撃部隊・遊撃部隊・回収部隊を派兵できます。</p><div class="defenseTierGrid compactReference">${friendlyUnitCatalog(state)}</div>`)}
-    `;
+    `);
   }
 }

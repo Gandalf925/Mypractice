@@ -61,6 +61,36 @@ function fortifiedDefenseDamageMultiplier(state) {
   return Math.max(0.72, 1 - Math.min(0.28, surplusRatio * 0.70));
 }
 
+function underbuiltBreakthroughMultiplier(state) {
+  const level = Math.max(0, Math.floor(Number(state?.civilization?.level) || 0));
+  if (level < 5) return 1;
+  const activeDefenses = (state.combat?.defenses ?? []).filter(defense => defense.hp > 0).length;
+  const expectedLine = (18 + level * 7) * 0.85;
+  if (activeDefenses >= expectedLine) return 1;
+  const deficitRatio = Math.max(0, expectedLine - activeDefenses) / Math.max(1, expectedLine);
+  return 1 + Math.min(0.95, deficitRatio * 1.55);
+}
+
+function applyUnderbuiltOverrunPressure(state, deltaSeconds, events = null) {
+  const level = Math.max(0, Math.floor(Number(state?.civilization?.level) || 0));
+  if (level < 5 || !state.world?.city || state.world.city.hp <= 0) return;
+  const activeDefenses = (state.combat?.defenses ?? []).filter(defense => defense.hp > 0).length;
+  const expectedLine = (18 + level * 7) * 0.85;
+  if (activeDefenses >= expectedLine) return;
+  const populationCap = Math.max(1, enemyPopulationCap(state));
+  const population = enemyTotalPopulation(state);
+  const pressureStart = populationCap * 0.45;
+  if (population <= pressureStart) return;
+  const deficitRatio = Math.max(0, expectedLine - activeDefenses) / Math.max(1, expectedLine);
+  const pressureRatio = Math.max(0, population - pressureStart) / populationCap;
+  const damage = (level - 4) * deficitRatio * (0.34 + pressureRatio) * 0.34 * Math.max(0, Number(deltaSeconds) || 0);
+  if (damage <= 0) return;
+  state.world.city.hp = Math.max(0, state.world.city.hp - damage);
+  state.combat.cityRecoveryCooldown = CITY_RECOVERY_DELAY_SECONDS;
+  events?.emit('combat:city-hit', { damage, enemyId: 'underbuilt-overrun', unitCount: population, pressure: true });
+}
+
+
 function clearBarrierContact(enemy) {
   if (!enemy) return;
   enemy.contactKind = null;
@@ -332,7 +362,7 @@ function attackTargetFacility(state, enemy, definition, deltaSeconds, events) {
     events?.emit('message', { text: definition.attackMessage ?? `${definition.name}が防衛施設を攻撃しています。` });
   }
 
-  target.hp -= Math.max(0.1, definition.facilityDps ?? definition.barrierDps ?? 1) * groupAttackMultiplier(enemy, 'facility') * deltaSeconds * fortifiedDefenseDamageMultiplier(state);
+  target.hp -= Math.max(0.1, definition.facilityDps ?? definition.barrierDps ?? 1) * groupAttackMultiplier(enemy, 'facility') * deltaSeconds * fortifiedDefenseDamageMultiplier(state) * underbuiltBreakthroughMultiplier(state);
   if (target.hp > 0) return true;
 
   target.hp = 0;
@@ -635,7 +665,7 @@ export class EnemySystem {
         enemy.slowTimer = Math.max(0, (enemy.slowTimer ?? 0) - timeToStrike);
         enemy.contactDuration = Math.max(0, Number(enemy.contactDuration) || 0) + timeToStrike + 0.5;
         enemy.attackClock = 0;
-        barrier.hp -= definition.barrierDps * barrierContactDamageMultiplier(enemy, definition) * barrierCrowdPressureMultiplier(state, enemy, barrier, barrierPosition) * groupAttackMultiplier(enemy, 'barrier') * 0.5 * fortifiedDefenseDamageMultiplier(state);
+        barrier.hp -= definition.barrierDps * barrierContactDamageMultiplier(enemy, definition) * barrierCrowdPressureMultiplier(state, enemy, barrier, barrierPosition) * groupAttackMultiplier(enemy, 'barrier') * 0.5 * fortifiedDefenseDamageMultiplier(state) * underbuiltBreakthroughMultiplier(state);
         if (barrier.hp > 0) continue;
         barrier.hp = 0;
         const destroyed = detachDefense(state, barrier.id) ?? barrier;
@@ -808,6 +838,7 @@ export class EnemySystem {
       if (this.updateEnemy(state, enemy, deltaSeconds, frame)) remove.add(enemy.id);
     }
     if (remove.size > 0) state.combat.enemies = state.combat.enemies.filter(enemy => !remove.has(enemy.id) && enemy.hp > 0);
+    applyUnderbuiltOverrunPressure(state, deltaSeconds, this.events);
     state.combat.cohortRegroupClock = Math.max(0, Number(state.combat.cohortRegroupClock) || 0) + Math.max(0, Number(deltaSeconds) || 0);
     if (state.combat.cohortRegroupClock >= 0.75) {
       const civilizationLevel = Math.max(0, Math.floor(Number(state.civilization?.level) || 0));

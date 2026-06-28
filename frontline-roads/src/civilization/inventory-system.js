@@ -39,14 +39,14 @@ export function ensureInventoryState(state, { initialize = false } = {}) {
   for (const key of RESOURCE_KEYS) resources[key] = Math.max(0, Math.floor(Number(state.inventory.resources[key]) || 0));
   if (initialize && RESOURCE_KEYS.every(key => resources[key] === 0)) Object.assign(resources, INITIAL_RESOURCES);
   state.inventory.resources = resources;
-  state.inventory.overflow ??= {};
+  delete state.inventory.overflow;
+  delete state.inventory.lastOverflowSweepAt;
   state.inventory.capacity ??= {};
-  state.inventory.lastOverflowSweepAt ??= state.runtime?.worldTimeMs ?? Date.now();
   recalculateCapacity(state);
   return state.inventory;
 }
 
-export function recalculateCapacity(state, timestamp = state.runtime?.worldTimeMs ?? Date.now()) {
+export function recalculateCapacity(state) {
   const base = { ...(currentCivilization(state).capacity ?? CIVILIZATIONS[0].capacity) };
   const counts = new Map();
   for (const building of state.civilization?.buildings ?? []) {
@@ -63,32 +63,9 @@ export function recalculateCapacity(state, timestamp = state.runtime?.worldTimeM
   for (const key of RESOURCE_KEYS) {
     const capacity = base[resourceCategory(key)] ?? 0;
     const stored = state.inventory.resources[key] ?? 0;
-    if (stored <= capacity) continue;
-    const overflowAmount = stored - capacity;
-    state.inventory.resources[key] = capacity;
-    const overflow = state.inventory.overflow[key] ?? { amount: 0, expiresAt: timestamp + 86400000 };
-    overflow.amount += overflowAmount;
-    overflow.expiresAt = Math.max(overflow.expiresAt, timestamp + 86400000);
-    state.inventory.overflow[key] = overflow;
+    if (stored > capacity) state.inventory.resources[key] = capacity;
   }
-  restoreOverflow(state, timestamp);
   return base;
-}
-
-export function restoreOverflow(state, timestamp = state.runtime?.worldTimeMs ?? Date.now()) {
-  for (const [key, overflow] of Object.entries(state.inventory.overflow ?? {})) {
-    if (!overflow || overflow.amount <= 0 || overflow.expiresAt <= timestamp) {
-      delete state.inventory.overflow[key];
-      continue;
-    }
-    const capacity = state.inventory.capacity[resourceCategory(key)] ?? 0;
-    const free = Math.max(0, capacity - (state.inventory.resources[key] ?? 0));
-    const restored = Math.min(free, overflow.amount);
-    state.inventory.resources[key] = (state.inventory.resources[key] ?? 0) + restored;
-    overflow.amount -= restored;
-    if (overflow.amount <= 0) delete state.inventory.overflow[key];
-  }
-  state.inventory.lastOverflowSweepAt = timestamp;
 }
 
 export function hasBundle(state, bundle) {
@@ -111,35 +88,25 @@ export function consumeBundle(state, bundle) {
   return true;
 }
 
-export function addBundle(state, bundle, { timestamp = state.runtime?.worldTimeMs ?? Date.now() } = {}) {
+export function addBundle(state, bundle) {
   ensureInventoryState(state);
   const accepted = {};
-  const overflowed = {};
+  const rejected = {};
   for (const [key, amount] of Object.entries(normalizeBundle(bundle))) {
     const category = resourceCategory(key);
     const capacity = state.inventory.capacity[category] ?? 0;
     const current = state.inventory.resources[key] ?? 0;
     const acceptedAmount = Math.min(amount, Math.max(0, capacity - current));
-    const overflowAmount = amount - acceptedAmount;
+    const rejectedAmount = amount - acceptedAmount;
     if (acceptedAmount > 0) {
       state.inventory.resources[key] = current + acceptedAmount;
       accepted[key] = acceptedAmount;
     }
-    if (overflowAmount > 0) {
-      const overflow = state.inventory.overflow[key] ?? { amount: 0, expiresAt: timestamp + 86400000 };
-      overflow.amount += overflowAmount;
-      overflow.expiresAt = Math.max(overflow.expiresAt, timestamp + 86400000);
-      state.inventory.overflow[key] = overflow;
-      overflowed[key] = overflowAmount;
-    }
+    if (rejectedAmount > 0) rejected[key] = rejectedAmount;
   }
-  return { accepted, overflowed };
+  return { accepted, rejected };
 }
 
 export class InventorySystem {
-  update(state) {
-    if (!state.inventory) return;
-    const timestamp = state.runtime?.worldTimeMs ?? Date.now();
-    if (timestamp - (state.inventory.lastOverflowSweepAt ?? 0) >= 10000) restoreOverflow(state, timestamp);
-  }
+  update() {}
 }

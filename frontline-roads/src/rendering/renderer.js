@@ -5,7 +5,7 @@ import {
   drawRadarStaticBackdrop, drawRadarSweep, drawRadarStaticOverlay,
   radarCenter, radarSweepAngle
 } from './radar-renderer.js';
-import { drawThreatRoutes, drawTacticalFocus } from './tactical-overlay.js';
+import { drawTacticalFocus } from './tactical-overlay.js';
 import { drawBuildPlacement } from './build-placement-overlay.js';
 import { drawFriendlyOrderPlanning } from './friendly-order-overlay.js';
 import { CombatEffects } from './combat-effects.js';
@@ -42,7 +42,7 @@ export class Renderer {
     this.buildPlacement = null;
     this.friendlyOrderPlanning = null;
     this.effects = new CombatEffects();
-    this.preferences = { quality: 'balanced', motion: true, routes: 'priority' };
+    this.preferences = { quality: 'balanced', motion: true };
     this.cssWidth = 1;
     this.cssHeight = 1;
     this.dpr = 1;
@@ -237,7 +237,6 @@ export class Renderer {
 
     if (this.graph && ACTIVE_GAME_STATES.has(state?.lifecycle)) {
       drawFrontierSignals(this.context, state, this.camera, visualTime, scenePreferences);
-      drawThreatRoutes(this.context, state, this.camera, this.focus, scenePreferences);
       if (this.rebuildCombatLayer(state, center, sweepAngle, visualTime, scenePreferences)) this.drawCachedLayer(this.combatLayer);
       else drawCombatState(this.context, state, this.camera, { center, sweepAngle, timeMs: visualTime, preferences: scenePreferences });
       drawTacticalFocus(this.context, state, this.camera, this.focus, visualTime, this.preferences);

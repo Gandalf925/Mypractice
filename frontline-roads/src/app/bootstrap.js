@@ -39,6 +39,7 @@ import { RoadsideSupplySystem } from '../exploration/roadside-supplies.js';
 import { RESOURCE_LABELS } from '../civilization/data.js';
 import { TabCoordinator } from '../persistence/tab-coordinator.js';
 import { registerPwa } from './pwa.js';
+import { I18nController } from '../i18n/catalog.js';
 
 
 async function clearFrontlineRoadsCaches() {
@@ -71,6 +72,8 @@ class FrontlineRoadsApp {
     }));
     this.roadChunkCache = new RoadChunkCache();
     this.camera = new Camera();
+    this.i18n = new I18nController();
+    this.i18n.apply(globalThis.document);
     this.renderer = new Renderer(queryRequired('#mapCanvas'), this.camera);
     this.renderer.setStateProvider(() => this.store.renderView());
     this.renderer.bindEvents(this.events);
@@ -96,6 +99,7 @@ class FrontlineRoadsApp {
       camera: this.camera,
       renderer: this.renderer,
       notifications: this.notifications,
+      i18n: this.i18n,
       persist: () => this.persist(),
       openDeployment: target => {
         if (target?.kind === 'enemyBase') this.deploymentUi?.openForEnemyBase(target.id);
@@ -123,13 +127,16 @@ class FrontlineRoadsApp {
     });
     this.deploymentUi = new DeploymentUi({
       store: this.store,
+      i18n: this.i18n,
       friendlyForceSystem: this.combatSystem.friendlyForceSystem,
       notifications: this.notifications,
+      i18n: this.i18n,
       persist: () => this.persist(),
       beginRoutePlanning: options => this.combatUi.beginDeploymentRoutePlanning(options)
     });
     this.baseCommandUi = new BaseCommandUi({
       store: this.store,
+      i18n: this.i18n,
       playerBaseSystem: this.civilizationSystem.playerBases,
       fieldBaseSystem: this.civilizationSystem.fieldBases,
       renderer: this.renderer,
@@ -138,12 +145,14 @@ class FrontlineRoadsApp {
     });
     this.civilizationUi = new CivilizationUi({
       store: this.store,
+      i18n: this.i18n,
       civilizationSystem: this.civilizationSystem,
       notifications: this.notifications,
       persist: () => this.persist()
     });
     this.roadsideSuppliesUi = new RoadsideSuppliesUi({
       store: this.store,
+      i18n: this.i18n,
       roadsideSupplySystem: this.roadsideSupplySystem,
       notifications: this.notifications,
       persist: options => this.persist(options)
@@ -152,7 +161,16 @@ class FrontlineRoadsApp {
       store: this.store,
       onSave: () => this.persist(),
       onReset: () => this.reset(),
-      notifications: this.notifications
+      notifications: this.notifications,
+      i18n: this.i18n,
+      onLanguageChange: () => {
+        this.i18n.apply(globalThis.document);
+        this.combatUi.update();
+        this.deploymentUi.update();
+        this.baseCommandUi.update();
+        this.civilizationUi.update();
+        this.roadsideSuppliesUi.update();
+      }
     });
     this.gameLoop = new GameLoop({
       store: this.store,
@@ -437,7 +455,7 @@ class FrontlineRoadsApp {
         this.initialRoadExpansionPending = false;
         this.initialRoadFallback = true;
         this.baseScreen.showSelection(this.selection, { roadsPending: false });
-        this.notifications.show('中心部の道路で開始できます。選択地点周辺を確認してから拠点を確定し、外周は移動に合わせて拡張します。', 6500);
+        this.notifications.show('中心部の道路で開始できます。開始地点を選んで拠点を確定してください。周辺道路は移動や測量施設で追加されます。', 6500);
       } else {
         this.initialRoadFallback = false;
         this.installInitialRoadGraph(result.graph, currentLocation, {
@@ -449,7 +467,7 @@ class FrontlineRoadsApp {
       if (generation !== this.startupGeneration || error?.name === 'AbortError') return;
       this.initialRoadExpansionPending = false;
       this.store.setError(error);
-      this.baseScreen.showError([error?.message ?? '初期化に失敗しました。', error?.details ? `診断: ${error.details}` : null].filter(Boolean).join('\n'));
+      this.baseScreen.showError([error?.message ?? '初期化に失敗しました。', error?.details ? `詳細: ${error.details}` : null].filter(Boolean).join('\n'));
     }
   }
 
@@ -475,7 +493,7 @@ class FrontlineRoadsApp {
     }
     if (this.baseConfirmationPending) return;
     if (this.initialRoadExpansionPending) {
-      this.notifications.show('外周道路を確認しています。完了後に拠点を確定できます。');
+      this.notifications.show('周辺道路を確認しています。完了後に拠点を確定できます。');
       return;
     }
     if (!this.selection?.valid || !this.basePlacement) return;

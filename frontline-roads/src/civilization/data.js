@@ -19,14 +19,14 @@ export const RESOURCE_LABELS = Object.freeze({
 export const INITIAL_RESOURCES = Object.freeze({ wood: 150, stone: 100, fiber: 70 });
 
 export const CIVILIZATIONS = Object.freeze([
-  { level: 0, name: '原始集落', central: '中央焚火', slots: 2, graceMinutes: 0, capacity: { base: 300, processed: 0, ore: 0, metal: 0 }, unlocks: ['barrier0', 'single0', 'area0', 'slow0', 'repair0'] },
-  { level: 1, name: '定住集落', central: '集会小屋', slots: 5, graceMinutes: 15, capacity: { base: 800, processed: 200, ore: 0, metal: 0 }, unlocks: ['storehouse1', 'carpentry', 'ropeworks', 'stonecutter', 'barrier1', 'single1', 'area1', 'slow1', 'repair1', 'survey1', 'medical1', 'fieldBarracks1'] },
-  { level: 2, name: '石工集落', central: '石造集会所', slots: 10, graceMinutes: 15, capacity: { base: 1500, processed: 500, ore: 300, metal: 300 }, unlocks: ['storehouse2', 'charcoalKiln', 'copperFurnace', 'tinFurnace', 'trialBronzeFurnace', 'barrier2', 'gate2', 'single2', 'area2', 'slow2', 'repair2', 'survey2', 'medical2', 'fieldBarracks2'] },
-  { level: 3, name: '青銅砦', central: '青銅の砦', slots: 14, graceMinutes: 15, capacity: { base: 3000, processed: 1000, ore: 500, metal: 500 }, unlocks: ['storehouse3', 'bronzeWorkshop', 'bloomery', 'forge', 'barrier3', 'gate3', 'single3', 'area3', 'slow3', 'repair3', 'survey3', 'medical3', 'fieldBarracks3'] },
-  { level: 4, name: '鉄器都市', central: '鉄の城館', slots: 17, graceMinutes: 0, capacity: { base: 6000, processed: 2000, ore: 1000, metal: 1000 }, unlocks: ['storehouse4', 'tacticalWorkshop', 'barrier4', 'gate4', 'single4', 'area4', 'slow4', 'repair4', 'survey4', 'medical4', 'fieldBarracks4'] },
-  { level: 5, name: '鋼鉄城塞', central: '鋼鉄本丸', slots: 20, graceMinutes: 20, capacity: { base: 9000, processed: 3200, ore: 1500, metal: 1800 }, unlocks: ['steelStorehouse', 'steelworks', 'fortressDepot', 'barrier5', 'gate5', 'single5', 'area5', 'slow5', 'repair5', 'survey5', 'medical5', 'fieldBarracks5'] },
-  { level: 6, name: '機械都市', central: '機関司令庁', slots: 22, graceMinutes: 20, capacity: { base: 13000, processed: 5000, ore: 2200, metal: 3000 }, unlocks: ['mechanismStorehouse', 'mechanismWorkshop', 'barrier6', 'gate6', 'single6', 'area6', 'slow6', 'repair6', 'survey6', 'medical6', 'fieldBarracks6'] },
-  { level: 7, name: '街道連邦', central: '統合司令府', slots: 25, graceMinutes: 30, capacity: { base: 18000, processed: 7500, ore: 3200, metal: 4500 }, unlocks: ['federalStorehouse', 'integratedWorks', 'barrier7', 'gate7', 'single7', 'area7', 'slow7', 'repair7', 'survey7', 'medical7', 'fieldBarracks7'] }
+  { level: 0, name: '原始集落', central: '中央焚火', slots: 2, graceMinutes: 0, capacity: { base: 600, processed: 0, ore: 0, metal: 0 }, unlocks: ['barrier0', 'single0', 'area0', 'slow0', 'repair0'] },
+  { level: 1, name: '定住集落', central: '集会小屋', slots: 5, graceMinutes: 15, capacity: { base: 1800, processed: 600, ore: 0, metal: 0 }, unlocks: ['storehouse1', 'carpentry', 'ropeworks', 'stonecutter', 'barrier1', 'single1', 'area1', 'slow1', 'repair1', 'survey1', 'medical1', 'fieldBarracks1'] },
+  { level: 2, name: '石工集落', central: '石造集会所', slots: 10, graceMinutes: 15, capacity: { base: 3600, processed: 1400, ore: 1000, metal: 800 }, unlocks: ['storehouse2', 'charcoalKiln', 'copperFurnace', 'tinFurnace', 'trialBronzeFurnace', 'barrier2', 'gate2', 'single2', 'area2', 'slow2', 'repair2', 'survey2', 'medical2', 'fieldBarracks2'] },
+  { level: 3, name: '青銅砦', central: '青銅の砦', slots: 14, graceMinutes: 15, capacity: { base: 6500, processed: 2600, ore: 1800, metal: 1600 }, unlocks: ['storehouse3', 'bronzeWorkshop', 'bloomery', 'forge', 'barrier3', 'gate3', 'single3', 'area3', 'slow3', 'repair3', 'survey3', 'medical3', 'fieldBarracks3'] },
+  { level: 4, name: '鉄器都市', central: '鉄の城館', slots: 17, graceMinutes: 0, capacity: { base: 10000, processed: 4300, ore: 3000, metal: 2800 }, unlocks: ['storehouse4', 'tacticalWorkshop', 'barrier4', 'gate4', 'single4', 'area4', 'slow4', 'repair4', 'survey4', 'medical4', 'fieldBarracks4'] },
+  { level: 5, name: '鋼鉄城塞', central: '鋼鉄本丸', slots: 20, graceMinutes: 20, capacity: { base: 15000, processed: 6500, ore: 4600, metal: 4800 }, unlocks: ['steelStorehouse', 'steelworks', 'fortressDepot', 'barrier5', 'gate5', 'single5', 'area5', 'slow5', 'repair5', 'survey5', 'medical5', 'fieldBarracks5'] },
+  { level: 6, name: '機械都市', central: '機関司令庁', slots: 22, graceMinutes: 20, capacity: { base: 21000, processed: 9000, ore: 6500, metal: 7500 }, unlocks: ['mechanismStorehouse', 'mechanismWorkshop', 'barrier6', 'gate6', 'single6', 'area6', 'slow6', 'repair6', 'survey6', 'medical6', 'fieldBarracks6'] },
+  { level: 7, name: '街道連邦', central: '統合司令府', slots: 25, graceMinutes: 30, capacity: { base: 30000, processed: 13000, ore: 9000, metal: 11000 }, unlocks: ['federalStorehouse', 'integratedWorks', 'barrier7', 'gate7', 'single7', 'area7', 'slow7', 'repair7', 'survey7', 'medical7', 'fieldBarracks7'] }
 ]);
 
 export const CIVILIZATION_PROJECTS = Object.freeze({
@@ -71,13 +71,13 @@ export const SETTLEMENT_BUILDINGS = Object.freeze({
   bloomery: { name: '塊鉄炉', description: '鉄鉱石と木炭から鉄塊を作ります。鍛鉄生産の前工程です。', level: 3, cost: { cutStone: 30, timber: 12, bronzeIngot: 8, charcoal: 20 } },
   forge: { name: '鍛冶場', description: '鉄塊を鍛鉄へ加工します。鉄器施設と上位防衛設備に使います。', level: 3, cost: { cutStone: 26, timber: 16, bronzeIngot: 10, charcoal: 15 } },
   storehouse4: { name: '鉄器倉庫', description: '全資源区分の保管上限を増やし、鉄器都市の備蓄を支えます。', level: 4, cost: { cutStone: 45, timber: 24, wroughtIron: 16 }, capacityBonus: { base: 3000, processed: 1000, ore: 500, metal: 500 } },
-  tacticalWorkshop: { name: '戦術工房', description: 'レア戦術素材と高級資材を組み合わせ、地雷・誘導信号・遠隔支援などの戦術アイテムを製作します。', level: 4, cost: { cutStone: 60, timber: 36, wroughtIron: 20, charcoal: 40 }, limit: 1 },
+  tacticalWorkshop: { name: '戦術工房', description: '戦術素材と加工・金属資材を使い、地雷・誘導信号・遠隔支援・出撃札を製作します。', level: 4, cost: { cutStone: 60, timber: 36, wroughtIron: 20, charcoal: 40 }, limit: 1 },
   fortressDepot: { name: '要塞庫', description: '全資材カテゴリの保管上限を大幅に増やす高容量備蓄施設です。', level: 5, cost: { cutStone: 130, timber: 70, wroughtIron: 40, steel: 24 }, capacityBonus: { base: 9000, processed: 4500, ore: 2500, metal: 3500 }, limit: 1 },
   steelStorehouse: { name: '鋼鉄倉庫', description: '鋼材を含む金属資源と大規模防衛用資材の保管上限を増やします。', level: 5, cost: { cutStone: 60, timber: 30, wroughtIron: 24, steel: 8 }, capacityBonus: { base: 3000, processed: 1200, ore: 500, metal: 1000 } },
   steelworks: { name: '製鋼炉', description: '鍛鉄と木炭から鋼材を製造します。鋼鉄防衛設備と工兵部隊に必要です。', level: 5, cost: { cutStone: 55, timber: 26, wroughtIron: 28, charcoal: 40 } },
   mechanismStorehouse: { name: '機械倉庫', description: '鋼材と機構部品を中心に、機械都市の高度資材を保管します。', level: 6, cost: { cutStone: 80, timber: 36, steel: 24, mechanism: 6 }, capacityBonus: { base: 4000, processed: 1800, ore: 700, metal: 1400 } },
   mechanismWorkshop: { name: '機構工房', description: '鋼材・加工木材・縄から機構部品を製造します。機械防衛設備と砲撃部隊に必要です。', level: 6, cost: { cutStone: 75, timber: 40, steel: 32, rope: 20 } },
-  federalStorehouse: { name: '連邦倉庫', description: '全資源区分の保管上限を大幅に増やし、無制限の拠点拡張を支えます。', level: 7, cost: { cutStone: 110, timber: 55, steel: 36, mechanism: 18 }, capacityBonus: { base: 6000, processed: 2500, ore: 1000, metal: 2000 } },
+  federalStorehouse: { name: '連邦倉庫', description: '全資源区分の保管上限を大幅に増やし、街道連邦の大規模備蓄を支えます。', level: 7, cost: { cutStone: 110, timber: 55, steel: 36, mechanism: 18 }, capacityBonus: { base: 6000, processed: 2500, ore: 1000, metal: 2000 } },
   integratedWorks: { name: '統合工廠', description: '鋼材と機構部品を高効率で一括生産し、街道連邦全体へ供給します。', level: 7, cost: { cutStone: 100, timber: 50, steel: 40, mechanism: 24 } }
 });
 

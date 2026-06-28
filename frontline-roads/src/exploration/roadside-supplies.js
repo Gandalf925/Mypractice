@@ -609,53 +609,96 @@ export function useBreachCharge(state, events = null) {
   return { ok: true, base: target };
 }
 
-function nearestAttackTargetBase(state, player, rangeMeters) {
-  const graph = state.world?.roadGraph;
-  return (state.world?.enemyBases ?? [])
-    .filter(base => base.alive && base.hp > 0)
-    .map(base => ({ base, point: graph?.nodeById?.get(base.nodeId) ?? base }))
-    .filter(entry => finitePoint(entry.point) && distanceSquared(entry.point, player) <= rangeMeters * rangeMeters)
-    .sort((a, b) => distanceSquared(a.point, player) - distanceSquared(b.point, player))[0]?.base ?? null;
+function deploymentTargetName(target, kind) {
+  if (kind === 'enemyBase') return target?.name ?? '敵拠点';
+  if (kind === 'enemy') return target?.name ?? ROADSIDE_USE_DEFINITIONS[target?.type]?.name ?? '敵部隊';
+  return '対象';
 }
 
-function nearestEnemyTarget(state, player, rangeMeters) {
-  return (state.combat?.enemies ?? [])
-    .filter(enemy => enemy.hp > 0 && enemy.departDelay <= 0)
-    .map(enemy => ({ enemy, point: enemyPosition(state, enemy) }))
-    .filter(entry => finitePoint(entry.point) && distanceSquared(entry.point, player) <= rangeMeters * rangeMeters)
-    .sort((a, b) => distanceSquared(a.point, player) - distanceSquared(b.point, player))[0]?.enemy ?? null;
+export function roadsideDeploymentTargets(state, key) {
+  const definition = ROADSIDE_USE_DEFINITIONS[key];
+  if (!definition?.squadType) return [];
+  const eligibility = locationEligibility(state, { strict: true });
+  if (!eligibility.ok) return [];
+  const originNode = nearestNode(state, eligibility.player);
+  if (!originNode) return [];
+  const graph = state.world?.roadGraph;
+  const rangeMeters = Math.max(1, Number(definition.searchRangeMeters) || 1);
+  const radius2 = rangeMeters * rangeMeters;
+  const targetKind = definition.targetKind === 'enemy' ? 'enemy' : 'enemyBase';
+  const entries = targetKind === 'enemy'
+    ? (state.combat?.enemies ?? [])
+      .filter(enemy => enemy.hp > 0 && enemy.departDelay <= 0)
+      .map(enemy => ({ kind: 'enemy', id: enemy.id, object: enemy, point: enemyPosition(state, enemy), nodeId: enemy.nodeId, hp: enemy.hp, maxHp: enemy.maxHp, label: enemy.type ?? '敵部隊' }))
+    : (state.world?.enemyBases ?? [])
+      .filter(base => base.alive && base.hp > 0)
+      .map(base => ({ kind: 'enemyBase', id: base.id, object: base, point: graph?.nodeById?.get(base.nodeId) ?? base, nodeId: base.nodeId, hp: base.hp, maxHp: base.maxHp, label: base.name ?? '敵拠点' }));
+  const targets = [];
+  for (const entry of entries) {
+    if (!finitePoint(entry.point) || !entry.nodeId) continue;
+    const distanceMeters = Math.round(Math.sqrt(distanceSquared(entry.point, eligibility.player)));
+    if (distanceMeters > rangeMeters) continue;
+    const path = findFriendlyRoadPath(state, originNode.id, entry.nodeId);
+    targets.push({
+      kind: entry.kind,
+      id: entry.id,
+      name: deploymentTargetName(entry.object, entry.kind),
+      label: entry.label,
+      nodeId: entry.nodeId,
+      distanceMeters,
+      routeMeters: path ? Math.round(path.cost ?? 0) : null,
+      hp: Math.max(0, Math.round(Number(entry.hp) || 0)),
+      maxHp: Math.max(1, Math.round(Number(entry.maxHp) || Number(entry.hp) || 1)),
+      available: Boolean(path),
+      route: path
+    });
+  }
+  targets.sort((a, b) => Number(!a.available) - Number(!b.available) || a.distanceMeters - b.distanceMeters || String(a.id).localeCompare(String(b.id)));
+  return targets;
+}
+
+function resolveDeploymentTarget(state, key, targetRequest = null) {
+  const definition = ROADSIDE_USE_DEFINITIONS[key];
+  const targets = roadsideDeploymentTargets(state, key);
+  if (targetRequest?.id) {
+    const requestedKind = targetRequest.kind ?? definition?.targetKind ?? 'enemyBase';
+    return targets.find(target => target.kind === requestedKind && target.id === targetRequest.id) ?? null;
+  }
+  return targets.find(target => target.available) ?? targets[0] ?? null;
 }
 
 function temporaryActiveCount(state) {
   return (state.combat?.friendlySquads ?? []).filter(squad => squad.temporaryDeployment && squad.hp > 0 && !['RECOVERING', 'READY'].includes(squad.status)).length;
 }
 
-export function useLocalDeploymentCall(state, key, events = null) {
+export function useLocalDeploymentCall(state, key, events = null, targetRequest = null) {
   const definition = ROADSIDE_USE_DEFINITIONS[key];
   if (!definition?.squadType) return { ok: false, reason: 'このアイテムは現地出撃に対応していません。' };
   const eligibility = locationEligibility(state, { strict: true });
   if (!eligibility.ok) return eligibility;
   if (temporaryActiveCount(state) >= 1) return { ok: false, reason: '現地出撃中の一時部隊が残っています。任務完了後に使用してください。' };
   if (!friendlySquadUnlocked(state, definition.squadType)) return { ok: false, reason: `${definition.name}は現在の文明レベルでは使用できません。` };
-  if (!consumeInventory(state, key)) return { ok: false, reason: `${definition.name}を所持していません。` };
 
   const originNode = nearestNode(state, eligibility.player);
-  if (!originNode) { refundInventory(state, key); return { ok: false, reason: '現在地周辺の道路ノードが見つかりません。' }; }
-  const target = definition.targetKind === 'enemy'
-    ? nearestEnemyTarget(state, eligibility.player, definition.searchRangeMeters)
-    : nearestAttackTargetBase(state, eligibility.player, definition.searchRangeMeters);
-  if (!target) {
-    refundInventory(state, key);
+  if (!originNode) return { ok: false, reason: '現在地周辺の道路ノードが見つかりません。' };
+
+  const selected = resolveDeploymentTarget(state, key, targetRequest);
+  if (!selected) {
     return { ok: false, reason: `現在地から${definition.searchRangeMeters}m以内に出撃対象がありません。` };
   }
-  const targetNodeId = definition.targetKind === 'enemy'
-    ? target.nodeId
-    : target.nodeId;
-  const path = findFriendlyRoadPath(state, originNode.id, targetNodeId);
-  if (!path) { refundInventory(state, key); return { ok: false, reason: '現在地から対象へ接続する道路経路がありません。' }; }
+  if (!selected.available || !selected.route) {
+    return { ok: false, reason: `${selected.name ?? '指定対象'}へ接続する道路経路がありません。` };
+  }
+  if (!consumeInventory(state, key)) return { ok: false, reason: `${definition.name}を所持していません。` };
+
+  const targetNodeId = selected.nodeId;
+  const path = selected.route;
+  const target = definition.targetKind === 'enemy'
+    ? (state.combat?.enemies ?? []).find(enemy => enemy.id === selected.id && enemy.hp > 0) ?? selected
+    : (state.world?.enemyBases ?? []).find(base => base.id === selected.id && base.alive && base.hp > 0) ?? selected;
   const runtime = friendlySquadRuntimeDefinition(state, definition.squadType);
   const fallbackBase = activePlayerBases(state)[0] ?? state.world?.homeBase ?? null;
-  const squadId = stableId('local_squad', key, originNode.id, target.id, state.runtime?.worldTimeMs ?? Date.now(), positiveHash(key, target.id));
+  const squadId = stableId('local_squad', key, originNode.id, selected.id, state.runtime?.worldTimeMs ?? Date.now(), positiveHash(key, selected.id));
   const squad = {
     id: squadId,
     type: runtime.type,
@@ -665,9 +708,9 @@ export function useLocalDeploymentCall(state, key, events = null) {
     originBaseId: fallbackBase?.id ?? 'local',
     deployedAt: state.runtime?.worldTimeMs ?? Date.now(),
     missionType: definition.targetKind === 'enemy' ? 'INTERCEPT' : 'ATTACK',
-    targetBaseId: definition.targetKind === 'enemy' ? null : target.id,
-    missionTargetBaseId: definition.targetKind === 'enemy' ? null : target.id,
-    targetEnemyId: definition.targetKind === 'enemy' ? target.id : null,
+    targetBaseId: definition.targetKind === 'enemy' ? null : selected.id,
+    missionTargetBaseId: definition.targetKind === 'enemy' ? null : selected.id,
+    targetEnemyId: definition.targetKind === 'enemy' ? selected.id : null,
     targetRecoveryItemId: null,
     recoveryCollectionProgressSec: null,
     nodeId: originNode.id,
@@ -690,12 +733,12 @@ export function useLocalDeploymentCall(state, key, events = null) {
     recoveryStartedAt: null,
     reorganizationRemaining: 0,
     readyAt: null,
-    temporaryDeployment: { itemKey: key, name: definition.name, createdAt: state.runtime?.worldTimeMs ?? Date.now() }
+    temporaryDeployment: { itemKey: key, name: definition.name, targetKind: selected.kind, targetId: selected.id, createdAt: state.runtime?.worldTimeMs ?? Date.now() }
   };
   state.combat.friendlySquads.push(squad);
   events?.emit('friendly:squad-deployed', { squad, origin: { nodeId: originNode.id, name: '現在地' }, target, cost: {}, temporary: true });
-  events?.emit('message', { text: `${definition.name}を使用し、現在地から${runtime.name}を一時出撃させました。` });
-  return { ok: true, squad, target };
+  events?.emit('message', { text: `${definition.name}を使用し、${selected.name ?? '指定対象'}へ${runtime.name}を一時出撃させました。` });
+  return { ok: true, squad, target, selectedTarget: selected };
 }
 
 
@@ -993,6 +1036,8 @@ export class RoadsideSupplySystem {
     return collected;
   }
   refresh(state, force = true) { return refreshRoadsideSupplies(state, force); }
+  deploymentTargets(state, key) { return roadsideDeploymentTargets(state, key); }
+  useDeploymentTarget(state, key, target) { return useLocalDeploymentCall(state, key, this.events, target); }
   use(state, key) {
     if (key === 'sweepSignal') return useSweepSignal(state, this.events);
     if (key === 'breachCharge') return useBreachCharge(state, this.events);

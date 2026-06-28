@@ -4,7 +4,7 @@ const DISABLED_PRESENTATION = Object.freeze({
   name: '廃止済み探索地点',
   duration: 0,
   icon: '',
-  description: '探索ミッションは道端アイテム機能へ統合されました。',
+  description: '探索ミッションは廃止済みです。現在は道端物資を利用します。',
   status: 'DISABLED'
 });
 
@@ -28,7 +28,7 @@ export class ExplorationSystem {
   reconcile(state) { return ensureExplorationState(state); }
   beginInteraction(state, _siteId) {
     ensureExplorationState(state);
-    return { ok: false, reason: '探索ミッションは廃止されました。道端アイテムを利用してください。' };
+    return { ok: false, reason: '探索ミッションは廃止済みです。現在はITEMS画面の道端物資を利用してください。' };
   }
   update(state, _deltaSeconds = 0) {
     ensureExplorationState(state);

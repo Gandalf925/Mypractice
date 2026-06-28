@@ -68,7 +68,7 @@ function deliverOutput(state, recipe) {
     accepted: { ...projectAccepted, ...(inventoryResult.accepted ?? {}) },
     projectAccepted,
     inventoryAccepted: inventoryResult.accepted ?? {},
-    overflowed: inventoryResult.overflowed ?? {}
+    rejected: inventoryResult.rejected ?? {}
   };
 }
 
@@ -173,12 +173,7 @@ export class ProductionSystem {
     const recipe = PRODUCTION_RECIPES[current.recipeId];
     const order = queue.orders.find(item => item.id === current.orderId);
     const result = deliverOutput(state, recipe);
-    for (const [resource, amount] of Object.entries(result.overflowed)) {
-      const overflow = state.inventory.overflow[resource];
-      if (overflow) {
-        overflow.amount -= amount;
-        if (overflow.amount <= 0) delete state.inventory.overflow[resource];
-      }
+    for (const [resource, amount] of Object.entries(result.rejected)) {
       building.outputBuffer[resource] = (building.outputBuffer[resource] ?? 0) + amount;
     }
     if (order) order.remaining -= 1;
@@ -194,7 +189,7 @@ export class ProductionSystem {
     if (recipe.projectDelivery && Object.keys(result.projectAccepted ?? {}).length > 0) refreshProjectStatus(state);
     queue.current = null;
     while (queue.orders.length && queue.orders[0].remaining <= 0) queue.orders.shift();
-    this.events?.emit('civilization:produced', { buildingId: building.id, recipeId: current.recipeId, output: recipe.output, overflowed: result.overflowed });
+    this.events?.emit('civilization:produced', { buildingId: building.id, recipeId: current.recipeId, output: recipe.output, rejected: result.rejected });
     this.startNext(state, queue, building);
   }
 
@@ -231,12 +226,7 @@ export class ProductionSystem {
     if (Object.values(buffered).every(value => !value)) return { ok: false, reason: '回収できる生産物はありません。' };
     building.outputBuffer = {};
     const result = addBundle(state, buffered);
-    for (const [resource, amount] of Object.entries(result.overflowed)) {
-      const overflow = state.inventory.overflow[resource];
-      if (overflow) {
-        overflow.amount -= amount;
-        if (overflow.amount <= 0) delete state.inventory.overflow[resource];
-      }
+    for (const [resource, amount] of Object.entries(result.rejected)) {
       building.outputBuffer[resource] = (building.outputBuffer[resource] ?? 0) + amount;
     }
     return { ok: true, ...result, remaining: { ...building.outputBuffer } };
