@@ -48,9 +48,10 @@ function next(values, current) {
 const QUALITY_LABELS = Object.freeze({ full: '高精細', balanced: '標準', minimal: '省電力' });
 
 export class RadarPreferences {
-  constructor({ onChange = null, storage = undefined, documentRef = globalThis.document, environment = globalThis } = {}) {
+  constructor({ onChange = null, storage = undefined, documentRef = globalThis.document, environment = globalThis, i18n = null } = {}) {
     this.onChange = onChange;
     this.environment = environment;
+    this.i18n = i18n;
     this.storage = storage === undefined ? safeStorage(environment) : storage;
     this.document = documentRef;
     this.value = this.load();
@@ -80,15 +81,19 @@ export class RadarPreferences {
     this.apply();
   }
 
+  localize(text) {
+    return this.i18n?.copy?.(text) ?? String(text ?? '');
+  }
+
   apply() {
     const root = this.document?.documentElement;
     if (root) {
       root.dataset.radarQuality = this.value.quality;
       root.dataset.radarMotion = this.value.motion ? 'on' : 'off';
     }
-    if (this.qualityButton) this.qualityButton.textContent = `表示品質：${QUALITY_LABELS[this.value.quality]}`;
+    if (this.qualityButton) this.qualityButton.textContent = this.localize(`表示品質：${QUALITY_LABELS[this.value.quality]}`);
     if (this.motionButton) {
-      this.motionButton.textContent = `アニメーション：${this.value.motion ? 'ON' : 'OFF'}`;
+      this.motionButton.textContent = this.localize(`アニメーション：${this.value.motion ? 'ON' : 'OFF'}`);
       this.motionButton.setAttribute('aria-pressed', String(this.value.motion));
     }
     this.onChange?.({ ...this.value });

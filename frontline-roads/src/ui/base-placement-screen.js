@@ -11,7 +11,7 @@ function viewportSize(documentRef) {
 }
 
 export class BasePlacementScreen {
-  constructor(root = document) {
+  constructor(root = document, { i18n = null } = {}) {
     this.overlay = queryRequired('#basePlacementOverlay', root);
     this.mapViewport = queryRequired('#baseMapViewport', root);
     this.status = queryRequired('#basePlacementStatus', root);
@@ -20,6 +20,8 @@ export class BasePlacementScreen {
     this.zoomInButton = queryRequired('#zoomIn', root);
     this.zoomOutButton = queryRequired('#zoomOut', root);
     this.recenterButton = queryRequired('#recenter', root);
+    this.i18n = i18n;
+    this.statusSource = this.status.textContent;
     this.document = this.overlay.ownerDocument;
     this.documentRoot = this.document.documentElement;
     this.syncFrame = null;
@@ -30,6 +32,7 @@ export class BasePlacementScreen {
     this.resizeObserver?.observe(this.mapViewport);
     globalThis.addEventListener?.('resize', this.boundSyncViewport);
     globalThis.addEventListener?.('orientationchange', this.boundSyncViewport);
+    this.refreshLocalization();
     this.scheduleViewportSync();
   }
 
@@ -57,9 +60,22 @@ export class BasePlacementScreen {
     this.documentRoot.style.setProperty('--base-map-left', `${left}px`);
   }
 
+  localize(text) {
+    return this.i18n?.copy?.(text) ?? String(text ?? '');
+  }
+
+  setStatus(message) {
+    this.statusSource = String(message ?? '');
+    this.status.textContent = this.localize(this.statusSource);
+  }
+
+  refreshLocalization() {
+    if (this.statusSource) this.status.textContent = this.localize(this.statusSource);
+  }
+
   showLoading(message) {
     setVisible(this.overlay, true);
-    this.status.textContent = message;
+    this.setStatus(message);
     this.confirmButton.disabled = true;
     this.scheduleViewportSync();
   }
@@ -67,20 +83,20 @@ export class BasePlacementScreen {
   showSelection(selection, { roadsPending = false } = {}) {
     this.scheduleViewportSync();
     if (!selection) {
-      this.status.textContent = roadsPending
+      this.setStatus(roadsPending
         ? `中心部の道路を先行表示しました。${ROAD_CONFIG.selectionRadiusMeters / 1000}km以内の道路を選びながら、周辺道路の取得を待てます。`
-        : `現在地から${ROAD_CONFIG.selectionRadiusMeters / 1000}km以内の道路をタップしてください。`;
+        : `現在地から${ROAD_CONFIG.selectionRadiusMeters / 1000}km以内の道路をタップしてください。`);
       this.confirmButton.disabled = true;
       return;
     }
     if (!selection.valid) {
-      this.status.textContent = `${formatMeters(selection.distanceFromOrigin)}離れています。1km以内の道路を選択してください。`;
+      this.setStatus(`${formatMeters(selection.distanceFromOrigin)}離れています。1km以内の道路を選択してください。`);
       this.confirmButton.disabled = true;
       return;
     }
-    this.status.textContent = roadsPending
+    this.setStatus(roadsPending
       ? `${formatMeters(selection.distanceFromOrigin)}先の道路を選択中です。周辺道路の取得が完了すると確定できます。`
-      : `${formatMeters(selection.distanceFromOrigin)}先の道路を選択中です。確定すると、その道路を中心に即時開始します。`;
+      : `${formatMeters(selection.distanceFromOrigin)}先の道路を選択中です。確定すると、その道路を中心に即時開始します。`);
     this.confirmButton.disabled = roadsPending;
   }
 
@@ -90,7 +106,7 @@ export class BasePlacementScreen {
 
   showError(message) {
     setVisible(this.overlay, true);
-    this.status.textContent = message;
+    this.setStatus(message);
     this.confirmButton.disabled = true;
     this.scheduleViewportSync();
   }

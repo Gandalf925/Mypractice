@@ -77,9 +77,9 @@ class FrontlineRoadsApp {
     this.renderer = new Renderer(queryRequired('#mapCanvas'), this.camera);
     this.renderer.setStateProvider(() => this.store.renderView());
     this.renderer.bindEvents(this.events);
-    this.radarPreferences = new RadarPreferences({ onChange: preferences => this.renderer.setPreferences(preferences) });
-    this.baseScreen = new BasePlacementScreen();
-    this.notifications = new Notifications(queryRequired('#notification'));
+    this.radarPreferences = new RadarPreferences({ i18n: this.i18n, onChange: preferences => this.renderer.setPreferences(preferences) });
+    this.baseScreen = new BasePlacementScreen(globalThis.document, { i18n: this.i18n });
+    this.notifications = new Notifications(queryRequired('#notification'), { i18n: this.i18n });
     this.combatSystem = new CombatSystem(this.events);
     this.civilizationSystem = new CivilizationSystem(this.events);
     this.roadsideSupplySystem = new RoadsideSupplySystem(this.events);
@@ -119,6 +119,7 @@ class FrontlineRoadsApp {
         }, 'world:graph-expanded');
         this.combatUi.refreshBuildPlacement(true);
         this.combatUi.update();
+        this.applyLocalization();
         if (this.store.read(state => state.lifecycle) === LifecycleState.PLAYING) this.persist({ notify: false });
       },
       onStatus: status => {
@@ -127,7 +128,6 @@ class FrontlineRoadsApp {
     });
     this.deploymentUi = new DeploymentUi({
       store: this.store,
-      i18n: this.i18n,
       friendlyForceSystem: this.combatSystem.friendlyForceSystem,
       notifications: this.notifications,
       i18n: this.i18n,
@@ -163,14 +163,7 @@ class FrontlineRoadsApp {
       onReset: () => this.reset(),
       notifications: this.notifications,
       i18n: this.i18n,
-      onLanguageChange: () => {
-        this.i18n.apply(globalThis.document);
-        this.combatUi.update();
-        this.deploymentUi.update();
-        this.baseCommandUi.update();
-        this.civilizationUi.update();
-        this.roadsideSuppliesUi.update();
-      }
+      onLanguageChange: () => this.refreshLocalizedUi()
     });
     this.gameLoop = new GameLoop({
       store: this.store,
@@ -187,6 +180,7 @@ class FrontlineRoadsApp {
         this.civilizationUi.update(view);
         this.roadsideSuppliesUi.update(view);
         this.menuUi.update(view);
+        this.applyLocalization();
         this.roadWorld.considerSurveyFacilities();
       },
       onError: error => this.notifications.show(error?.message ?? '保存に失敗しました。'),
@@ -202,6 +196,8 @@ class FrontlineRoadsApp {
     this.startupGeneration = 0;
     this.stopLocationWatch = null;
     this.criticalSaveQueued = false;
+    this.baseSummarySource = queryRequired('#baseSummary').textContent;
+    this.offlineTextSource = '';
     this.tabCoordinator = new TabCoordinator();
     this.tabCoordinator.start(primary => this.handlePrimaryChange(primary));
     this.mapInput = new MapInput(queryRequired('#mapCanvas'), this.camera, {
@@ -213,11 +209,45 @@ class FrontlineRoadsApp {
     this.updateStorageUi();
   }
 
+  localize(text) {
+    return this.i18n?.copy?.(text) ?? String(text ?? '');
+  }
+
+  setBaseSummary(message) {
+    this.baseSummarySource = String(message ?? '');
+    queryRequired('#baseSummary').textContent = this.localize(this.baseSummarySource);
+  }
+
+  setOfflineText(message) {
+    this.offlineTextSource = String(message ?? '');
+    queryRequired('#offlineText').textContent = this.localize(this.offlineTextSource);
+  }
+
+  applyLocalization() {
+    if (this.baseSummarySource) queryRequired('#baseSummary').textContent = this.localize(this.baseSummarySource);
+    if (this.offlineTextSource) queryRequired('#offlineText').textContent = this.localize(this.offlineTextSource);
+    this.radarPreferences?.apply();
+    this.baseScreen?.refreshLocalization?.();
+    this.notifications?.refreshLocalization?.();
+    this.i18n.apply(globalThis.document);
+  }
+
+  refreshLocalizedUi(view = null) {
+    const snapshot = view ?? this.store.uiSnapshot?.() ?? this.store.snapshot?.();
+    this.combatUi.update(snapshot);
+    this.deploymentUi.update(snapshot);
+    this.baseCommandUi.update(snapshot);
+    this.civilizationUi.update(snapshot);
+    this.roadsideSuppliesUi.update(snapshot);
+    this.menuUi.update(snapshot);
+    this.applyLocalization();
+  }
+
   updateStorageUi() {
     const available = this.saveRepository.isAvailable();
     this.menuUi.setSaveAvailable(available);
     const warning = queryRequired('#storageWarning');
-    warning.textContent = available ? '' : '保存機能を利用できません。このタブを閉じると進行状況は失われます。';
+    warning.textContent = available ? '' : this.i18n.copy('保存機能を利用できません。このタブを閉じると進行状況は失われます。');
     setVisible(warning, !available);
   }
 
@@ -229,7 +259,7 @@ class FrontlineRoadsApp {
       this.baseScreen.showError(message);
       queryRequired('#lifecycleText').textContent = 'ERROR';
     } catch {
-      document.body.textContent = 'FRONTLINE ROADSの起動に失敗しました。ページを再読み込みしてください。';
+      document.body.textContent = this.i18n.copy('FRONTLINE ROADSの起動に失敗しました。ページを再読み込みしてください。');
     }
   }
 
@@ -267,7 +297,7 @@ class FrontlineRoadsApp {
       document.documentElement.dataset.lifecycle = current;
       queryRequired('#lifecycleText').textContent = current;
     });
-    this.events.on('civilization:level-up', () => { this.civilizationUi.render(); this.baseCommandUi.render(); });
+    this.events.on('civilization:level-up', () => { this.civilizationUi.render(); this.baseCommandUi.render(); this.applyLocalization(); });
     this.events.on('combat:defense-destroyed', () => this.queueCriticalSave());
     this.events.on('civilization:building-destroyed', () => this.queueCriticalSave());
     this.events.on('combat:city-defeated', () => this.queueCriticalSave());
@@ -542,11 +572,12 @@ class FrontlineRoadsApp {
       this.renderer.render();
       this.baseScreen.hide();
       setVisible(queryRequired('#playingHud'), true);
-      queryRequired('#baseSummary').textContent = `拠点設置完了：初回現在地から約${Math.round(homeBase.selectedDistanceMeters)}m`;
+      this.setBaseSummary(`拠点設置完了：初回現在地から約${Math.round(homeBase.selectedDistanceMeters)}m`);
       this.combatUi.update();
       this.baseCommandUi.update();
       this.civilizationUi.updateSummary();
       this.roadsideSuppliesUi.update();
+      this.applyLocalization();
       this.startRuntime();
       this.notifications.show('拠点を設置しました。まず投石台2基を建設し、敵拠点へ部隊を派兵してください。移動すると周辺道路を順次偵察し、MAPへ追加します。', 7000);
     } catch (error) {
@@ -571,11 +602,12 @@ class FrontlineRoadsApp {
     }
     this.baseScreen.hide();
     setVisible(queryRequired('#playingHud'), true);
-    queryRequired('#baseSummary').textContent = `保存済み拠点：初回現在地から約${Math.round(state.world.homeBase.selectedDistanceMeters ?? 0)}m`;
+    this.setBaseSummary(`保存済み拠点：初回現在地から約${Math.round(state.world.homeBase.selectedDistanceMeters ?? 0)}m`);
     this.combatUi.update();
     this.baseCommandUi.update();
     this.civilizationUi.updateSummary();
     this.roadsideSuppliesUi.update();
+    this.applyLocalization();
     this.renderer.render();
     return true;
   }
@@ -614,7 +646,11 @@ class FrontlineRoadsApp {
 
   showOfflineSummary(summary) {
     const element = queryRequired('#offlineSummary');
-    if (!summary) { setVisible(element, false); return; }
+    if (!summary) {
+      this.offlineTextSource = '';
+      setVisible(element, false);
+      return;
+    }
     const minutes = Math.round(summary.simulatedSeconds / 60);
     const resourceText = Object.entries(summary.resources ?? {})
       .map(([key, value]) => `${RESOURCE_LABELS[key] ?? key} ${value > 0 ? '+' : ''}${value}`)
@@ -625,8 +661,9 @@ class FrontlineRoadsApp {
     if (summary.buildingsLost > 0) parts.push(`集落施設損失 ${summary.buildingsLost}`);
     if (summary.civilizationAdvanced > 0) parts.push(`文明 +${summary.civilizationAdvanced}`);
     if (summary.capped) parts.push('長時間分は上限適用');
-    queryRequired('#offlineText').textContent = parts.join('・');
+    this.setOfflineText(parts.join('・'));
     setVisible(element, true);
+    this.applyLocalization();
   }
 
   persist({ notify = true } = {}) {

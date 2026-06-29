@@ -17,11 +17,16 @@ export class MenuUi {
     this.opsPanel = this.panel.querySelector('#operationGuidanceContent');
     this.guidePanel = this.panel.querySelector('#menuGuideContent');
     this.languageButtons = this.panel.querySelector('#languageButtons');
+    this.bootLanguageButtons = globalThis.document?.querySelector?.('#bootLanguageButtons') ?? null;
     this.confirmImpl = confirmImpl;
     this.activeTab = 'ops';
     queryRequired('#menuButton').addEventListener('click', () => { this.refreshOperations(true); this.renderLocalizedContent(); this.setTab(this.activeTab); setVisible(this.panel, true); });
     queryRequired('#closeMenu').addEventListener('click', () => setVisible(this.panel, false));
     bindDismissibleModal(this.panel, () => setVisible(this.panel, false));
+    this.bootLanguageButtons?.addEventListener('click', event => {
+      const languageButton = event.target.closest('button[data-language-choice]');
+      if (languageButton) this.setLanguage(languageButton.dataset.languageChoice);
+    });
     this.panel.addEventListener('click', event => {
       const languageButton = event.target.closest('button[data-language-choice]');
       if (languageButton) {
@@ -71,12 +76,18 @@ export class MenuUi {
     `).join('');
   }
 
-  renderLanguageButtons() {
-    if (!this.languageButtons) return;
+  languageButtonMarkup({ compact = false } = {}) {
     const current = this.i18n?.language ?? 'ja';
-    this.languageButtons.innerHTML = SUPPORTED_LANGUAGES.map(language => `
-      <button type="button" data-language-choice="${escapeHtml(language.code)}" aria-pressed="${language.code === current ? 'true' : 'false'}" class="${language.code === current ? 'active' : ''}">${escapeHtml(language.label)}</button>
-    `).join('');
+    return SUPPORTED_LANGUAGES.map(language => {
+      const active = language.code === current;
+      const visible = compact ? language.flag : `${language.flag ?? ''} ${language.label}`.trim();
+      return `<button type="button" data-language-choice="${escapeHtml(language.code)}" aria-label="${escapeHtml(language.nativeName)}" title="${escapeHtml(language.nativeName)}" aria-pressed="${active ? 'true' : 'false'}" class="${active ? 'active' : ''}">${escapeHtml(visible)}</button>`;
+    }).join('');
+  }
+
+  renderLanguageButtons() {
+    if (this.languageButtons) this.languageButtons.innerHTML = this.languageButtonMarkup();
+    if (this.bootLanguageButtons) this.bootLanguageButtons.innerHTML = this.languageButtonMarkup({ compact: true });
   }
 
   setTab(tab) {
