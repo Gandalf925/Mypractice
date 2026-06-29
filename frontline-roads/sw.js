@@ -1,7 +1,7 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const RELEASE_VERSION = '0.36.2';
-const CACHE_NAME = `${CACHE_PREFIX}v0-36-2-dynamic-copy-localization`;
+const RELEASE_VERSION = '0.36.9';
+const CACHE_NAME = `${CACHE_PREFIX}v0-36-9-global-localization`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -18,6 +18,7 @@ const APP_SHELL = [
   './src/base/base-placement-service.js',
   './src/base/base-state.js',
   './src/base/base-pressure.js',
+  './src/base/base-collapse.js',
   './src/base/base-removal.js',
   './src/base/construction-range.js',
   './src/base/field-bases.js',

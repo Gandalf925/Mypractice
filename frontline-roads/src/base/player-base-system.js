@@ -2,6 +2,7 @@ import { distance, stableId } from '../core/utilities.js';
 import { graphElementsNearPoint } from '../roads/road-graph.js';
 import { consumeBundle, missingBundle } from '../civilization/inventory-system.js';
 import { clearOwnedBaseReferences } from './base-removal.js';
+import { collapsePlayerTerritory } from './base-collapse.js';
 import {
   PLAYER_BASE_MINIMUM_SEPARATION_METERS,
   PLAYER_BASE_PLACEMENT_RANGE_METERS,
@@ -87,7 +88,8 @@ export function previewPlayerBasePlacement(state, now = Date.now()) {
 export function previewPlayerBaseRebuild(state, baseId, now = Date.now()) {
   const cost = { ...PLAYER_BASE_REBUILD_COST };
   const base = playerBaseById(state, baseId, { includeDestroyed: true });
-  if (!base || base.primary) return { ok: false, reason: '再建対象の主要拠点が見つかりません。', cost };
+  if (!base) return { ok: false, reason: '再建対象の主要拠点が見つかりません。', cost };
+  if (base.primary) return { ok: false, reason: '本拠地が陥落したため、この拠点は再建できません。新しい本拠地を設置してください。', cost, base };
   if (base.status !== 'DESTROYED' && base.hp > 0) return { ok: false, reason: 'この主要拠点は稼働中です。', cost };
   const player = state.player?.worldPosition;
   if (!player) return { ok: false, reason: '現在地を取得してください。', cost };
@@ -101,7 +103,8 @@ export function previewPlayerBaseRebuild(state, baseId, now = Date.now()) {
 }
 
 export function destroyPlayerBase(state, base, events = null, { enemyId = null } = {}) {
-  if (!base || base.primary || base.status === 'DESTROYED') return false;
+  if (!base || base.status === 'DESTROYED') return false;
+  if (base.primary) return collapsePlayerTerritory(state, events, { enemyId, cause: 'primary-base-destroyed' }).ok;
   base.hp = 0;
   base.status = 'DESTROYED';
   base.destroyedAt = state.runtime?.worldTimeMs ?? Date.now();
@@ -183,12 +186,14 @@ export class PlayerBaseSystem {
     if (!preview.ok) return preview;
     if (!consumeBundle(state, preview.cost)) return { ok: false, reason: '主要拠点の再建直前に資源が不足しました。', cost: preview.cost };
     const base = preview.base;
+    const wasPrimary = Boolean(base.primary);
+    if (wasPrimary) return { ok: false, reason: '本拠地が陥落したため、この拠点は再建できません。新しい本拠地を設置してください。', cost: preview.cost };
     base.status = 'ESTABLISHED';
     base.hp = base.maxHp = majorBaseMaxHpForCivilization(state.civilization?.level);
     base.destroyedAt = null;
     base.rebuiltAt = state.runtime?.worldTimeMs ?? now;
     markEnemyBaseNetworkDirty(state);
-    this.events?.emit('base:player-rebuilt', { base });
+    this.events?.emit('base:player-rebuilt', { base, primary: false });
     this.events?.emit('message', { text: `${base.name}を再建しました。` });
     return { ok: true, base, cost: preview.cost };
   }

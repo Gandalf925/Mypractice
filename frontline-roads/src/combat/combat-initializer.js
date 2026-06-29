@@ -5,6 +5,7 @@ import { selectInitialEnemyBasePlacements } from './enemy-base-placement.js';
 import { reconcileFrontiers, ensureFrontierState } from '../exploration/frontier-system.js';
 import { normalizeEnemyGroup } from './enemy-grouping.js';
 import { reconcileActiveWaveRecords } from './wave-system.js';
+import { purgeOwnedTerritoryAfterCheckmate } from '../base/base-collapse.js';
 
 export const selectEnemyBasePlacements = selectInitialEnemyBasePlacements;
 
@@ -55,6 +56,11 @@ export function normalizeCombatState(state) {
   state.combat.pendingSettlementDamage ??= [];
   state.combat.cityRecoveryCooldown = Math.max(0, Number(state.combat.cityRecoveryCooldown) || 0);
   state.combat.enemyRegroupUntil = Math.max(0, Number(state.combat.enemyRegroupUntil) || 0);
+  if (state.combat.playerCheckmate?.active) {
+    purgeOwnedTerritoryAfterCheckmate(state, Number(state.combat.playerCheckmate.collapsedAt) || state.runtime?.worldTimeMs || Date.now());
+    state.combat.enemies = [];
+    state.combat.waves.active = {};
+  }
 
   const normalizedDefenses = new Map();
   for (const defense of state.combat.defenses) {

@@ -1,3 +1,5 @@
+import { effectivePressureCivilizationLevel } from './base-collapse.js';
+
 export const BASE_PRESSURE_RAMP_SECONDS_BY_CIVILIZATION = Object.freeze([
   20 * 60,
   30 * 60,
@@ -50,7 +52,7 @@ export function basePressureProfile(state, base, kind = base?.kind ?? 'MAJOR') {
   const targetPenaltySeconds = normalizedKind === 'PRIMARY'
     ? 0
     : Math.round((BASE_KIND_NEW_TARGET_PENALTY_SECONDS[normalizedKind] ?? 220) * (1 - rawRatio));
-  const level = normalizedCivilizationLevel(state);
+  const level = Math.max(0, Math.min(7, effectivePressureCivilizationLevel(state)));
   const minCap = BASE_KIND_MIN_TARGET_CAP[normalizedKind] ?? 1;
   const maxCap = normalizedKind === 'PRIMARY'
     ? 999

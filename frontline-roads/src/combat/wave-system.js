@@ -2,7 +2,8 @@ import { stableId } from '../core/utilities.js';
 import { ENEMY_BASE_DEFINITIONS, ENEMY_DEFINITIONS, ENEMY_GENERATIONS } from './definitions.js';
 import { spawnEnemy } from './enemy-system.js';
 import { enemyGroupLimitForState, enemyUnitCount } from './enemy-grouping.js';
-import { enemyBaseLevelForState, enemyDensityForState, expandedWaveSize, waveIntervalForBase } from './enemy-scaling.js';
+import { civilizationPressureRampRatio, effectivePressureCivilizationLevel } from '../base/base-collapse.js';
+import { effectiveEnemyCivilizationLevel, enemyBaseLevelForState, enemyDensityForState, expandedWaveSize, waveIntervalForBase } from './enemy-scaling.js';
 import { INITIAL_BASE_TYPES, selectEnemyBaseNode } from './enemy-base-placement.js';
 import { enemyBehaviorForDefinition, waveDoctrineDefinition } from './enemy-personalities.js';
 import { enemyRegroupActive } from '../core/recovery-balance.js';
@@ -88,13 +89,10 @@ function doctrinePool(pool, doctrine) {
 export function enemyGenerationMix(state) {
   const generation = Math.max(0, Math.floor(Number(state.civilization.level) || 0));
   if (generation <= 0) return { generation: 0, probability: 0 };
-  const worldNow = Number(state.runtime?.worldTimeMs) || Date.now();
-  const elapsed = worldNow - (Number(state.civilization.completedAt) || worldNow);
-  if (elapsed < 15 * 60 * 1000) return { generation, probability: 0 };
-  if (elapsed < 30 * 60 * 1000) return { generation, probability: 0.25 };
-  if (elapsed < 45 * 60 * 1000) return { generation, probability: 0.50 };
-  if (elapsed < 60 * 60 * 1000) return { generation, probability: 0.75 };
-  return { generation, probability: 1 };
+  const effectiveGeneration = effectivePressureCivilizationLevel(state);
+  if (effectiveGeneration < generation - 1) return { generation, probability: 0 };
+  const ratio = Math.max(0, Math.min(1, civilizationPressureRampRatio(state)));
+  return { generation, probability: ratio };
 }
 
 function levelWave(definition, base) {
@@ -157,7 +155,7 @@ export function enemyBaseTypesForCivilization(level) {
 }
 
 export function unlockedBaseTypes(state) {
-  return enemyBaseTypesForCivilization(state.civilization.level ?? 0);
+  return enemyBaseTypesForCivilization(effectiveEnemyCivilizationLevel(state));
 }
 
 const ENEMY_BASE_REPLACEMENTS = Object.freeze([
@@ -222,7 +220,7 @@ function transformEnemyBase(base, targetType) {
 export function synchronizeEnemyBaseNetwork(state, events = null) {
   state.world.enemyBases ??= [];
   state.world.baseRespawns ??= [];
-  const level = Math.max(0, Math.floor(Number(state.civilization?.level) || 0));
+  const level = Math.max(0, Math.floor(effectiveEnemyCivilizationLevel(state)));
   for (const replacement of ENEMY_BASE_REPLACEMENTS) {
     if (level < replacement.level) continue;
     const current = state.world.enemyBases.find(base => base.type === replacement.to && base.alive) ?? null;
@@ -404,6 +402,11 @@ export class WaveSystem {
   }
 
   update(state, deltaSeconds) {
+    if (state.combat?.playerCheckmate?.active) {
+      state.combat.waves ??= { active: {} };
+      state.combat.waves.active = {};
+      return;
+    }
     reconcileActiveWaveRecords(state);
     synchronizeEnemyBaseNetwork(state, this.events);
     this.processRespawns(state, deltaSeconds);
