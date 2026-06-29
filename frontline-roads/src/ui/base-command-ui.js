@@ -13,6 +13,7 @@ import { diagnoseFieldBaseNetwork } from '../base/field-base-system.js';
 import { friendlySquadCapacityForBase } from '../combat/friendly-force-system.js';
 import { fieldBaseBuildRange, majorBaseBuildRange } from '../base/construction-range.js';
 import { basePressureProfile, basePressureUiText } from '../base/base-pressure.js';
+import { isPlayerCheckmateActive } from '../base/base-collapse.js';
 
 const BASE_STATUS_RADIUS_METERS = 300;
 const FACILITY_RADIUS_METERS = 120;
@@ -271,9 +272,13 @@ export class BaseCommandUi {
     const majorLimit = localizedLimit(baseLimitForCivilization(state.civilization?.level), this.i18n);
     const fieldLimit = localizedLimit(fieldBaseLimitForCivilization(state.civilization?.level), this.i18n);
     const focusedName = focused ? i18nCopy(this.i18n, focused.name) : '';
-    this.summary.textContent = isEnglish(this.i18n)
-      ? `Major ${major.length} active · ${majorSlots}/${majorLimit} · Simple ${fieldBaseSlotsUsed(state)}/${fieldLimit}${repairCount ? ` · Repairs needed ${repairCount}` : ''}${focused ? ` · Focused ${focusedName}` : ''}`
-      : `Major ${major.length}Active · ${majorSlots}/${majorLimit} · Simple ${fieldBaseSlotsUsed(state)}/${fieldLimit}${repairCount ? ` · Repairs needed ${repairCount}` : ''}${focused ? ` · Focused ${focusedName}` : ''}`;
+    if (isPlayerCheckmateActive(state) || Number(state.world?.city?.hp) <= 0) {
+      this.summary.textContent = this.localize('Home base destroyed · recovery required');
+    } else {
+      this.summary.textContent = isEnglish(this.i18n)
+        ? `Major ${major.length} active · ${majorSlots}/${majorLimit} · Simple ${fieldBaseSlotsUsed(state)}/${fieldLimit}${repairCount ? ` · Repairs needed ${repairCount}` : ''}${focused ? ` · Focused ${focusedName}` : ''}`
+        : `Major ${major.length}Active · ${majorSlots}/${majorLimit} · Simple ${fieldBaseSlotsUsed(state)}/${fieldLimit}${repairCount ? ` · Repairs needed ${repairCount}` : ''}${focused ? ` · Focused ${focusedName}` : ''}`;
+    }
     this.summary.classList?.toggle('has-repairs', repairCount > 0);
   }
 
@@ -296,6 +301,21 @@ export class BaseCommandUi {
       this.focusedBaseKind = baseKind ?? 'major';
       this.focusCurrentBase(state);
       this.close();
+      return;
+    }
+    if (action === 'restore-home-base') {
+      let result;
+      this.store.transaction(state => { result = this.system.restoreHomeBaseAfterDefeat(state); }, 'base:home-recovered', { emit: true, validate: true });
+      if (!result?.ok) this.notifications.show(this.localize(result?.reason ?? 'Cannot restore home base.'));
+      else {
+        this.focusedBaseId = result.base.id;
+        this.focusedBaseKind = 'major';
+        this.renderer.invalidateStatic();
+        this.renderer.render();
+        this.notifications.show(this.localize('Emergency recovery complete. The home base is back online with a temporary enemy regroup grace period.'));
+        this.persist?.();
+      }
+      this.render();
       return;
     }
     if (action === 'establish-base') {
@@ -401,6 +421,8 @@ export class BaseCommandUi {
     const all = [...majorBases, ...fieldBases];
     if (!all.some(base => base.id === this.focusedBaseId)) this.focusedBaseId = majorBases[0]?.id ?? fieldBases[0]?.id ?? null;
 
+    const recoveryMode = isPlayerCheckmateActive(state) || Number(state.world?.city?.hp) <= 0;
+    const homeRecovery = this.system.previewHomeBaseRecovery?.(state) ?? { ok: false, reason: 'Home base recovery is not required.' };
     const majorPlacement = this.system.previewCurrentLocation(state);
     const fieldPlacement = this.fieldSystem?.previewCurrentLocation(state) ?? { ok: false, reason: 'Simple base system is unavailable.' };
     const fieldDiagnostic = diagnoseFieldBaseNetwork(state, Math.min(3, fieldLimit));
@@ -443,6 +465,7 @@ export class BaseCommandUi {
     const fieldDiagnosticDetail = en
       ? `Additional candidates ${fieldDiagnostic.confirmedAdditional} · Destroyed ${fieldDiagnostic.destroyed}`
       : `Additional candidates ${fieldDiagnostic.confirmedAdditional} · Destroyed ${fieldDiagnostic.destroyed}`;
+    const recoveryPanel = recoveryMode ? `<section class="baseDefeatRecoveryPanel"><h2>${c('Home base recovery')}</h2><p class="sectionNote">${c('Your home base has fallen. Enemy attacks are paused until you restore the home base, but normal construction and dispatch require recovery first.')}</p><button class="primary wideButton" data-action="restore-home-base" ${homeRecovery.ok ? '' : 'disabled'}>${c('Restore Home Base')}</button><p class="sectionNote">${homeRecovery.ok ? `${c('Restores HP')} ${homeRecovery.hp}/${homeRecovery.maxHp} · ${Math.round((homeRecovery.graceSeconds ?? 0) / 60)} ${c('min enemy regroup grace')}` : localizedPlacementReason(this.i18n, homeRecovery.reason)}</p></section>` : '';
 
     this.body.innerHTML = `<div class="uiTabBar" role="tablist" aria-label="${this.localize('Base tab switcher')}">
         ${tabButton('overview', en ? 'Overview' : 'Overview', active)}
@@ -450,6 +473,7 @@ export class BaseCommandUi {
         ${tabButton('field', en ? 'Simple' : 'Simple', active)}
         ${tabButton('build', en ? 'Build' : 'Build', active)}
       </div>
+      ${recoveryPanel}
       <section class="overviewHero baseHero">
         <div><small>${en ? 'Major Bases' : 'Major Base'}</small><strong>${majorBases.length}/${majorLimitText}</strong><span>${en ? `${majorSlotsPerBase} squad slots each` : `each  ${majorSlotsPerBase}squad slots`}</span></div>
         <div><small>${en ? 'Simple Bases' : 'Simple Base'}</small><strong>${fieldBaseSlotsUsed(state)}/${fieldLimitText}</strong><span>${en ? `${fieldSlotsPerBase} squad slots each` : `each  ${fieldSlotsPerBase}squad slots`}</span></div>

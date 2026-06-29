@@ -11,7 +11,7 @@ import {
   majorBaseBuildRange
 } from '../base/construction-range.js';
 import { detachDefense } from './defense-lifecycle.js';
-import { activePlayerBases } from '../base/player-bases.js';
+import { activePlayerBases, playerBasesView } from '../base/player-bases.js';
 import { activeFieldBases } from '../base/field-bases.js';
 import { roadUnitPosition } from './road-unit-position.js';
 import {
@@ -37,8 +37,8 @@ function buildAnchors(state) {
   const civilizationLevel = Math.max(0, Math.floor(Number(state.civilization?.level) || 0));
   const majorRange = majorBaseBuildRange(civilizationLevel);
   const fieldRange = fieldBaseBuildRange(civilizationLevel);
-  const anchors = activePlayerBases(state)
-    .filter(finitePoint)
+  const activeMajorBases = activePlayerBases(state).filter(finitePoint);
+  const anchors = activeMajorBases
     .map((base, index) => ({
       id: index === 0 ? 'base' : `base:${base.id}`,
       label: base.name || (index === 0 ? 'Home Base' : `Major Base ${index + 1}`),
@@ -48,6 +48,19 @@ function buildAnchors(state) {
       kind: 'MAJOR',
       baseId: base.id
     }));
+  if (!activeMajorBases.some(base => base.primary) && (state.combat?.playerCheckmate?.active || Number(state.world?.city?.hp) <= 0)) {
+    const recoveryBase = playerBasesView(state).find(base => base.primary && finitePoint(base));
+    if (recoveryBase) anchors.unshift({
+      id: 'base:recovery',
+      label: recoveryBase.name || 'Home Base Ruins',
+      point: { x: recoveryBase.x, y: recoveryBase.y },
+      range: majorRange,
+      civilizationLevel,
+      kind: 'MAJOR',
+      baseId: recoveryBase.id,
+      recovery: true
+    });
+  }
   for (const base of activeFieldBases(state).filter(finitePoint)) {
     anchors.push({
       id: `field:${base.id}`,

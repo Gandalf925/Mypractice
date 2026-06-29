@@ -290,6 +290,7 @@ class FrontlineRoadsApp {
     this.events.on('base:player-dismantled', refreshOwnedBaseState);
     this.events.on('base:field-dismantled', refreshOwnedBaseState);
     this.events.on('base:territory-collapsed', refreshOwnedBaseState);
+    this.events.on('base:home-recovered', refreshOwnedBaseState);
     this.events.on('friendly:recovery-item-dropped', refreshOwnedBaseState);
     this.events.on('combat:defense-destroyed', () => this.queueCriticalSave());
     this.events.on('civilization:building-destroyed', () => this.queueCriticalSave());

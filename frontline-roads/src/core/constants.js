@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.36.16-base-loss-recovery-resolution';
+export const APP_VERSION = '0.36.17-defeat-recovery-mode';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 

@@ -3,7 +3,7 @@ import { graphElementsNearPoint } from '../roads/road-graph.js';
 import { consumeBundle, missingBundle } from '../civilization/inventory-system.js';
 import { clearOwnedBaseReferences } from './base-removal.js';
 import { stabilizeFriendlySquadsAfterOwnedBaseChanges } from '../combat/friendly-force-system.js';
-import { collapsePlayerTerritory } from './base-collapse.js';
+import { collapsePlayerTerritory, previewHomeBaseRecovery, restoreHomeBaseAfterDefeat } from './base-collapse.js';
 import {
   PLAYER_BASE_MINIMUM_SEPARATION_METERS,
   PLAYER_BASE_PLACEMENT_RANGE_METERS,
@@ -153,6 +153,14 @@ export class PlayerBaseSystem {
 
   previewCurrentLocation(state, now = Date.now()) {
     return previewPlayerBasePlacement(state, now);
+  }
+
+  previewHomeBaseRecovery(state) {
+    return previewHomeBaseRecovery(state);
+  }
+
+  restoreHomeBaseAfterDefeat(state) {
+    return restoreHomeBaseAfterDefeat(state, this.events);
   }
 
   establishAtCurrentLocation(state, now = Date.now()) {
