@@ -270,7 +270,7 @@ export function synchronizeEnemyBaseNetwork(state, events = null) {
     if (!current && obsolete.length) {
       const converted = obsolete.shift();
       transformEnemyBase(converted, replacement.to);
-      events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[replacement.from].name}が${ENEMY_BASE_DEFINITIONS[replacement.to].name}へ再編されました。` });
+      events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[replacement.from].name} ${ENEMY_BASE_DEFINITIONS[replacement.to].name} was reorganized into ` });
     }
     for (const base of obsolete) {
       base.alive = false;
@@ -318,7 +318,7 @@ export function spawnEnemyBaseGuard(state, base, events = null) {
   const spawned = new WaveSystem(events).spawnWave(state, base, true);
   if (spawned > 0) {
     base.guardWaveTriggered = true;
-    events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[base.type].name}の守備隊が迎撃を開始しました。` });
+    events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[base.type].name} garrison started interception.` });
   }
   return spawned;
 }
@@ -365,7 +365,7 @@ export class WaveSystem {
     }
     if (!guard && spawned > 0) {
       base.wavesSent += 1;
-      this.events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[base.type].name} Lv.${base.level ?? 1}が「${doctrine.label}」を開始しました。` });
+      this.events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[base.type].name} Lv.${base.level ?? 1} "${doctrine.label}" start .` });
     }
     return spawned;
   }
@@ -383,7 +383,7 @@ export class WaveSystem {
       if (!placement) continue;
       const base = createBase(type, placement);
       state.world.enemyBases.push(base);
-      this.events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[type].name}が道路網に出現しました。` });
+      this.events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[type].name} appeared on the road network.` });
     }
 
     const desiredCount = desiredEnemyBaseCount(state);
@@ -405,7 +405,7 @@ export class WaveSystem {
       });
       state.world.enemyBases.push(base);
       spawnedFrontline += 1;
-      this.events?.emit('message', { text: `${anchorBase.name ?? '新設拠点'}周辺で${ENEMY_BASE_DEFINITIONS[type].name}が活動を開始しました。` });
+      this.events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[type].name} started activity near ${anchorBase.name ?? 'New base'}.` });
     }
     markEnemyBaseNetworkClean(state);
   }
@@ -447,8 +447,8 @@ export class WaveSystem {
       } : {});
       state.world.enemyBases.push(base);
       this.events?.emit('message', { text: anchor
-        ? `${anchor.name ?? '拠点'}周辺で${ENEMY_BASE_DEFINITIONS[respawn.baseType].name}が再活動しました。`
-        : `${ENEMY_BASE_DEFINITIONS[respawn.baseType].name}が別の道路へ再出現しました。` });
+        ? `${ENEMY_BASE_DEFINITIONS[respawn.baseType].name} became active again near ${anchor.name ?? 'Base'}.`
+        : `${ENEMY_BASE_DEFINITIONS[respawn.baseType].name} reappeared on another road.` });
     }
     state.world.baseRespawns = remaining;
   }
@@ -480,7 +480,7 @@ export class WaveSystem {
       const previousLevel = Math.max(1, Math.floor(Number(base.level) || 1));
       base.level = enemyBaseLevelForState(state, base.ageSeconds);
       if (base.level > previousLevel) {
-        this.events?.emit('message', { text: `${definition.name}の脅威レベルがLv.${base.level}へ上昇しました。` });
+        this.events?.emit('message', { text: `${definition.name} threat level rose to Lv.${base.level}` });
         this.events?.emit('combat:enemy-base-level-up', { baseId: base.id, level: base.level });
       }
       if (regrouping) continue;

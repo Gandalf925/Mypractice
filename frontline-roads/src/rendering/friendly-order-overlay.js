@@ -103,9 +103,9 @@ export function drawFriendlyOrderPlanning(context, state, camera, planning, time
   context.stroke();
 
   const destination = state.world.roadGraph.nodeById.get(planning.destinationNodeId);
-  drawNode(context, camera, destination, { stroke: '#ffcf66', fill: 'rgba(255,207,102,.2)', radius: 9, width: 2.5 }, '目的地');
+  drawNode(context, camera, destination, { stroke: '#ffcf66', fill: 'rgba(255,207,102,.2)', radius: 9, width: 2.5 }, 'destination');
   (planning.waypointNodeIds ?? []).forEach((nodeId, index) => {
-    drawNode(context, camera, state.world.roadGraph.nodeById.get(nodeId), { stroke: '#d8b7ff', fill: 'rgba(216,183,255,.18)', radius: 7 }, `経由${index + 1}`);
+    drawNode(context, camera, state.world.roadGraph.nodeById.get(nodeId), { stroke: '#d8b7ff', fill: 'rgba(216,183,255,.18)', radius: 7 }, `via${index + 1}`);
   });
   context.restore();
 }

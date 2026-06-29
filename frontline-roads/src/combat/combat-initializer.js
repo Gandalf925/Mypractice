@@ -13,7 +13,7 @@ export function initializeCombatState(state) {
   const graph = state.world.roadGraph;
   const cityNodeId = state.world.homeBase.nodeId;
   state.world.city = { nodeId: cityNodeId, hp: 100, maxHp: 100 };
-  state.world.playerBases = [{ ...state.world.homeBase, name: '本拠地', primary: true, hp: 100, maxHp: 100 }];
+  state.world.playerBases = [{ ...state.world.homeBase, name: 'Home Base', primary: true, hp: 100, maxHp: 100 }];
   state.world.fieldBases = [];
   state.world.baseRespawns = [];
   state.world.frontierSources = [];

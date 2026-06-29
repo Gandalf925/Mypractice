@@ -11,7 +11,7 @@ export const BASE_PRESSURE_RAMP_SECONDS_BY_CIVILIZATION = Object.freeze([
   48 * 60 * 60
 ]);
 
-export const BASE_PRESSURE_STAGE_LABELS = Object.freeze(['未認識', '偵察', '小規模', '拡大中', '本格']);
+export const BASE_PRESSURE_STAGE_LABELS = Object.freeze(['Unrecognized', 'Scouting', 'Minor', 'Escalating', 'Full']);
 
 const BASE_KIND_INITIAL_RATIO = Object.freeze({ FIELD: 0.18, MAJOR: 0.12, PRIMARY: 1 });
 const BASE_KIND_NEW_TARGET_PENALTY_SECONDS = Object.freeze({ FIELD: 190, MAJOR: 240, PRIMARY: 0 });
@@ -96,10 +96,10 @@ export function activeSettlementAttackCounts(state) {
 }
 
 export function basePressureUiText(profile) {
-  if (!profile) return '敵圧 不明';
-  if (profile.kind === 'PRIMARY') return '敵圧 本格';
+  if (!profile) return 'Enemy pressure Unknown';
+  if (profile.kind === 'PRIMARY') return 'Enemy pressure Full';
   const percent = Math.round(profile.ratio * 100);
-  if (profile.mature) return `敵圧 ${profile.stageLabel}・${percent}%`;
+  if (profile.mature) return `Enemy pressure ${profile.stageLabel} · ${percent}%`;
   const hours = Math.ceil(profile.remainingMs / 3_600_000);
-  return `敵圧 ${profile.stageLabel}・${percent}%・本格化まで約${Math.max(1, hours)}時間`;
+  return `Enemy pressure ${profile.stageLabel} · ${percent}% · about ${Math.max(1, hours)} h until full pressure`;
 }

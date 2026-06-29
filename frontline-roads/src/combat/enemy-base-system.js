@@ -57,6 +57,6 @@ export function destroyEnemyBase(state, base, events = null, cause = {}) {
   }
   base.rewardAssigned = true;
   events?.emit('combat:enemy-base-destroyed', { baseId: base.id, base, cause, recoveryItem, reward });
-  events?.emit('message', { text: `${definition?.name ?? '敵拠点'}を破壊しました。特殊回収物と資源備蓄が現地に残されています。` });
+  events?.emit('message', { text: `${definition?.name ?? 'Enemy base'} destroyed. A recovery item and resource stockpile remain in the field.` });
   return true;
 }

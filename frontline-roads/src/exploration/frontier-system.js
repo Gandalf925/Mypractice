@@ -19,10 +19,10 @@ const DIRECTIONS = Object.freeze([
 ]);
 
 const PROFILE_DEFINITIONS = Object.freeze({
-  patrol: { label: '巡回部隊', waves: [['scout', 'infantry'], ['scout', 'infantry', 'shield'], ['scout', 'shield', 'infantry', 'infantry']] },
-  sabotage: { label: '工作部隊', waves: [['raider', 'scout'], ['raider', 'infantry', 'scout'], ['raider', 'raider', 'engineer', 'scout']] },
-  breach: { label: '突破部隊', waves: [['engineer', 'infantry'], ['engineer', 'shield', 'infantry'], ['engineer', 'heavy', 'shield', 'infantry']] },
-  siege: { label: '攻城部隊', waves: [['shield', 'infantry', 'infantry'], ['heavy', 'shield', 'engineer'], ['heavy', 'heavy', 'engineer', 'shield']] }
+  patrol: { label: 'patrolsquad', waves: [['scout', 'infantry'], ['scout', 'infantry', 'shield'], ['scout', 'shield', 'infantry', 'infantry']] },
+  sabotage: { label: 'sabotagesquad', waves: [['raider', 'scout'], ['raider', 'infantry', 'scout'], ['raider', 'raider', 'engineer', 'scout']] },
+  breach: { label: 'breachsquad', waves: [['engineer', 'infantry'], ['engineer', 'shield', 'infantry'], ['engineer', 'heavy', 'shield', 'infantry']] },
+  siege: { label: 'Siege Squad', waves: [['shield', 'infantry', 'infantry'], ['heavy', 'shield', 'engineer'], ['heavy', 'heavy', 'engineer', 'shield']] }
 });
 
 function hashNumber(text) {
@@ -248,8 +248,8 @@ export function frontierPresentation(source) {
   const stage = source?.signalStage ?? 'DISTANT';
   const identityVisible = ['LOCATED', 'CONTACT'].includes(stage) || source?.status === 'LOCATED';
   return {
-    title: identityVisible ? profile.label : '未確認の敵性反応',
-    profileLabel: identityVisible ? profile.label : '不明',
+    title: identityVisible ? profile.label : 'unconfirmed of hostile signatures',
+    profileLabel: identityVisible ? profile.label : 'Unknown',
     stage,
     threat: Number(source?.threat) || 1
   };
@@ -288,7 +288,7 @@ export class FrontierSystem {
     };
     source.wavesSent += 1;
     this.events?.emit('combat:wave-launched', { frontierSourceId: source.id, waveId, count: spawned });
-    this.events?.emit('message', { text: '未踏破の道路方面から敵部隊が侵入しました。進入方向を確認してください。' });
+    this.events?.emit('message', { text: 'Enemy squads entered from an unexplored road direction. Check the entry direction.' });
     return true;
   }
 

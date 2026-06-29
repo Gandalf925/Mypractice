@@ -33,10 +33,10 @@ export class MenuUi {
     });
     this.manualSave.addEventListener('click', () => {
       const saved = onSave();
-      notifications.show(saved ? this.t('menu.saved', '現在の状態を保存しました。') : this.t('menu.saveFailed', '保存できません。このタブを閉じると進行状況は失われます。'));
+      notifications.show(saved ? this.t('menu.saved', 'Current progress has been saved.') : this.t('menu.saveFailed', 'Save unavailable. Progress will be lost if this tab is closed.'));
     });
     queryRequired('#menuReset').addEventListener('click', () => {
-      const confirmed = this.confirmImpl ? this.confirmImpl(this.t('menu.resetConfirm', 'ゲームの進行状況を完全に初期化します。元に戻せません。続行しますか？')) : false;
+      const confirmed = this.confirmImpl ? this.confirmImpl(this.t('menu.resetConfirm', 'Reset all game progress and return to the starting point. Continue?')) : false;
       if (confirmed) onReset();
     });
     this.renderLocalizedContent();
@@ -52,7 +52,7 @@ export class MenuUi {
     this.renderLocalizedContent();
     this.refreshOperations(true);
     this.setSaveAvailable(!this.manualSave.disabled);
-    this.notifications?.show?.(this.t('language.changed', '表示言語を変更しました。'));
+    this.notifications?.show?.(this.t('language.changed', 'Focus changed.'));
   }
 
   renderLocalizedContent() {
@@ -98,7 +98,7 @@ export class MenuUi {
     if (!force && this.lastOpsRefreshAt && now - this.lastOpsRefreshAt < 1200) return;
     this.lastOpsRefreshAt = now;
     const state = this.store.snapshot ? this.store.snapshot() : null;
-    this.opsPanel.innerHTML = this.i18n?.copy?.(state ? operationGuidanceMarkup(buildOperationGuidance(state)) : `<p class="emptyText">${escapeHtml(this.t('menu.opsUnavailable', '作戦目標を取得できません。'))}</p>`) ?? (state ? operationGuidanceMarkup(buildOperationGuidance(state)) : `<p class="emptyText">${escapeHtml(this.t('menu.opsUnavailable', '作戦目標を取得できません。'))}</p>`);
+    this.opsPanel.innerHTML = this.i18n?.copy?.(state ? operationGuidanceMarkup(buildOperationGuidance(state)) : `<p class="emptyText">${escapeHtml(this.t('menu.opsUnavailable', ' acquire cannot.'))}</p>`) ?? (state ? operationGuidanceMarkup(buildOperationGuidance(state)) : `<p class="emptyText">${escapeHtml(this.t('menu.opsUnavailable', ' acquire cannot.'))}</p>`);
   }
 
   update() {
@@ -107,6 +107,6 @@ export class MenuUi {
 
   setSaveAvailable(available) {
     this.manualSave.disabled = !available;
-    this.manualSave.textContent = available ? this.t('menu.saveReady', '現在の状態を保存') : this.t('menu.saveUnavailable', '保存できません');
+    this.manualSave.textContent = available ? this.t('menu.saveReady', 'Current progress saved') : this.t('menu.saveUnavailable', 'Save unavailable');
   }
 }

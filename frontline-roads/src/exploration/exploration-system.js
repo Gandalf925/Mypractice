@@ -1,10 +1,10 @@
 export const EXPLORATION_INTERACTION_RANGE_METERS = 0;
 
 const DISABLED_PRESENTATION = Object.freeze({
-  name: '廃止済み探索地点',
+  name: 'point',
   duration: 0,
   icon: '',
-  description: '探索ミッションは廃止済みです。現在は道端物資を利用します。',
+  description: 'Exploration missions are deprecated. Use Roadside Supplies.',
   status: 'DISABLED'
 });
 
@@ -28,7 +28,7 @@ export class ExplorationSystem {
   reconcile(state) { return ensureExplorationState(state); }
   beginInteraction(state, _siteId) {
     ensureExplorationState(state);
-    return { ok: false, reason: '探索ミッションは廃止済みです。現在はITEMS画面の道端物資を利用してください。' };
+    return { ok: false, reason: 'Exploration missions are deprecated. Use Roadside Supplies from the ITEMS screen.' };
   }
   update(state, _deltaSeconds = 0) {
     ensureExplorationState(state);

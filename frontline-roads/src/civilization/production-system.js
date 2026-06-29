@@ -119,7 +119,7 @@ export class ProductionSystem {
   maximumProducible(state, buildingId, recipeId, cap = 99) {
     const building = state.civilization.buildings.find(item => item.id === buildingId);
     const recipe = PRODUCTION_RECIPES[recipeId];
-    if (!compatible(state, building, recipeId, recipe)) return { ok: false, quantity: 0, reason: 'この施設では現在生産できません。' };
+    if (!compatible(state, building, recipeId, recipe)) return { ok: false, quantity: 0, reason: 'This facility cannot currently produce that recipe.' };
     const committed = queuedInputCommitment(state);
     const limits = Object.entries(recipe.input ?? {}).map(([resource, amount]) => {
       const available = Math.max(0, (state.inventory.resources[resource] ?? 0) - (committed[resource] ?? 0));
@@ -130,7 +130,7 @@ export class ProductionSystem {
     return {
       ok: quantity > 0,
       quantity,
-      reason: quantity > 0 ? null : '未予約の資源では追加生産できません。',
+      reason: quantity > 0 ? null : 'Cannot add production without resources.',
       committed
     };
   }
@@ -138,7 +138,7 @@ export class ProductionSystem {
   enqueue(state, buildingId, recipeId, quantity = 1) {
     const building = state.civilization.buildings.find(item => item.id === buildingId);
     const recipe = PRODUCTION_RECIPES[recipeId];
-    if (!compatible(state, building, recipeId, recipe)) return { ok: false, reason: 'この施設では生産できません。' };
+    if (!compatible(state, building, recipeId, recipe)) return { ok: false, reason: 'This facility cannot produce that recipe.' };
     let amount = Math.max(1, Math.min(99, Math.floor(Number(quantity) || 1)));
     const queue = queueFor(state, buildingId, true);
     queue.orders.push({ id: stableId('order', buildingId, recipeId, state.runtime?.worldTimeMs ?? Date.now(), queue.orders.length), recipeId, remaining: amount });
@@ -221,9 +221,9 @@ export class ProductionSystem {
 
   collectOutput(state, buildingId) {
     const building = state.civilization.buildings.find(item => item.id === buildingId);
-    if (!building) return { ok: false, reason: '施設が見つかりません。' };
+    if (!building) return { ok: false, reason: 'Facilities not found.' };
     const buffered = { ...(building.outputBuffer ?? {}) };
-    if (Object.values(buffered).every(value => !value)) return { ok: false, reason: '回収できる生産物はありません。' };
+    if (Object.values(buffered).every(value => !value)) return { ok: false, reason: 'No production item is available for recovery.' };
     building.outputBuffer = {};
     const result = addBundle(state, buffered);
     for (const [resource, amount] of Object.entries(result.rejected)) {

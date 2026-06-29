@@ -24,7 +24,7 @@ function copyEdgeMetadata(edge) {
 
 export function insertBaseNodeOnEdge(graph, selection) {
   const sourceEdge = graph.edgeById.get(selection.edgeId);
-  if (!sourceEdge || sourceEdge.routingDisabled) throw new Error('選択した道路が見つかりません。');
+  if (!sourceEdge || sourceEdge.routingDisabled) throw new Error('Selected road was not found.');
   const endpointThreshold = 0.04;
   if (selection.t <= endpointThreshold) {
     return { graph, nodeId: sourceEdge.a };

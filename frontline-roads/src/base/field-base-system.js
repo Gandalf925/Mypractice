@@ -3,6 +3,7 @@ import { graphElementsNearPoint } from '../roads/road-graph.js';
 import { activePlayerBases, playerBasesView } from './player-bases.js';
 import { consumeBundle, missingBundle } from '../civilization/inventory-system.js';
 import { clearOwnedBaseReferences } from './base-removal.js';
+import { stabilizeFriendlySquadsAfterOwnedBaseChanges } from '../combat/friendly-force-system.js';
 import {
   FIELD_BASE_ENEMY_EXCLUSION_METERS,
   fieldBaseMaxHpForCivilization,
@@ -32,14 +33,14 @@ function markEnemyBaseNetworkDirty(state) {
 
 function validateLocation(state, now) {
   const player = state.player?.worldPosition;
-  if (!player) return { ok: false, reason: '現在地を取得してください。' };
+  if (!player) return { ok: false, reason: 'Acquire your current location.' };
   const updatedAt = Number(state.player?.locationUpdatedAt) || 0;
   if (!updatedAt || now - updatedAt > PLAYER_BASE_LOCATION_MAX_AGE_MS) {
-    return { ok: false, reason: '位置情報が古いため簡易拠点を設置できません。現在地を再取得してください。' };
+    return { ok: false, reason: 'Location data is too old to place a simple base. Refresh your current location.' };
   }
   const accuracy = Number(state.player?.locationAccuracy);
   if (Number.isFinite(accuracy) && accuracy > PLAYER_BASE_MAX_ACCURACY_METERS) {
-    return { ok: false, reason: '位置情報の精度が不足しています。' };
+    return { ok: false, reason: 'Location accuracy is insufficient.' };
   }
   return { ok: true, player };
 }
@@ -70,29 +71,29 @@ export function previewFieldBasePlacement(state, now = Date.now()) {
   const limit = fieldBaseLimitForCivilization(state.civilization?.level);
   const used = fieldBaseSlotsUsed(state);
   const cost = fieldBasePlacementCost(state);
-  if (limit <= 0) return { ok: false, reason: '文明Lv.1で簡易拠点が解禁されます。', current: used, limit, cost };
-  if (Number.isFinite(limit) && used >= limit) return { ok: false, reason: `現在の文明レベルでは簡易拠点を${limit}個まで設置できます。`, current: used, limit, cost };
+  if (limit <= 0) return { ok: false, reason: 'Simple bases unlock at Civ Lv.1.', current: used, limit, cost };
+  if (Number.isFinite(limit) && used >= limit) return { ok: false, reason: `Current civilization level allows up to ${limit} simple bases.`, current: used, limit, cost };
 
   const location = validateLocation(state, now);
   if (!location.ok) return { ...location, current: used, limit, cost };
   const road = nearestRoadNode(state, location.player);
   if (!road) {
-    return { ok: false, reason: `取得済み道路の交差点から${FIELD_BASE_PLACEMENT_RANGE_METERS}m以内へ移動してください。`, current: used, limit, cost };
+    return { ok: false, reason: `Move within ${FIELD_BASE_PLACEMENT_RANGE_METERS} m of an acquired road intersection.`, current: used, limit, cost };
   }
 
   const nearest = nearestOwnedBase(state, road.node, { includeDestroyed: true });
   if (nearest && nearest.gap < FIELD_BASE_MINIMUM_SEPARATION_METERS) {
-    return { ok: false, reason: `既存拠点から${FIELD_BASE_MINIMUM_SEPARATION_METERS}m以上離れてください。`, current: used, limit, nearest, cost };
+    return { ok: false, reason: `Move at least ${FIELD_BASE_MINIMUM_SEPARATION_METERS} m away from an existing base.`, current: used, limit, nearest, cost };
   }
 
   const hostile = nearestAliveEnemyBase(state, road.node);
   if (hostile && hostile.gap < FIELD_BASE_ENEMY_EXCLUSION_METERS) {
-    return { ok: false, reason: `敵拠点から${FIELD_BASE_ENEMY_EXCLUSION_METERS}m以上離れてください。`, current: used, limit, hostile, cost };
+    return { ok: false, reason: `Move at least ${FIELD_BASE_ENEMY_EXCLUSION_METERS} m away from an enemy base.`, current: used, limit, hostile, cost };
   }
 
   const missing = missingBundle(state, cost);
   if (Object.keys(missing).length > 0) {
-    return { ok: false, reason: '簡易拠点の設置資源が不足しています。', missing, cost, current: used, limit, node: road.node };
+    return { ok: false, reason: 'Resources for placing a simple base are insufficient.', missing, cost, current: used, limit, node: road.node };
   }
   return {
     ok: true,
@@ -161,11 +162,11 @@ export function diagnoseFieldBaseNetwork(state, required = fieldBaseLimitForCivi
   const projectedTotal = active + destroyed + confirmedAdditional;
   const sufficient = projectedTotal >= target;
   let guidance;
-  if (target <= active) guidance = '必要数の簡易拠点はすでに稼働しています。';
-  else if (destroyed > 0 && active + destroyed >= target) guidance = `破壊済み簡易拠点を${target - active}基再建すると条件を満たせます。`;
-  else if (sufficient) guidance = `現在の取得道路上に、あと${Math.max(0, target - active - destroyed)}基分の設置候補を確認しました。`;
-  else if (availableSlots <= 0) guidance = '設置枠は埋まっています。破壊済み簡易拠点を現地で再建してください。';
-  else guidance = `現在の取得道路では必要数に届きません。道路をさらに取得するか、敵拠点周辺を制圧してください。`;
+  if (target <= active) guidance = 'The required number of simple bases is already active.';
+  else if (destroyed > 0 && active + destroyed >= target) guidance = `Rebuild ${target - active} destroyed simple base(s) to meet the requirement.`;
+  else if (sufficient) guidance = `The acquired road network has ${Math.max(0, target - active - destroyed)} additional candidate site(s).`;
+  else if (availableSlots <= 0) guidance = 'No base slots are available. Rebuild destroyed simple bases on site.';
+  else guidance = `The acquired road network does not contain enough sites. Acquire more roads or secure areas around enemy bases.`;
   return {
     required: target,
     limit,
@@ -185,18 +186,18 @@ export function diagnoseFieldBaseNetwork(state, required = fieldBaseLimitForCivi
 export function previewFieldBaseRebuild(state, baseId, now = Date.now()) {
   const cost = { ...FIELD_BASE_REBUILD_COST };
   const base = fieldBaseById(state, baseId, { includeDestroyed: true });
-  if (!base) return { ok: false, reason: '簡易拠点が見つかりません。', cost };
-  if (base.status !== 'DESTROYED' && base.hp > 0) return { ok: false, reason: 'この簡易拠点は稼働中です。', cost };
+  if (!base) return { ok: false, reason: 'Simple Base not found.', cost };
+  if (base.status !== 'DESTROYED' && base.hp > 0) return { ok: false, reason: 'This simple base is active.', cost };
   const location = validateLocation(state, now);
   if (!location.ok) return { ...location, cost };
   const gap = distance(location.player, base);
   if (gap > FIELD_BASE_BUILD_RANGE_METERS) {
-    return { ok: false, reason: `破壊された簡易拠点から${FIELD_BASE_BUILD_RANGE_METERS}m以内へ移動してください。`, distance: gap, base, cost };
+    return { ok: false, reason: `Move within ${FIELD_BASE_BUILD_RANGE_METERS} m of the destroyed simple base.`, distance: gap, base, cost };
   }
   const node = state.world.roadGraph?.nodeById?.get(base.nodeId);
-  if (!node) return { ok: false, reason: '簡易拠点が接続していた道路を利用できません。', base, cost };
+  if (!node) return { ok: false, reason: 'The road connected to this Simple Base is unavailable.', base, cost };
   const missing = missingBundle(state, cost);
-  if (Object.keys(missing).length > 0) return { ok: false, reason: '簡易拠点の再建資源が不足しています。', missing, base, node, distance: gap, cost };
+  if (Object.keys(missing).length > 0) return { ok: false, reason: 'Resources for rebuilding a simple base are insufficient.', missing, base, node, distance: gap, cost };
   return { ok: true, base, node, distance: gap, cost };
 }
 
@@ -211,14 +212,15 @@ export function destroyFieldBase(state, base, events = null, { enemyId = null } 
       enemy.reroutePending = true;
     }
   }
+  stabilizeFriendlySquadsAfterOwnedBaseChanges(state, events);
   events?.emit('base:field-destroyed', { baseId: base.id, enemyId, position: { x: base.x, y: base.y } });
-  events?.emit('message', { text: `${base.name}が破壊されました。現地で再建できます。` });
+  events?.emit('message', { text: `${base.name} destroyed. Rebuild it on site.` });
   return true;
 }
 
 export function previewFieldBaseDismantle(state, baseId) {
   const base = fieldBaseById(state, baseId, { includeDestroyed: true });
-  if (!base) return { ok: false, reason: '撤去する簡易拠点が見つかりません。' };
+  if (!base) return { ok: false, reason: 'Simple base to dismantle was not found.' };
   return { ok: true, base };
 }
 
@@ -227,11 +229,12 @@ export function dismantleFieldBase(state, baseId, events = null) {
   if (!preview.ok) return preview;
   const base = preview.base;
   const index = (state.world?.fieldBases ?? []).findIndex(item => item.id === base.id);
-  if (index < 0) return { ok: false, reason: '撤去する簡易拠点が見つかりません。' };
+  if (index < 0) return { ok: false, reason: 'Simple base to dismantle was not found.' };
   state.world.fieldBases.splice(index, 1);
   clearOwnedBaseReferences(state, base.id);
+  stabilizeFriendlySquadsAfterOwnedBaseChanges(state, events);
   events?.emit('base:field-dismantled', { baseId: base.id, position: { x: base.x, y: base.y } });
-  events?.emit('message', { text: `${base.name}を撤去しました。` });
+  events?.emit('message', { text: `${base.name} dismantled.` });
   return { ok: true, base };
 }
 
@@ -247,13 +250,13 @@ export class FieldBaseSystem {
   establishAtCurrentLocation(state, now = Date.now()) {
     const preview = this.previewCurrentLocation(state, now);
     if (!preview.ok) return preview;
-    if (!consumeBundle(state, preview.cost)) return { ok: false, reason: '簡易拠点の設置直前に資源が不足しました。', missing: missingBundle(state, preview.cost), cost: preview.cost };
+    if (!consumeBundle(state, preview.cost)) return { ok: false, reason: 'Resources were missing immediately before placing the simple base.', missing: missingBundle(state, preview.cost), cost: preview.cost };
     const establishedAt = state.runtime?.worldTimeMs ?? now;
     const sequence = (state.world?.fieldBases?.length ?? 0) + 1;
     const base = {
       id: stableId('field_base', preview.node.id, establishedAt, sequence),
       kind: 'FIELD',
-      name: `簡易拠点 ${sequence}`,
+      name: `Simple Base ${sequence}`,
       status: 'ESTABLISHED',
       nodeId: preview.node.id,
       x: preview.node.x,
@@ -266,7 +269,7 @@ export class FieldBaseSystem {
     state.world.fieldBases.push(base);
     markEnemyBaseNetworkDirty(state);
     this.events?.emit('base:field-established', { base });
-    this.events?.emit('message', { text: `${base.name}を設置しました。` });
+    this.events?.emit('message', { text: `${base.name} placed.` });
     return { ok: true, base, cost: preview.cost, current: activeFieldBases(state).length, limit: fieldBaseLimitForCivilization(state.civilization?.level) };
   }
 
@@ -277,7 +280,7 @@ export class FieldBaseSystem {
   rebuild(state, baseId, now = Date.now()) {
     const preview = this.previewRebuild(state, baseId, now);
     if (!preview.ok) return preview;
-    if (!consumeBundle(state, preview.cost)) return { ok: false, reason: '簡易拠点の再建直前に資源が不足しました。', missing: missingBundle(state, preview.cost), cost: preview.cost };
+    if (!consumeBundle(state, preview.cost)) return { ok: false, reason: 'Resources were missing immediately before rebuilding the simple base.', missing: missingBundle(state, preview.cost), cost: preview.cost };
     const base = preview.base;
     base.status = 'ESTABLISHED';
     base.hp = base.maxHp = fieldBaseMaxHpForCivilization(state.civilization?.level);
@@ -285,7 +288,7 @@ export class FieldBaseSystem {
     base.rebuiltAt = state.runtime?.worldTimeMs ?? now;
     markEnemyBaseNetworkDirty(state);
     this.events?.emit('base:field-rebuilt', { base });
-    this.events?.emit('message', { text: `${base.name}を再建しました。` });
+    this.events?.emit('message', { text: `${base.name} rebuilt.` });
     return { ok: true, base, cost: preview.cost };
   }
 

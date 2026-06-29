@@ -18,7 +18,7 @@ const BASE_STATUS_RADIUS_METERS = 300;
 const FACILITY_RADIUS_METERS = 120;
 function localizedLimit(value, i18n = null) {
   if (Number.isFinite(value)) return String(value);
-  return i18n?.language === 'en' ? 'No limit' : '上限なし';
+  return i18n?.language === 'en' ? 'No limit' : 'No limit';
 }
 
 function tabButton(id, label, active) {
@@ -36,13 +36,13 @@ function isEnglish(i18n) { return i18n?.language === 'en'; }
 function baseKindName(kind, i18n = null) {
   const field = kind === 'field' || kind === 'FIELD';
   if (isEnglish(i18n)) return field ? 'Simple Base' : 'Major Base';
-  return field ? '簡易拠点' : '主要拠点';
+  return field ? 'Simple Base' : 'Major Base';
 }
 
 function localizedBasePressureText(profile, i18n = null) {
-  if (!profile) return isEnglish(i18n) ? 'Enemy pressure unknown' : '敵圧 不明';
+  if (!profile) return isEnglish(i18n) ? 'Enemy pressure unknown' : 'Enemy pressure Unknown';
   if (!isEnglish(i18n)) return basePressureUiText(profile);
-  const stage = ({ 未認識: 'Unrecognized', 偵察: 'Scouting', 小規模: 'Minor', 拡大中: 'Escalating', 本格: 'Full' })[profile.stageLabel] ?? i18nCopy(i18n, profile.stageLabel);
+  const stage = ({ Unrecognized: 'Unrecognized', Scouting: 'Scouting', Minor: 'Minor', Escalating: 'Escalating', Full: 'Full' })[profile.stageLabel] ?? i18nCopy(i18n, profile.stageLabel);
   const percent = Math.round(profile.ratio * 100);
   if (profile.kind === 'PRIMARY') return 'Enemy pressure Full';
   if (profile.mature) return `Enemy pressure ${stage} · ${percent}%`;
@@ -54,43 +54,43 @@ function localizedPlacementReason(i18n, reason = '') {
   const text = String(reason ?? '');
   if (!isEnglish(i18n)) return text;
   const exact = new Map([
-    ['現在地を取得してください。', 'Acquire your current location.'],
-    ['位置情報が古いため簡易拠点を設置できません。現在地を再取得してください。', 'Location data is too old to place a simple base. Refresh your current location.'],
-    ['位置情報が古いため拠点を設置できません。現在地を再取得してください。', 'Location data is too old to place a base. Refresh your current location.'],
-    ['位置情報が古いため再建できません。', 'Location data is too old to rebuild. Refresh your current location.'],
-    ['位置情報の精度が不足しています。', 'Location accuracy is insufficient.'],
-    ['文明Lv.1で簡易拠点が解禁されます。', 'Simple bases unlock at Civ Lv.1.'],
-    ['簡易拠点の設置資源が不足しています。', 'Resources for placing a simple base are insufficient.'],
-    ['主要拠点の設置資源が不足しています。', 'Resources for placing a major base are insufficient.'],
-    ['簡易拠点が見つかりません。', 'Simple base not found.'],
-    ['主要拠点が見つかりません。', 'Major base not found.'],
-    ['この簡易拠点は稼働中です。', 'This simple base is active.'],
-    ['この主要拠点は稼働中です。', 'This major base is active.'],
-    ['簡易拠点が接続していた道路を利用できません。', 'The road connected to this simple base is unavailable.'],
-    ['簡易拠点の再建資源が不足しています。', 'Resources for rebuilding a simple base are insufficient.'],
-    ['主要拠点の再建資源が不足しています。', 'Resources for rebuilding a major base are insufficient.'],
-    ['撤去する簡易拠点が見つかりません。', 'Simple base to dismantle was not found.'],
-    ['撤去する主要拠点が見つかりません。', 'Major base to dismantle was not found.'],
-    ['最後に残す主要拠点は撤去できません。', 'The last remaining major base cannot be dismantled.'],
-    ['主要拠点は最低1つ必要です。', 'At least one major base is required.'],
-    ['簡易拠点システムを利用できません。', 'Simple base system is unavailable.']
+    ['Acquire your current location.', 'Acquire your current location.'],
+    ['Location data is too old to place a simple base. Refresh your current location.', 'Location data is too old to place a simple base. Refresh your current location.'],
+    ['Location data is too old to place a base. Refresh your current location.', 'Location data is too old to place a base. Refresh your current location.'],
+    ['Location data is too old to rebuild. Refresh your current location.', 'Location data is too old to rebuild. Refresh your current location.'],
+    ['Location accuracy is insufficient.', 'Location accuracy is insufficient.'],
+    ['Civ Lv.1 with Simple Base Unlocks.', 'Simple bases unlock at Civ Lv.1.'],
+    ['Resources for placing a simple base are insufficient.', 'Resources for placing a simple base are insufficient.'],
+    ['Resources for placing a major base are insufficient.', 'Resources for placing a major base are insufficient.'],
+    ['Simple Base not found.', 'Simple base not found.'],
+    ['Major Base not found.', 'Major base not found.'],
+    ['this of Simple Base Active in progress.', 'This simple base is active.'],
+    ['This major base is still active.', 'This major base is active.'],
+    ['The road connected to this Simple Base is unavailable.', 'The road connected to this simple base is unavailable.'],
+    ['Resources for rebuilding a simple base are insufficient.', 'Resources for rebuilding a simple base are insufficient.'],
+    ['Resources for rebuilding a major base are insufficient.', 'Resources for rebuilding a major base are insufficient.'],
+    ['RemoveSimple Base not found.', 'Simple base to dismantle was not found.'],
+    ['RemoveMajor Base not found.', 'Major base to dismantle was not found.'],
+    ['last at leaveMajor Base Cannot dismantle.', 'The last remaining major base cannot be dismantled.'],
+    ['Major Base minimum1one more.', 'At least one major base is required.'],
+    ['Simple Basesystem unavailable.', 'Simple base system is unavailable.']
   ]);
   if (exact.has(text)) return exact.get(text);
-  let match = text.match(/^現在の文明レベルでは簡易拠点を(\d+)個まで設置できます。$/);
+  let match = text.match(/^current of CivilizationLevel in Simple Base (\d+)count to Place with .$/);
   if (match) return `Current civilization level allows up to ${match[1]} simple bases.`;
-  match = text.match(/^現在の文明レベルでは拠点を(\d+)個まで設置できます。$/);
+  match = text.match(/^current of CivilizationLevel in Base (\d+)count to Place with .$/);
   if (match) return `Current civilization level allows up to ${match[1]} major bases.`;
-  match = text.match(/^取得済み道路の交差点から(\d+)m以内へ移動してください。$/);
+  match = text.match(/^Move within (\d+) m of an acquired road intersection.$/);
   if (match) return `Move within ${match[1]} m of an acquired road intersection.`;
-  match = text.match(/^既存拠点から(\d+)m以上離れてください。$/);
+  match = text.match(/^Move at least (\d+) m away from an existing base.$/);
   if (match) return `Move at least ${match[1]} m away from an existing base.`;
-  match = text.match(/^簡易拠点から(\d+)m以上離れてください。$/);
+  match = text.match(/^Move at least (\d+) m away from a simple base.$/);
   if (match) return `Move at least ${match[1]} m away from a simple base.`;
-  match = text.match(/^敵拠点から(\d+)m以上離れてください。$/);
+  match = text.match(/^Move at least (\d+) m away from an enemy base.$/);
   if (match) return `Move at least ${match[1]} m away from an enemy base.`;
-  match = text.match(/^破壊された簡易拠点から(\d+)m以内へ移動してください。$/);
+  match = text.match(/^DestroyedSimple Base from (\d+) m of an acquired road intersection.$/);
   if (match) return `Move within ${match[1]} m of the destroyed simple base.`;
-  match = text.match(/^破壊された主要拠点から(\d+)m以内へ移動してください。$/);
+  match = text.match(/^DestroyedMajor Base from (\d+) m of an acquired road intersection.$/);
   if (match) return `Move within ${match[1]} m of the destroyed major base.`;
   return i18nCopy(i18n, text);
 }
@@ -98,12 +98,12 @@ function localizedPlacementReason(i18n, reason = '') {
 function localizedDiagnosticGuidance(i18n, text = '') {
   const value = String(text ?? '');
   if (!isEnglish(i18n)) return value;
-  if (value === '必要数の簡易拠点はすでに稼働しています。') return 'The required number of simple bases is already active.';
-  if (value === '設置枠は埋まっています。破壊済み簡易拠点を現地で再建してください。') return 'No base slots are available. Rebuild destroyed simple bases on site.';
-  if (value === '現在の取得道路では必要数に届きません。道路をさらに取得するか、敵拠点周辺を制圧してください。') return 'The acquired road network does not contain enough sites. Acquire more roads or secure areas around enemy bases.';
-  let match = value.match(/^破壊済み簡易拠点を(\d+)基再建すると条件を満たせます。$/);
+  if (value === 'The required number of simple bases is already active.') return 'The required number of simple bases is already active.';
+  if (value === 'No base slots are available. Rebuild destroyed simple bases on site.') return 'No base slots are available. Rebuild destroyed simple bases on site.';
+  if (value === 'The acquired road network does not contain enough sites. Acquire more roads or secure areas around enemy bases.') return 'The acquired road network does not contain enough sites. Acquire more roads or secure areas around enemy bases.';
+  let match = value.match(/^DestroyedSimple Base (\d+)Rebuild and requirements can satisfy.$/);
   if (match) return `Rebuild ${match[1]} destroyed simple base(s) to meet the requirement.`;
-  match = value.match(/^現在の取得道路上に、あと(\d+)基分の設置候補を確認しました。$/);
+  match = value.match(/^The acquired road network has (\d+) additional candidate site(s).$/);
   if (match) return `The acquired road network has ${match[1]} additional candidate site(s).`;
   return i18nCopy(i18n, value);
 }
@@ -137,12 +137,12 @@ export function summarizePlayerBase(state, base) {
     readySquads,
     recoveryItems,
     alert: base.status === 'DESTROYED' || base.hp <= 0
-      ? '破壊'
+      ? 'Destroyed'
       : nearbyEnemies > 0
-        ? '交戦警戒'
+        ? 'Enemy contact'
         : recoveryItems > 0
-          ? '回収物あり'
-          : '安定'
+          ? 'Recovery item nearby'
+          : 'Stable'
   };
 }
 
@@ -158,32 +158,32 @@ function baseCard(state, base, { selected, label, field = false, rebuild = null,
   const fieldRangeNote = field
     ? (en
       ? `<p class="sectionNote">Construction range ${fieldBaseBuildRange(state.civilization?.level)} m. Can dispatch Assault, Skirmisher, and Recovery squads.</p>`
-      : `<p class="sectionNote">建設範囲${fieldBaseBuildRange(state.civilization?.level)}m。突撃／遊撃／回収部隊を派兵できます。</p>`)
+      : `<p class="sectionNote">Construction range ${fieldBaseBuildRange(state.civilization?.level)}m. Build simple bases, dispatch skirmishers, and manage recovery squads.</p>`)
     : '';
   const pressureNotice = en
     ? `${localizedBasePressureText(pressure, i18n)} · simultaneous target cap ${targetCap}`
-    : `${basePressureUiText(pressure)}・同時標的上限 ${targetCap}`;
+    : `${basePressureUiText(pressure)} · simultaneous target cap ${targetCap}`;
   const squadNotice = en
     ? `Deployed ${status.activeSquads} · Recovering ${status.recoveringSquads} · Ready to redeploy ${status.readySquads}`
-    : `派兵中 ${status.activeSquads}・回復中 ${status.recoveringSquads}・再出撃待機 ${status.readySquads}`;
+    : `Deployed ${status.activeSquads} · Recovering ${status.recoveringSquads} · Ready to redeploy ${status.readySquads}`;
   const recoveryNotice = status.recoveryItems
-    ? (en ? `<p class="baseRecoveryNotice">Unrecovered nearby items ${status.recoveryItems}</p>` : `<p class="baseRecoveryNotice">周辺に未回収アイテム ${status.recoveryItems}</p>`)
+    ? (en ? `<p class="baseRecoveryNotice">Unrecovered nearby items ${status.recoveryItems}</p>` : `<p class="baseRecoveryNotice">Unrecovered nearby items ${status.recoveryItems}</p>`)
     : '';
-  const focusLabel = en ? 'Show this base on MAP' : 'この拠点をMAP表示';
+  const focusLabel = en ? 'Show this base on MAP' : 'Show this base on MAP';
   const rebuildHtml = destroyed && rebuildKind ? (() => {
     const kind = baseKindName(rebuildKind, i18n);
-    const button = en ? `Rebuild on site: ${kind}` : `現地で${kind}を再建`;
+    const button = en ? `Rebuild on site: ${kind}` : `Rebuild on site: ${kind} rebuild`;
     const reason = rebuild?.ok
-      ? (en ? 'Can rebuild from your current location.' : '現在地から再建できます。')
-      : localizedPlacementReason(i18n, rebuild?.reason ?? (en ? 'Move to the site.' : '現地へ移動してください。'));
-    return `<button class="secondary wideButton" data-action="rebuild-${rebuildKind}-base" data-base-id="${base.id}" ${rebuild?.ok ? '' : 'disabled'}>${button}</button><p class="sectionNote">${en ? 'Cost' : '費用'} ${i18nBundle(i18n, rebuild?.cost)}・${reason}</p>`;
+      ? (en ? 'Can rebuild from your current location.' : 'Can rebuild from your current location.')
+      : localizedPlacementReason(i18n, rebuild?.reason ?? (en ? 'Move to the site.' : 'Move to the site.'));
+    return `<button class="secondary wideButton" data-action="rebuild-${rebuildKind}-base" data-base-id="${base.id}" ${rebuild?.ok ? '' : 'disabled'}>${button}</button><p class="sectionNote">${en ? 'Cost' : 'Cost'} ${i18nBundle(i18n, rebuild?.cost)} · ${reason}</p>`;
   })() : '';
   const dismantleHtml = dismantleKind ? (() => {
     const kind = baseKindName(dismantleKind, i18n);
-    const button = en ? `Dismantle ${kind}` : `${kind}を撤去`;
+    const button = en ? `Dismantle ${kind}` : `${kind} dismantle`;
     const reason = dismantle?.ok
-      ? (en ? 'Dismantling frees a base slot and reassigns enemies and squads targeting it to a remaining major base.' : '撤去すると拠点枠を空け、対象中の敵と部隊は残存主要拠点へ再割当します。')
-      : localizedPlacementReason(i18n, dismantle?.reason ?? (en ? 'Cannot dismantle.' : '撤去できません。'));
+      ? (en ? 'Dismantling frees a base slot and reassigns enemies and squads targeting it to a remaining major base.' : 'Dismantling frees a base slot and reassigns enemies and squads targeting it to a remaining major base.')
+      : localizedPlacementReason(i18n, dismantle?.reason ?? (en ? 'Cannot dismantle.' : 'Cannot dismantle.'));
     return `<button class="secondary wideButton danger" data-action="dismantle-${dismantleKind}-base" data-base-id="${base.id}" ${dismantle?.ok ? '' : 'disabled'}>${button}</button><p class="sectionNote">${reason}</p>`;
   })() : '';
   return `<article class="baseCommandCard ${selected ? 'selected' : ''} ${destroyed ? 'destroyed' : ''}">
@@ -273,7 +273,7 @@ export class BaseCommandUi {
     const focusedName = focused ? i18nCopy(this.i18n, focused.name) : '';
     this.summary.textContent = isEnglish(this.i18n)
       ? `Major ${major.length} active · ${majorSlots}/${majorLimit} · Simple ${fieldBaseSlotsUsed(state)}/${fieldLimit}${repairCount ? ` · Repairs needed ${repairCount}` : ''}${focused ? ` · Focused ${focusedName}` : ''}`
-      : `主要 ${major.length}稼働・${majorSlots}/${majorLimit}・簡易 ${fieldBaseSlotsUsed(state)}/${fieldLimit}${repairCount ? `・要修理 ${repairCount}` : ''}${focused ? `・表示 ${focusedName}` : ''}`;
+      : `Major ${major.length}Active · ${majorSlots}/${majorLimit} · Simple ${fieldBaseSlotsUsed(state)}/${fieldLimit}${repairCount ? ` · Repairs needed ${repairCount}` : ''}${focused ? ` · Focused ${focusedName}` : ''}`;
     this.summary.classList?.toggle('has-repairs', repairCount > 0);
   }
 
@@ -301,13 +301,13 @@ export class BaseCommandUi {
     if (action === 'establish-base') {
       let result;
       this.store.transaction(state => { result = this.system.establishAtCurrentLocation(state); }, 'base:player-established', { emit: true, validate: true });
-      if (!result?.ok) this.notifications.show(this.localize(result?.reason ?? '拠点を設置できません。'));
+      if (!result?.ok) this.notifications.show(this.localize(result?.reason ?? 'Cannot place base.'));
       else {
         this.focusedBaseId = result.base.id;
         this.focusedBaseKind = 'major';
         this.renderer.invalidateStatic();
         this.renderer.render();
-        this.notifications.show(this.localize(`${result.base.name}を設置しました。`));
+        this.notifications.show(this.localize(`${result.base.name} placed.`));
         this.persist?.();
       }
       this.render();
@@ -317,13 +317,13 @@ export class BaseCommandUi {
       if (!this.fieldSystem) return;
       let result;
       this.store.transaction(state => { result = this.fieldSystem.establishAtCurrentLocation(state); }, 'base:field-established', { emit: true, validate: true });
-      if (!result?.ok) this.notifications.show(this.localize(result?.reason ?? '簡易拠点を設置できません。'));
+      if (!result?.ok) this.notifications.show(this.localize(result?.reason ?? 'Cannot place simple base.'));
       else {
         this.focusedBaseId = result.base.id;
         this.focusedBaseKind = 'field';
         this.renderer.invalidateStatic();
         this.renderer.render();
-        this.notifications.show(this.localize(`${result.base.name}を設置しました。`));
+        this.notifications.show(this.localize(`${result.base.name} placed.`));
         this.persist?.();
       }
       this.render();
@@ -332,11 +332,11 @@ export class BaseCommandUi {
     if (action === 'rebuild-major-base') {
       let result;
       this.store.transaction(state => { result = this.system.rebuild(state, baseId); }, 'base:player-rebuilt', { emit: true, validate: true });
-      if (!result?.ok) this.notifications.show(this.localize(result?.reason ?? '主要拠点を再建できません。'));
+      if (!result?.ok) this.notifications.show(this.localize(result?.reason ?? 'Cannot rebuild major base.'));
       else {
         this.renderer.invalidateStatic();
         this.renderer.render();
-        this.notifications.show(this.localize(`${result.base.name}を再建しました。`));
+        this.notifications.show(this.localize(`${result.base.name} rebuilt.`));
         this.persist?.();
       }
       this.render();
@@ -346,11 +346,11 @@ export class BaseCommandUi {
       if (!this.fieldSystem) return;
       let result;
       this.store.transaction(state => { result = this.fieldSystem.rebuild(state, baseId); }, 'base:field-rebuilt', { emit: true, validate: true });
-      if (!result?.ok) this.notifications.show(this.localize(result?.reason ?? '簡易拠点を再建できません。'));
+      if (!result?.ok) this.notifications.show(this.localize(result?.reason ?? 'Cannot rebuild simple base.'));
       else {
         this.renderer.invalidateStatic();
         this.renderer.render();
-        this.notifications.show(this.localize(`${result.base.name}を再建しました。`));
+        this.notifications.show(this.localize(`${result.base.name} rebuilt.`));
         this.persist?.();
       }
       this.render();
@@ -359,14 +359,14 @@ export class BaseCommandUi {
     if (action === 'dismantle-major-base') {
       let result;
       this.store.transaction(state => { result = this.system.dismantle(state, baseId); }, 'base:player-dismantled', { emit: true, validate: true });
-      if (!result?.ok) this.notifications.show(this.localize(result?.reason ?? '主要拠点を撤去できません。'));
+      if (!result?.ok) this.notifications.show(this.localize(result?.reason ?? 'Cannot dismantle major base.'));
       else {
         const state = this.store.snapshot();
         this.focusedBaseId = (state.world?.playerBases ?? [])[0]?.id ?? (state.world?.fieldBases ?? [])[0]?.id ?? null;
         this.focusedBaseKind = 'major';
         this.renderer.invalidateStatic();
         this.renderer.render();
-        this.notifications.show(this.localize(`${result.base.name}を撤去しました。`));
+        this.notifications.show(this.localize(`${result.base.name} dismantled.`));
         this.persist?.();
       }
       this.render();
@@ -376,14 +376,14 @@ export class BaseCommandUi {
       if (!this.fieldSystem) return;
       let result;
       this.store.transaction(state => { result = this.fieldSystem.dismantle(state, baseId); }, 'base:field-dismantled', { emit: true, validate: true });
-      if (!result?.ok) this.notifications.show(this.localize(result?.reason ?? '簡易拠点を撤去できません。'));
+      if (!result?.ok) this.notifications.show(this.localize(result?.reason ?? 'Cannot dismantle simple base.'));
       else {
         const state = this.store.snapshot();
         this.focusedBaseId = (state.world?.playerBases ?? [])[0]?.id ?? (state.world?.fieldBases ?? [])[0]?.id ?? null;
         this.focusedBaseKind = 'major';
         this.renderer.invalidateStatic();
         this.renderer.render();
-        this.notifications.show(this.localize(`${result.base.name}を撤去しました。`));
+        this.notifications.show(this.localize(`${result.base.name} dismantled.`));
         this.persist?.();
       }
       this.render();
@@ -402,7 +402,7 @@ export class BaseCommandUi {
     if (!all.some(base => base.id === this.focusedBaseId)) this.focusedBaseId = majorBases[0]?.id ?? fieldBases[0]?.id ?? null;
 
     const majorPlacement = this.system.previewCurrentLocation(state);
-    const fieldPlacement = this.fieldSystem?.previewCurrentLocation(state) ?? { ok: false, reason: '簡易拠点システムを利用できません。' };
+    const fieldPlacement = this.fieldSystem?.previewCurrentLocation(state) ?? { ok: false, reason: 'Simple base system is unavailable.' };
     const fieldDiagnostic = diagnoseFieldBaseNetwork(state, Math.min(3, fieldLimit));
     const majorCards = majorBases.map((base, index) => baseCard(state, base, {
       selected: base.id === this.focusedBaseId,
@@ -412,7 +412,7 @@ export class BaseCommandUi {
       dismantle: this.system.previewDismantle(state, base.id),
       dismantleKind: base.primary ? null : 'major',
       i18n: this.i18n
-    })).join('') || `<p class="emptyText">${en ? 'No active major bases.' : '稼働中の主要拠点がありません。'}</p>`;
+    })).join('') || `<p class="emptyText">${en ? 'No active major bases.': 'No active major bases.'}</p>`;
     const fieldCards = fieldBases.map((base, index) => baseCard(state, base, {
       selected: base.id === this.focusedBaseId,
       label: `FIELD ${String(index + 1).padStart(2, '0')}`,
@@ -422,7 +422,7 @@ export class BaseCommandUi {
       dismantle: this.fieldSystem?.previewDismantle(state, base.id),
       dismantleKind: 'field',
       i18n: this.i18n
-    })).join('') || `<p class="emptyText">${en ? 'No simple bases yet.' : '簡易拠点はまだありません。'}</p>`;
+    })).join('') || `<p class="emptyText">${en ? 'No simple bases yet.': 'No simple bases yet.'}</p>`;
 
     const active = ['overview', 'major', 'field', 'build'].includes(this.activeTab) ? this.activeTab : 'overview';
     const majorLimitText = localizedLimit(majorLimit, this.i18n);
@@ -432,33 +432,33 @@ export class BaseCommandUi {
     const buildMajorCost = i18nBundle(this.i18n, majorPlacement.cost);
     const buildFieldCost = i18nBundle(this.i18n, fieldPlacement.cost);
     const majorBuildStatus = majorPlacement.ok
-      ? (en ? `Can place · about ${Math.round(majorPlacement.distanceToRoad)} m to road` : `設置可能・道路まで約${Math.round(majorPlacement.distanceToRoad)}m`)
+      ? (en ? `Can place · about ${Math.round(majorPlacement.distanceToRoad)} m to road` : `Can place · about ${Math.round(majorPlacement.distanceToRoad)}m`)
       : localizedPlacementReason(this.i18n, majorPlacement.reason);
     const fieldBuildStatus = fieldPlacement.ok
-      ? (en ? `Can place · about ${Math.round(fieldPlacement.distanceToRoad)} m to road` : `設置可能・道路まで約${Math.round(fieldPlacement.distanceToRoad)}m`)
+      ? (en ? `Can place · about ${Math.round(fieldPlacement.distanceToRoad)} m to road` : `Can place · about ${Math.round(fieldPlacement.distanceToRoad)}m`)
       : localizedPlacementReason(this.i18n, fieldPlacement.reason);
     const fieldDiagnosticTitle = en
       ? `Road network check: ${fieldDiagnostic.active}/${fieldDiagnostic.required} active`
-      : `道路網診断：${fieldDiagnostic.active}/${fieldDiagnostic.required}基稼働`;
+      : `Road network check: ${fieldDiagnostic.active}/${fieldDiagnostic.required}Active`;
     const fieldDiagnosticDetail = en
       ? `Additional candidates ${fieldDiagnostic.confirmedAdditional} · Destroyed ${fieldDiagnostic.destroyed}`
-      : `追加候補 ${fieldDiagnostic.confirmedAdditional}基・破壊済み ${fieldDiagnostic.destroyed}基`;
+      : `Additional candidates ${fieldDiagnostic.confirmedAdditional} · Destroyed ${fieldDiagnostic.destroyed}`;
 
-    this.body.innerHTML = `<div class="uiTabBar" role="tablist" aria-label="${en ? 'Base tab switcher' : '拠点画面の表示切替'}">
-        ${tabButton('overview', en ? 'Overview' : '概要', active)}
-        ${tabButton('major', en ? 'Major' : '主要', active)}
-        ${tabButton('field', en ? 'Simple' : '簡易', active)}
-        ${tabButton('build', en ? 'Build' : '建設', active)}
+    this.body.innerHTML = `<div class="uiTabBar" role="tablist" aria-label="${this.localize('Base tab switcher')}">
+        ${tabButton('overview', en ? 'Overview' : 'Overview', active)}
+        ${tabButton('major', en ? 'Major' : 'Major', active)}
+        ${tabButton('field', en ? 'Simple' : 'Simple', active)}
+        ${tabButton('build', en ? 'Build' : 'Build', active)}
       </div>
       <section class="overviewHero baseHero">
-        <div><small>${en ? 'Major Bases' : '主要拠点'}</small><strong>${majorBases.length}/${majorLimitText}</strong><span>${en ? `${majorSlotsPerBase} squad slots each` : `各 ${majorSlotsPerBase}部隊枠`}</span></div>
-        <div><small>${en ? 'Simple Bases' : '簡易拠点'}</small><strong>${fieldBaseSlotsUsed(state)}/${fieldLimitText}</strong><span>${en ? `${fieldSlotsPerBase} squad slots each` : `各 ${fieldSlotsPerBase}部隊枠`}</span></div>
-        <div><small>${en ? 'Civilization' : '文明'}</small><strong>Lv.${state.civilization.level}</strong><span>${en ? 'Growth increases base and squad slots' : '発展で拠点・部隊枠が増加'}</span></div>
+        <div><small>${en ? 'Major Bases' : 'Major Base'}</small><strong>${majorBases.length}/${majorLimitText}</strong><span>${en ? `${majorSlotsPerBase} squad slots each` : `each  ${majorSlotsPerBase}squad slots`}</span></div>
+        <div><small>${en ? 'Simple Bases' : 'Simple Base'}</small><strong>${fieldBaseSlotsUsed(state)}/${fieldLimitText}</strong><span>${en ? `${fieldSlotsPerBase} squad slots each` : `each  ${fieldSlotsPerBase}squad slots`}</span></div>
+        <div><small>${en ? 'Civilization' : 'Civilization'}</small><strong>Lv.${state.civilization.level}</strong><span>${en ? 'Growth increases base and squad slots' : 'Growth increases base and squad slots'}</span></div>
       </section>
-      ${tabPanel('overview', active, `<h2>${en ? 'Base Overview' : '拠点概要'}</h2><div class="baseCommandGrid compactBaseGrid">${majorCards}${fieldCards}</div>`)}
-      ${tabPanel('major', active, `<h2>${en ? 'Major Bases' : '主要拠点'}</h2><p class="sectionNote">${en ? 'Core bases that can dispatch all squad types. At least one major base must remain; the rest can be dismantled.' : 'すべての部隊を派兵できる中核拠点です。主要拠点は最低1つを残し、それ以外は撤去できます。'}</p><div class="baseCommandGrid">${majorCards}</div>`)}
-      ${tabPanel('field', active, `<h2>${en ? 'Simple Bases' : '簡易拠点'}</h2><p class="sectionNote">${en ? 'Used for frontline operation of Assault, Skirmisher, and Recovery squads. Unneeded simple bases can be dismantled.' : '突撃部隊・遊撃部隊・回収部隊の前線運用に使います。不要な簡易拠点は撤去できます。'}</p><div class="baseCommandGrid">${fieldCards}</div>`)}
-      ${tabPanel('build', active, `<h2>${en ? 'Build a major base here' : '現在地に主要拠点'}</h2><div class="baseEstablishSection"><p class="sectionNote">${en ? `Construction range ${majorBaseBuildRange(state.civilization?.level)} m. All squad types can be dispatched.` : `建設範囲${majorBaseBuildRange(state.civilization?.level)}m。すべての部隊を派兵できます。`}</p><button class="primary wideButton" data-action="establish-base" ${majorPlacement.ok ? '' : 'disabled'}>${en ? 'Place major base here' : '現在地に主要拠点を設置'}</button><p class="sectionNote">${en ? 'Cost' : '費用'} ${buildMajorCost}・${majorBuildStatus}</p></div><h2>${en ? 'Build a simple base here' : '現在地に簡易拠点'}</h2><div class="baseEstablishSection"><p class="sectionNote">${en ? 'Unlocked at Civ Lv.1. Can be placed within 100 m of an acquired road intersection.' : '文明Lv.1で解禁。取得済み道路の交差点から100m以内で設置できます。'}</p><div class="fieldBaseDiagnostic ${fieldDiagnostic.sufficient ? 'is-sufficient' : 'is-insufficient'}"><strong>${fieldDiagnosticTitle}</strong><span>${fieldDiagnosticDetail}</span><small>${localizedDiagnosticGuidance(this.i18n, fieldDiagnostic.guidance)}</small></div><button class="primary wideButton" data-action="establish-field-base" ${fieldPlacement.ok ? '' : 'disabled'}>${en ? 'Place simple base here' : '現在地に簡易拠点を設置'}</button><p class="sectionNote">${en ? 'Cost' : '費用'} ${buildFieldCost}・${fieldBuildStatus}</p></div>`)}
+      ${tabPanel('overview', active, `<h2>${en ? 'Base Overview' : 'Base Overview'}</h2><div class="baseCommandGrid compactBaseGrid">${majorCards}${fieldCards}</div>`)}
+      ${tabPanel('major', active, `<h2>${en ? 'Major Bases' : 'Major Base'}</h2><p class="sectionNote">${en ? 'Core bases that can dispatch all squad types. At least one major base must remain; the rest can be dismantled.' : 'Core bases that can dispatch all squad types. At least one major base must remain; the rest can be dismantled.'}</p><div class="baseCommandGrid">${majorCards}</div>`)}
+      ${tabPanel('field', active, `<h2>${en ? 'Simple Bases' : 'Simple Base'}</h2><p class="sectionNote">${en ? 'Used for frontline operation of Assault, Skirmisher, and Recovery squads. Unneeded simple bases can be dismantled.' : 'Used for frontline operation of Assault, Skirmisher, and Recovery squads. Unneeded simple bases can be dismantled.'}</p><div class="baseCommandGrid">${fieldCards}</div>`)}
+      ${tabPanel('build', active, `<h2>${en ? 'Build a major base here' : 'Build a major base here'}</h2><div class="baseEstablishSection"><p class="sectionNote">${en ? `Construction range ${majorBaseBuildRange(state.civilization?.level)} m. All squad types can be dispatched.` : `Construction range ${majorBaseBuildRange(state.civilization?.level)}m.All squad types can be dispatched.`}</p><button class="primary wideButton" data-action="establish-base" ${majorPlacement.ok ? '' : 'disabled'}>${en ? 'Place major base here' : 'Place major base here'}</button><p class="sectionNote">${en ? 'Cost' : 'Cost'} ${buildMajorCost} · ${majorBuildStatus}</p></div><h2>${en ? 'Build a simple base here' : 'Build a simple base here'}</h2><div class="baseEstablishSection"><p class="sectionNote">${en ? 'Unlocked at Civ Lv.1. Can be placed within 100 m of an acquired road intersection.' : 'Unlocked at Civ Lv.1. Can be placed within 100 m of an acquired road intersection.'}</p><div class="fieldBaseDiagnostic ${fieldDiagnostic.sufficient ? 'is-sufficient' : 'is-insufficient'}"><strong>${fieldDiagnosticTitle}</strong><span>${fieldDiagnosticDetail}</span><small>${localizedDiagnosticGuidance(this.i18n, fieldDiagnostic.guidance)}</small></div><button class="primary wideButton" data-action="establish-field-base" ${fieldPlacement.ok ? '' : 'disabled'}>${en ? 'Place simple base here' : 'Place simple base here'}</button><p class="sectionNote">${en ? 'Cost' : 'Cost'} ${buildFieldCost} · ${fieldBuildStatus}</p></div>`)}
     `;
     this.updateSummary(state);
   }

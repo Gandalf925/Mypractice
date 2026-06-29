@@ -1,5 +1,7 @@
 import { ensureFieldBaseState } from './field-bases.js';
 import { ensurePlayerBaseState } from './player-bases.js';
+import { roadUnitPosition } from '../combat/road-unit-position.js';
+import { RECOVERY_ITEM_STATUS, recoveryItemPoint, releaseRecoveryItem } from '../exploration/recovery-system.js';
 
 export const CIVILIZATION_PRESSURE_RAMP_SECONDS = 24 * 60 * 60;
 export const OFFLINE_POST_CIV_PROTECTION_SECONDS = 24 * 60 * 60;
@@ -77,7 +79,33 @@ function removedBaseSnapshot(base) {
   return { id: base.id, name: base.name, kind: base.kind ?? (base.primary ? 'PRIMARY' : 'MAJOR'), primary: Boolean(base.primary), nodeId: base.nodeId, x: base.x, y: base.y, hp: 0, maxHp: base.maxHp, removedAt: null };
 }
 
-export function purgeOwnedTerritoryAfterCheckmate(state, when = nowMs(state)) {
+function releaseFriendlyRecoveryItemsBeforePurge(state, events = null) {
+  let releasedCount = 0;
+  for (const squad of state.combat?.friendlySquads ?? []) {
+    const itemId = squad?.targetRecoveryItemId;
+    if (!itemId) continue;
+    const item = (state.world?.recoveryItems ?? []).find(value => value.id === itemId && (!value.assignedSquadId || value.assignedSquadId === squad.id));
+    if (!item) continue;
+    const placement = item.status === RECOVERY_ITEM_STATUS.CARRIED
+      ? (() => {
+          const point = roadUnitPosition(state, squad);
+          const edge = squad.edgeId ? state.world?.roadGraph?.edgeById?.get(squad.edgeId) : null;
+          return { nodeId: edge ? (squad.edgeProgress <= edge.length / 2 ? edge.a : edge.b) : squad.nodeId, x: point.x, y: point.y };
+        })()
+      : null;
+    const released = releaseRecoveryItem(state, item.id, squad.id, placement);
+    if (released.ok) {
+      releasedCount += 1;
+      events?.emit('friendly:recovery-item-dropped', { squadId: squad.id, itemId: item.id, position: recoveryItemPoint(state, released.item) });
+    }
+    squad.targetRecoveryItemId = null;
+    squad.recoveryCollectionProgressSec = null;
+  }
+  if (releasedCount > 0) events?.emit('message', { text: 'Home base was lost. Recovery items carried by squads were dropped back onto the road.' });
+  return releasedCount;
+}
+
+export function purgeOwnedTerritoryAfterCheckmate(state, when = nowMs(state), events = null) {
   if (!state?.world) return { primary: null, removedPlayerBases: [], removedFieldBases: [], removedDefenseCount: 0 };
   state.world.playerBases = Array.isArray(state.world.playerBases) ? state.world.playerBases : [];
   state.world.fieldBases = Array.isArray(state.world.fieldBases) ? state.world.fieldBases : [];
@@ -85,6 +113,7 @@ export function purgeOwnedTerritoryAfterCheckmate(state, when = nowMs(state)) {
   const removedPlayerBases = state.world.playerBases.map(base => ({ ...removedBaseSnapshot(base), kind: base.primary ? 'PRIMARY' : 'MAJOR', removedAt: when }));
   const removedFieldBases = state.world.fieldBases.map(base => ({ ...removedBaseSnapshot(base), kind: 'FIELD', removedAt: when }));
   const removedDefenseCount = Array.isArray(state.combat?.defenses) ? state.combat.defenses.length : 0;
+  releaseFriendlyRecoveryItemsBeforePurge(state, events);
   state.world.playerBases = [];
   state.world.fieldBases = [];
   state.world.homeBase = null;
@@ -107,7 +136,7 @@ export function collapsePlayerTerritory(state, events = null, { enemyId = null, 
   const when = nowMs(state);
   ensurePlayerBaseState(state);
   ensureFieldBaseState(state);
-  const { primary, removedPlayerBases, removedFieldBases, removedDefenseCount } = purgeOwnedTerritoryAfterCheckmate(state, when);
+  const { primary, removedPlayerBases, removedFieldBases, removedDefenseCount } = purgeOwnedTerritoryAfterCheckmate(state, when, events);
   const destroyedCount = removedPlayerBases.length + removedFieldBases.length;
   state.combat.playerCheckmate = {
     active: true,
@@ -128,7 +157,7 @@ export function collapsePlayerTerritory(state, events = null, { enemyId = null, 
   }
   events?.emit('base:territory-collapsed', { primaryBaseId: primary?.id ?? null, enemyId, destroyedCount, removedDefenseCount, cause, position: primary ? { x: primary.x, y: primary.y } : null });
   events?.emit('combat:city-defeated', { checkmate: true, primaryBaseId: primary?.id ?? null, destroyedCount, removedDefenseCount, enemyId, cause });
-  events?.emit('message', { text: '本拠地が破壊されました。所有していた主要拠点・簡易拠点・防衛施設はすべて撤去されました。' });
+  events?.emit('message', { text: 'Home base destroyed. All owned major bases, simple bases, and defenses were removed.' });
   return { ok: true, primaryBase: primary, destroyedCount, removedDefenseCount };
 }
 

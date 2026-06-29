@@ -16,12 +16,12 @@ export const RECOVERY_ITEM_STATUS = Object.freeze({
 });
 
 export const ARTIFACT_DEFINITIONS = Object.freeze({
-  commandSeal: { name: '敵指揮認証鍵', description: '敵部隊の指揮系統に使われていた認証鍵です。' },
-  mechanismCore: { name: '攻城機構コア', description: '工兵設備と攻城装置の制御中枢です。' },
-  cipherModule: { name: '暗号通信モジュール', description: '敵拠点間の暗号通信を保持しています。' },
-  armorCore: { name: '装甲制御コア', description: '装甲部隊の製造・整備情報を含む中枢部品です。' },
-  surveyCore: { name: '資源調査データ', description: '採掘拠点が蓄積した地域資源データです。' },
-  siegeArchive: { name: '攻城作戦記録', description: '攻城兵器と侵攻経路の作戦記録です。' }
+  commandSeal: { name: 'Enemy Command Auth Key', description: 'Authentication key used by the enemy command chain.' },
+  mechanismCore: { name: 'Siege Mechanism Core', description: 'Control core for engineer equipment and siege devices.' },
+  cipherModule: { name: 'Encrypted Comms Module', description: 'Stores encrypted communications between enemy bases.' },
+  armorCore: { name: 'Armor Control Core', description: 'Core component containing armored unit manufacturing and maintenance data.' },
+  surveyCore: { name: 'Resource Survey Data', description: 'Regional resource data accumulated by mining bases.' },
+  siegeArchive: { name: 'Siege Operation Archive', description: 'Operational records for siege weapons and invasion routes.' }
 });
 
 const ARTIFACT_BY_BASE_TYPE = Object.freeze({
@@ -38,13 +38,13 @@ export function isRecoveryItemVisible(item) {
 export function recoveryItemStatusPresentation(item) {
   switch (item?.status) {
     case RECOVERY_ITEM_STATUS.RESERVED:
-      return { label: '回収部隊移動中', shortLabel: 'EN ROUTE', detail: '回収部隊が到着するまで、破壊地点に残っています。' };
+      return { label: 'Recovery squad en route', shortLabel: 'EN ROUTE', detail: 'Remains at the destroyed point until the recovery squad arrives.' };
     case RECOVERY_ITEM_STATUS.CARRIED:
-      return { label: '搬送中', shortLabel: 'CARRIED', detail: '回収部隊が回収物を持ち帰っています。拠点到着後に資源と実績へ反映されます。' };
+      return { label: 'Carrying', shortLabel: 'CARRIED', detail: 'The recovery squad is carrying the item back. Resources and achievements are applied after arrival at base.' };
     case RECOVERY_ITEM_STATUS.AVAILABLE:
-      return { label: '未回収', shortLabel: 'READY', detail: '現地回収または回収部隊の派遣が可能です。' };
+      return { label: 'Uncollected', shortLabel: 'READY', detail: 'Can be collected on site or by dispatching a recovery squad.' };
     default:
-      return { label: '回収済み', shortLabel: 'DONE', detail: 'この回収物は既に処理されています。' };
+      return { label: 'Recovered', shortLabel: 'DONE', detail: 'This recovery item has already been processed.' };
   }
 }
 
@@ -101,13 +101,13 @@ export function createBaseRecoveryItem(state, base, loot = null) {
 export function recoveryItemPresentation(item) {
   const artifact = ARTIFACT_DEFINITIONS[item?.artifactType] ?? ARTIFACT_DEFINITIONS.commandSeal;
   const loot = item?.loot && typeof item.loot === 'object' ? item.loot : {};
-  return { name: artifact.name, description: artifact.description, sourceName: ENEMY_BASE_DEFINITIONS[item?.sourceBaseType]?.name ?? '敵拠点', loot, lootText: Object.keys(loot).length ? bundleText(loot) : 'なし' };
+  return { name: artifact.name, description: artifact.description, sourceName: ENEMY_BASE_DEFINITIONS[item?.sourceBaseType]?.name ?? 'Enemy base', loot, lootText: Object.keys(loot).length ? bundleText(loot) : 'None' };
 }
 
 export function reserveRecoveryItem(state, itemId, squadId) {
   const item = (state.world?.recoveryItems ?? []).find(value => value.id === itemId);
-  if (!item || item.status !== RECOVERY_ITEM_STATUS.AVAILABLE) return { ok: false, reason: 'この回収物は現在利用できません。' };
-  if (state.world.recoveryCollection?.itemId === itemId) return { ok: false, reason: 'プレイヤーが現地回収を開始しています。' };
+  if (!item || item.status !== RECOVERY_ITEM_STATUS.AVAILABLE) return { ok: false, reason: 'This recovery item is not currently available.' };
+  if (state.world.recoveryCollection?.itemId === itemId) return { ok: false, reason: 'The player has already started on-site recovery.' };
   item.status = RECOVERY_ITEM_STATUS.RESERVED;
   item.assignedSquadId = squadId;
   return { ok: true, item };
@@ -115,7 +115,7 @@ export function reserveRecoveryItem(state, itemId, squadId) {
 
 export function markRecoveryItemCarried(state, itemId, squadId) {
   const item = (state.world?.recoveryItems ?? []).find(value => value.id === itemId);
-  if (!item || item.assignedSquadId !== squadId || item.status !== RECOVERY_ITEM_STATUS.RESERVED) return { ok: false, reason: '回収物の予約状態が失われています。' };
+  if (!item || item.assignedSquadId !== squadId || item.status !== RECOVERY_ITEM_STATUS.RESERVED) return { ok: false, reason: 'The recovery item reservation was lost.' };
   item.status = RECOVERY_ITEM_STATUS.CARRIED;
   item.pickedUpAt = state.runtime?.worldTimeMs ?? Date.now();
   return { ok: true, item };
@@ -123,7 +123,7 @@ export function markRecoveryItemCarried(state, itemId, squadId) {
 
 export function releaseRecoveryItem(state, itemId, squadId, placement = null) {
   const item = (state.world?.recoveryItems ?? []).find(value => value.id === itemId);
-  if (!item || (item.assignedSquadId && item.assignedSquadId !== squadId)) return { ok: false, reason: '回収物を解放できません。' };
+  if (!item || (item.assignedSquadId && item.assignedSquadId !== squadId)) return { ok: false, reason: 'The recovery item cannot be released.' };
   item.status = RECOVERY_ITEM_STATUS.AVAILABLE;
   item.assignedSquadId = null;
   if (placement) {
@@ -137,7 +137,7 @@ export function releaseRecoveryItem(state, itemId, squadId, placement = null) {
 
 function awardRecoveryItem(state, item) {
   const index = (state.world?.recoveryItems ?? []).findIndex(value => value.id === item.id);
-  if (index < 0) return { ok: false, reason: '回収物が見つかりません。' };
+  if (index < 0) return { ok: false, reason: 'Recovery item not found.' };
   state.world.recoveryItems.splice(index, 1);
   item.status = RECOVERY_ITEM_STATUS.COLLECTED;
   item.assignedSquadId = null;
@@ -150,21 +150,21 @@ function awardRecoveryItem(state, item) {
 
 export function deliverRecoveryItem(state, itemId, squadId) {
   const item = (state.world?.recoveryItems ?? []).find(value => value.id === itemId);
-  if (!item || item.status !== RECOVERY_ITEM_STATUS.CARRIED || item.assignedSquadId !== squadId) return { ok: false, reason: '部隊が回収物を所持していません。' };
+  if (!item || item.status !== RECOVERY_ITEM_STATUS.CARRIED || item.assignedSquadId !== squadId) return { ok: false, reason: 'The squad is not carrying a recovery item.' };
   return awardRecoveryItem(state, item);
 }
 
 export function recoveryEligibility(state, item, now = Date.now()) {
-  if (!item || item.status !== RECOVERY_ITEM_STATUS.AVAILABLE) return { ok: false, reason: 'この回収物は回収部隊が対応中、または取得済みです。' };
+  if (!item || item.status !== RECOVERY_ITEM_STATUS.AVAILABLE) return { ok: false, reason: 'This recovery item is being handled by a recovery squad or has already been collected.' };
   const player = state.player?.worldPosition;
-  if (!player) return { ok: false, reason: '最新の位置情報を取得してください。' };
+  if (!player) return { ok: false, reason: 'Get a fresh location fix.' };
   const point = recoveryItemPoint(state, item);
   const gap = distance(player, point);
-  if (gap > RECOVERY_RANGE_METERS) return { ok: false, reason: `回収地点の${RECOVERY_RANGE_METERS}m以内へ移動してください。`, distance: gap };
+  if (gap > RECOVERY_RANGE_METERS) return { ok: false, reason: `Move within ${RECOVERY_RANGE_METERS} m of the recovery point.`, distance: gap };
   const updatedAt = Number(state.player?.locationUpdatedAt) || 0;
-  if (!updatedAt || now - updatedAt > RECOVERY_LOCATION_MAX_AGE_MS) return { ok: false, reason: '位置情報が古いため回収できません。現在地を再取得してください。', distance: gap };
+  if (!updatedAt || now - updatedAt > RECOVERY_LOCATION_MAX_AGE_MS) return { ok: false, reason: 'Location is too old for recovery. Refresh your current position.', distance: gap };
   const accuracy = Number(state.player?.locationAccuracy);
-  if (Number.isFinite(accuracy) && accuracy > RECOVERY_MAX_ACCURACY_METERS) return { ok: false, reason: '位置情報の精度が不足しています。', distance: gap };
+  if (Number.isFinite(accuracy) && accuracy > RECOVERY_MAX_ACCURACY_METERS) return { ok: false, reason: 'Location accuracy is insufficient.', distance: gap };
   return { ok: true, distance: gap };
 }
 
@@ -176,16 +176,16 @@ export class RecoverySystem {
     const eligibility = recoveryEligibility(state, item, now);
     if (!eligibility.ok) return eligibility;
     if (state.world.recoveryCollection?.itemId === itemId) return { ok: true, active: true, item };
-    if (state.world.recoveryCollection) return { ok: false, reason: '別の回収作業を中断してから開始してください。' };
+    if (state.world.recoveryCollection) return { ok: false, reason: 'Cancel the other recovery operation before starting this one.' };
     state.world.recoveryCollection = { itemId, progressSec: 0, startedAt: state.runtime?.worldTimeMs ?? now };
-    this.events?.emit('message', { text: `現地回収を開始しました。${RECOVERY_COLLECTION_DURATION_SECONDS}秒間その場を維持してください。` });
+    this.events?.emit('message', { text: `On-site recovery started. Hold position for ${RECOVERY_COLLECTION_DURATION_SECONDS} seconds.` });
     return { ok: true, active: true, item };
   }
 
   cancelCollection(state, reason = null) {
     if (!state.world.recoveryCollection) return false;
     state.world.recoveryCollection = null;
-    if (reason) this.events?.emit('message', { text: `現地回収を中断しました：${reason}` });
+    if (reason) this.events?.emit('message', { text: `On-site recovery interrupted: ${reason}` });
     return true;
   }
 
@@ -195,8 +195,8 @@ export class RecoverySystem {
     if (!result.ok) return result;
     const presentation = recoveryItemPresentation(item);
     this.events?.emit('exploration:recovery-collected', result);
-    const lootText = Object.keys(result.loot ?? {}).length ? ` 資源：${bundleText(result.loot)}。` : '';
-    this.events?.emit('message', { text: `${presentation.name}を現地回収しました。${lootText}` });
+    const lootText = Object.keys(result.loot ?? {}).length ? `resources: ${bundleText(result.loot)}.` : '';
+    this.events?.emit('message', { text: `${presentation.name} recovered on site.${lootText}` });
     return result;
   }
 

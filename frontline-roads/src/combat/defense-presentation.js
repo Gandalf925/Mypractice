@@ -1,62 +1,62 @@
 import { DEFENSE_DEFINITIONS } from './definitions.js';
 
 const percent = value => `${Math.round(value * 100)}%`;
-const seconds = value => `${Number(value).toFixed(value < 10 ? 1 : 0)}秒`;
+const seconds = value => `${Number(value).toFixed(value < 10 ? 1 : 0)} sec`;
 
 const TEXT = Object.freeze({
   barrier: {
-    role: '経路制御',
-    summary: '道路を封鎖し、敵部隊の進行経路を変える防衛設備です。',
-    effect: '敵と味方の双方を完全に遮断します。通行可能な別経路がある部隊は迂回するため、敵の誘導に使えますが、味方の出撃路も塞ぎます。',
-    placement: '建設可能範囲内に表示される道路区間へ、1区間につき1基設置します。近接・重複する道路区間には重ねて設置できません。'
+    role: 'Route control',
+    summary: 'A defense facility that blocks road sections and changes enemy movement routes.',
+    effect: 'Completely blocks both enemies and allies. Units with another passable route will detour, so it can guide enemies but may also block allied dispatch routes.',
+    placement: 'Build one per displayed road section inside construction range. Overlapping or very close sections cannot be stacked.'
   },
   gate: {
-    role: '選択的経路制御',
-    summary: '味方の通行を維持しながら敵部隊を足止めする、開閉可能な防衛門です。',
-    effect: '敵は別経路があれば迂回し、なければ門を攻撃します。味方用の開閉機構を持つため同Tierの防壁より耐久は低く、破壊されると道路が開通します。',
-    placement: '既設の防壁を文明Lv.2以降で門へ変換し、以後は文明Tierに合わせて強化します。'
+    role: 'Selective route control',
+    summary: 'A gate that keeps allied passage open while holding enemies back.',
+    effect: 'Enemies detour if another route exists; otherwise they attack the gate. Its allied passage mechanism makes it less durable than same-tier walls, and the road opens when destroyed.',
+    placement: 'Convert an existing Wall into a Gate from Civ Lv.2 onward, then upgrade it to match the civilization tier.'
   },
   gun: {
-    role: '単体攻撃',
-    summary: '射程内で最も近い敵を継続攻撃する基本防衛塔です。',
-    effect: '短い再装填で単体へ安定した損害を与えます。敵が長く射程内に留まる交差点が有効です。',
-    placement: '建設可能範囲内に表示される交差点・終端・重要な曲がり角・一本道の補完地点へ設置します。'
+    role: 'Single-target attack',
+    summary: 'A basic tower that repeatedly attacks the nearest enemy in range.',
+    effect: 'Deals steady single-target damage with a short reload. Intersections where enemies stay in range are effective.',
+    placement: 'Build at displayed intersections, endpoints, important bends, and supplemental straight-road points inside construction range.'
   },
   mortar: {
-    role: '範囲攻撃',
-    summary: '敵が密集した地点を狙い、爆発範囲内の複数目標へ攻撃します。',
-    effect: '中心目標へ最大ダメージ、周辺へ減衰ダメージを与えます。同時命中数には上限があり、防壁や減速設備の後方が有効です。',
-    placement: '建設可能範囲内に表示される交差点・終端・重要な曲がり角・一本道の補完地点へ設置します。'
+    role: 'Area attack',
+    summary: 'Targets dense enemy clusters and damages multiple targets in the blast radius.',
+    effect: 'Deals full damage to the center target and reduced splash damage nearby. Hit count is capped, so it works well behind walls or slow facilities.',
+    placement: 'Build at displayed intersections, endpoints, important bends, and supplemental straight-road points inside construction range.'
   },
   slow: {
-    role: '減速支援',
-    summary: '射程内の複数の敵を減速させ、ほかの設備が攻撃できる時間を延ばします。',
-    effect: '対象へ小ダメージと一定時間の移動速度低下を与えます。攻撃塔の射程が重なる地点で効果が高まります。',
-    placement: '建設可能範囲内に表示される交差点・終端・重要な曲がり角・一本道の補完地点へ設置します。'
+    role: 'Slow support',
+    summary: 'Slows multiple enemies in range, giving other defenses more time to attack.',
+    effect: 'Deals minor damage and slows movement for a time. It is stronger where attack tower ranges overlap.',
+    placement: 'Build at displayed intersections, endpoints, important bends, and supplemental straight-road points inside construction range.'
   },
   relay: {
-    role: '自動修復',
-    summary: '射程内で損傷が最も大きい防衛設備を自動修復します。',
-    effect: '修復時には対象設備に応じた資源を消費します。前線設備を範囲内へ収める配置が必要です。',
-    placement: '建設可能範囲内に表示される代表的な支援地点へ設置します。'
+    role: 'Auto repair',
+    summary: 'Automatically repairs the most damaged defense in range.',
+    effect: 'Repairs consume resources based on the target facility. Place it so frontline defenses are inside range.',
+    placement: 'Build at representative support points inside construction range.'
   },
   medical: {
-    role: '範囲回復',
-    summary: '周囲にいる味方部隊を、滞在している間だけ徐々に回復する施設です。',
-    effect: '帰還中・待機中・交戦前後を問わず、射程内の生存部隊を同時に回復します。施設が停止中または破壊された場合は回復しません。',
-    placement: '主要拠点・簡易拠点・遠征部隊の建設範囲内へ、各建設基準点につき1基まで設置できます。'
+    role: 'Area healing',
+    summary: 'Gradually heals allied squads that remain nearby.',
+    effect: 'Heals all surviving squads in range, whether returning, waiting, or between engagements. It does not heal while disabled or destroyed.',
+    placement: 'Build within major base, simple base, or expedition squad construction range, up to one per construction anchor.'
   },
   fieldBarracks: {
-    role: '前線部隊枠',
-    summary: '簡易拠点から運用できる部隊枠を、施設Tierに応じて増やす前線兵舎です。',
-    effect: '設置された簡易拠点の部隊上限だけを増やします。施設停止中も既存部隊は消えませんが、追加枠を使った新規派兵はできません。',
-    placement: '簡易拠点の建設範囲内へ、各拠点1基まで設置できます。'
+    role: 'Frontline squad slots',
+    summary: 'A frontline barracks that increases squad slots available from a simple base by facility tier.',
+    effect: 'Only increases the squad limit of the simple base where it is placed. Existing squads remain if it is disabled, but new dispatch using the extra slots is unavailable.',
+    placement: 'Build within simple base construction range, one per base.'
   },
   survey: {
-    role: '道路測量',
-    summary: '拠点周辺の未取得道路チャンクを時間をかけてMAPへ追加する探索支援設備です。',
-    effect: '拠点周辺の道路形状を時間をかけてMAPへ追加します。敵基地・道端物資・現地イベントの正確な位置は、プレイヤーが現地へ移動するまで表示しません。',
-    placement: '主要拠点・簡易拠点・遠征部隊の建設範囲内へ、各建設基準点につき1基まで設置できます。'
+    role: 'Road surveying',
+    summary: 'An exploration support facility that gradually adds unacquired road chunks around a base to the map.',
+    effect: 'Gradually adds road geometry around a base to the map. Exact enemy base, roadside supply, and local event locations are not shown until the player travels there.',
+    placement: 'Build within major base, simple base, or expedition squad construction range, up to one per construction anchor.'
   }
 });
 
@@ -77,7 +77,7 @@ export function defensePresentation(type, definition = DEFENSE_DEFINITIONS[type]
   if (!text || !definition) return null;
   const metrics = [];
   if (type === 'barrier' || type === 'gate') {
-    metrics.push(['HP', String(definition.hp)], ['BLOCK', '1区間']);
+    metrics.push(['HP', String(definition.hp)], ['BLOCK', '1 section']);
   } else if (type === 'gun') {
     metrics.push(['RANGE', `${definition.range}m`], ['DAMAGE', String(definition.damage)], ['RELOAD', seconds(definition.cooldown)]);
   } else if (type === 'mortar') {
@@ -87,11 +87,11 @@ export function defensePresentation(type, definition = DEFENSE_DEFINITIONS[type]
   } else if (type === 'relay') {
     metrics.push(['RANGE', `${definition.range}m`], ['TOWER', `+${definition.repairTower}`], ['WALL', `+${definition.repairBarrier}`]);
   } else if (type === 'survey') {
-    metrics.push(['MAP RADIUS', `${definition.surveyRadius}m`], ['SCAN', `${definition.scanInterval}秒/区域`], ['LIMIT', '拠点ごと1基']);
+    metrics.push(['MAP RADIUS', `${definition.surveyRadius}m`], ['SCAN', `${definition.scanInterval} sec/area`], ['LIMIT', 'one per base']);
   } else if (type === 'medical') {
-    metrics.push(['RANGE', `${definition.range}m`], ['HEAL', `${(definition.recoveryRate * 100).toFixed(1)}%最大HP/秒`], ['TARGETS', '範囲内の全味方']);
+    metrics.push(['RANGE', `${definition.range}m`], ['HEAL', `${(definition.recoveryRate * 100).toFixed(1)}%MaxHP/ sec`], ['TARGETS', 'all allies in range']);
   } else if (type === 'fieldBarracks') {
-    metrics.push(['SQUAD SLOT', `+${definition.squadCapacityBonus}`], ['LIMIT', '簡易拠点ごと1基']);
+    metrics.push(['SQUAD SLOT', `+${definition.squadCapacityBonus}`], ['LIMIT', 'one per simple base']);
   }
   return { ...text, metrics };
 }

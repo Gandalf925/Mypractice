@@ -22,7 +22,7 @@ export function playerBasesView(state) {
   if (home?.status !== 'ESTABLISHED') return [];
   return [{
     ...home,
-    name: home.name || '本拠地',
+    name: home.name || 'Home Base',
     primary: true,
     hp: Math.max(0, Number(state.world?.city?.hp ?? home.hp ?? 100)),
     maxHp: Math.max(1, Number(state.world?.city?.maxHp ?? home.maxHp ?? 100))
@@ -75,7 +75,7 @@ export function ensurePlayerBaseState(state) {
   if (home?.status === 'ESTABLISHED' && !state.world.playerBases.some(base => base.id === home.id)) {
     state.world.playerBases.unshift({
       ...home,
-      name: '本拠地',
+      name: 'Home Base',
       primary: true,
       hp: state.world.city?.hp ?? 100,
       maxHp: state.world.city?.maxHp ?? 100,
@@ -85,8 +85,8 @@ export function ensurePlayerBaseState(state) {
   for (let index = 0; index < state.world.playerBases.length; index += 1) {
     const base = state.world.playerBases[index];
     base.id ??= stableId('player_base', base.nodeId, base.establishedAt ?? index);
-    base.name = String(base.name || (index === 0 ? '本拠地' : `主要拠点 ${index + 1}`));
-    if (index > 0 && /^前線拠点 \d+$/.test(base.name)) base.name = `主要拠点 ${index + 1}`;
+    base.name = String(base.name || (index === 0 ? 'Home Base' : `Major Base ${index + 1}`));
+    if (index > 0 && /^Frontline Base \d+$/.test(base.name)) base.name = `Major Base ${index + 1}`;
     base.status = base.status === 'DESTROYED' ? 'DESTROYED' : 'ESTABLISHED';
     base.primary = index === 0 || Boolean(base.primary && !state.world.playerBases.slice(0, index).some(item => item.primary));
     base.maxHp = Math.max(1, Number(base.maxHp) || 100);
@@ -124,13 +124,13 @@ export function canPlaceAdditionalBase(state, point) {
   const bases = playerBasesView(state);
   const limit = baseLimitForCivilization(state.civilization?.level);
   if (Number.isFinite(limit) && bases.length >= limit) {
-    return { ok: false, reason: '文明レベルに対する拠点上限へ到達しています。' };
+    return { ok: false, reason: 'Civilization level is too low for this base limit.' };
   }
   const nearest = bases
     .map(base => ({ base, gap: distance(base, point) }))
     .sort((a, b) => a.gap - b.gap)[0] ?? null;
   if (nearest && nearest.gap < PLAYER_BASE_MINIMUM_SEPARATION_METERS) {
-    return { ok: false, reason: `既存拠点から${PLAYER_BASE_MINIMUM_SEPARATION_METERS}m以上離れてください。`, nearest };
+    return { ok: false, reason: `Move at least ${PLAYER_BASE_MINIMUM_SEPARATION_METERS} m away from an existing base.`, nearest };
   }
   return { ok: true, nearest };
 }

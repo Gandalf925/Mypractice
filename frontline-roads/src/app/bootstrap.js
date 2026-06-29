@@ -80,7 +80,7 @@ class FrontlineRoadsApp {
     this.renderer.bindEvents(this.events);
     this.radarPreferences = new RadarPreferences({ i18n: this.i18n, onChange: preferences => this.renderer.setPreferences(preferences) });
     this.baseScreen = new BasePlacementScreen(document, this.i18n);
-    this.notifications = new Notifications(queryRequired('#notification'));
+    this.notifications = new Notifications(queryRequired('#notification'), { localize: text => this.i18n.copy(text) });
     this.combatSystem = new CombatSystem(this.events);
     this.civilizationSystem = new CivilizationSystem(this.events);
     this.roadsideSupplySystem = new RoadsideSupplySystem(this.events);
@@ -165,13 +165,18 @@ class FrontlineRoadsApp {
       notifications: this.notifications,
       i18n: this.i18n,
       onLanguageChange: () => {
-        this.i18n.apply(globalThis.document);
+        const state = this.store.snapshot();
+        const uiState = this.store.uiSnapshot();
         this.radarPreferences.apply();
-        this.combatUi.update();
-        this.deploymentUi.update();
-        this.baseCommandUi.update();
-        this.civilizationUi.update();
-        this.roadsideSuppliesUi.update();
+        this.combatUi.renderTools(state);
+        this.combatUi.update(state);
+        this.deploymentUi.render(state);
+        this.baseCommandUi.render(state);
+        this.civilizationUi.render(state);
+        this.roadsideSuppliesUi.render(uiState);
+        this.i18n.apply(globalThis.document);
+        this.renderer.invalidateStatic();
+        this.renderer.render();
       }
     });
     this.gameLoop = new GameLoop({
@@ -191,7 +196,7 @@ class FrontlineRoadsApp {
         this.menuUi.update(view);
         this.roadWorld.considerSurveyFacilities();
       },
-      onError: error => this.notifications.show(error?.message ?? '保存に失敗しました。'),
+      onError: error => this.notifications.show(error?.message ?? 'Save failed.'),
       onSaveDisabled: () => this.updateStorageUi(),
       getPerformanceProfile: () => this.renderer.getPerformanceProfile()
     });
@@ -219,7 +224,7 @@ class FrontlineRoadsApp {
     const available = this.saveRepository.isAvailable();
     this.menuUi.setSaveAvailable(available);
     const warning = queryRequired('#storageWarning');
-    warning.textContent = available ? '' : '保存機能を利用できません。このタブを閉じると進行状況は失われます。';
+    warning.textContent = available ? '' : 'Saving is unavailable. Progress will be lost if this tab is closed.';
     setVisible(warning, !available);
   }
 
@@ -227,11 +232,11 @@ class FrontlineRoadsApp {
     console.error(error);
     document.body.dataset.fatal = 'true';
     try {
-      const message = error?.message ? `起動に失敗しました：${error.message}` : '起動に失敗しました。ページを再読み込みしてください。';
+      const message = error?.message ? `Startup failed: ${error.message}` : 'Startup failed. Reload the page.';
       this.baseScreen.showError(message);
       queryRequired('#lifecycleText').textContent = 'ERROR';
     } catch {
-      document.body.textContent = 'FRONTLINE ROADSの起動に失敗しました。ページを再読み込みしてください。';
+      document.body.textContent = 'FRONTLINE ROADS failed to start. Reload the page.';
     }
   }
 
@@ -256,7 +261,7 @@ class FrontlineRoadsApp {
       this.renderer.render();
     });
     queryRequired('#focusSelectedBase').addEventListener('click', () => {
-      if (!this.baseCommandUi.focusCurrentBase()) this.notifications.show('表示できる拠点がありません。');
+      if (!this.baseCommandUi.focusCurrentBase()) this.notifications.show('No base can be shown.');
     });
     queryRequired('#focusPlayer').addEventListener('click', () => this.recenterMap());
     queryRequired('#offlineClose').addEventListener('click', () => setVisible(queryRequired('#offlineSummary'), false));
@@ -270,6 +275,22 @@ class FrontlineRoadsApp {
       queryRequired('#lifecycleText').textContent = current;
     });
     this.events.on('civilization:level-up', () => { this.civilizationUi.render(); this.baseCommandUi.render(); });
+    const refreshOwnedBaseState = () => {
+      const state = this.store.snapshot();
+      this.combatUi.update(state);
+      this.deploymentUi.render(state);
+      this.baseCommandUi.render(state);
+      this.civilizationUi.updateSummary(state);
+      this.renderer.invalidateStatic();
+      this.renderer.render();
+      this.queueCriticalSave();
+    };
+    this.events.on('base:player-destroyed', refreshOwnedBaseState);
+    this.events.on('base:field-destroyed', refreshOwnedBaseState);
+    this.events.on('base:player-dismantled', refreshOwnedBaseState);
+    this.events.on('base:field-dismantled', refreshOwnedBaseState);
+    this.events.on('base:territory-collapsed', refreshOwnedBaseState);
+    this.events.on('friendly:recovery-item-dropped', refreshOwnedBaseState);
     this.events.on('combat:defense-destroyed', () => this.queueCriticalSave());
     this.events.on('civilization:building-destroyed', () => this.queueCriticalSave());
     this.events.on('combat:city-defeated', () => this.queueCriticalSave());
@@ -307,11 +328,11 @@ class FrontlineRoadsApp {
   }
 
   resetAfterInvalidSave() {
-    this.saveRepository.quarantineCurrent('保存データを復元できなかったため、新しいゲームとして開始します。破損データは無効化しました。');
+    this.saveRepository.quarantineCurrent('Save data could not be restored, so a new game will start. Corrupted data was disabled.');
     this.store.replace(createInitialState(), 'save:recovery-reset');
     this.lifecycle = new LifecycleController(this.store);
     this.lifecycle.boot();
-    this.notifications.show('保存データを復元できなかったため、新しいゲームとして開始します。', 6500);
+    this.notifications.show('Save data could not be restored, so a new game will start.', 6500);
   }
 
   async restoreSavedGame(saved, loadWarning = null) {
@@ -327,7 +348,7 @@ class FrontlineRoadsApp {
       await this.roadWorld.restoreCachedChunks();
     } catch (error) {
       console.warn('Optional road cache restore failed', error);
-      this.notifications.show('道路キャッシュを復元できませんでした。保存済みの進行データで続行します。', 5000);
+      this.notifications.show('Road cache could not be restored. Continuing with saved progress data.', 5000);
     }
 
     let offlineSummary = null;
@@ -342,7 +363,7 @@ class FrontlineRoadsApp {
       } catch (error) {
         console.error('Offline simulation failed', error);
         this.store.replace(beforeOffline, 'offline:rollback');
-        this.notifications.show('不在中の進行計算を適用できませんでした。保存時点から再開します。', 6000);
+        this.notifications.show('Offline progress could not be applied. Resuming from the saved point.', 6000);
       }
     }
 
@@ -401,7 +422,7 @@ class FrontlineRoadsApp {
 
   async startNewGame() {
     if (!this.tabCoordinator.isPrimary()) {
-      this.baseScreen.showError('別のタブがゲーム進行を担当しています。そちらを閉じると、このタブで開始できます。');
+      this.baseScreen.showError('Another tab is running the game. Close it to start from this tab.');
       return;
     }
     const generation = ++this.startupGeneration;
@@ -412,7 +433,7 @@ class FrontlineRoadsApp {
     this.baseConfirmationPending = false;
     this.selection = null;
     this.renderer.setSelection(null);
-    this.baseScreen.showLoading('位置情報を取得しています…');
+    this.baseScreen.showLoading('Acquiring location…');
 
     try {
       const lifecycle = this.store.read(state => state.lifecycle);
@@ -428,7 +449,7 @@ class FrontlineRoadsApp {
         draft.runtime.lastError = null;
       }, 'location:resolved');
       this.lifecycle.startRoadLoading();
-      this.baseScreen.showLoading('現在地周辺の道路を取得しています…');
+      this.baseScreen.showLoading('Loading roads near your current location…');
 
       const result = await this.roadService.loadInitialProgressive(currentLocation, {
         signal: this.roadLoadController.signal,
@@ -438,13 +459,13 @@ class FrontlineRoadsApp {
             this.baseScreen.showSelection(this.selection, { roadsPending: true });
             return;
           }
-          const label = acquisition === 'preview' ? '中心部道路' : '全道路';
-          this.baseScreen.showLoading(`${label}を道路サーバーから取得しています… ${transport} (${index}/${total}, 試行 ${attempt}/${totalAttempts})`);
+          const label = acquisition === 'preview' ? 'core roads' : 'all roads';
+          this.baseScreen.showLoading(`${label} are being loaded from the road server… ${transport} (${index}/${total}, attempt ${attempt}/${totalAttempts})`);
         },
         onPhase: ({ phase, acquisition }) => {
           if (generation !== this.startupGeneration || this.initialRoadExpansionPending) return;
-          if (phase === 'parse') this.baseScreen.showLoading(`${acquisition === 'preview' ? '中心部' : '周辺'}道路を解析しています…`);
-          if (phase === 'graph') this.baseScreen.showLoading('道路地図を構築しています…');
+          if (phase === 'parse') this.baseScreen.showLoading(`${acquisition === 'preview' ? 'core area' : 'Nearby'} roads are being parsed…`);
+          if (phase === 'graph') this.baseScreen.showLoading('Building road map…');
         },
         onPreview: graph => {
           if (generation !== this.startupGeneration) return;
@@ -457,7 +478,7 @@ class FrontlineRoadsApp {
         this.initialRoadExpansionPending = false;
         this.initialRoadFallback = true;
         this.baseScreen.showSelection(this.selection, { roadsPending: false });
-        this.notifications.show('中心部の道路で開始できます。開始地点を選んで拠点を確定してください。周辺道路は移動や測量施設で追加されます。', 6500);
+        this.notifications.show('You can start using core roads. Choose a starting point and confirm the base. Nearby roads are added by movement or survey facilities.', 6500);
       } else {
         this.initialRoadFallback = false;
         this.installInitialRoadGraph(result.graph, currentLocation, {
@@ -469,7 +490,7 @@ class FrontlineRoadsApp {
       if (generation !== this.startupGeneration || error?.name === 'AbortError') return;
       this.initialRoadExpansionPending = false;
       this.store.setError(error);
-      this.baseScreen.showError([error?.message ?? '初期化に失敗しました。', error?.details ? `詳細: ${error.details}` : null].filter(Boolean).join('\n'));
+      this.baseScreen.showError([error?.message ?? 'Initialization failed.', error?.details ? `Details: ${error.details}` : null].filter(Boolean).join('\n'));
     }
   }
 
@@ -490,12 +511,12 @@ class FrontlineRoadsApp {
 
   async confirmBase() {
     if (!this.tabCoordinator.isPrimary()) {
-      this.notifications.show('別のタブがゲーム進行を担当しています。');
+      this.notifications.show('Another tab is running the game.');
       return;
     }
     if (this.baseConfirmationPending) return;
     if (this.initialRoadExpansionPending) {
-      this.notifications.show('周辺道路を確認しています。完了後に拠点を確定できます。');
+      this.notifications.show('Checking nearby roads. You can confirm the base when it finishes.');
       return;
     }
     if (!this.selection?.valid || !this.basePlacement) return;
@@ -504,7 +525,7 @@ class FrontlineRoadsApp {
     try {
       if (this.initialRoadFallback) {
         const selectedPoint = { ...this.selection.point };
-        this.baseScreen.showLoading('選択地点周辺の道路を確認しています…');
+        this.baseScreen.showLoading('Checking roads near the selected point…');
         const coverage = await this.roadWorld.ensureAreaAroundPoint(selectedPoint, {
           radiusMeters: ROAD_CONFIG.initialBaseCoverageRadiusMeters,
           observe: true,
@@ -512,7 +533,7 @@ class FrontlineRoadsApp {
         });
         if (!coverage.ok) {
           this.baseScreen.showSelection(this.selection, { roadsPending: false });
-          this.notifications.show('選択地点周辺の道路を取得できませんでした。通信状態を確認して、もう一度確定してください。', 6500);
+          this.notifications.show('Could not load roads near the selected point. Check the connection and confirm again.', 6500);
           return;
         }
         const latest = this.store.snapshot();
@@ -522,7 +543,7 @@ class FrontlineRoadsApp {
         this.renderer.render();
         if (!this.selection?.valid) {
           this.baseScreen.showSelection(this.selection, { roadsPending: false });
-          this.notifications.show('道路更新後に選択地点を確認できませんでした。道路を選び直してください。', 6500);
+          this.notifications.show('The selected point could not be verified after road update. Select a road again.', 6500);
           return;
         }
         this.initialRoadFallback = false;
@@ -544,16 +565,16 @@ class FrontlineRoadsApp {
       this.renderer.render();
       this.baseScreen.hide();
       setVisible(queryRequired('#playingHud'), true);
-      queryRequired('#baseSummary').textContent = `拠点設置完了：初回現在地から約${Math.round(homeBase.selectedDistanceMeters)}m`;
+      queryRequired('#baseSummary').textContent = `Base placed: about ${Math.round(homeBase.selectedDistanceMeters)} m from the initial position`;
       this.combatUi.update();
       this.baseCommandUi.update();
       this.civilizationUi.updateSummary();
       this.roadsideSuppliesUi.update();
       this.startRuntime();
-      this.notifications.show('拠点を設置しました。まず投石台2基を建設し、敵拠点へ部隊を派兵してください。移動すると周辺道路を順次偵察し、MAPへ追加します。', 7000);
+      this.notifications.show('Base placed. Build two Stone Throwers first, then dispatch squads to an enemy base. As you move, nearby roads are scouted and added to the MAP.', 7000);
     } catch (error) {
       this.store.setError(error);
-      this.baseScreen.showError(error?.message ?? '拠点の設置に失敗しました。');
+      this.baseScreen.showError(error?.message ?? 'Base placement failed.');
     } finally {
       this.baseConfirmationPending = false;
     }
@@ -573,7 +594,7 @@ class FrontlineRoadsApp {
     }
     this.baseScreen.hide();
     setVisible(queryRequired('#playingHud'), true);
-    queryRequired('#baseSummary').textContent = `保存済み拠点：初回現在地から約${Math.round(state.world.homeBase.selectedDistanceMeters ?? 0)}m`;
+    queryRequired('#baseSummary').textContent = `Saved base: about ${Math.round(state.world.homeBase.selectedDistanceMeters ?? 0)} m from the initial position`;
     this.combatUi.update();
     this.baseCommandUi.update();
     this.civilizationUi.updateSummary();
@@ -611,7 +632,7 @@ class FrontlineRoadsApp {
       this.renderer.render();
       this.roadWorld.considerLocation(worldPoint);
       this.store.advance(draft => { this.roadsideSupplySystem.refresh(draft, true); }, 'roadside:location-refresh');
-    }, error => this.notifications.show(`位置追跡：${error.message}`));
+    }, error => this.notifications.show(`Location tracking: ${error.message}`));
   }
 
   showOfflineSummary(summary) {
@@ -620,14 +641,14 @@ class FrontlineRoadsApp {
     const minutes = Math.round(summary.simulatedSeconds / 60);
     const resourceText = Object.entries(summary.resources ?? {})
       .map(([key, value]) => `${RESOURCE_LABELS[key] ?? key} ${value > 0 ? '+' : ''}${value}`)
-      .join('・');
-    const parts = [`${minutes}分進行`, `撃破 ${summary.kills}`, `都市被害 ${summary.cityDamage}`];
+      .join(' · ');
+    const parts = [`${minutes} min advanced`, `defeat ${summary.kills}`, `city damage ${summary.cityDamage}`];
     if (resourceText) parts.push(resourceText);
-    if (summary.defensesLost > 0) parts.push(`防衛設備損失 ${summary.defensesLost}`);
-    if (summary.buildingsLost > 0) parts.push(`集落施設損失 ${summary.buildingsLost}`);
-    if (summary.civilizationAdvanced > 0) parts.push(`文明 +${summary.civilizationAdvanced}`);
-    if (summary.capped) parts.push('長時間分は上限適用');
-    queryRequired('#offlineText').textContent = parts.join('・');
+    if (summary.defensesLost > 0) parts.push(`Defense facility losses ${summary.defensesLost}`);
+    if (summary.buildingsLost > 0) parts.push(`Settlement facility losses ${summary.buildingsLost}`);
+    if (summary.civilizationAdvanced > 0) parts.push(`Civilization +${summary.civilizationAdvanced}`);
+    if (summary.capped) parts.push('Long absence was capped');
+    queryRequired('#offlineText').textContent = parts.join(' · ');
     setVisible(element, true);
   }
 
@@ -643,7 +664,7 @@ class FrontlineRoadsApp {
       return true;
     } catch (error) {
       this.updateStorageUi();
-      if (notify) this.notifications.show(error?.message ?? '保存に失敗しました。');
+      if (notify) this.notifications.show(error?.message ?? 'Save failed.');
       return false;
     }
   }
@@ -654,7 +675,7 @@ class FrontlineRoadsApp {
         this.lifecycle.pause();
         this.store.transaction(state => { state.runtime.pauseReason = 'tab'; }, 'runtime:pause-tab');
       }
-      this.notifications.show('別のタブが進行を担当しています。このタブは閲覧専用です。');
+      this.notifications.show('Another tab is running progress. This tab is read-only.');
       return;
     }
     if (document.hidden) {
@@ -721,7 +742,7 @@ class FrontlineRoadsApp {
     const lifecycle = this.store.read(state => state.lifecycle);
     if (!primary && lifecycle === LifecycleState.PLAYING) {
       this.pauseRuntime('tab', { save: false });
-      this.notifications.show('別のタブが進行を引き継ぎました。');
+      this.notifications.show('Another tab took over progress.');
       return;
     }
     if (primary && [LifecycleState.LOCATION_REQUIRED, LifecycleState.ERROR].includes(lifecycle) && !this.store.read(state => state.world.homeBase)) {
@@ -730,7 +751,7 @@ class FrontlineRoadsApp {
     }
     if (primary && lifecycle === LifecycleState.PAUSED) {
       const reason = this.store.read(state => state.runtime.pauseReason);
-      if (this.resumeRuntime(reason)) this.notifications.show('このタブで進行を再開しました。');
+      if (this.resumeRuntime(reason)) this.notifications.show('Progress resumed in this tab.');
     }
   }
 
@@ -788,7 +809,7 @@ class FrontlineRoadsApp {
     await clearFrontlineRoadsCaches();
     const cleared = this.saveRepository.clear();
     if (!cleared && this.saveRepository.isAvailable()) {
-      this.notifications.show('保存データを初期化できませんでした。');
+      this.notifications.show('Could not reset save data.');
       return false;
     }
     location.reload();

@@ -51,7 +51,7 @@ export function synchronizeDefenseTier(defense) {
 }
 
 export function defenseUpgradeStatus(state, defense) {
-  if (!defense) return { ok: false, reason: '設備が見つかりません。', atMax: false };
+  if (!defense) return { ok: false, reason: 'Facility not found.', atMax: false };
   const line = defenseLineForInstance(defense);
   const minimumTier = minimumTierForLine(line);
   const currentTier = Math.max(minimumTier, Math.floor(Number(defense.tier) || minimumTier));
@@ -70,7 +70,7 @@ export function defenseUpgradeStatus(state, defense) {
       line,
       currentTier,
       currentDefinition,
-      reason: '最高Tierへ到達しています。'
+      reason: 'Reached highest tier.'
     };
   }
 
@@ -80,9 +80,9 @@ export function defenseUpgradeStatus(state, defense) {
   const affordable = hasBundle(state, cost);
   const missing = missingBundle(state, cost);
   let reason = null;
-  if (defense.hp <= 0) reason = '破壊された設備は撤去済みです。';
-  else if (!unlocked) reason = `文明Lv.${requiredCivilizationLevel}で解禁されます。`;
-  else if (!affordable) reason = '強化資源が不足しています。';
+  if (defense.hp <= 0) reason = 'Destroyed facility must be rebuilt.';
+  else if (!unlocked) reason = `Civ Lv.${requiredCivilizationLevel} required.`;
+  else if (!affordable) reason = 'Upgrade resources are insufficient.';
 
   return {
     ok: !reason,

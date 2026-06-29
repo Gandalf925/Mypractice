@@ -252,8 +252,8 @@ export class OverpassClient {
     throw new AppError(
       ErrorCode.ROAD_REQUEST_FAILED,
       emptyEndpoints.size > 0
-        ? '道路がないという応答を確認できませんでした。別の道路サーバーで自動再試行します。'
-        : '道路データを取得できませんでした。下の詳細内容をスクリーンショットで共有してください。',
+        ? 'Road response could not be verified. Another road server will be retried automatically.'
+        : 'Road data could not be acquired. Move to another nearby road and retry.',
       { details }
     );
   }

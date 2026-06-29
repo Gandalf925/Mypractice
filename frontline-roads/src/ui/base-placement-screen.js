@@ -71,19 +71,19 @@ export class BasePlacementScreen {
     this.scheduleViewportSync();
     if (!selection) {
       this.status.textContent = this.localize(roadsPending
-        ? `中心部の道路を先行表示しました。${ROAD_CONFIG.selectionRadiusMeters / 1000}km以内の道路を選びながら、周辺道路の取得を待てます。`
-        : `現在地から${ROAD_CONFIG.selectionRadiusMeters / 1000}km以内の道路をタップしてください。`);
+        ? `Core roads are shown first.${ROAD_CONFIG.selectionRadiusMeters / 1000}kmwithin of You can choose a road while nearby roads continue loading.`
+        : `From current position, ${ROAD_CONFIG.selectionRadiusMeters / 1000}kmwithin of road tapplease.`);
       this.confirmButton.disabled = true;
       return;
     }
     if (!selection.valid) {
-      this.status.textContent = this.localize(`${formatMeters(selection.distanceFromOrigin)}離れています。1km以内の道路を選択してください。`);
+      this.status.textContent = this.localize(`${formatMeters(selection.distanceFromOrigin)}.Select a road within 1 km.`);
       this.confirmButton.disabled = true;
       return;
     }
     this.status.textContent = this.localize(roadsPending
-      ? `${formatMeters(selection.distanceFromOrigin)}先の道路を選択中です。周辺道路の取得が完了すると確定できます。`
-      : `${formatMeters(selection.distanceFromOrigin)}先の道路を選択中です。確定すると、その道路を中心に即時開始します。`);
+      ? `Selected road is ${formatMeters(selection.distanceFromOrigin)} away. You can confirm after nearby roads finish loading.`
+      : `Selected road is ${formatMeters(selection.distanceFromOrigin)} away. Confirm to start immediately around that road.`);
     this.confirmButton.disabled = roadsPending;
   }
 

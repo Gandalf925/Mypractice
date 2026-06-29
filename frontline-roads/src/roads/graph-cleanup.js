@@ -9,7 +9,7 @@ export function finalizeRoadGraph(graph, {
   if (graph.nodes.length < minimumNodes || graph.edges.length < minimumEdges) {
     throw new AppError(
       ErrorCode.ROAD_NETWORK_DISCONNECTED,
-      '周辺の道路網が小さすぎます。別の場所で再試行してください。',
+      'No nearby road data was found. Try another location.',
       { details: `nodes=${graph.nodes.length}, edges=${graph.edges.length}` }
     );
   }
