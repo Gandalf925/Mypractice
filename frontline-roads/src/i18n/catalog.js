@@ -72,7 +72,9 @@ export const TEXT_CATALOG = Object.freeze({
       assetRecoveryTitle: '表示データを読み込めませんでした',
       assetRecoveryText: '通信状態を確認して再読み込みしてください。ゲームのセーブデータは削除されません。',
       assetRecoveryButton: '保存済みゲームを再読み込み',
-      footerPrefix: '開発版'
+      footerPrefix: '開発版',
+      focusBaseShort: '拠',
+      focusPlayerShort: '現'
     },
     dynamic: {
       resources: { wood: '木材', stone: '石材', fiber: '繊維', copperOre: '銅鉱石', tinOre: '錫鉱石', ironOre: '鉄鉱石', timber: '加工木材', rope: '縄', cutStone: '切石', charcoal: '木炭', copperIngot: '銅塊', tinIngot: '錫塊', bronzeIngot: '青銅塊', ironBloom: '鉄塊', wroughtIron: '鍛鉄', steel: '鋼材', mechanism: '機構部品' }
@@ -156,7 +158,9 @@ export const TEXT_CATALOG = Object.freeze({
       assetRecoveryTitle: 'Display data could not be loaded',
       assetRecoveryText: 'Check the connection and reload. Your game save data will not be deleted.',
       assetRecoveryButton: 'Reload saved game',
-      footerPrefix: 'Development build'
+      footerPrefix: 'Development build',
+      focusBaseShort: 'BASE',
+      focusPlayerShort: 'LOC'
     },
     dynamic: {
       resources: { wood: 'Wood', stone: 'Stone', fiber: 'Fiber', copperOre: 'Copper ore', tinOre: 'Tin ore', ironOre: 'Iron ore', timber: 'Timber', rope: 'Rope', cutStone: 'Cut stone', charcoal: 'Charcoal', copperIngot: 'Copper ingot', tinIngot: 'Tin ingot', bronzeIngot: 'Bronze ingot', ironBloom: 'Iron bloom', wroughtIron: 'Wrought iron', steel: 'Steel', mechanism: 'Mechanism parts' }
@@ -353,7 +357,7 @@ export const INLINE_COPY_CATALOG = Object.freeze({
     '戦術工房': 'Tactical Workshop', '資源と戦術素材を使って、地雷・誘導信号・遠隔支援・出撃札を製作できます。': 'Use resources and tactical materials to craft mines, guidance signals, remote support, and dispatch tickets.', '文明Lv.4以降で戦術工房を建設すると、この画面で戦術アイテムを製作できます。': 'Build a Tactical Workshop from Civ Lv.4 onward to craft tactical items here.', '製作可能': 'Craftable', '現在すぐ製作できるアイテムはありません。': 'No item can be crafted right now.', '素材不足・未解禁レシピ': 'Missing materials / Locked recipes', '未解禁または資源不足のレシピはありません。': 'No locked or resource-short recipes.', '必要資源がそろっています。': 'Required resources are available.', '戦術工房を建設すると製作できます。': 'Build a Tactical Workshop to craft this.', 'レア以上の道端物資から入手し、戦術アイテムの製作に使います。': 'Obtained from rare or better roadside supplies and used to craft tactical items.', '戦術素材はまだありません。レア以上の道端物資から入手します。': 'No tactical materials yet. Obtain them from rare or better roadside supplies.', '素材': 'Material', '資材': 'Resources',
     '道端物資': 'Roadside Supplies', '道路沿いの資源箱は近づくと自動回収します。保管上限を超える資源は取得されません。': 'Resource crates along roads are collected automatically when approached. Resources above storage capacity are not obtained.',
 
-    '拠点画面の表示切替': 'Base tab switcher', '概要': 'Overview', '主要拠点': 'Major Bases', '簡易拠点': 'Simple Bases', '主要拠点': 'Major Base', '簡易拠点': 'Simple Base', '各': 'each ', '部隊枠': 'squad slots', '文明': 'Civilization', '発展で拠点・部隊枠が増加': 'Growth increases base and squad slots', '拠点概要': 'Base Overview', '稼働中の主要拠点がありません。': 'No active major bases.', '簡易拠点はまだありません。': 'No simple bases yet.', 'すべての部隊を派兵できる中核拠点です。主要拠点は最低1つを残し、それ以外は撤去できます。': 'Core bases that can dispatch all squad types. At least one major base must remain; the rest can be dismantled.', '突撃部隊・遊撃部隊・回収部隊の前線運用に使います。不要な簡易拠点は撤去できます。': 'Used for frontline operation of Assault, Skirmisher, and Recovery squads. Unneeded simple bases can be dismantled.', 'この拠点をMAP表示': 'Show this base on MAP', '現地で': 'Rebuild on site: ', 'を再建': ' rebuild', 'を撤去': ' dismantle', '撤去すると拠点枠を空け、対象中の敵と部隊は残存主要拠点へ再割当します。': 'Dismantling frees a base slot and reassigns enemies and squads targeting it to a remaining major base.', '撤去できません。': 'Cannot dismantle.', '現地へ移動してください。': 'Move to the site.', '現在地から再建できます。': 'Can rebuild from your current location.', '破壊': 'Destroyed', '交戦警戒': 'Enemy contact', '回収物あり': 'Recovery item nearby', '安定': 'Stable', '同時標的上限': 'simultaneous target cap', '制限なし': 'unlimited', '派兵中': 'Deployed', '回復中': 'Recovering', '再出撃待機': 'Ready to redeploy', '周辺に未回収アイテム': 'Unrecovered nearby items', '要修理': 'Repairs needed', '表示': 'Focused', '主要拠点を再建できません。': 'Cannot rebuild major base.', '簡易拠点を再建できません。': 'Cannot rebuild simple base.', '主要拠点を撤去できません。': 'Cannot dismantle major base.', '簡易拠点を撤去できません。': 'Cannot dismantle simple base.', '拠点を設置できません。': 'Cannot place base.', '簡易拠点を設置できません。': 'Cannot place simple base.', 'を設置しました。': ' placed.', 'を再建しました。': ' rebuilt.', 'を撤去しました。': ' dismantled.',     '現在地に主要拠点': 'Build a major base here', '現在地に簡易拠点': 'Build a simple base here', '建設範囲': 'Construction range ', 'すべての部隊を派兵できます。': 'All squad types can be dispatched.', '現在地に主要拠点を設置': 'Place major base here', '現在地に簡易拠点を設置': 'Place simple base here', '設置可能': 'Can place', '道路まで約': 'about ', '道路網診断': 'Road network check', '追加候補': 'Additional candidates', '破壊済み': 'Destroyed', '文明Lv.1で解禁。取得済み道路の交差点から100m以内で設置できます。': 'Unlocked at Civ Lv.1. Can be placed within 100 m of an acquired road intersection.',
+    '拠点画面の表示切替': 'Base tab switcher', '概要': 'Overview', '主要拠点': 'Major Bases', '簡易拠点': 'Simple Bases', '主要拠点': 'Major Base', '簡易拠点': 'Simple Base', '各': 'each ', '部隊枠': 'squad slots', '文明': 'Civilization', '発展で拠点・部隊枠が増加': 'Growth increases base and squad slots', '拠点概要': 'Base Overview', '稼働中の主要拠点がありません。': 'No active major bases.', '簡易拠点はまだありません。': 'No simple bases yet.', 'すべての部隊を派兵できる中核拠点です。主要拠点は最低1つを残し、それ以外は撤去できます。': 'Core bases that can dispatch all squad types. At least one major base must remain; the rest can be dismantled.', '突撃部隊・遊撃部隊・回収部隊の前線運用に使います。不要な簡易拠点は撤去できます。': 'Used for frontline operation of Assault, Skirmisher, and Recovery squads. Unneeded simple bases can be dismantled.', 'この拠点をMAP表示': 'Show this base on MAP', '現地で': 'Rebuild on site: ', 'を再建': ' rebuild', 'を撤去': ' dismantle', '撤去すると拠点枠を空け、対象中の敵と部隊は残存主要拠点へ再割当します。': 'Dismantling frees a base slot and reassigns enemies and squads targeting it to a remaining major base.', '撤去できません。': 'Cannot dismantle.', '現地へ移動してください。': 'Move to the site.', '現在地から再建できます。': 'Can rebuild from your current location.', '破壊': 'Destroyed', '交戦警戒': 'Enemy contact', '回収物あり': 'Recovery item nearby', '安定': 'Stable', '同時標的上限': 'simultaneous target cap', '制限なし': 'unlimited', '派兵中': 'Deployed', '回復中': 'Recovering', '再出撃待機': 'Ready to redeploy', '周辺に未回収アイテム': 'Unrecovered nearby items', '要修理': 'Repairs needed', '表示': 'Display', '主要拠点を再建できません。': 'Cannot rebuild major base.', '簡易拠点を再建できません。': 'Cannot rebuild simple base.', '主要拠点を撤去できません。': 'Cannot dismantle major base.', '簡易拠点を撤去できません。': 'Cannot dismantle simple base.', '拠点を設置できません。': 'Cannot place base.', '簡易拠点を設置できません。': 'Cannot place simple base.', 'を設置しました。': ' placed.', 'を再建しました。': ' rebuilt.', 'を撤去しました。': ' dismantled.',     '現在地に主要拠点': 'Build a major base here', '現在地に簡易拠点': 'Build a simple base here', '建設範囲': 'Construction range ', 'すべての部隊を派兵できます。': 'All squad types can be dispatched.', '現在地に主要拠点を設置': 'Place major base here', '現在地に簡易拠点を設置': 'Place simple base here', '設置可能': 'Can place', '道路まで約': 'about ', '道路網診断': 'Road network check', '追加候補': 'Additional candidates', '破壊済み': 'Destroyed', '文明Lv.1で解禁。取得済み道路の交差点から100m以内で設置できます。': 'Unlocked at Civ Lv.1. Can be placed within 100 m of an acquired road intersection.',
 
     '建設範囲': 'Construction range ', '突撃／遊撃／回収部隊を派兵可能': 'Can dispatch Assault, Skirmisher, and Recovery squads',
     '本拠地': 'Home Base', '主要拠点 2': 'Major Base 2', '主要拠点 3': 'Major Base 3', '主要拠点 4': 'Major Base 4', '簡易拠点 1': 'Simple Base 1', '簡易拠点 2': 'Simple Base 2', '簡易拠点 3': 'Simple Base 3',
@@ -537,12 +541,112 @@ export const INLINE_COPY_CATALOG = Object.freeze({
     '最短': 'Shortest', '敵回避': 'Avoid enemies', '味方援護': 'Ally support',
     '撤退': 'Retreat', '進軍再開': 'Resume advance',
 
+
+
+    // Localization leak cleanup for dynamic modal/body text that is assembled from data labels.
+    '施設は役割ごとに確認できます。倉庫は同じ種類を複数建てても建設枠は1枠扱いになり、効果は合計されます。': 'Facilities are grouped by role. Multiple storehouses of the same type use one building slot, and their effects are totaled.',
+    '通常資材は文明・建設・生産で使用します。所持数は保管上限を超えられず、上限超過分は取得されません。戦術素材はITEMS / 戦術工房で管理します。': 'Basic resources are used for civilization growth, building, and production. Stored amounts cannot exceed storage limits, and excess resources are not obtained. Tactical materials are managed in ITEMS / Tactical Workshop.',
+    '該当資材なし': 'No matching resources',
+    '該当ResourcesNone': 'No matching resources',
+    'Fiber束': 'Fiber bundle', 'Stone袋': 'Stone bag', 'Wood箱': 'Wood crate',
+    'Timber箱': 'Timber crate', 'Rope束': 'Rope bundle', 'Cut stone箱': 'Cut stone crate', 'Charcoal袋': 'Charcoal bag',
+    'Copper ore箱': 'Copper ore crate', 'Tin ore箱': 'Tin ore crate', 'Iron ore箱': 'Iron ore crate',
+    'Bronze ingot箱': 'Bronze ingot crate', 'Wrought iron箱': 'Wrought iron crate', 'Steel箱': 'Steel crate', 'Mechanism parts箱': 'Mechanism parts crate',
+    '敵撃破': 'Enemy kills', '敵拠点破壊': 'Enemy base destroyed', '資源を使った修理': 'Resource-based repairs',
+    '加工資材の生産': 'Processed material production', '自作青銅塊': 'Self-produced bronze ingot', '自作鍛鉄': 'Self-produced wrought iron',
+    '完全防衛連続数': 'Perfect defense streak', '稼働中の簡易拠点': 'Active simple bases',
+    '銅鉱野営地制圧': 'Copper camp captured', '錫鉱野営地制圧': 'Tin camp captured', '鉄鉱野営地制圧': 'Iron camp captured',
+    '攻城隊長撃破': 'Siege captain defeated', '都市耐久の連続維持': 'City HP streak', '現地回収した特殊アイテム': 'Locally recovered special item',
+    'その他の防衛設備': 'Other defense facilities', '改良済み防衛設備': 'Upgraded defenses', '改良設備の種類': 'Upgraded defense types',
+    '青銅設備': 'Bronze defenses', '青銅設備の種類': 'Bronze defense types', '石壁以上': 'Stone Wall or higher',
+    '鉄器設備': 'Iron defenses', '鉄器設備の種類': 'Iron defense types', '鋼鉄設備': 'Steel defenses', '鋼鉄設備の種類': 'Steel defense types',
+    '機械設備': 'Mechanized defenses', '機械設備の種類': 'Mechanized defense types', '自作鋼材': 'Self-produced steel', '自作機構部品': 'Self-produced mechanism parts',
+    '鋼鉄隊長撃破': 'Steel captain defeated', '戦列指揮官撃破': 'Line commander defeated', '機械工廠制圧': 'Machine arsenal captured',
+    '防衛戦または派兵で敵部隊を撃破します。': 'Defeat enemy squads through defense battles or dispatches.',
+    '敵拠点を選択して部隊を派兵し、拠点HPを0にします。': 'Select an enemy base, dispatch squads, and reduce base HP to 0.',
+    '敵拠点を破壊し、残された回収物を現地回収するか回収部隊で拠点へ持ち帰ります。': 'Destroy enemy bases, then recover the remaining item locally or bring it back with a Recovery Squad.',
+    '損傷した防衛設備を選択し、資源を使って手動修理します。': 'Select damaged defenses and repair them manually with resources.',
+    '対応する集落施設を建設し、生産予約を実行します。': 'Build the corresponding settlement facility and queue production.',
+    '銅炉・錫炉・試験青銅炉または青銅工房を使い、自分の施設で青銅を生産します。': 'Use a Copper Furnace, Tin Furnace, Trial Bronze Furnace, or Bronze Workshop to produce bronze in your own facilities.',
+    '塊鉄炉で鉄塊を作り、鍛冶場で鍛鉄へ加工します。': 'Make iron blooms in a Bloomery, then process them into wrought iron at a Forge.',
+    '製鋼炉で鍛鉄と木炭から鋼材を生産します。敵拠点の報酬だけでは加算されません。': 'Produce steel from wrought iron and charcoal in a Steelworks. Enemy base rewards alone do not count.',
+    '機構工房で鋼材・加工木材・縄から機構部品を生産します。敵拠点の報酬だけでは加算されません。': 'Produce mechanism parts from steel, timber, and rope in a Mechanism Workshop. Enemy base rewards alone do not count.',
+    '敵を都市へ到達させずに通常ウェーブを全滅させると1回加算されます。突破されると連続数は0へ戻ります。': 'Clear a normal wave without letting enemies reach the city to add one. If they break through, the streak resets to 0.',
+    'BASESから道路上へ簡易拠点を設置します。既存拠点と建設圏が重ならない地点を選びます。': 'Use BASES to place a simple base on a road. Choose a point whose construction range does not overlap existing bases.',
+    '「Cu」と表示される銅鉱野営地を破壊します。': 'Destroy the copper camp marked “Cu”.',
+    '「Sn」と表示される錫鉱野営地を破壊します。': 'Destroy the tin camp marked “Sn”.',
+    '「Fe」と表示される鉄鉱野営地を破壊します。': 'Destroy the iron camp marked “Fe”.',
+    '青銅期以降の攻城部隊に現れる攻城隊長を撃破します。': 'Defeat siege captains that appear with siege squads from the bronze age onward.',
+    '鋼鉄世代のウェーブに現れる鋼鉄隊長を撃破します。': 'Defeat steel captains that appear in steel-generation waves.',
+    '機械世代のウェーブに現れる戦列指揮官を撃破します。': 'Defeat line commanders that appear in machine-generation waves.',
+    '「Mc」と表示される機械工廠を破壊します。': 'Destroy the machine arsenal marked “Mc”.',
+    '条件に対応する戦闘・建設・生産を進めます。': 'Advance the combat, building, or production related to this requirement.',
+    '「文明」画面の集落施設から建設します。枠が不足している場合は不要施設を解体できます。': 'Build it from Settlement Facilities in the Civilization screen. If slots are insufficient, dismantle unneeded facilities.',
+    'MAPで対象設備を建設し、既設設備を選択して必要なTierまで強化します。門は防壁を選択して変換します。': 'Build the target defense on the map, then select existing defenses and upgrade them to the required tier. Gates are converted from selected walls.',
+    'MAPまたは「文明」画面から必要な施設を建設します。': 'Build the required facility from MAP or the Civilization screen.',
+    '所有 ': 'Owned ', '建設枠は同種で1枠': 'same type uses 1 building slot', '保管上限 ': 'storage limit ',
+    '秒': 's', '時間': 'h', '分': 'm',
+
+
+    // Final English cleanup for UI-only strings and combat/info popups.
+    'RADAR INITIALIZATION // 初回拠点設置': 'RADAR INITIALIZATION // First Base Setup',
+    '1km以内の道路を直接選択': 'Select a road within 1 km',
+    '最初に現在地から1km以内の道路を選び、移動せず開始できます。開始後は実際の移動に合わせて周辺道路を順次取得し、未確認地域をMAPへ追加します。': 'First, choose a road within 1 km of your current location and start without moving. After the game begins, nearby roads are acquired as you actually move, expanding the map into undiscovered areas.',
+    '道路をタップして拠点候補を指定': 'Tap a road to choose a base candidate',
+    '初期化しています…': 'Initializing…',
+    'この道路に拠点を設置': 'Place base on this road',
+    '位置情報と道路を再取得': 'Retry location and road loading',
+    '正確な移動履歴は保存しません。保存時は道路地図の基準地点を約10m単位へ丸めます。移動先の道路取得時には、その周辺位置を外部道路データサービスへ送信します。': 'Exact movement history is not saved. Saved road map origins are rounded to about 10 meters. When roads are acquired at a destination, nearby location data is sent to an external road data service.',
+    'BASES // 拠点': 'BASES', 'CIV // 文明': 'CIV', 'ITEMS // 物資': 'ITEMS',
+    '不在中も世界は進行しました': 'The world advanced while you were away', '確認': 'Confirm', '拠点司令部': 'Base Command',
+    '選択目標への派兵': 'Dispatch to Selected Target', '文明と生産': 'Civilization and Production', '道端物資とインベントリ': 'Roadside Supplies and Inventory',
+    '道端物資・消耗品': 'Roadside Supplies / Consumables', 'メニュー': 'Menu', '作戦': 'Operations', '遊び方': 'Guide', '保存': 'Save',
+    '作戦目標を取得しています。': 'Loading operation goals.', 'レーダー表示': 'Radar Display',
+    '表示だけを変更します。ゲーム進行やセーブ内容には影響しません。': 'These settings only change display behavior. They do not affect game progress or save data.',
+    '言語': 'Language', '画面表示に使う言語を切り替えます。ゲーム進行やセーブ内容には影響しません。': 'Change the language used by the interface. This does not affect game progress or save data.',
+    '保存・初期化': 'Save / Reset', '現在の状態を保存': 'Save current state', 'ゲームを完全初期化': 'Fully reset game', '開発版': 'Development build',
+    '表示データを読み込めませんでした': 'Display data could not be loaded', '通信状態を確認して再読み込みしてください。ゲームのセーブデータは削除されません。': 'Check the connection and reload. Your game save data will not be deleted.', '保存済みゲームを再読み込み': 'Reload saved game',
+    '道路地図': 'Road map', '拠点候補道路の選択地図': 'Base candidate road selection map', '地図操作': 'Map controls', '拡大': 'Zoom in', '縮小': 'Zoom out', '地図を中央へ戻す': 'Recenter map', '保有資材': 'Stored resources', '戦術地図操作': 'Tactical map controls',
+    '発展': 'Growth', '資源': 'Resources', '施設': 'Facilities', '生産': 'Production', '解禁': 'Unlocks', '文明画面の表示切替': 'Civilization screen tabs',
+    '現在文明': 'Current civilization', '次の目標': 'Next goal', '拠点上限': 'Base limits', '主要': 'Major', '簡易': 'Simple', '建設枠': 'Building slots',
+    '文明発展': 'Civilization Growth', '資源一覧': 'Resource List', '倉庫効果': 'Storage Effects', '集落施設': 'Settlement Facilities', '倉庫・保管': 'Storage', '生産・加工': 'Production / Processing', '防衛設備Tier': 'Defense Facility Tiers', '派兵部隊': 'Dispatch Squads',
+    '倉庫系施設は未建設です。': 'No storage facilities built.', '倉庫系施設はまだ解放されていません。': 'Storage facilities are not unlocked yet.', '生産施設はまだ解放されていません。': 'Production facilities are not unlocked yet.', '稼働中の生産施設はまだありません。': 'No active production facilities yet.',
+    '同じ倉庫を複数建てても建設枠は1枠として扱い、保管上限の増加効果は合計表示します。': 'Multiple storehouses of the same type use one building slot, and their storage bonuses are shown as a total.',
+    '稼働中の倉庫': 'Active storehouses', '稼働レシピ未解禁': 'No active recipes unlocked', '投入資材が不足しています。': 'Input materials are insufficient.', '資源待ち': 'Waiting for resources', '待機中': 'Idle', '修理': 'Repair', '未回収品を回収': 'Collect output', '解体': 'Dismantle',
+    '損傷1基を修理': 'Repair 1 damaged', '1基を解体': 'Dismantle 1', '全基稼働': 'all active', '損傷': 'damaged', '稼働': 'Active', '基': '',
+    '現在の発展条件はすべて達成済みです。': 'All current development requirements are complete.', '達成済み条件はまだありません。': 'No requirements have been completed yet.', '不足している条件': 'Missing requirements', '達成済み条件': 'Completed requirements', '納入を戻す': 'Withdraw deliveries', '建設開始': 'Start construction',
+    '基本資源だけ予備を残して一括納入': 'Deliver only basic resources while keeping reserves', '不足分を予備を残して一括納入': 'Deliver shortages while keeping reserves', '全量納入': 'Deliver all', '予備を残す': 'Keep reserves',
+    '状態：': 'Status: ', '準備中': 'Preparing', '納入中': 'Delivering', '建設開始可能': 'Ready to build', '建設中': 'Building', '一時停止': 'Paused', '残り': 'Remaining ', '条件達成': 'requirements complete',
+    '防衛設備': 'Defense facilities', '防壁': 'Wall', '単体攻撃': 'Single-target attack', '範囲攻撃': 'Area attack', '減速支援': 'Slow support', '自動修復': 'Auto repair', '範囲回復': 'Area healing', '前線兵舎': 'Field barracks', '道路測量': 'Road surveying', '門': 'Gate',
+    '歩兵': 'Infantry', '最短進軍': 'Shortest advance', '都市': 'City', '斥候': 'Scout', '危険回避': 'Risk avoidance', '盾兵': 'Shield Soldier', '護衛進軍': 'Guarded advance', '工兵': 'Engineer', '防壁突破': 'Wall breach', '重装兵': 'Heavy Infantry', '正面突破': 'Frontal breakthrough',
+    '破壊工作員': 'Saboteur', '施設潜入': 'Facility infiltration', '支援・火力施設': 'Support / firepower facilities', '破壊工作員が防衛施設を停止させました。': 'A saboteur disabled a defense facility.',
+    '弓兵': 'Archer', '射線回避': 'Line-of-fire evasion', '縄切り兵': 'Rope Cutter', '妨害排除': 'Interference removal', '減速・修復施設': 'Slow / repair facilities', '縄切り兵が妨害施設を破壊しています。': 'A Rope Cutter is destroying interference facilities.',
+    '迂回斥候': 'Pathfinder Scout', '大迂回': 'Wide detour', '都市・簡易拠点': 'City / simple base', '略奪兵': 'Marauder', '拠点襲撃': 'Base raid', '採掘兵': 'Miner', '資源護送': 'Resource escort', '破城兵': 'Siege Breaker', '防壁最優先': 'Walls first', '鉱石運搬兵': 'Ore Carrier', '護送迂回': 'Escort detour',
+    '爆破工兵': 'Sapper', '爆破突破': 'Explosive breach', '防壁・都市': 'Walls / city', '資源略奪兵': 'Resource Pillager', '前線略奪': 'Frontline raiding', '簡易拠点・支援施設': 'Simple bases / support facilities', '資源略奪兵が前線支援施設を破壊しています。': 'A Resource Pillager is destroying frontline support facilities.',
+    '青銅盾兵': 'Bronze Shield Soldier', '重護衛進軍': 'Heavy guarded advance', '攻城隊長': 'Siege Captain', '攻城指揮': 'Siege command', '重火力施設': 'Heavy firepower facilities', '攻城隊長が火力施設へ攻撃を集中しています。': 'A Siege Captain is focusing attacks on firepower facilities.',
+    '鉄鉱運搬兵': 'Iron Ore Carrier', '側面騎兵': 'Flank Rider', '長距離側面攻撃': 'Long-range flank attack', '戦鼓兵': 'War Drummer', '主力同行': 'Main-force escort', '周辺部隊支援': 'Nearby squad support',
+    '鉄甲兵': 'Ironclad Soldier', '鉄甲突破': 'Ironclad breakthrough', '重攻城兵': 'Heavy Siege Unit', '防壁粉砕': 'Wall crushing', '防壁・火力施設': 'Walls / firepower facilities', '指揮官': 'Commander', '部隊統制': 'Squad control', '部隊狩り': 'Squad Hunter', '味方部隊追跡': 'Friendly squad pursuit', '道路上の味方部隊': 'Friendly squads on roads',
+    '重破壊工作員': 'Heavy Saboteur', '後方施設破壊': 'Rear facility sabotage', '治療・修復・火力施設': 'Medical / repair / firepower facilities', '重破壊工作員が後方施設を機能停止させました。': 'A Heavy Saboteur disabled rear facilities.', '鉄衛兵': 'Iron Guard', '精鋭護衛': 'Elite guard', '指揮・攻城部隊の護衛': 'Commander / siege squad guard',
+    '鋼装衛兵': 'Steel Guard', '鋼装護衛': 'Steel guard escort', '指揮・破城部隊の護衛': 'Commander / siege-breaker guard', '破砕工兵': 'Demolition Engineer', '鋼鉄破砕': 'Steel demolition', '防壁・門・都市': 'Walls / gates / city', '追撃騎兵': 'Pursuit Cavalry', '高速追撃': 'High-speed pursuit', '鋼鉄隊長': 'Steel Captain', '鋼鉄部隊統制': 'Steel squad control',
+    '機動槍兵': 'Mobile Lancer', '機動側面攻撃': 'Mobile flank attack', '機構破城兵': 'Mechanized Siege Unit', '機構破城': 'Mechanized siege', '門・火力施設': 'Gates / firepower facilities', '装甲工作員': 'Armored Agent', '支援網破壊': 'Support network sabotage', '回復・修復・兵舎': 'Healing / repair / barracks', '装甲工作員が前線支援網を停止させました。': 'An Armored Agent disabled the frontline support network.',
+    '戦列指揮官': 'Line Commander', '機械化戦列': 'Mechanized line', '親衛重装兵': 'Royal Heavy Infantry', '親衛護衛': 'Royal guard escort', '総司令官の護衛': 'High commander guard', '城塞破砕兵': 'Fortress Breaker', '城塞破砕': 'Fortress demolition', '城塞防壁・火力施設': 'Fortress walls / firepower facilities', '道路狩猟隊': 'Road Hunter Squad', '道路網狩猟': 'Road network hunting', '味方部隊・前線拠点': 'Friendly squads / frontline bases', '総司令官': 'High Commander', '連邦侵攻指揮': 'Federation invasion command',
+    '前哨基地': 'Outpost', '工兵拠点': 'Engineer Base', '工作員拠点': 'Agent Base', '銅鉱野営地': 'Copper Camp', '錫鉱野営地': 'Tin Camp', '鉄鉱野営地': 'Iron Camp', '青銅軍営': 'Bronze Camp', '攻城兵器工房': 'Siege Workshop', '装甲工場': 'Armored Factory', '製鋼軍営': 'Steel Camp', '機械工廠': 'Machine Arsenal', '司令要塞': 'Command Fortress',
+    '中央道路': 'Central Road', '中央縦断路': 'Central North-South Road', '選択': 'Select',
+    '有効な道路を選択してください。': 'Select a valid road.', '簡易拠点の設置直前に資源が不足しました。': 'Resources became insufficient just before placing the simple base.', '簡易拠点の再建直前に資源が不足しました。': 'Resources became insufficient just before rebuilding the simple base.', '主要拠点の設置直前に資源が不足しました。': 'Resources became insufficient just before placing the major base.', '主要拠点の再建直前に資源が不足しました。': 'Resources became insufficient just before rebuilding the major base.',
+    '予備を残して納入できる資源がありません。': 'No resources can be delivered while keeping reserves.', '破壊された設備は撤去済みです。再建してください。': 'Destroyed facilities have already been removed. Rebuild them.', '修理は不要です。': 'Repair is not needed.', '修理資源が不足しています。': 'Repair resources are insufficient.', '変換できる防壁がありません。': 'There is no wall that can be converted.', '門へ変換できません。': 'Cannot convert to a gate.', '門への変換資源が不足しています。': 'Resources for gate conversion are insufficient.', '強化直前に資源が不足しました。': 'Resources became insufficient just before upgrading.', '強化先の設備定義が見つかりません。': 'The target upgrade definition was not found.',
+    '文明レベルが不足しています。': 'Civilization level is too low.', 'この施設はこれ以上建設できません。': 'This facility cannot be built any further.', '資源が不足しています。': 'Resources are insufficient.', '不明な設備です。': 'Unknown facility.', '道路データを利用できません。': 'Road data is unavailable.', '道路区間の建設地点をタップしてください。': 'Tap a build point on a road section.', '表示されている戦術地点をタップしてください。': 'Tap the displayed tactical point.', '設置候補がありません。': 'No placement candidates are available.', '設置候補の種類が一致しません。': 'The placement candidate type does not match.', '建設基準となる拠点・現在地・遠征部隊を取得できません。': 'Could not resolve the base, current position, or expedition squad used as the build anchor.', 'この道路区間には既に設備があるか、建設地点として利用できません。': 'This road section already has a facility or cannot be used as a build point.', 'この戦術地点には既に設備があります。または建設地点として利用できません。': 'This tactical point already has a facility or cannot be used as a build point.', '建設直前に資源が不足しました。': 'Resources became insufficient just before construction.', '撤去する設備が見つかりません。': 'No facility to dismantle was found.', '設備': 'Facility',
     '件': '', '範囲内の全味方': 'all allies in range', '拠点ごと1基': 'one per base', '簡易拠点ごと1基': 'one per simple base', '1区間': '1 section'
   })
 });
 
 const INLINE_COPY_PATTERNS = Object.freeze({
   en: Object.freeze([
+    [/文明Lv\.(\d+)で(.+?)(?:が|で)解禁されます。/g, (_match, level, name) => `${copyText('en', name)} unlocks at Civ Lv.${level}.`],
+    [/Civ Lv\.(\d+)で(.+?)がUnlocksされます。/g, (_match, level, name) => `${copyText('en', name)} unlocks at Civ Lv.${level}.`],
+    [/Next: Civ Lv\.(\d+)で(.+?)(?=<|$)/g, (_match, level, name) => `Next: Civ Lv.${level}: ${copyText('en', name)}`],
+    [/Civ Lv\.(\d+)で(.+?)で解禁/g, (_match, level, name) => `${copyText('en', name)} unlocks at Civ Lv.${level}`],
+    [/文明Lv\.(\d+)で(.+?)で解禁/g, (_match, level, name) => `${copyText('en', name)} unlocks at Civ Lv.${level}`],
+    [/都市HPを(\d+)以上に保ちます。下回ると維持時間は0から再計測されます。/g, (_match, threshold) => `Keep City HP at ${threshold} or higher. If it falls below that, the timer restarts from 0.`],
     [/破壊された簡易拠点から(\d+)m以内へ移動してください。/g, (_match, meters) => `Move within ${meters} m of the destroyed simple base.`],
     [/破壊された主要拠点から(\d+)m以内へ移動してください。/g, (_match, meters) => `Move within ${meters} m of the destroyed major base.`],
     [/現在の取得道路上に、あと(\d+)基分の設置候補を確認しました。/g, (_match, count) => `The acquired road network has ${count} additional candidate site(s).`],
@@ -615,13 +719,34 @@ function translateByTable(language, value) {
   return translated;
 }
 
+
+function scrubResidualJapaneseForEnglish(value) {
+  const original = String(value ?? '');
+  if (!hasJapaneseText(original)) return original;
+  const cleaned = original
+    .replace(/[「」『』]/g, '"')
+    .replace(/[（）]/g, match => match === '（' ? '(' : ')')
+    .replace(/[、]/g, ', ')
+    .replace(/[。]/g, '.')
+    .replace(/[ぁ-んァ-ン一-龯]+/g, ' ')
+    .replace(/\s+([.,:;!?])/g, '$1')
+    .replace(/([(/])\s+/g, '$1')
+    .replace(/\s+([)/])/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+・\s+/g, ' · ')
+    .trim();
+  return cleaned || 'Untranslated text';
+}
+
 export function copyText(language, text = '') {
   const normalized = normalizeLanguage(language);
   const value = String(text ?? '');
   if (normalized === 'ja' || !value) return value;
   let result = applyCopyPatterns(normalized, value);
   result = translateByTable(normalized, result);
-  return result;
+  result = applyCopyPatterns(normalized, result);
+  result = translateByTable(normalized, result);
+  return scrubResidualJapaneseForEnglish(result);
 }
 
 export function bundleTextLocalized(language, bundle = {}) {
