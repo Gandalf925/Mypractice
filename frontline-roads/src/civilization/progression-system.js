@@ -178,20 +178,20 @@ export class ProgressionSystem {
     const amount = safeProjectContributionAmount(state, resource);
     if (amount <= 0) {
       const reserve = projectContributionReserve(state, resource);
-      return { ok: false, reason: reserve > 0 ? `${reserve} resources are reserved for defense construction. Use Deliver All if required.` : 'Reserve resources remain. Delivery is not available.', reserve };
+      return { ok: false, reason: reserve > 0 ? `防衛・建設用の予備資源を${reserve}残しています。必要なら「全量納入」を選んでください。` : '予備を残して納入できる資源がありません。', reserve };
     }
     return this.contribute(state, resource, amount);
   }
 
   contribute(state, resource, amount = Infinity) {
     const project = ensureProject(state);
-    if (!project || ['BUILDING', 'PAUSED'].includes(project.status)) return { ok: false, reason: 'Delivery is not currently available.' };
+    if (!project || ['BUILDING', 'PAUSED'].includes(project.status)) return { ok: false, reason: '現在は納入できません。' };
     const definition = CIVILIZATION_PROJECTS[project.targetLevel];
     const required = definition.contributions[resource] ?? 0;
     const current = project.contributions[resource] ?? 0;
     const available = state.inventory.resources[resource] ?? 0;
     const accepted = Math.min(Math.max(0, required - current), Math.max(0, Math.floor(amount)), available);
-    if (accepted <= 0 || !consumeBundle(state, { [resource]: accepted })) return { ok: false, reason: 'Resources are not available for delivery.' };
+    if (accepted <= 0 || !consumeBundle(state, { [resource]: accepted })) return { ok: false, reason: '納入できる資源がありません。' };
     project.contributions[resource] = current + accepted;
     project.status = evaluateProject(state).complete ? 'READY' : 'CONTRIBUTING';
     return { ok: true, amount: accepted };
@@ -199,7 +199,7 @@ export class ProgressionSystem {
 
   withdraw(state) {
     const project = ensureProject(state);
-    if (!project || ['BUILDING', 'PAUSED'].includes(project.status)) return { ok: false, reason: 'After construction starts, contributions cannot be withdrawn.' };
+    if (!project || ['BUILDING', 'PAUSED'].includes(project.status)) return { ok: false, reason: '建設開始後は引き出せません。' };
     const refund = deepClone(project.contributions);
     project.contributions = {};
     project.status = 'AVAILABLE';
@@ -210,7 +210,7 @@ export class ProgressionSystem {
   start(state) {
     ensureProject(state);
     const evaluation = evaluateProject(state);
-    if (!evaluation.project || !evaluation.complete) return { ok: false, reason: 'Growth requirements are not complete.', checks: evaluation.checks };
+    if (!evaluation.project || !evaluation.complete) return { ok: false, reason: '発展条件を満たしていません。', checks: evaluation.checks };
     evaluation.project.status = 'BUILDING';
     evaluation.project.startedAt = state.runtime?.worldTimeMs ?? Date.now();
     return { ok: true };
@@ -241,18 +241,18 @@ export class ProgressionSystem {
     synchronizeFieldBaseDurability(state, level);
     ensureProject(state);
     this.events?.emit('civilization:level-up', { level, civilization: CIVILIZATIONS[level] });
-    this.events?.emit('message', { text: `${CIVILIZATIONS[level].name} reached.` });
+    this.events?.emit('message', { text: `${CIVILIZATIONS[level].name}へ発展しました。` });
   }
 
   repairDefense(state, defenseId) {
     const defense = state.combat.defenses.find(item => item.id === defenseId);
-    if (!defense) return { ok: false, reason: 'Facility not found.' };
-    if (defense.hp <= 0) return { ok: false, reason: 'Destroyed facility must be rebuilt.' };
+    if (!defense) return { ok: false, reason: '設備が見つかりません。' };
+    if (defense.hp <= 0) return { ok: false, reason: '破壊された設備は撤去済みです。再建してください。' };
     const missingHp = Math.max(0, defense.maxHp - defense.hp);
-    if (missingHp <= 0) return { ok: false, reason: 'Repair is not needed.' };
+    if (missingHp <= 0) return { ok: false, reason: '修理は不要です。' };
     const line = defenseLine(defense);
     const cost = repairCostForDefense(defense, missingHp);
-    if (!consumeBundle(state, cost)) return { ok: false, reason: 'Not enough resources to repair.' };
+    if (!consumeBundle(state, cost)) return { ok: false, reason: '修理資源が不足しています。' };
     defense.hp = defense.maxHp;
     state.civilization.progress.totalRepairHpPaid += missingHp;
     this.events?.emit('combat:defense-repaired', { defenseId: defense.id, repairHp: missingHp, cost, automatic: false });
@@ -261,15 +261,15 @@ export class ProgressionSystem {
 
   convertBarrierToGate(state, defenseId) {
     const defense = state.combat.defenses.find(item => item.id === defenseId && item.kind === 'barrier' && !item.isGate && item.hp > 0);
-    if (!defense) return { ok: false, reason: 'No wall is available for conversion.' };
+    if (!defense) return { ok: false, reason: '変換できる防壁がありません。' };
     const civilizationLevel = state.civilization.level ?? 0;
-    if (civilizationLevel < 2) return { ok: false, reason: 'Stone Gate unlocks at Civ Lv.2.' };
+    if (civilizationLevel < 2) return { ok: false, reason: '文明Lv.2で石門が解禁されます。' };
     const tier = Math.max(2, Math.min(civilizationLevel, defense.tier ?? 0));
     const definition = DEFENSE_LINES.gate[tier];
-    if (!definition) return { ok: false, reason: 'This gate cannot be converted.' };
+    if (!definition) return { ok: false, reason: '門へ変換できません。' };
     const source = definition.cost ?? definition.upgrade ?? {};
     const cost = Object.fromEntries(Object.entries(source).map(([key, value]) => [key, Math.max(1, Math.ceil(value * 0.5))]));
-    if (!consumeBundle(state, cost)) return { ok: false, reason: 'Not enough resources to convert the gate.' };
+    if (!consumeBundle(state, cost)) return { ok: false, reason: '門への変換資源が不足しています。' };
     const priorMaximum = Math.max(1, defense.maxHp);
     const priorRatio = Math.max(0, Math.min(1, defense.hp / priorMaximum));
     defense.isGate = true;
@@ -280,23 +280,23 @@ export class ProgressionSystem {
     defense.hp = Math.max(1, Math.round(definition.hp * priorRatio));
     for (const squad of state.combat?.friendlySquads ?? []) squad.reroutePending = true;
     this.events?.emit('combat:defense-upgraded', { defenseId: defense.id, tier: defense.tier, gate: true });
-    return { ok: true, defense, cost, message: `${definition.name} converted.` };
+    return { ok: true, defense, cost, message: `${definition.name}へ変換しました。` };
   }
 
   upgradeDefense(state, defenseId) {
     const defense = state.combat.defenses.find(item => item.id === defenseId);
-    if (!defense) return { ok: false, reason: 'Facility not found.' };
+    if (!defense) return { ok: false, reason: '設備が見つかりません。' };
     const status = defenseUpgradeStatus(state, defense);
     if (!status.ok) return { ok: false, reason: status.reason };
-    if (!consumeBundle(state, status.cost)) return { ok: false, reason: 'Resources became insufficient immediately before upgrade.' };
+    if (!consumeBundle(state, status.cost)) return { ok: false, reason: '強化直前に資源が不足しました。' };
     const definition = applyDefenseTier(defense, status.nextTier, { preserveHealthRatio: true });
-    if (!definition) return { ok: false, reason: 'The upgraded facility definition was not found.' };
+    if (!definition) return { ok: false, reason: '強化先の設備定義が見つかりません。' };
     this.events?.emit('combat:defense-upgraded', { defenseId: defense.id, tier: defense.tier, gate: defense.isGate });
     return {
       ok: true,
       defense,
       cost: status.cost,
-      message: `${definition.name} (Tier ${defense.tier}) upgraded.`
+      message: `${definition.name}（Tier ${defense.tier}）へ強化しました。`
     };
   }
 }

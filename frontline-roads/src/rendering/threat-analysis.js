@@ -67,8 +67,8 @@ export function analyzeThreat(state) {
 
   const nearestText = Number.isFinite(nearestDistance) ? `${Math.max(0, Math.round(nearestDistance))}m` : '--';
   const detail = enemyCount === 0
-    ? 'No contact / Defense stable'
-    : `contact ${enemyCount} / ${nearestText}${bossPresent ? ' / ': ''}`;
+    ? '接触なし / 防衛線安定'
+    : `接触 ${enemyCount} / 最近 ${nearestText}${bossPresent ? ' / 重脅威' : ''}`;
 
   return {
     ...level,

@@ -119,7 +119,7 @@ export function validateState(state) {
   const graphNodeIds = new Set(state?.world?.roadGraph?.nodes?.map(node => node.id) ?? []);
   if (state?.world?.homeBase) {
     const home = state.world.homeBase;
-    if (!['ESTABLISHED', 'DESTROYED'].includes(home.status) || !home.nodeId || !finite(home.x) || !finite(home.y)) errors.push('homeBase is invalid');
+    if (home.status !== 'ESTABLISHED' || !home.nodeId || !finite(home.x) || !finite(home.y)) errors.push('homeBase is invalid');
     if (!state.world.roadGraph) errors.push('homeBase requires roadGraph');
     else if (!graphNodeIds.has(home.nodeId)) errors.push('homeBase node is missing from roadGraph');
   }

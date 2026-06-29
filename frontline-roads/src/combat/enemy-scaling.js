@@ -24,8 +24,7 @@ export const ENEMY_DENSITY_BY_CIVILIZATION = Object.freeze({
   7: Object.freeze({ populationCap: 860, waveMultiplier: 5.45, intervalMultiplier: 0.36, departureSpacingSeconds: 1.9 })
 });
 
-import { civilizationPressureRampRatio, effectivePressureCivilizationLevel } from '../base/base-collapse.js';
-
+const POST_GRACE_DENSITY_RAMP_SECONDS = 10 * 60;
 
 export const ENEMY_WAVE_INTERVAL_MULTIPLIERS = Object.freeze({
   1: 1.00, 2: 1.00, 3: 0.95, 4: 0.90, 5: 0.85, 6: 0.81, 7: 0.77, 8: 0.73
@@ -34,7 +33,10 @@ export const ENEMY_WAVE_INTERVAL_MULTIPLIERS = Object.freeze({
 export function normalizeEnemyLevel(level) { return Math.max(1, Math.min(8, Math.floor(Number(level) || 1))); }
 
 export function effectiveEnemyCivilizationLevel(state) {
-  return Math.max(0, Math.min(7, Math.floor(effectivePressureCivilizationLevel(state))));
+  const level = Math.max(0, Math.min(7, Math.floor(Number(state?.civilization?.level) || 0)));
+  const graceUntil = Number(state?.civilization?.gracePeriodUntil) || 0;
+  const worldNow = Number(state?.runtime?.worldTimeMs) || Date.now();
+  return graceUntil > worldNow ? Math.max(0, level - 1) : level;
 }
 
 export function maxEnemyBaseLevelForCivilization(level) {
@@ -103,12 +105,17 @@ function interpolateDensity(from, to, ratio) {
 
 export function enemyDensityForState(state) {
   const level = Math.max(0, Math.min(7, Math.floor(Number(state?.civilization?.level) || 0)));
-  if (level <= 0) return densityForLevel(0);
-  const ratio = civilizationPressureRampRatio(state);
-  if (ratio >= 1) return densityForLevel(level);
-  const previous = densityForLevel(Math.max(0, level - 1));
-  const target = densityForLevel(level);
-  return interpolateDensity(previous, target, ratio);
+  const graceUntil = Number(state?.civilization?.gracePeriodUntil) || 0;
+  const worldNow = Number(state?.runtime?.worldTimeMs) || Date.now();
+  if (graceUntil > worldNow) return densityForLevel(Math.max(0, level - 1));
+  const rampStartedAt = graceUntil > 0 ? graceUntil : null;
+  if (level > 0 && rampStartedAt && worldNow < rampStartedAt + POST_GRACE_DENSITY_RAMP_SECONDS * 1000) {
+    const previous = densityForLevel(level - 1);
+    const target = densityForLevel(level);
+    const ratio = (worldNow - rampStartedAt) / (POST_GRACE_DENSITY_RAMP_SECONDS * 1000);
+    return interpolateDensity(previous, target, ratio);
+  }
+  return densityForLevel(level);
 }
 
 export function enemyPopulationCap(state) { return enemyDensityForState(state).populationCap; }

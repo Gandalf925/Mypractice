@@ -7,8 +7,7 @@ import { FriendlyForceSystem, friendlySquadPosition } from './friendly-force-sys
 import { RecoverySystem } from '../exploration/recovery-system.js';
 import { CITY_RECOVERY_DELAY_SECONDS, CITY_RECOVERY_HP_PER_SECOND } from './definitions.js';
 import { defenseWorldPosition } from './combat-geometry.js';
-import { beginEnemyRegroup } from '../core/recovery-balance.js';
-import { collapsePlayerTerritory, isPlayerCheckmateActive } from '../base/base-collapse.js';
+import { applyCityDefeatRecovery, beginEnemyRegroup } from '../core/recovery-balance.js';
 import {
   REGION_ACTIVITY,
   REGION_ACTIVITY_CONFIG,
@@ -101,10 +100,6 @@ export class CombatSystem {
   }
 
   update(state, deltaSeconds) {
-    if (isPlayerCheckmateActive(state)) {
-      this.recoverySystem.update(state, deltaSeconds);
-      return;
-    }
     updateCityRecovery(state, deltaSeconds);
     this.recoverySystem.update(state, deltaSeconds);
     this.frontierSystem.update(state, deltaSeconds);
@@ -124,9 +119,25 @@ export class CombatSystem {
     }
 
     if (state.world.city.hp <= 0) {
-      collapsePlayerTerritory(state, this.events, { cause: 'primary-base-destroyed' });
-      beginEnemyRegroup(state, 20 * 60);
+      const opening = Math.max(0, Math.floor(Number(state.civilization?.level) || 0)) === 0;
+      const recovery = applyCityDefeatRecovery(state, opening);
+      state.world.city.hp = recovery.hp;
+      state.combat.cityRecoveryCooldown = CITY_RECOVERY_DELAY_SECONDS;
+      state.combat.enemies = [];
+      state.combat.waves.active = {};
+      for (const base of state.world.enemyBases ?? []) {
+        if (base.alive) base.spawnClock = 0;
+      }
+      beginEnemyRegroup(state, recovery.regroupSeconds);
       state.civilization.progress.perfectWaveStreak = 0;
+      this.events?.emit('combat:city-defeated', { recoveryCost: recovery.requested, paid: recovery.paid, fullyPaid: recovery.fullyPaid, recoveryReserve: recovery.reserve, openingProtection: opening });
+      this.events?.emit('message', {
+        text: recovery.fullyPaid
+          ? opening
+            ? '序盤防衛線が崩壊しました。応急再編成後、修理用資源を残して敵の再進軍を遅らせました。'
+            : '都市防衛線が崩壊しました。緊急再編成後、修理用資源を確保して敵の再進軍を遅らせました。'
+          : '都市防衛線が崩壊しました。備蓄を使い切らず、最低限の再編成と修理余力を確保しました。'
+      });
     }
   }
 }

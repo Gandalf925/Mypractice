@@ -25,7 +25,7 @@ export function normalizeBundle(bundle = {}) {
 
 export function bundleText(bundle = {}) {
   const values = Object.entries(normalizeBundle(bundle));
-  return values.length ? values.map(([key, value]) => `${RESOURCE_LABELS[key] ?? key} ${value}`).join(' · ') : 'None';
+  return values.length ? values.map(([key, value]) => `${RESOURCE_LABELS[key] ?? key} ${value}`).join('・') : 'なし';
 }
 
 export function currentCivilization(state) {

@@ -86,18 +86,11 @@ function publicPlacement(type, candidate, references) {
 export function selectInitialEnemyBasePlacements(graph, cityNodeId) {
   const distances = distancesFrom(graph, cityNodeId);
   const cityNode = graph.nodeById.get(cityNodeId);
-  if (!cityNode) return [];
   const degree = nodeId => graph.adjacency.get(nodeId)?.length ?? 0;
-  const allReachable = graph.nodes
-    .filter(node => node.id !== cityNodeId && degree(node.id) >= 1)
-    .map(node => {
-      const routed = distances.get(node.id);
-      const physical = Math.hypot(node.x - cityNode.x, node.y - cityNode.y);
-      return candidateForNode(node, cityNode, Number.isFinite(routed) ? routed : physical);
-    })
-    .filter(item => Number.isFinite(item.routeDistance))
+  const available = graph.nodes
+    .filter(node => node.id !== cityNodeId && degree(node.id) >= 2 && distances.has(node.id))
+    .map(node => candidateForNode(node, cityNode, distances.get(node.id)))
     .sort((a, b) => a.routeDistance - b.routeDistance || a.node.id.localeCompare(b.node.id));
-  const available = allReachable.filter(item => degree(item.node.id) >= 2);
   const used = new Set();
   const references = [];
   const placements = [];
@@ -108,17 +101,7 @@ export function selectInitialEnemyBasePlacements(graph, cityNodeId) {
     const target = (minimum + maximum) / 2;
     const candidates = available.filter(item => !used.has(item.node.id));
     const inRange = candidates.filter(item => item.routeDistance >= minimum && item.routeDistance <= maximum);
-    let pool = inRange.length > 0 ? inRange : candidates.filter(item => item.routeDistance >= 120);
-    if (pool.length === 0) {
-      const fallbackCandidates = allReachable.filter(item => !used.has(item.node.id));
-      const fallbackInRange = fallbackCandidates.filter(item => item.routeDistance >= minimum && item.routeDistance <= maximum);
-      pool = fallbackInRange.length > 0
-        ? fallbackInRange
-        : fallbackCandidates.filter(item => item.routeDistance >= 60);
-    }
-    if (pool.length === 0 && placements.length === 0) {
-      pool = allReachable.filter(item => !used.has(item.node.id));
-    }
+    const pool = inRange.length > 0 ? inRange : candidates.filter(item => item.routeDistance >= 120);
     if (pool.length === 0) break;
     const chosen = pool.reduce((best, item) => compareCandidate(item, best, references, target) < 0 ? item : best, pool[0]);
     placements.push(publicPlacement(type, chosen, references));
@@ -158,29 +141,15 @@ export function selectEnemyBaseNode(state, type, sourceNodeId = null, options = 
     .map(node => candidateForNode(node, anchorNode, distances.get(node.id) ?? 0));
   const target = (definition.range[0] + definition.range[1]) / 2;
   const physicallyObservedChunks = new Set(state.world.roadChunks?.playerObserved ?? state.world.roadChunks?.loaded ?? []);
-  const makeCandidates = ({ observedOnly = true, minimumDegree = 2, sourceGap = 150, occupiedGap = 100, allowPhysicalFallback = false } = {}) => graph.nodes
-    .filter(node => !observedOnly || physicallyObservedChunks.size === 0 || physicallyObservedChunks.has(chunkForWorldPoint(node, state.world.roadChunks?.sizeMeters).id))
-    .filter(node => !occupiedNodes.has(node.id) && (graph.adjacency.get(node.id)?.length ?? 0) >= minimumDegree)
-    .filter(node => !sourceNode || Math.hypot(node.x - sourceNode.x, node.y - sourceNode.y) >= sourceGap)
-    .filter(node => occupiedPoints.every(point => Math.hypot(node.x - point.x, node.y - point.y) >= occupiedGap))
-    .map(node => {
-      const routed = distances.get(node.id);
-      const physical = Math.hypot(node.x - anchorNode.x, node.y - anchorNode.y);
-      return candidateForNode(node, anchorNode, Number.isFinite(routed) ? routed : allowPhysicalFallback ? physical : Infinity);
-    })
+  const candidates = graph.nodes
+    .filter(node => physicallyObservedChunks.size === 0 || physicallyObservedChunks.has(chunkForWorldPoint(node, state.world.roadChunks?.sizeMeters).id))
+    .filter(node => !occupiedNodes.has(node.id) && (graph.adjacency.get(node.id)?.length ?? 0) >= 2)
+    .filter(node => !sourceNode || Math.hypot(node.x - sourceNode.x, node.y - sourceNode.y) >= 150)
+    .filter(node => occupiedPoints.every(point => Math.hypot(node.x - point.x, node.y - point.y) >= 100))
+    .map(node => candidateForNode(node, anchorNode, distances.get(node.id) ?? Infinity))
     .filter(item => Number.isFinite(item.routeDistance));
-  let candidates = makeCandidates();
-  if (!candidates.length) candidates = makeCandidates({ observedOnly: true, minimumDegree: 1, sourceGap: 80, occupiedGap: 60 });
-  if (!candidates.length) candidates = makeCandidates({ observedOnly: false, minimumDegree: 1, sourceGap: 50, occupiedGap: 40, allowPhysicalFallback: true });
-  if (!candidates.length && physicallyObservedChunks.size === 0) {
-    candidates = graph.nodes
-      .filter(node => !occupiedNodes.has(node.id) && distances.has(node.id))
-      .map(node => candidateForNode(node, anchorNode, distances.get(node.id) ?? Infinity))
-      .filter(item => Number.isFinite(item.routeDistance));
-  }
   const inRange = candidates.filter(item => item.routeDistance >= definition.range[0] && item.routeDistance <= definition.range[1]);
-  let pool = inRange.length ? inRange : candidates.filter(item => item.routeDistance >= 120);
-  if (!pool.length) pool = candidates.filter(item => item.routeDistance >= 40);
+  const pool = inRange.length ? inRange : candidates.filter(item => item.routeDistance >= 120);
   if (!pool.length) return null;
   const chosen = pool.reduce((best, item) => compareCandidate(item, best, references, target) < 0 ? item : best, pool[0]);
   return {

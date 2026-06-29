@@ -5,7 +5,6 @@ import { selectInitialEnemyBasePlacements } from './enemy-base-placement.js';
 import { reconcileFrontiers, ensureFrontierState } from '../exploration/frontier-system.js';
 import { normalizeEnemyGroup } from './enemy-grouping.js';
 import { reconcileActiveWaveRecords } from './wave-system.js';
-import { purgeOwnedTerritoryAfterCheckmate } from '../base/base-collapse.js';
 
 export const selectEnemyBasePlacements = selectInitialEnemyBasePlacements;
 
@@ -13,7 +12,7 @@ export function initializeCombatState(state) {
   const graph = state.world.roadGraph;
   const cityNodeId = state.world.homeBase.nodeId;
   state.world.city = { nodeId: cityNodeId, hp: 100, maxHp: 100 };
-  state.world.playerBases = [{ ...state.world.homeBase, name: 'Home Base', primary: true, hp: 100, maxHp: 100 }];
+  state.world.playerBases = [{ ...state.world.homeBase, name: '本拠地', primary: true, hp: 100, maxHp: 100 }];
   state.world.fieldBases = [];
   state.world.baseRespawns = [];
   state.world.frontierSources = [];
@@ -39,9 +38,7 @@ export function initializeCombatState(state) {
       spawnClock: definition.interval - definition.firstDelay - placement.initialDelayBonusSec,
       initialDelayBonusSec: placement.initialDelayBonusSec,
       frontPressureMultiplier: placement.frontPressureMultiplier,
-      wavesSent: 0, routeDistance: placement.routeDistance,
-      frontlineAnchorBaseId: state.world.homeBase?.id ?? state.world.playerBases[0]?.id ?? null,
-      frontlineAnchorNodeId: cityNodeId
+      wavesSent: 0, routeDistance: placement.routeDistance
     };
   });
   reconcileFrontiers(state);
@@ -58,11 +55,6 @@ export function normalizeCombatState(state) {
   state.combat.pendingSettlementDamage ??= [];
   state.combat.cityRecoveryCooldown = Math.max(0, Number(state.combat.cityRecoveryCooldown) || 0);
   state.combat.enemyRegroupUntil = Math.max(0, Number(state.combat.enemyRegroupUntil) || 0);
-  if (state.combat.playerCheckmate?.active) {
-    purgeOwnedTerritoryAfterCheckmate(state, Number(state.combat.playerCheckmate.collapsedAt) || state.runtime?.worldTimeMs || Date.now());
-    state.combat.enemies = [];
-    state.combat.waves.active = {};
-  }
 
   const normalizedDefenses = new Map();
   for (const defense of state.combat.defenses) {

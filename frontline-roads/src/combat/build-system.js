@@ -11,7 +11,7 @@ import {
   majorBaseBuildRange
 } from '../base/construction-range.js';
 import { detachDefense } from './defense-lifecycle.js';
-import { activePlayerBases, playerBasesView } from '../base/player-bases.js';
+import { activePlayerBases } from '../base/player-bases.js';
 import { activeFieldBases } from '../base/field-bases.js';
 import { roadUnitPosition } from './road-unit-position.js';
 import {
@@ -37,34 +37,21 @@ function buildAnchors(state) {
   const civilizationLevel = Math.max(0, Math.floor(Number(state.civilization?.level) || 0));
   const majorRange = majorBaseBuildRange(civilizationLevel);
   const fieldRange = fieldBaseBuildRange(civilizationLevel);
-  const activeMajorBases = activePlayerBases(state).filter(finitePoint);
-  const anchors = activeMajorBases
+  const anchors = activePlayerBases(state)
+    .filter(finitePoint)
     .map((base, index) => ({
       id: index === 0 ? 'base' : `base:${base.id}`,
-      label: base.name || (index === 0 ? 'Home Base' : `Major Base ${index + 1}`),
+      label: base.name || (index === 0 ? '本拠地' : `主要拠点 ${index + 1}`),
       point: { x: base.x, y: base.y },
       range: majorRange,
       civilizationLevel,
       kind: 'MAJOR',
       baseId: base.id
     }));
-  if (!activeMajorBases.some(base => base.primary) && (state.combat?.playerCheckmate?.active || Number(state.world?.city?.hp) <= 0)) {
-    const recoveryBase = playerBasesView(state).find(base => base.primary && finitePoint(base));
-    if (recoveryBase) anchors.unshift({
-      id: 'base:recovery',
-      label: recoveryBase.name || 'Home Base Ruins',
-      point: { x: recoveryBase.x, y: recoveryBase.y },
-      range: majorRange,
-      civilizationLevel,
-      kind: 'MAJOR',
-      baseId: recoveryBase.id,
-      recovery: true
-    });
-  }
   for (const base of activeFieldBases(state).filter(finitePoint)) {
     anchors.push({
       id: `field:${base.id}`,
-      label: base.name || 'Simple Base',
+      label: base.name || '簡易拠点',
       point: { x: base.x, y: base.y },
       range: fieldRange,
       civilizationLevel,
@@ -78,7 +65,7 @@ function buildAnchors(state) {
     if (!finitePoint(point)) continue;
     anchors.push({
       id: `expedition:${squad.id}`,
-      label: 'Expedition Squad',
+      label: '遠征部隊',
       point: { x: point.x, y: point.y },
       range: EXPEDITION_BUILD_RANGE_METERS,
       civilizationLevel,
@@ -91,7 +78,7 @@ function buildAnchors(state) {
     const point = { x: state.player.worldPosition.x, y: state.player.worldPosition.y };
     const overlapsBase = anchors.some(anchor => distance(anchor.point, point) <= ANCHOR_DUPLICATE_TOLERANCE_METERS);
     if (!overlapsBase) anchors.push({
-      id: 'player', label: 'current position ', point, range: PLAYER_BUILD_RANGE_METERS,
+      id: 'player', label: '現在地', point, range: PLAYER_BUILD_RANGE_METERS,
       civilizationLevel,
       kind: 'PLAYER'
     });
@@ -143,14 +130,14 @@ function barrierCandidate(type, edge, point, anchor = null, section = null) {
 function resourceFailure(state, definition) {
   const missing = missingBundle(state, definition.cost);
   return Object.keys(missing).length
-    ? { ok: false, reason: `resources Missing: ${bundleText(missing)}`, missing }
+    ? { ok: false, reason: `資源が不足しています：${bundleText(missing)}`, missing }
     : null;
 }
 
 function civilizationFailure(state, definition) {
   const required = Math.max(0, Number(definition.requiredCivilizationLevel) || 0);
   return (state.civilization?.level ?? 0) < required
-    ? { ok: false, reason: `Civ Lv.${required} required.`, requiredCivilizationLevel: required }
+    ? { ok: false, reason: `文明Lv.${required}で解禁されます。`, requiredCivilizationLevel: required }
     : null;
 }
 
@@ -167,15 +154,15 @@ function anchorHasFacility(state, definition, anchor) {
 function buildRangeReason(state, definition) {
   const level = Math.max(0, Math.floor(Number(state.civilization?.level) || 0));
   const labels = {
-    MAJOR: `Major Base${majorBaseBuildRange(level)}m`,
-    FIELD: `Simple Base${fieldBaseBuildRange(level)}m`,
-    PLAYER: `current position ${PLAYER_BUILD_RANGE_METERS}m`,
-    EXPEDITION: `Expedition Squad${EXPEDITION_BUILD_RANGE_METERS}m`
+    MAJOR: `主要拠点${majorBaseBuildRange(level)}m`,
+    FIELD: `簡易拠点${fieldBaseBuildRange(level)}m`,
+    PLAYER: `現在地${PLAYER_BUILD_RANGE_METERS}m`,
+    EXPEDITION: `遠征部隊${EXPEDITION_BUILD_RANGE_METERS}m`
   };
   const kinds = Array.isArray(definition.allowedAnchorKinds)
     ? definition.allowedAnchorKinds
     : ['MAJOR', 'FIELD', 'PLAYER', 'EXPEDITION'];
-  return `Buildavailablein range to Placeplease (${kinds.map(kind => labels[kind]).filter(Boolean).join(', ')}).`;
+  return `建設可能範囲内へ設置してください（${kinds.map(kind => labels[kind]).filter(Boolean).join('、')}）。`;
 }
 
 function edgeGeometry(graph, edgeId) {
@@ -282,7 +269,7 @@ export class BuildSystem {
 
   getBuildStatus(state, type) {
     const definition = DEFENSE_DEFINITIONS[type];
-    if (!definition) return { ok: false, reason: 'Unknown facility.' };
+    if (!definition) return { ok: false, reason: '不明な設備です。' };
     return civilizationFailure(state, definition) ?? resourceFailure(state, definition) ?? { ok: true, definition };
   }
 
@@ -355,9 +342,9 @@ export class BuildSystem {
 
   previewAt(state, type, worldPoint, selectionToleranceMeters) {
     const definition = DEFENSE_DEFINITIONS[type];
-    if (!definition) return { ok: false, reason: 'Unknown facility.' };
+    if (!definition) return { ok: false, reason: '不明な設備です。' };
     const graph = state.world.roadGraph;
-    if (!graph?.nodeById) return { ok: false, reason: 'Road data is unavailable.' };
+    if (!graph?.nodeById) return { ok: false, reason: '道路データを利用できません。' };
     const tolerance = Math.max(0, Number(selectionToleranceMeters) || 0);
     const legalSites = this.listBuildSites(state, type);
     const legalMatches = legalSites.map(site => ({ site, distance: distance(worldPoint, site.point) }));
@@ -394,21 +381,21 @@ export class BuildSystem {
     }
     return nearestFailure ?? {
       ok: false,
-      reason: definition.kind === 'barrier' ? 'Tap a build point on a road segment.' : 'Tap a highlighted tactical point.'
+      reason: definition.kind === 'barrier' ? '道路区間の建設地点をタップしてください。' : '表示されている戦術地点をタップしてください。'
     };
   }
 
   validateCandidate(state, candidate, { checkResources = true } = {}) {
-    if (!candidate || typeof candidate !== 'object') return { ok: false, reason: 'Placement candidate is unavailable.' };
+    if (!candidate || typeof candidate !== 'object') return { ok: false, reason: '設置候補がありません。' };
     const definition = DEFENSE_DEFINITIONS[candidate.type];
-    if (!definition) return { ok: false, reason: 'Unknown facility.' };
-    if (candidate.kind !== definition.kind) return { ok: false, reason: 'Placement candidate type does not match.' };
+    if (!definition) return { ok: false, reason: '不明な設備です。' };
+    if (candidate.kind !== definition.kind) return { ok: false, reason: '設置候補の種類が一致しません。' };
     const graph = state.world.roadGraph;
-    if (!graph?.nodeById) return { ok: false, reason: 'Road data is unavailable.' };
+    if (!graph?.nodeById) return { ok: false, reason: '道路データを利用できません。' };
     const locked = civilizationFailure(state, definition);
     if (locked) return locked;
     const anchors = allowedAnchorsForDefinition(buildAnchors(state), definition);
-    if (!anchors.length) return { ok: false, reason: 'No valid build anchor was found near the base, current position, or expedition squad.' };
+    if (!anchors.length) return { ok: false, reason: '建設基準となる拠点・現在地・遠征部隊を取得できません。' };
 
     const legalSites = this.listBuildSites(state, candidate.type);
     const normalized = definition.kind === 'barrier'
@@ -422,8 +409,8 @@ export class BuildSystem {
       const inRange = coveringAnchor(anchors, candidate.point ?? graph.nodeById.get(candidate.nodeId));
       if (!inRange) return { ok: false, reason: buildRangeReason(state, definition) };
       return { ok: false, reason: definition.kind === 'barrier'
-        ? 'This road segment already has a facility or cannot be used as a build point.'
-        : 'This point already has a facility, or no build point is available.' };
+        ? 'この道路区間には既に設備があるか、建設地点として利用できません。'
+        : 'この戦術地点には既に設備があります。または建設地点として利用できません。' };
     }
     if (checkResources) {
       const failure = resourceFailure(state, definition);
@@ -437,7 +424,7 @@ export class BuildSystem {
     if (!validation.ok) return validation;
     const normalized = validation.candidate;
     const definition = DEFENSE_DEFINITIONS[normalized.type];
-    if (!consumeBundle(state, definition.cost)) return { ok: false, reason: 'Not enough resources to build.' };
+    if (!consumeBundle(state, definition.cost)) return { ok: false, reason: '建設直前に資源が不足しました。' };
 
     if (definition.kind === 'barrier') {
       const defense = {
@@ -489,12 +476,12 @@ export class BuildSystem {
   removeDefense(state, defenseId) {
     const defenses = state.combat?.defenses ?? [];
     const index = defenses.findIndex(defense => defense.id === defenseId);
-    if (index < 0) return { ok: false, reason: 'Facility to remove was not found.' };
+    if (index < 0) return { ok: false, reason: '撤去する設備が見つかりません。' };
     const defense = detachDefense(state, defenses[index].id);
-    if (!defense) return { ok: false, reason: 'Facility to remove was not found.' };
+    if (!defense) return { ok: false, reason: '撤去する設備が見つかりません。' };
     if (defense.kind === 'barrier') markBarrierRoutesDirty(state);
-    const name = defenseRuntimeDefinition(defense).name ?? DEFENSE_DEFINITIONS[defense.type]?.name ?? 'facility';
+    const name = defenseRuntimeDefinition(defense).name ?? DEFENSE_DEFINITIONS[defense.type]?.name ?? '設備';
     this.events?.emit('combat:defense-removed', { defenseId: defense.id, defense });
-    return { ok: true, defense, message: `${name} dismantled. Resources were not refunded.` };
+    return { ok: true, defense, message: `${name}を撤去しました。資源は返還されません。` };
   }
 }

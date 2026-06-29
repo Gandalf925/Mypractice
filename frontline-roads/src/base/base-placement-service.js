@@ -30,7 +30,7 @@ export class BasePlacementService {
           distanceToRoad: projection.distance,
           distanceFromOrigin,
           valid: distanceFromOrigin <= ROAD_CONFIG.selectionRadiusMeters,
-          label: `Road ${formatMeters(distanceFromOrigin)} away`
+          label: `${formatMeters(distanceFromOrigin)}先の道路`
         };
       }
     }
@@ -38,7 +38,7 @@ export class BasePlacementService {
   }
 
   establishHomeBase(selection) {
-    if (!selection?.valid) throw new Error('Select a valid road.');
+    if (!selection?.valid) throw new Error('有効な道路を選択してください。');
     const insertion = insertBaseNodeOnEdge(this.graph, selection);
     return {
       graph: insertion.graph,

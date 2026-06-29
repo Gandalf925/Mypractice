@@ -38,20 +38,13 @@ export class OfflineSimulator {
     const step = Math.min(this.maximumStepSeconds, simulatedSeconds);
     let remaining = simulatedSeconds;
     let iterations = 0;
-    const previousOfflineFlag = state.runtime.offlineSimulationActive;
-    state.runtime.offlineSimulationActive = true;
-    try {
-      while (remaining > 0.0001 && iterations < this.maximumIterations) {
-        const currentStep = Math.min(step, remaining);
-        state.runtime.worldTimeMs = (state.runtime.worldTimeMs ?? Date.now()) + currentStep * 1000;
-        this.combatSystem.update(state, currentStep);
-        this.civilizationSystem?.update(state, currentStep);
-        remaining -= currentStep;
-        iterations += 1;
-      }
-    } finally {
-      if (previousOfflineFlag == null) delete state.runtime.offlineSimulationActive;
-      else state.runtime.offlineSimulationActive = previousOfflineFlag;
+    while (remaining > 0.0001 && iterations < this.maximumIterations) {
+      const currentStep = Math.min(step, remaining);
+      state.runtime.worldTimeMs = (state.runtime.worldTimeMs ?? Date.now()) + currentStep * 1000;
+      this.combatSystem.update(state, currentStep);
+      this.civilizationSystem?.update(state, currentStep);
+      remaining -= currentStep;
+      iterations += 1;
     }
 
     const afterResources = resourceSnapshot(state);

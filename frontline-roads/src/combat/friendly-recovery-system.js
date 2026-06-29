@@ -8,7 +8,7 @@ export const FRIENDLY_RECOVERY_STATUS = Object.freeze({
 export const FIELD_RECOVERY_SQUAD_TYPES = Object.freeze(['assault', 'skirmisher', 'retrieval']);
 
 const MAJOR_BASELINE = Object.freeze({
-  label: 'Major base with supplies · reorganization',
+  label: '主要拠点で補給・再編成',
   reorganizationSeconds: 45,
   capacity: 1,
   targetRatio: 1,
@@ -16,7 +16,7 @@ const MAJOR_BASELINE = Object.freeze({
 });
 
 const FIELD_BASELINE = Object.freeze({
-  label: 'Simple base with reorganization',
+  label: '簡易拠点で再編成',
   reorganizationSeconds: 60,
   capacity: 1,
   targetRatio: null,
@@ -30,7 +30,7 @@ function baseKind(state, baseId) {
 export function recoveryProfileForSquad(state, squad, baseId = squad.recoveryBaseId ?? squad.originBaseId) {
   const base = ownedBaseById(state, baseId, { includeDestroyed: true });
   if (!base || base.status !== 'ESTABLISHED' || base.hp <= 0) {
-    return { ok: false, reason: 'No base is available for reorganization.', base: null, kind: null };
+    return { ok: false, reason: '再編成可能な拠点がありません。', base: null, kind: null };
   }
 
   const kind = baseKind(state, base.id);
@@ -39,7 +39,7 @@ export function recoveryProfileForSquad(state, squad, baseId = squad.recoveryBas
       ok: true,
       base,
       kind,
-      label: 'Simple base waiting',
+      label: '簡易拠点で待機',
       reorganizationSeconds: 90,
       capacity: 1,
       targetRatio: null,
@@ -108,8 +108,8 @@ export function updateFriendlyRecovery(state, squad, deltaSeconds, events = null
   squad.readyAt = state.runtime?.worldTimeMs ?? Date.now();
   squad.reorganizationRemaining = 0;
   events?.emit('friendly:squad-ready', { squadId: squad.id, originBaseId: baseId, hp: squad.hp, maxHp: squad.maxHp });
-  const completion = profile.healRatioPerSecond > 0 ? 'supply · healing · reorganization' : 'reorganization';
-  events?.emit('message', { text: `${profile.base.name} with  squad ${completion} completed.` });
+  const completion = profile.healRatioPerSecond > 0 ? '補給・回復・再編成' : '再編成';
+  events?.emit('message', { text: `${profile.base.name}で部隊の${completion}が完了しました。` });
   return { updated: true, ready: true, profile };
 }
 

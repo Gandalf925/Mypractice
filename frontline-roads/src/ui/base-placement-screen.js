@@ -11,7 +11,7 @@ function viewportSize(documentRef) {
 }
 
 export class BasePlacementScreen {
-  constructor(root = document, i18n = null) {
+  constructor(root = document) {
     this.overlay = queryRequired('#basePlacementOverlay', root);
     this.mapViewport = queryRequired('#baseMapViewport', root);
     this.status = queryRequired('#basePlacementStatus', root);
@@ -20,7 +20,6 @@ export class BasePlacementScreen {
     this.zoomInButton = queryRequired('#zoomIn', root);
     this.zoomOutButton = queryRequired('#zoomOut', root);
     this.recenterButton = queryRequired('#recenter', root);
-    this.i18n = i18n;
     this.document = this.overlay.ownerDocument;
     this.documentRoot = this.document.documentElement;
     this.syncFrame = null;
@@ -58,11 +57,9 @@ export class BasePlacementScreen {
     this.documentRoot.style.setProperty('--base-map-left', `${left}px`);
   }
 
-  localize(message) { return this.i18n?.copy?.(message) ?? message; }
-
   showLoading(message) {
     setVisible(this.overlay, true);
-    this.status.textContent = this.localize(message);
+    this.status.textContent = message;
     this.confirmButton.disabled = true;
     this.scheduleViewportSync();
   }
@@ -70,20 +67,20 @@ export class BasePlacementScreen {
   showSelection(selection, { roadsPending = false } = {}) {
     this.scheduleViewportSync();
     if (!selection) {
-      this.status.textContent = this.localize(roadsPending
-        ? `Core roads are shown first.${ROAD_CONFIG.selectionRadiusMeters / 1000}kmwithin of You can choose a road while nearby roads continue loading.`
-        : `From current position, ${ROAD_CONFIG.selectionRadiusMeters / 1000}kmwithin of road tapplease.`);
+      this.status.textContent = roadsPending
+        ? `中心部の道路を先行表示しました。${ROAD_CONFIG.selectionRadiusMeters / 1000}km以内の道路を選びながら、周辺道路の取得を待てます。`
+        : `現在地から${ROAD_CONFIG.selectionRadiusMeters / 1000}km以内の道路をタップしてください。`;
       this.confirmButton.disabled = true;
       return;
     }
     if (!selection.valid) {
-      this.status.textContent = this.localize(`${formatMeters(selection.distanceFromOrigin)}.Select a road within 1 km.`);
+      this.status.textContent = `${formatMeters(selection.distanceFromOrigin)}離れています。1km以内の道路を選択してください。`;
       this.confirmButton.disabled = true;
       return;
     }
-    this.status.textContent = this.localize(roadsPending
-      ? `Selected road is ${formatMeters(selection.distanceFromOrigin)} away. You can confirm after nearby roads finish loading.`
-      : `Selected road is ${formatMeters(selection.distanceFromOrigin)} away. Confirm to start immediately around that road.`);
+    this.status.textContent = roadsPending
+      ? `${formatMeters(selection.distanceFromOrigin)}先の道路を選択中です。周辺道路の取得が完了すると確定できます。`
+      : `${formatMeters(selection.distanceFromOrigin)}先の道路を選択中です。確定すると、その道路を中心に即時開始します。`;
     this.confirmButton.disabled = roadsPending;
   }
 
@@ -93,7 +90,7 @@ export class BasePlacementScreen {
 
   showError(message) {
     setVisible(this.overlay, true);
-    this.status.textContent = this.localize(message);
+    this.status.textContent = message;
     this.confirmButton.disabled = true;
     this.scheduleViewportSync();
   }

@@ -56,7 +56,7 @@ export function ensureFieldBaseState(state) {
     const base = state.world.fieldBases[index];
     base.id ??= stableId('field_base', base.nodeId, base.establishedAt ?? index);
     base.kind = 'FIELD';
-    base.name = String(base.name || `Simple Base ${index + 1}`);
+    base.name = String(base.name || `簡易拠点 ${index + 1}`);
     base.maxHp = Math.max(FIELD_BASE_MAX_HP, Number(base.maxHp) || FIELD_BASE_MAX_HP);
     base.hp = Math.max(0, Math.min(base.maxHp, Number(base.hp ?? base.maxHp) || 0));
     base.status = base.status === 'DESTROYED' || base.hp <= 0 ? 'DESTROYED' : 'ESTABLISHED';

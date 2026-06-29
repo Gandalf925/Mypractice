@@ -10,7 +10,6 @@ import { roadUnitPosition } from './road-unit-position.js';
 import { activeFieldBases, fieldBaseById } from '../base/field-bases.js';
 import { activePlayerBases, playerBaseById } from '../base/player-bases.js';
 import { activeSettlementAttackCounts, basePressureLoadPenaltySeconds, basePressureProfile } from '../base/base-pressure.js';
-import { applyProtectedSettlementDamage, collapsePlayerTerritory, effectivePressureCivilizationLevel } from '../base/base-collapse.js';
 import { destroyPlayerBase } from '../base/player-base-system.js';
 import { enemyBehaviorForDefinition } from './enemy-personalities.js';
 import { destroyFieldBase } from '../base/field-base-system.js';
@@ -54,7 +53,7 @@ function barrierCrowdPressureMultiplier(state, enemy, barrier, barrierPosition) 
 }
 
 function fortifiedDefenseDamageMultiplier(state) {
-  const level = Math.max(0, Math.floor(effectivePressureCivilizationLevel(state)));
+  const level = Math.max(0, Math.floor(Number(state?.civilization?.level) || 0));
   if (level < 5) return 1;
   const activeDefenses = (state.combat?.defenses ?? []).filter(defense => defense.hp > 0).length;
   const fortifiedThreshold = 18 + level * 7;
@@ -63,7 +62,7 @@ function fortifiedDefenseDamageMultiplier(state) {
 }
 
 function underbuiltBreakthroughMultiplier(state) {
-  const level = Math.max(0, Math.floor(effectivePressureCivilizationLevel(state)));
+  const level = Math.max(0, Math.floor(Number(state?.civilization?.level) || 0));
   if (level < 5) return 1;
   const activeDefenses = (state.combat?.defenses ?? []).filter(defense => defense.hp > 0).length;
   const expectedLine = (18 + level * 7) * 0.85;
@@ -73,7 +72,7 @@ function underbuiltBreakthroughMultiplier(state) {
 }
 
 function applyUnderbuiltOverrunPressure(state, deltaSeconds, events = null) {
-  const level = Math.max(0, Math.floor(effectivePressureCivilizationLevel(state)));
+  const level = Math.max(0, Math.floor(Number(state?.civilization?.level) || 0));
   if (level < 5 || !state.world?.city || state.world.city.hp <= 0) return;
   const activeDefenses = (state.combat?.defenses ?? []).filter(defense => defense.hp > 0).length;
   const expectedLine = (18 + level * 7) * 0.85;
@@ -86,9 +85,9 @@ function applyUnderbuiltOverrunPressure(state, deltaSeconds, events = null) {
   const pressureRatio = Math.max(0, population - pressureStart) / populationCap;
   const damage = (level - 4) * deficitRatio * (0.34 + pressureRatio) * 0.34 * Math.max(0, Number(deltaSeconds) || 0);
   if (damage <= 0) return;
-  const result = applyProtectedSettlementDamage(state, state.world.city, damage, 'primary');
-  if (result.damage > 0) state.combat.cityRecoveryCooldown = CITY_RECOVERY_DELAY_SECONDS;
-  events?.emit('combat:city-hit', { damage: result.damage, enemyId: 'underbuilt-overrun', unitCount: population, pressure: true, protected: result.blockedByProtection });
+  state.world.city.hp = Math.max(0, state.world.city.hp - damage);
+  state.combat.cityRecoveryCooldown = CITY_RECOVERY_DELAY_SECONDS;
+  events?.emit('combat:city-hit', { damage, enemyId: 'underbuilt-overrun', unitCount: population, pressure: true });
 }
 
 
@@ -360,7 +359,7 @@ function attackTargetFacility(state, enemy, definition, deltaSeconds, events) {
     if ((definition.stunSeconds ?? 0) > 0) {
       target.disabledTimer = Math.max(target.disabledTimer ?? 0, definition.stunSeconds);
     }
-    events?.emit('message', { text: definition.attackMessage ?? `${definition.name} is attacking defense facilities.` });
+    events?.emit('message', { text: definition.attackMessage ?? `${definition.name}が防衛施設を攻撃しています。` });
   }
 
   target.hp -= Math.max(0.1, definition.facilityDps ?? definition.barrierDps ?? 1) * groupAttackMultiplier(enemy, 'facility') * deltaSeconds * fortifiedDefenseDamageMultiplier(state) * underbuiltBreakthroughMultiplier(state);
@@ -370,7 +369,7 @@ function attackTargetFacility(state, enemy, definition, deltaSeconds, events) {
   const destroyed = detachDefense(state, target.id) ?? target;
   beginEnemyRegroup(state, RECOVERY_BALANCE.defenseBreakthroughRegroupSeconds);
   events?.emit('combat:defense-destroyed', { defenseId: destroyed.id, defense: destroyed, position: node });
-  events?.emit('message', { text: `${defenseRuntimeDefinition(destroyed).name ?? 'Defense facility'} was destroyed and removed from its build point.` });
+  events?.emit('message', { text: `${defenseRuntimeDefinition(destroyed).name ?? '防衛施設'}が破壊され、建設地点から撤去されました。` });
   return true;
 }
 
@@ -462,7 +461,7 @@ function destroyFriendlySquad(state, squad, squadPoint, events) {
     if (other.engagedSquadId === squad.id) other.engagedSquadId = null;
   }
   events?.emit('friendly:squad-destroyed', { squadId: squad.id, position: squadPoint, originBaseId: squad.originBaseId });
-  events?.emit('message', { text: `${friendlySquadDefinition(squad.type).name}.` });
+  events?.emit('message', { text: `${friendlySquadDefinition(squad.type).name}が全滅しました。` });
 }
 
 function applyFriendlyDamage(state, squad, amount, events) {
@@ -675,7 +674,7 @@ export class EnemySystem {
         clearBarrierContact(enemy);
         this.invalidateAllPaths(state);
         this.events?.emit('combat:defense-destroyed', { defenseId: destroyed.id, defense: destroyed, position: defenseWorldPosition(graph, destroyed) });
-        this.events?.emit('message', { text: `${destroyed.isGate ? 'Gate' : 'Wall'} was destroyed and removed from the road.` });
+        this.events?.emit('message', { text: `${destroyed.isGate ? '門' : '防壁'}が破壊され、道路から撤去されました。` });
         continue;
       }
 
@@ -749,10 +748,8 @@ export class EnemySystem {
       if (enemy.nodeId === enemy.path.targetId && enemy.targetPlayerBaseId) {
         const majorBase = playerBaseById(state, enemy.targetPlayerBaseId, { includeDestroyed: false });
         if (majorBase && majorBase.nodeId === enemy.path.targetId) {
-          const damage = definition.cityDamage * groupAttackMultiplier(enemy, 'settlement');
-          const result = applyProtectedSettlementDamage(state, majorBase, damage, majorBase.primary ? 'primary' : 'major');
-          if (majorBase.primary && state.world.city) state.world.city.hp = majorBase.hp;
-          this.events?.emit('combat:player-base-hit', { baseId: majorBase.id, damage: result.damage, enemyId: enemy.id, unitCount: enemyUnitCount(enemy), protected: result.blockedByProtection });
+          majorBase.hp = Math.max(0, majorBase.hp - definition.cityDamage * groupAttackMultiplier(enemy, 'settlement'));
+          this.events?.emit('combat:player-base-hit', { baseId: majorBase.id, damage: definition.cityDamage * groupAttackMultiplier(enemy, 'settlement'), enemyId: enemy.id, unitCount: enemyUnitCount(enemy) });
           if (majorBase.hp <= 0) destroyPlayerBase(state, majorBase, this.events, { enemyId: enemy.id });
           resolveWaveEnemy(state, enemy, true);
           return true;
@@ -766,9 +763,8 @@ export class EnemySystem {
       if (enemy.nodeId === enemy.path.targetId && enemy.targetFieldBaseId) {
         const fieldBase = activeFieldBaseById(state, enemy.targetFieldBaseId);
         if (fieldBase && fieldBase.nodeId === enemy.path.targetId) {
-          const damage = definition.cityDamage * groupAttackMultiplier(enemy, 'settlement');
-          const result = applyProtectedSettlementDamage(state, fieldBase, damage, 'field');
-          this.events?.emit('combat:field-base-hit', { baseId: fieldBase.id, damage: result.damage, enemyId: enemy.id, unitCount: enemyUnitCount(enemy), protected: result.blockedByProtection });
+          fieldBase.hp = Math.max(0, fieldBase.hp - definition.cityDamage * groupAttackMultiplier(enemy, 'settlement'));
+          this.events?.emit('combat:field-base-hit', { baseId: fieldBase.id, damage: definition.cityDamage * groupAttackMultiplier(enemy, 'settlement'), enemyId: enemy.id, unitCount: enemyUnitCount(enemy) });
           if (fieldBase.hp <= 0) destroyFieldBase(state, fieldBase, this.events, { enemyId: enemy.id });
           resolveWaveEnemy(state, enemy, true);
           return true;
@@ -780,18 +776,14 @@ export class EnemySystem {
       }
 
       if (enemy.nodeId === enemy.path.targetId && enemy.path.targetId === state.world.city.nodeId) {
-        const damage = definition.cityDamage * groupAttackMultiplier(enemy, 'settlement');
-        const result = applyProtectedSettlementDamage(state, state.world.city, damage, 'primary');
-        const primaryBase = (state.world.playerBases ?? [])[0];
-        if (primaryBase?.primary) primaryBase.hp = state.world.city.hp;
-        if (result.damage > 0) state.combat.cityRecoveryCooldown = CITY_RECOVERY_DELAY_SECONDS;
-        if ((definition.settlementDamage ?? 0) > 0 && !result.blockedByProtection) {
+        state.world.city.hp = Math.max(0, state.world.city.hp - definition.cityDamage * groupAttackMultiplier(enemy, 'settlement'));
+        state.combat.cityRecoveryCooldown = CITY_RECOVERY_DELAY_SECONDS;
+        if ((definition.settlementDamage ?? 0) > 0) {
           state.combat.pendingSettlementDamage ??= [];
           state.combat.pendingSettlementDamage.push({ enemyId: enemy.id, enemyType: enemy.type, damage: definition.settlementDamage * groupAttackMultiplier(enemy, 'settlement') });
         }
         resolveWaveEnemy(state, enemy, true);
-        this.events?.emit('combat:city-hit', { damage: result.damage, enemyId: enemy.id, unitCount: enemyUnitCount(enemy), protected: result.blockedByProtection });
-        if (state.world.city.hp <= 0) collapsePlayerTerritory(state, this.events, { enemyId: enemy.id, cause: 'primary-base-destroyed' });
+        this.events?.emit('combat:city-hit', { damage: definition.cityDamage * groupAttackMultiplier(enemy, 'settlement'), enemyId: enemy.id, unitCount: enemyUnitCount(enemy) });
         return true;
       }
 
@@ -849,7 +841,7 @@ export class EnemySystem {
     applyUnderbuiltOverrunPressure(state, deltaSeconds, this.events);
     state.combat.cohortRegroupClock = Math.max(0, Number(state.combat.cohortRegroupClock) || 0) + Math.max(0, Number(deltaSeconds) || 0);
     if (state.combat.cohortRegroupClock >= 0.75) {
-      const civilizationLevel = Math.max(0, Math.floor(effectivePressureCivilizationLevel(state)));
+      const civilizationLevel = Math.max(0, Math.floor(Number(state.civilization?.level) || 0));
       mergeEnemyCohorts(state, { maxMergedCount: civilizationLevel >= 6 ? 112 : civilizationLevel === 5 ? 72 : civilizationLevel >= 4 ? 52 : 40 });
       state.combat.cohortRegroupClock = 0;
     }

@@ -304,18 +304,18 @@ export class RoadWorldManager {
   requestSurvey(defenseId) {
     const state = currentStoreState(this.store);
     const defense = activeSurveyFacilities(state).find(item => item.id === defenseId);
-    if (!defense) return { ok: false, reason: 'This survey facility is not currently active.' };
-    if (defense.disabledTimer > 0) return { ok: false, reason: `in progress.a and ${Math.ceil(defense.disabledTimer)} sec please.` };
+    if (!defense) return { ok: false, reason: 'この測量施設は現在稼働できません。' };
+    if (defense.disabledTimer > 0) return { ok: false, reason: `機能停止中です。あと${Math.ceil(defense.disabledTimer)}秒待ってください。` };
     const queued = this.considerSurveyFacilities({ forceDefenseId: defenseId });
     const latest = currentStoreState(this.store).combat.defenses.find(item => item.id === defenseId);
-    if (queued.length > 0) return { ok: true, message: 'Road surveying started.', chunkId: queued[0] };
+    if (queued.length > 0) return { ok: true, message: '道路測量を開始しました。', chunkId: queued[0] };
     if (latest?.surveyStatus === 'LOADING' || latest?.surveyStatus === 'QUEUED') {
-      return { ok: true, message: 'Road survey is already in progress.' };
+      return { ok: true, message: '道路測量はすでに進行中です。' };
     }
     if (latest?.surveyStatus === 'COMPLETE') {
-      return { ok: false, reason: 'No road area is available at the current location.' };
+      return { ok: false, reason: '現在の測量半径内に未取得の道路区域はありません。' };
     }
-    return { ok: false, reason: latest?.surveyLastError ? `Road acquisition failed: ${latest.surveyLastError}` : 'Area is not available.' };
+    return { ok: false, reason: latest?.surveyLastError ? `道路取得に失敗しました：${latest.surveyLastError}` : '測量可能な隣接区域がありません。' };
   }
 
   waitForChunk(chunkId) {
@@ -395,7 +395,7 @@ export class RoadWorldManager {
           };
         } catch (error) {
           result = { ok: false, chunkId: next.chunk.id, error: String(error?.message ?? error) };
-          this.onStatus?.({ type: 'error', chunkId: next.chunk.id, text: 'roadarea of integration at Failed .' });
+          this.onStatus?.({ type: 'error', chunkId: next.chunk.id, text: '道路区域の統合に失敗しました。' });
         } finally {
           this.pending.delete(next.chunk.id);
           this.settleChunkWaiters(next.chunk.id, result);
@@ -435,7 +435,7 @@ export class RoadWorldManager {
       return;
     }
     const worldId = roadWorldId(state.world.roadGraph);
-    this.onStatus?.({ type: 'loading', chunkId: chunk.id, text: mode === 'survey' ? 'Survey facility is parsing nearby roads…' : 'Scouting nearby roads…' });
+    this.onStatus?.({ type: 'loading', chunkId: chunk.id, text: mode === 'survey' ? '測量施設が周辺道路を解析しています…' : '周辺道路を偵察しています…' });
     if (defenseId) {
       this.store.advance(draft => {
         const defense = draft.combat.defenses.find(item => item.id === defenseId);
@@ -496,7 +496,7 @@ export class RoadWorldManager {
               const worldTimeMs = Number(draft.runtime?.worldTimeMs) || this.now();
               defense.surveyErrorCount = Math.max(0, Number(defense.surveyErrorCount) || 0) + 1;
               defense.surveyLastErrorStage = processingFailed ? 'PROCESSING' : 'NETWORK';
-              defense.surveyLastError = `${processingFailed ? 'communicationSuccess · road processingFailed': unconfirmedEmpty ? ' complete': 'communicationFailed'}: ${failureDetail}`.slice(0, 240);
+              defense.surveyLastError = `${processingFailed ? '通信成功・道路処理失敗' : unconfirmedEmpty ? '空応答の確認未完了' : '通信失敗'}：${failureDetail}`.slice(0, 240);
               if (communicationSucceeded) {
                 defense.surveyLastConnectionAt = worldTimeMs;
                 defense.surveyLastEndpoint = connectionAfter.host ?? 'overpass';
@@ -514,13 +514,13 @@ export class RoadWorldManager {
           chunkId: chunk.id,
           text: mode === 'survey'
             ? processingFailed
-              ? 'roadserver and of communication has Success, roaddata of processing at Failed.retry.'
+              ? '道路サーバーとの通信には成功しましたが、道路データの処理に失敗しました。再試行します。'
               : unconfirmedEmpty
-                ? 'No road data was confirmed. Another server will be retried automatically.'
-                : 'Survey facility could not connect to the road server. Retry later.'
+                ? '道路なしという応答を別サーバーで確認できませんでした。自動再試行します。'
+                : '測量施設が道路サーバーへ接続できませんでした。時間を置いて再試行します。'
             : unconfirmedEmpty
-              ? 'No roads were found in the response. Move and retry.'
-              : 'Nearby roads could not be acquired. Move and retry.'
+              ? '道路なしという応答を確認できなかったため、移動後に再試行します。'
+              : '周辺道路を取得できませんでした。移動後に再試行します。'
         });
         return;
       } finally {
@@ -586,8 +586,8 @@ export class RoadWorldManager {
       type: 'loaded',
       chunkId: chunk.id,
       text: graph.edges.length > 0
-        ? `${mode === 'survey' ? 'Survey facility added a new road area' : 'New road area checked'} (road ${mergeResult.addedEdges}${mode === 'survey' && networkSuccess?.host ? ` / ${networkSuccess.host} ${networkSuccess.transport}` : ''})`
-        : mode === 'survey' ? 'No usable road was found in the surveyed area.' : 'No usable road was found in this area.'
+        ? `${mode === 'survey' ? '測量施設が新しい道路区域を追加しました' : '新しい道路区域を確認しました'}（道路 ${mergeResult.addedEdges}${mode === 'survey' && networkSuccess?.host ? ` / ${networkSuccess.host} ${networkSuccess.transport}` : ''}）`
+        : mode === 'survey' ? '測量区域に利用可能な道路はありませんでした。' : 'この区域には利用可能な道路がありません。'
     });
   }
 

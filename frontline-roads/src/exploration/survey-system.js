@@ -8,12 +8,12 @@ import { ROAD_CONFIG } from '../core/constants.js';
 export const SURVEY_FACILITY_TYPE = 'survey';
 
 const SURVEY_STATUS_LABELS = Object.freeze({
-  WAITING: 'Waiting for next survey',
-  QUEUED: 'Queued for acquisition',
-  LOADING: 'Loading roads',
-  RETRY_WAIT: 'Retry pending',
-  COMPLETE: 'Range acquisition complete',
-  ERROR: 'Failed'
+  WAITING: '次回測量待ち',
+  QUEUED: '取得待ち',
+  LOADING: '道路取得中',
+  RETRY_WAIT: '再試行待ち',
+  COMPLETE: '範囲内取得完了',
+  ERROR: '取得失敗'
 });
 
 function hasOperationalAnchor(state, defense) {

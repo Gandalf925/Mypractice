@@ -14,9 +14,9 @@ export const FRIENDLY_ORDER_MODE = Object.freeze({
 });
 
 const ROUTE_LABELS = Object.freeze({
-  shortest: 'Shortest',
-  safe: 'enemyavoid',
-  support: 'friendly support'
+  shortest: '最短',
+  safe: '敵回避',
+  support: '味方援護'
 });
 
 function pointToSegmentDistance(point, a, b) {
@@ -214,7 +214,7 @@ function pathMetrics(state, path, speed, analysis, squad) {
       enemyContacts += Math.max(1, Number(entry.enemy.level) || 1);
     }
   }
-  const risk = enemyContacts <= 1 ? 'low' : enemyContacts <= 4 ? ' in progress' : 'high';
+  const risk = enemyContacts <= 1 ? '低' : enemyContacts <= 4 ? '中' : '高';
   return {
     physicalDistance,
     etaSeconds: physicalDistance / Math.max(0.1, speed),
@@ -262,9 +262,9 @@ export function orderDestinationNodeId(state, squad, mode) {
 
 export function validateRetreatDestination(state, squad, nodeId) {
   const node = state.world.roadGraph.nodeById.get(nodeId);
-  if (!node) return { ok: false, reason: 'Select a point on a road.' };
+  if (!node) return { ok: false, reason: '道路上の地点を選択してください。' };
   const startId = commandStartNodeId(state, squad);
-  if (nodeId === startId) return { ok: false, reason: 'Select a point other than the current route target.' };
+  if (nodeId === startId) return { ok: false, reason: '現在の進路先とは別の地点を選択してください。' };
   const missionId = squad.missionTargetBaseId ?? squad.targetBaseId;
   const targetBase = state.world.enemyBases.find(base => base.id === missionId && base.alive && base.hp > 0);
   const targetEnemy = squad.missionType === 'INTERCEPT'
@@ -276,7 +276,7 @@ export function validateRetreatDestination(state, squad, nodeId) {
     const start = state.world.roadGraph.nodeById.get(startId) ?? friendlySquadPosition(state, squad);
     const isOwnedBase = activeOwnedBases(state).some(base => base.nodeId === nodeId);
     if (!isOwnedBase && targetNode && distance(node, targetNode) + 5 < distance(start, targetNode)) {
-      return { ok: false, reason: 'Select a retreat point on a road outside current enemy territory.' };
+      return { ok: false, reason: '後退地点は現在より敵基地から遠い道路上を選択してください。' };
     }
   }
   return { ok: true, node };
@@ -321,7 +321,7 @@ function buildRouteOptions(state, squad, startId, destinationNodeId, waypointNod
     if (options.length >= 3) break;
     const penalized = new Set(basis.path.edgeIds);
     const path = routeFromBestCurrentEdgeExit(state, squad, startId, waypointNodeIds, destinationNodeId, 'shortest', analysis, penalized);
-    if (addOption(`detour-${detourIndex}`, `OtherRoute${detourIndex}`, path)) detourIndex += 1;
+    if (addOption(`detour-${detourIndex}`, `別経路${detourIndex}`, path)) detourIndex += 1;
   }
   options.sort((a, b) => a.physicalDistance - b.physicalDistance || a.id.localeCompare(b.id));
   return options.slice(0, 3);

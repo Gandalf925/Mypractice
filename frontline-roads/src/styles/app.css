@@ -1776,13 +1776,3 @@ button:disabled {
   cursor: not-allowed;
   opacity: .48;
 }
-
-.baseDefeatRecoveryPanel {
-  border: 1px solid rgba(255, 180, 84, 0.46);
-  background: linear-gradient(135deg, rgba(255, 180, 84, 0.11), rgba(0, 0, 0, 0.18));
-  box-shadow: inset 0 0 18px rgba(255, 180, 84, 0.08);
-  padding: 12px;
-  margin: 0 0 12px;
-}
-.baseDefeatRecoveryPanel h2 { color: #ffcf85; }
-.baseDefeatRecoveryPanel .wideButton { margin-top: 8px; }

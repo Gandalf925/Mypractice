@@ -30,7 +30,7 @@ function activePlayerBases(state) {
   return (state.world?.playerBases ?? []).filter(base => base?.status === 'ESTABLISHED' && base.hp > 0);
 }
 
-function operation(id, priority, title, detail, action = null, tag = 'Recommended') {
+function operation(id, priority, title, detail, action = null, tag = '推奨') {
   return { id, priority, title, detail, action, tag };
 }
 
@@ -45,26 +45,26 @@ function incompleteProjectOperations(state) {
     .map(check => `${RESOURCE_LABELS[check.key] ?? check.key} ${Math.max(0, check.required - check.current)}`);
   const nonResource = incomplete.find(check => check.kind !== 'resource');
   const detailParts = [];
-  if (resourceMissing.length) detailParts.push(`Missing: ${resourceMissing.join(' · ')}`);
+  if (resourceMissing.length) detailParts.push(`不足: ${resourceMissing.join('・')}`);
   if (nonResource) detailParts.push(labelForProjectCheck(nonResource));
   return [operation(
     'civilization-next',
     80,
-    `${civilization?.name ?? `Civ Lv.${evaluation.project.targetLevel}`} to Growth`,
-    detailParts.join(' / ') || 'Requirements can be checked.',
-    'Open CIV',
-    'Civilization'
+    `${civilization?.name ?? `文明Lv.${evaluation.project.targetLevel}`}へ発展`,
+    detailParts.join(' / ') || '条件を確認できます。',
+    'CIVを開く',
+    '文明'
   )];
 }
 
 function labelForProjectCheck(check) {
-  if (check.kind === 'building') return `Facilitiesrequirements ${Math.floor(check.current)}/${check.required}`;
-  if (check.kind === 'artifact') return `RecoveryItem ${Math.floor(check.current)}/${check.required}`;
+  if (check.kind === 'building') return `施設条件 ${Math.floor(check.current)}/${check.required}`;
+  if (check.kind === 'artifact') return `回収物 ${Math.floor(check.current)}/${check.required}`;
   if (check.kind === 'progress') {
-    if (check.key === 'totalKills') return `Enemy kills ${Math.floor(check.current)}/${check.required}`;
-    if (check.key === 'totalCampsCaptured') return `Enemy baseAttack ${Math.floor(check.current)}/${check.required}`;
-    if (check.key === 'cityHpStreak') return `city HP ${Math.floor(check.current)}/${check.required} sec`;
-    return `Progressrequirements ${Math.floor(check.current)}/${check.required}`;
+    if (check.key === 'totalKills') return `敵撃破 ${Math.floor(check.current)}/${check.required}`;
+    if (check.key === 'totalCampsCaptured') return `敵拠点攻略 ${Math.floor(check.current)}/${check.required}`;
+    if (check.key === 'cityHpStreak') return `都市HP維持 ${Math.floor(check.current)}/${check.required}秒`;
+    return `進行条件 ${Math.floor(check.current)}/${check.required}`;
   }
   return `${check.kind} ${Math.floor(check.current)}/${check.required}`;
 }
@@ -80,10 +80,10 @@ function nearestEnemyBaseOperation(state) {
   return [operation(
     'enemy-base-nearest',
     55,
-    'Attack an enemy base',
-    `${definition?.name ?? 'Enemy base'} · ${formatMeters(base.meters)} · A recovery item appears after capture.`,
-    'Select on map',
-    'Attack'
+    '敵拠点を攻撃',
+    `${definition?.name ?? '敵拠点'}・${formatMeters(base.meters)}・攻略後に回収物が出ます。`,
+    'マップで選択',
+    '攻略'
   )];
 }
 
@@ -97,11 +97,11 @@ function recoveryOperations(state) {
     const presentation = recoveryItemPresentation(available);
     const point = recoveryItemPoint(state, available);
     const player = state.player?.worldPosition;
-    const meters = finitePoint(player) && finitePoint(point) ? ` · ${formatMeters(distance(player, point))}` : '';
-    return [operation('recovery-available', 65, 'Secure recovery item', `${presentation.name}${meters} · ${baseReady ? 'A recovery squad or field recovery is available.' : 'A base able to dispatch squads is required.'}`, 'Select recovery item', 'Recovery')];
+    const meters = finitePoint(player) && finitePoint(point) ? `・${formatMeters(distance(player, point))}` : '';
+    return [operation('recovery-available', 65, '回収物を確保', `${presentation.name}${meters}・${baseReady ? '回収部隊または現地回収が可能です。' : '出撃可能な拠点が必要です。'}`, '回収物を選択', '回収')];
   }
-  if (reserved) return [operation('recovery-reserved', 40, 'Recovery squad en route', `${recoveryItemPresentation(reserved).name} is en route. It remains visible until arrival.`, null, 'Recovery')];
-  if (carried) return [operation('recovery-carried', 42, 'Carrying recovery item', `${recoveryItemPresentation(carried).name} is being carried back to base.`, null, 'Recovery')];
+  if (reserved) return [operation('recovery-reserved', 40, '回収部隊が移動中', `${recoveryItemPresentation(reserved).name}へ向かっています。到着まで表示は残ります。`, null, '回収')];
+  if (carried) return [operation('recovery-carried', 42, '回収物を搬送中', `${recoveryItemPresentation(carried).name}を拠点へ持ち帰っています。`, null, '回収')];
   return [];
 }
 
@@ -110,7 +110,7 @@ function repairOperations(state) {
     .filter(defense => defense.hp > 0 && defense.maxHp > 0 && defense.hp < defense.maxHp * 0.72)
     .sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp));
   if (!damaged.length) return [];
-  return [operation('repair-defense', 46, 'Repair damaged facilities', `Repairs needed ${damaged.length} · Most damaged facility HP ${Math.ceil(damaged[0].hp)}/${Math.ceil(damaged[0].maxHp)}`, 'Select facility', 'Defense')];
+  return [operation('repair-defense', 46, '損傷施設を修理', `要修理 ${damaged.length}基・最も損傷した施設 HP ${Math.ceil(damaged[0].hp)}/${Math.ceil(damaged[0].maxHp)}`, '施設を選択', '防衛')];
 }
 
 function workshopOperations(state) {
@@ -121,7 +121,7 @@ function workshopOperations(state) {
     .map(([key]) => ROADSIDE_USE_DEFINITIONS[key]?.name ?? key)
     .slice(0, 3);
   if (!craftable.length) return [];
-  return [operation('tactical-workshop', 38, 'Tactical items craftable', craftable.join(' · '), 'Open ITEMS', 'Craft')];
+  return [operation('tactical-workshop', 38, '戦術アイテムを製作可能', craftable.join('・'), 'ITEMSを開く', '製作')];
 }
 
 function hasTacticalMaterials(state, required) {
@@ -137,9 +137,9 @@ function firstTenMinuteOperations(state) {
   const defenses = (state.combat?.defenses ?? []).filter(defense => defense.hp > 0);
   const captures = Number(state.statistics?.campsCaptured) || Number(state.civilization?.progress?.campsCapturedByType?.raiderCamp) || 0;
   const level = Number(state.civilization?.level) || 0;
-  if (!defenses.length) results.push(operation('first-defense', 95, 'Place defense facilities first', 'Place Stone Throwers, Log Palisades, and Vine Snares on roads around the base.', 'Open BASES', 'First steps'));
-  else if (captures <= 0) results.push(operation('first-attack-base', 90, 'Capture one enemy base', 'Civilization growth requires capturing an enemy base and securing recovery items.', 'Select enemy base', 'First steps'));
-  else if (level <= 0) results.push(operation('first-civ1', 88, 'Civ Lv.1 to Growth', 'Open CIV, deliver missing resources, and start development.', 'Open CIV', 'First steps'));
+  if (!defenses.length) results.push(operation('first-defense', 95, 'まず防衛施設を置く', '拠点周辺の道路へ投石台・丸太柵・蔓縄罠を配置します。', 'BASESを開く', '初回'));
+  else if (captures <= 0) results.push(operation('first-attack-base', 90, '敵拠点を1つ攻略', '文明発展には敵拠点の攻略と回収物の確保が必要です。', '敵拠点を選択', '初回'));
+  else if (level <= 0) results.push(operation('first-civ1', 88, '文明Lv.1へ発展', 'CIVで不足資源を納入して発展を開始します。', 'CIVを開く', '初回'));
   return results;
 }
 
@@ -171,19 +171,19 @@ export function buildWalkTargets(state) {
     if (!finitePoint(item)) continue;
     const rarityRank = { common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4 }[item.rarity] ?? 0;
     if (rarityRank < 2 && item.kind !== 'tactical') continue;
-    targets.push({ id: `supply:${item.id}`, kind: 'Supplies', title: item.name ?? 'Roadside Supplies', detail: `${rarityLabel(item.rarity)} · ${formatMeters(distance(player, item))}`, meters: distance(player, item), priority: 40 + rarityRank * 10 });
+    targets.push({ id: `supply:${item.id}`, kind: '物資', title: item.name ?? '道端物資', detail: `${rarityLabel(item.rarity)}・${formatMeters(distance(player, item))}`, meters: distance(player, item), priority: 40 + rarityRank * 10 });
   }
   for (const item of state.world?.recoveryItems ?? []) {
     if (!isRecoveryItemVisible(item)) continue;
     const point = recoveryItemPoint(state, item);
     if (!finitePoint(point)) continue;
-    targets.push({ id: `recovery:${item.id}`, kind: 'Recovery', title: recoveryItemPresentation(item).name, detail: `${statusText(item.status)} · ${formatMeters(distance(player, point))}`, meters: distance(player, point), priority: 70 });
+    targets.push({ id: `recovery:${item.id}`, kind: '回収', title: recoveryItemPresentation(item).name, detail: `${statusText(item.status)}・${formatMeters(distance(player, point))}`, meters: distance(player, point), priority: 70 });
   }
   for (const base of state.world?.enemyBases ?? []) {
     if (!base.alive || base.hp <= 0 || !finitePoint(base)) continue;
     const meters = distance(player, base);
     if (meters > 900) continue;
-    targets.push({ id: `enemyBase:${base.id}`, kind: 'Attack', title: ENEMY_BASE_DEFINITIONS[base.type]?.name ?? 'Enemy base', detail: `HP ${Math.ceil(base.hp)}/${Math.ceil(base.maxHp)} · ${formatMeters(meters)}`, meters, priority: 55 });
+    targets.push({ id: `enemyBase:${base.id}`, kind: '攻略', title: ENEMY_BASE_DEFINITIONS[base.type]?.name ?? '敵拠点', detail: `HP ${Math.ceil(base.hp)}/${Math.ceil(base.maxHp)}・${formatMeters(meters)}`, meters, priority: 55 });
   }
   return targets.sort((a, b) => b.priority - a.priority || a.meters - b.meters).slice(0, MAX_WALK_TARGETS);
 }
@@ -197,16 +197,16 @@ function rarityLabel(rarity) {
 }
 
 function statusText(status) {
-  if (status === RECOVERY_ITEM_STATUS.RESERVED) return 'Recovery squad en route';
-  if (status === RECOVERY_ITEM_STATUS.CARRIED) return 'Carrying';
-  if (status === RECOVERY_ITEM_STATUS.COLLECTED) return 'Recovered';
-  return 'Uncollected';
+  if (status === RECOVERY_ITEM_STATUS.RESERVED) return '回収部隊移動中';
+  if (status === RECOVERY_ITEM_STATUS.CARRIED) return '搬送中';
+  if (status === RECOVERY_ITEM_STATUS.COLLECTED) return '回収済み';
+  return '未回収';
 }
 
 export function operationGuidanceMarkup(guidance) {
   const operations = guidance?.operations ?? [];
   const walkTargets = guidance?.walkTargets ?? [];
-  const opHtml = operations.length ? operations.map(item => `<article class="opsCard"><div><span>${esc(item.tag)}</span><strong>${esc(item.title)}</strong><small>${esc(item.detail)}</small></div>${item.action ? `<em>${esc(item.action)}</em>` : ''}</article>`).join('') : '<p class="emptyText">There are no urgent operation goals. Check nearby enemies, supplies, and civilization requirements.</p>';
-  const walkHtml = walkTargets.length ? walkTargets.map(item => `<article class="walkTargetCard"><span>${esc(item.kind)}</span><strong>${esc(item.title)}</strong><small>${esc(item.detail)}</small></article>`).join('') : '<p class="emptyText">There are no priority walk targets near your current location.</p>';
-  return `<section class="opsSummary"><h2>NEXT OPS</h2><p class="sectionNote">Shows useful next actions for the current situation in priority order.</p><div class="opsGrid">${opHtml}</div></section><section class="opsSummary"><h2>WALK TARGETS</h2><div class="walkTargetGrid">${walkHtml}</div></section>`;
+  const opHtml = operations.length ? operations.map(item => `<article class="opsCard"><div><span>${esc(item.tag)}</span><strong>${esc(item.title)}</strong><small>${esc(item.detail)}</small></div>${item.action ? `<em>${esc(item.action)}</em>` : ''}</article>`).join('') : '<p class="emptyText">現在は緊急の作戦目標はありません。周辺の敵・物資・文明条件を確認してください。</p>';
+  const walkHtml = walkTargets.length ? walkTargets.map(item => `<article class="walkTargetCard"><span>${esc(item.kind)}</span><strong>${esc(item.title)}</strong><small>${esc(item.detail)}</small></article>`).join('') : '<p class="emptyText">現在地周辺に優先表示する徒歩目標はありません。</p>';
+  return `<section class="opsSummary"><h2>NEXT OPS // 次の行動</h2><p class="sectionNote">現在の状況から、次に有効な行動を優先順に表示します。</p><div class="opsGrid">${opHtml}</div></section><section class="opsSummary"><h2>WALK TARGETS // 近くの目標</h2><div class="walkTargetGrid">${walkHtml}</div></section>`;
 }

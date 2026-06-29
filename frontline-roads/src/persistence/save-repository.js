@@ -76,7 +76,7 @@ export class SaveRepository {
     this.legacyKeys = legacyKeys;
     this.backupKey = `${key}_legacy_backup`;
     this.corruptBackupKey = `${key}_corrupt_backup`;
-    this.warning = this.storage ? null : 'browser of storage area unavailable.this of tab close and progress lost.';
+    this.warning = this.storage ? null : 'ブラウザの保存領域を利用できません。このタブを閉じると進行状況は失われます。';
   }
 
   isAvailable() {
@@ -89,7 +89,7 @@ export class SaveRepository {
     return warning;
   }
 
-  markUnavailable(message = 'browser of storage area unavailable.this of tab close and progress lost.') {
+  markUnavailable(message = 'ブラウザの保存領域を利用できません。このタブを閉じると進行状況は失われます。') {
     this.storage = null;
     this.warning = message;
   }
@@ -115,7 +115,7 @@ export class SaveRepository {
     }
   }
 
-  quarantineCurrent(message = 'Save data could not be restored, so a new game will start.') {
+  quarantineCurrent(message = '保存データを復元できなかったため、新しいゲームとして開始します。') {
     if (!this.storage) return false;
     try {
       const raw = this.storage.getItem(this.key);
@@ -148,7 +148,7 @@ export class SaveRepository {
         const migratedValidation = validateState(state);
         if (!migratedValidation.valid) {
           this.discardInvalid(raw);
-          this.warning = 'Save data could not be restored, so a new game will start. Corrupted data was disabled.';
+          this.warning = '保存データを復元できなかったため、新しいゲームとして開始します。破損データは無効化しました。';
           return null;
         }
         const { copy } = sanitizeState(state);
@@ -156,19 +156,19 @@ export class SaveRepository {
       }
       if (statePredatesReset(state, resetMarkerTime(this.storage))) {
         this.discardInvalid(raw);
-        this.warning = 'Saved data could not be read. Starting a new game.';
+        this.warning = '初期化前の保存データを検出したため、新しいゲームとして開始します。';
         return null;
       }
       const validation = validateState(state);
       if (!validation.valid) {
         this.discardInvalid(raw);
-        this.warning = 'Saved data is incompatible. Starting a new game.';
+        this.warning = '保存データが破損していたため、新しいゲームとして開始します。破損データは無効化しました。';
         return null;
       }
       state.runtime.loadedFromKey = sourceKey;
       return state;
     } catch {
-      this.warning = 'save data, New game and start.';
+      this.warning = '保存データを読み込めなかったため、新しいゲームとして開始します。';
       return null;
     }
   }
@@ -182,7 +182,7 @@ export class SaveRepository {
   }
 
   saveState(state, { detached }) {
-    if (!this.storage) throw new AppError(ErrorCode.STORAGE_UNAVAILABLE, 'browser of storage area unavailable.');
+    if (!this.storage) throw new AppError(ErrorCode.STORAGE_UNAVAILABLE, 'ブラウザの保存領域を利用できません。');
     try {
       if (statePredatesReset(state, resetMarkerTime(this.storage))) return false;
       const { copy, timestamp } = sanitizeState(state, { detached });
@@ -193,8 +193,8 @@ export class SaveRepository {
       this.storage.setItem(this.key, serialized);
       return timestamp;
     } catch (error) {
-      this.markUnavailable('Save failed. Progress may be lost if this tab is closed.');
-      throw new AppError(ErrorCode.STORAGE_UNAVAILABLE, 'game of Save failed.', { details: error?.message });
+      this.markUnavailable('保存に失敗しました。このタブを閉じると、以後の進行状況は失われます。');
+      throw new AppError(ErrorCode.STORAGE_UNAVAILABLE, 'ゲームの保存に失敗しました。', { details: error?.message });
     }
   }
 

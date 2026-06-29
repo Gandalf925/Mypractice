@@ -2,8 +2,7 @@ import { stableId } from '../core/utilities.js';
 import { ENEMY_BASE_DEFINITIONS, ENEMY_DEFINITIONS, ENEMY_GENERATIONS } from './definitions.js';
 import { spawnEnemy } from './enemy-system.js';
 import { enemyGroupLimitForState, enemyUnitCount } from './enemy-grouping.js';
-import { civilizationPressureRampRatio, effectivePressureCivilizationLevel } from '../base/base-collapse.js';
-import { effectiveEnemyCivilizationLevel, enemyBaseLevelForState, enemyDensityForState, expandedWaveSize, waveIntervalForBase } from './enemy-scaling.js';
+import { enemyBaseLevelForState, enemyDensityForState, expandedWaveSize, waveIntervalForBase } from './enemy-scaling.js';
 import { INITIAL_BASE_TYPES, selectEnemyBaseNode } from './enemy-base-placement.js';
 import { enemyBehaviorForDefinition, waveDoctrineDefinition } from './enemy-personalities.js';
 import { enemyRegroupActive } from '../core/recovery-balance.js';
@@ -89,10 +88,13 @@ function doctrinePool(pool, doctrine) {
 export function enemyGenerationMix(state) {
   const generation = Math.max(0, Math.floor(Number(state.civilization.level) || 0));
   if (generation <= 0) return { generation: 0, probability: 0 };
-  const effectiveGeneration = effectivePressureCivilizationLevel(state);
-  if (effectiveGeneration < generation - 1) return { generation, probability: 0 };
-  const ratio = Math.max(0, Math.min(1, civilizationPressureRampRatio(state)));
-  return { generation, probability: ratio };
+  const worldNow = Number(state.runtime?.worldTimeMs) || Date.now();
+  const elapsed = worldNow - (Number(state.civilization.completedAt) || worldNow);
+  if (elapsed < 15 * 60 * 1000) return { generation, probability: 0 };
+  if (elapsed < 30 * 60 * 1000) return { generation, probability: 0.25 };
+  if (elapsed < 45 * 60 * 1000) return { generation, probability: 0.50 };
+  if (elapsed < 60 * 60 * 1000) return { generation, probability: 0.75 };
+  return { generation, probability: 1 };
 }
 
 function levelWave(definition, base) {
@@ -139,11 +141,7 @@ export function waveForBase(state, base, doctrineKey = null) {
   return wave;
 }
 
-// Distinct enemy facility types stay bounded, but total active outposts can grow
-// with player territory. The total cap protects mobile performance while still
-// guaranteeing nearby opposition for each owned base.
 export const MAX_ACTIVE_ENEMY_BASES = 10;
-export const MAX_TOTAL_ENEMY_OUTPOSTS = 28;
 
 export function enemyBaseTypesForCivilization(level) {
   const normalized = Math.max(0, Math.min(7, Math.floor(Number(level) || 0)));
@@ -159,11 +157,7 @@ export function enemyBaseTypesForCivilization(level) {
 }
 
 export function unlockedBaseTypes(state) {
-  // Facility availability follows the real civilization level so required
-  // resource camps such as copper and tin appear as soon as their progression
-  // tier unlocks. Their waves, density, and level still use the 24-hour
-  // pressure ramp via enemy-scaling.
-  return enemyBaseTypesForCivilization(Number(state?.civilization?.level) || 0);
+  return enemyBaseTypesForCivilization(state.civilization.level ?? 0);
 }
 
 const ENEMY_BASE_REPLACEMENTS = Object.freeze([
@@ -182,44 +176,10 @@ function activeExpansionBases(state) {
   ].filter(base => base?.id && base.nodeId);
 }
 
-function establishedOwnedBases(state) {
-  return [
-    ...(state.world?.playerBases ?? []).filter(base => base.status === 'ESTABLISHED'),
-    ...(state.world?.fieldBases ?? []).filter(base => base.status === 'ESTABLISHED')
-  ].filter(base => base?.id && base.nodeId);
-}
-
-function linkedOutpostMinimum(anchorBase) {
-  return anchorBase ? 1 : 0;
-}
-
-function linkedOutpostMaximum(state, anchorBase) {
-  const level = Math.max(0, Math.floor(Number(state?.civilization?.level) || 0));
-  if (anchorBase?.kind === 'FIELD') return level >= 5 ? 2 : 1;
-  return Math.min(3, 1 + Math.floor(level / 3));
-}
-
-function activeLinkedOutposts(state, anchorBase) {
-  if (!anchorBase?.id) return [];
-  return (state.world?.enemyBases ?? []).filter(base => base.alive && base.frontlineAnchorBaseId === anchorBase.id);
-}
-
-function pendingLinkedOutposts(state, anchorBase) {
-  if (!anchorBase?.id) return [];
-  return (state.world?.baseRespawns ?? []).filter(respawn => respawn.frontlineAnchorBaseId === anchorBase.id);
-}
-
-function enemyBaseGlobalLimit(state) {
-  const level = Math.max(0, Math.floor(Number(state?.civilization?.level) || 0));
-  const majorCount = (state.world?.playerBases ?? []).filter(base => base.status === 'ESTABLISHED' && !base.primary).length;
-  const fieldCount = (state.world?.fieldBases ?? []).filter(base => base.status === 'ESTABLISHED').length;
-  return Math.min(MAX_TOTAL_ENEMY_OUTPOSTS, 6 + level * 2 + majorCount * 2 + fieldCount);
-}
-
 function desiredEnemyBaseCount(state) {
   const core = unlockedBaseTypes(state).length;
-  const linkedMinimum = establishedOwnedBases(state).reduce((sum, base) => sum + linkedOutpostMinimum(base), 0);
-  return Math.min(enemyBaseGlobalLimit(state), Math.max(core, core + Math.max(0, linkedMinimum - 1)));
+  const expansion = activeExpansionBases(state).length;
+  return Math.min(MAX_ACTIVE_ENEMY_BASES, core + expansion);
 }
 
 function frontlineBaseTypeForAnchor(state, anchorBase, index) {
@@ -270,7 +230,7 @@ export function synchronizeEnemyBaseNetwork(state, events = null) {
     if (!current && obsolete.length) {
       const converted = obsolete.shift();
       transformEnemyBase(converted, replacement.to);
-      events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[replacement.from].name} ${ENEMY_BASE_DEFINITIONS[replacement.to].name} was reorganized into ` });
+      events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[replacement.from].name}が${ENEMY_BASE_DEFINITIONS[replacement.to].name}へ再編されました。` });
     }
     for (const base of obsolete) {
       base.alive = false;
@@ -318,7 +278,7 @@ export function spawnEnemyBaseGuard(state, base, events = null) {
   const spawned = new WaveSystem(events).spawnWave(state, base, true);
   if (spawned > 0) {
     base.guardWaveTriggered = true;
-    events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[base.type].name} garrison started interception.` });
+    events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[base.type].name}の守備隊が迎撃を開始しました。` });
   }
   return spawned;
 }
@@ -365,7 +325,7 @@ export class WaveSystem {
     }
     if (!guard && spawned > 0) {
       base.wavesSent += 1;
-      this.events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[base.type].name} Lv.${base.level ?? 1} "${doctrine.label}" start .` });
+      this.events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[base.type].name} Lv.${base.level ?? 1}が「${doctrine.label}」を開始しました。` });
     }
     return spawned;
   }
@@ -373,39 +333,40 @@ export class WaveSystem {
   ensureUnlockedBases(state) {
     synchronizeEnemyBaseNetwork(state, this.events);
     state.world.baseRespawns ??= [];
-    const totalLimit = enemyBaseGlobalLimit(state);
     const pendingTypes = new Set(state.world.baseRespawns.map(item => item.baseType));
     for (const type of unlockedBaseTypes(state)) {
       const exists = state.world.enemyBases.some(base => base.type === type && base.alive);
       if (exists || pendingTypes.has(type)) continue;
-      if (activeEnemyBaseCount(state) >= totalLimit) break;
+      if (activeEnemyBaseCount(state) >= MAX_ACTIVE_ENEMY_BASES) break;
       const placement = selectEnemyBaseNode(state, type);
       if (!placement) continue;
       const base = createBase(type, placement);
       state.world.enemyBases.push(base);
-      this.events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[type].name} appeared on the road network.` });
+      this.events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[type].name}が道路網に出現しました。` });
     }
 
     const desiredCount = desiredEnemyBaseCount(state);
-    const anchors = activeExpansionBases(state);
+    if (activeEnemyBaseCount(state) >= desiredCount) {
+      markEnemyBaseNetworkClean(state);
+      return;
+    }
+    const expansionBases = activeExpansionBases(state);
     let spawnedFrontline = 0;
-    for (const anchorBase of anchors) {
-      if (activeEnemyBaseCount(state) >= desiredCount || activeEnemyBaseCount(state) >= totalLimit) break;
-      const linked = activeLinkedOutposts(state, anchorBase).length;
-      const pending = pendingLinkedOutposts(state, anchorBase).length;
-      const required = Math.min(linkedOutpostMinimum(anchorBase), linkedOutpostMaximum(state, anchorBase));
-      if (linked + pending >= required) continue;
-      const type = frontlineBaseTypeForAnchor(state, anchorBase, linked + pending + spawnedFrontline);
+    for (const anchorBase of expansionBases) {
+      if (activeEnemyBaseCount(state) >= desiredCount || activeEnemyBaseCount(state) >= MAX_ACTIVE_ENEMY_BASES) break;
+      const alreadyLinked = state.world.enemyBases.some(base => base.alive && base.frontlineAnchorBaseId === anchorBase.id);
+      if (alreadyLinked) continue;
+      const type = frontlineBaseTypeForAnchor(state, anchorBase, spawnedFrontline);
       if (!type) continue;
       const placement = selectEnemyBaseNode(state, type, null, { anchorNodeId: anchorBase.nodeId });
       if (!placement) continue;
-      const base = createBase(type, placement, `${anchorBase.id}:${type}:${linked + pending}:${spawnedFrontline}`, {
+      const base = createBase(type, placement, `${anchorBase.id}:${type}:${spawnedFrontline}`, {
         frontlineAnchorBaseId: anchorBase.id,
         frontlineAnchorNodeId: anchorBase.nodeId
       });
       state.world.enemyBases.push(base);
       spawnedFrontline += 1;
-      this.events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[type].name} started activity near ${anchorBase.name ?? 'New base'}.` });
+      this.events?.emit('message', { text: `${anchorBase.name ?? '新設拠点'}周辺で${ENEMY_BASE_DEFINITIONS[type].name}が活動を開始しました。` });
     }
     markEnemyBaseNetworkClean(state);
   }
@@ -421,44 +382,28 @@ export class WaveSystem {
       }
       const desiredTypes = new Set(unlockedBaseTypes(state));
       if (!desiredTypes.has(respawn.baseType)) continue;
-      const anchor = respawn.frontlineAnchorBaseId
-        ? establishedOwnedBases(state).find(base => base.id === respawn.frontlineAnchorBaseId) ?? null
-        : null;
-      if (respawn.frontlineAnchorBaseId && !anchor) continue;
-      if (anchor && activeLinkedOutposts(state, anchor).length >= linkedOutpostMinimum(anchor)) continue;
-      if (!anchor && state.world.enemyBases.some(base => base.type === respawn.baseType && base.alive)) continue;
-      if (activeEnemyBaseCount(state) >= enemyBaseGlobalLimit(state)) {
+      if (state.world.enemyBases.some(base => base.type === respawn.baseType && base.alive)) continue;
+      if (activeEnemyBaseCount(state) >= MAX_ACTIVE_ENEMY_BASES) {
         respawn.remainingSec = 60 * 60;
         respawn.attempts = (respawn.attempts ?? 0) + 1;
         remaining.push(respawn);
         continue;
       }
-      const anchorNodeId = anchor?.nodeId ?? respawn.frontlineAnchorNodeId ?? null;
-      const placement = selectEnemyBaseNode(state, respawn.baseType, respawn.sourceNodeId, anchorNodeId ? { anchorNodeId } : {});
+      const placement = selectEnemyBaseNode(state, respawn.baseType, respawn.sourceNodeId);
       if (!placement) {
         respawn.remainingSec = 60 * 60;
         respawn.attempts = (respawn.attempts ?? 0) + 1;
         remaining.push(respawn);
         continue;
       }
-      const base = createBase(respawn.baseType, placement, `${respawn.id}:${respawn.attempts ?? 0}`, anchor ? {
-        frontlineAnchorBaseId: anchor.id,
-        frontlineAnchorNodeId: anchor.nodeId
-      } : {});
+      const base = createBase(respawn.baseType, placement, `${respawn.id}:${respawn.attempts ?? 0}`);
       state.world.enemyBases.push(base);
-      this.events?.emit('message', { text: anchor
-        ? `${ENEMY_BASE_DEFINITIONS[respawn.baseType].name} became active again near ${anchor.name ?? 'Base'}.`
-        : `${ENEMY_BASE_DEFINITIONS[respawn.baseType].name} reappeared on another road.` });
+      this.events?.emit('message', { text: `${ENEMY_BASE_DEFINITIONS[respawn.baseType].name}が別の道路へ再出現しました。` });
     }
     state.world.baseRespawns = remaining;
   }
 
   update(state, deltaSeconds) {
-    if (state.combat?.playerCheckmate?.active) {
-      state.combat.waves ??= { active: {} };
-      state.combat.waves.active = {};
-      return;
-    }
     reconcileActiveWaveRecords(state);
     synchronizeEnemyBaseNetwork(state, this.events);
     this.processRespawns(state, deltaSeconds);
@@ -480,7 +425,7 @@ export class WaveSystem {
       const previousLevel = Math.max(1, Math.floor(Number(base.level) || 1));
       base.level = enemyBaseLevelForState(state, base.ageSeconds);
       if (base.level > previousLevel) {
-        this.events?.emit('message', { text: `${definition.name} threat level rose to Lv.${base.level}` });
+        this.events?.emit('message', { text: `${definition.name}の脅威レベルがLv.${base.level}へ上昇しました。` });
         this.events?.emit('combat:enemy-base-level-up', { baseId: base.id, level: base.level });
       }
       if (regrouping) continue;
