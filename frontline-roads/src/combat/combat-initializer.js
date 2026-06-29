@@ -39,7 +39,9 @@ export function initializeCombatState(state) {
       spawnClock: definition.interval - definition.firstDelay - placement.initialDelayBonusSec,
       initialDelayBonusSec: placement.initialDelayBonusSec,
       frontPressureMultiplier: placement.frontPressureMultiplier,
-      wavesSent: 0, routeDistance: placement.routeDistance
+      wavesSent: 0, routeDistance: placement.routeDistance,
+      frontlineAnchorBaseId: state.world.homeBase?.id ?? state.world.playerBases[0]?.id ?? null,
+      frontlineAnchorNodeId: cityNodeId
     };
   });
   reconcileFrontiers(state);

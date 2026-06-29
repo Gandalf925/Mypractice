@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.36.9-global-localization';
+export const APP_VERSION = '0.36.11-base-linked-enemy-outposts';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 

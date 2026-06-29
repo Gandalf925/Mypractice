@@ -50,6 +50,7 @@ export class MenuUi {
     this.i18n?.setLanguage?.(language);
     this.onLanguageChange?.(this.i18n?.language ?? language);
     this.renderLocalizedContent();
+    this.refreshOperations(true);
     this.setSaveAvailable(!this.manualSave.disabled);
     this.notifications?.show?.(this.t('language.changed', '表示言語を変更しました。'));
   }
@@ -75,7 +76,7 @@ export class MenuUi {
     if (!this.languageButtons) return;
     const current = this.i18n?.language ?? 'ja';
     this.languageButtons.innerHTML = SUPPORTED_LANGUAGES.map(language => `
-      <button type="button" data-language-choice="${escapeHtml(language.code)}" aria-pressed="${language.code === current ? 'true' : 'false'}" class="${language.code === current ? 'active' : ''}">${escapeHtml(language.label)}</button>
+      <button type="button" data-i18n-preserve data-language-choice="${escapeHtml(language.code)}" aria-pressed="${language.code === current ? 'true' : 'false'}" class="${language.code === current ? 'active' : ''}">${escapeHtml(language.label)}</button>
     `).join('');
   }
 

@@ -74,11 +74,12 @@ class FrontlineRoadsApp {
     this.camera = new Camera();
     this.i18n = new I18nController();
     this.i18n.apply(globalThis.document);
+    this.i18n.observe(globalThis.document);
     this.renderer = new Renderer(queryRequired('#mapCanvas'), this.camera);
     this.renderer.setStateProvider(() => this.store.renderView());
     this.renderer.bindEvents(this.events);
-    this.radarPreferences = new RadarPreferences({ onChange: preferences => this.renderer.setPreferences(preferences) });
-    this.baseScreen = new BasePlacementScreen();
+    this.radarPreferences = new RadarPreferences({ i18n: this.i18n, onChange: preferences => this.renderer.setPreferences(preferences) });
+    this.baseScreen = new BasePlacementScreen(document, this.i18n);
     this.notifications = new Notifications(queryRequired('#notification'));
     this.combatSystem = new CombatSystem(this.events);
     this.civilizationSystem = new CivilizationSystem(this.events);
@@ -165,6 +166,7 @@ class FrontlineRoadsApp {
       i18n: this.i18n,
       onLanguageChange: () => {
         this.i18n.apply(globalThis.document);
+        this.radarPreferences.apply();
         this.combatUi.update();
         this.deploymentUi.update();
         this.baseCommandUi.update();

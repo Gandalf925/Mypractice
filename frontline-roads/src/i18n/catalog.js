@@ -4978,6 +4978,233 @@ const INLINE_COPY_PATTERNS = Object.freeze({
   ])
 });
 
+
+
+const FINAL_COPY_PATTERNS = Object.freeze({
+  en: Object.freeze([
+    [/現在地から(\d+(?:\.\d+)?)km以内の道路をタップしてください。/g, (_m, km) => `Tap a road within ${km} km of your current location.`],
+    [/中心部の道路を先行表示しました。(\d+(?:\.\d+)?)km以内の道路を選びながら、周辺道路の取得を待てます。/g, (_m, km) => `Core roads are shown first. Choose a road within ${km} km while nearby roads finish loading.`],
+    [/([\d.]+m|[\d.]+km)離れています。1km以内の道路を選択してください。/g, (_m, gap) => `This road is ${gap} away. Select a road within 1 km.`],
+    [/([\d.]+m|[\d.]+km)先の道路を選択中です。周辺道路の取得が完了すると確定できます。/g, (_m, gap) => `Selected road is ${gap} away. You can confirm after nearby roads finish loading.`],
+    [/([\d.]+m|[\d.]+km)先の道路を選択中です。確定すると、その道路を中心に即時開始します。/g, (_m, gap) => `Selected road is ${gap} away. Confirm to start immediately around that road.`],
+    [/表示品質：高精細/g, () => 'Display quality: Full'],
+    [/表示品質：標準/g, () => 'Display quality: Balanced'],
+    [/表示品質：省電力/g, () => 'Display quality: Power saving'],
+    [/アニメーション：(ON|OFF)/g, (_m, mode) => `Animation: ${mode}`],
+    [/詳細: /g, () => 'Details: '],
+    [/起動に失敗しました：/g, () => 'Startup failed: '],
+    [/位置追跡：/g, () => 'Location tracking: '],
+    [/(\d+)分進行/g, (_m, minutes) => `${minutes} min advanced`],
+    [/撃破 (\d+)/g, (_m, count) => `Kills ${count}`],
+    [/都市被害 (\d+)/g, (_m, count) => `City damage ${count}`],
+    [/防衛設備損失 (\d+)/g, (_m, count) => `Defense losses ${count}`],
+    [/集落施設損失 (\d+)/g, (_m, count) => `Settlement building losses ${count}`],
+    [/文明 \+(\d+)/g, (_m, count) => `Civ +${count}`],
+    [/拠点設置完了：初回現在地から約(\d+)m/g, (_m, meters) => `Base placed: about ${meters} m from the initial position`],
+    [/保存済み拠点：初回現在地から約(\d+)m/g, (_m, meters) => `Saved base: about ${meters} m from the initial position`],
+    [/施設条件 (\d+)\/(\d+)/g, (_m, current, required) => `Facilities ${current}/${required}`],
+    [/回収物 (\d+)\/(\d+)/g, (_m, current, required) => `Recovery items ${current}/${required}`],
+    [/敵撃破 (\d+)\/(\d+)/g, (_m, current, required) => `Enemy kills ${current}/${required}`],
+    [/敵拠点攻略 (\d+)\/(\d+)/g, (_m, current, required) => `Enemy bases captured ${current}/${required}`],
+    [/都市HP維持 (\d+)\/(\d+)秒/g, (_m, current, required) => `City HP maintained ${current}/${required} sec`],
+    [/進行条件 (\d+)\/(\d+)/g, (_m, current, required) => `Progress condition ${current}/${required}`],
+    [/要修理 (\d+)基/g, (_m, count) => `${count} need repair`],
+    [/HP (\d+)\/(\d+)/g, (_m, hp, max) => `HP ${hp}/${max}`],
+    [/あと(\d+)基分/g, (_m, count) => `${count} more site(s)`],
+    [/あと(\d+)/g, (_m, count) => `${count} short`],
+    [/文明Lv\.(\d+)/g, (_m, level) => `Civ Lv.${level}`]
+  ])
+});
+
+const FINAL_COPY_CATALOG = Object.freeze({
+  en: Object.freeze({
+    'NEXT OPS // 次の行動': 'NEXT OPS',
+    'WALK TARGETS // 近くの目標': 'WALK TARGETS',
+    '現在の状況から、次に有効な行動を優先順に表示します。': 'Shows useful next actions for the current situation in priority order.',
+    '現在は緊急の作戦目標はありません。周辺の敵・物資・文明条件を確認してください。': 'There are no urgent operation goals. Check nearby enemies, supplies, and civilization requirements.',
+    '現在地周辺に優先表示する徒歩目標はありません。': 'There are no priority walk targets near your current location.',
+    '初回': 'First steps',
+    '推奨': 'Recommended',
+    '攻略': 'Attack',
+    '回収': 'Recovery',
+    '防衛': 'Defense',
+    '製作': 'Craft',
+    '文明': 'Civilization',
+    '物資': 'Supplies',
+    'まず防衛施設を置く': 'Place defense facilities first',
+    '拠点周辺の道路へ投石台・丸太柵・蔓縄罠を配置します。': 'Place Stone Throwers, Log Palisades, and Vine Snares on roads around the base.',
+    'BASESを開く': 'Open BASES',
+    'CIVを開く': 'Open CIV',
+    'ITEMSを開く': 'Open ITEMS',
+    'マップで選択': 'Select on map',
+    '敵拠点を選択': 'Select enemy base',
+    '回収物を選択': 'Select recovery item',
+    '施設を選択': 'Select facility',
+    '敵拠点を1つ攻略': 'Capture one enemy base',
+    '文明発展には敵拠点の攻略と回収物の確保が必要です。': 'Civilization growth requires capturing an enemy base and securing recovery items.',
+    '文明Lv.1へ発展': 'Advance to Civ Lv.1',
+    'CIVで不足資源を納入して発展を開始します。': 'Open CIV, deliver missing resources, and start development.',
+    '敵拠点を攻撃': 'Attack an enemy base',
+    '敵拠点': 'Enemy base',
+    '攻略後に回収物が出ます。': 'A recovery item appears after capture.',
+    '回収物を確保': 'Secure recovery item',
+    '回収部隊または現地回収が可能です。': 'A recovery squad or field recovery is available.',
+    '出撃可能な拠点が必要です。': 'A base able to dispatch squads is required.',
+    '回収部隊が移動中': 'Recovery squad en route',
+    'へ向かっています。到着まで表示は残ります。': ' is en route. It remains visible until arrival.',
+    '回収物を搬送中': 'Carrying recovery item',
+    'を拠点へ持ち帰っています。': ' is being carried back to base.',
+    '損傷施設を修理': 'Repair damaged facilities',
+    '最も損傷した施設': 'Most damaged facility',
+    '戦術アイテムを製作可能': 'Tactical items craftable',
+    '不足:': 'Missing:',
+    '条件を確認できます。': 'Requirements can be checked.',
+    '回収部隊移動中': 'Recovery squad en route',
+    '搬送中': 'Carrying',
+    '回収済み': 'Recovered',
+    '未回収': 'Unrecovered',
+    '道端物資': 'Roadside supplies',
+    '現在地から': 'From current location, ',
+    '範囲内': 'in range',
+    '本拠地が破壊されました。所有していた主要拠点・簡易拠点・防衛施設はすべて撤去されました。': 'Home base destroyed. All owned major bases, simple bases, and defenses were removed.',
+    '保存に失敗しました。': 'Save failed.',
+    '保存機能を利用できません。このタブを閉じると進行状況は失われます。': 'Saving is unavailable. Progress will be lost if this tab is closed.',
+    '起動に失敗しました。ページを再読み込みしてください。': 'Startup failed. Reload the page.',
+    'FRONTLINE ROADSの起動に失敗しました。ページを再読み込みしてください。': 'FRONTLINE ROADS failed to start. Reload the page.',
+    '表示できる拠点がありません。': 'No base can be shown.',
+    '保存データを復元できなかったため、新しいゲームとして開始します。破損データは無効化しました。': 'Save data could not be restored, so a new game will start. Corrupted data was disabled.',
+    '保存データを復元できなかったため、新しいゲームとして開始します。': 'Save data could not be restored, so a new game will start.',
+    '道路キャッシュを復元できませんでした。保存済みの進行データで続行します。': 'Road cache could not be restored. Continuing with saved progress data.',
+    '不在中の進行計算を適用できませんでした。保存時点から再開します。': 'Offline progress could not be applied. Resuming from the saved point.',
+    '別のタブがゲーム進行を担当しています。そちらを閉じると、このタブで開始できます。': 'Another tab is running the game. Close it to start from this tab.',
+    '位置情報を取得しています…': 'Acquiring location…',
+    '現在地周辺の道路を取得しています…': 'Loading roads near your current location…',
+    '中心部道路': 'core roads',
+    '全道路': 'all roads',
+    'を道路サーバーから取得しています…': ' are being loaded from the road server…',
+    '試行': 'attempt',
+    '中心部': 'core area',
+    '周辺': 'nearby',
+    '道路を解析しています…': ' roads are being parsed…',
+    '道路地図を構築しています…': 'Building road map…',
+    '中心部の道路で開始できます。開始地点を選んで拠点を確定してください。周辺道路は移動や測量施設で追加されます。': 'You can start using core roads. Choose a starting point and confirm the base. Nearby roads are added by movement or survey facilities.',
+    '初期化に失敗しました。': 'Initialization failed.',
+    '別のタブがゲーム進行を担当しています。': 'Another tab is running the game.',
+    '周辺道路を確認しています。完了後に拠点を確定できます。': 'Checking nearby roads. You can confirm the base when it finishes.',
+    '選択地点周辺の道路を確認しています…': 'Checking roads near the selected point…',
+    '選択地点周辺の道路を取得できませんでした。通信状態を確認して、もう一度確定してください。': 'Could not load roads near the selected point. Check the connection and confirm again.',
+    '道路更新後に選択地点を確認できませんでした。道路を選び直してください。': 'The selected point could not be verified after road update. Select a road again.',
+    '拠点を設置しました。まず投石台2基を建設し、敵拠点へ部隊を派兵してください。移動すると周辺道路を順次偵察し、MAPへ追加します。': 'Base placed. Build two Stone Throwers first, then dispatch squads to an enemy base. As you move, nearby roads are scouted and added to the MAP.',
+    '拠点の設置に失敗しました。': 'Base placement failed.',
+    '長時間分は上限適用': 'Long absence was capped',
+    '別のタブが進行を担当しています。このタブは閲覧専用です。': 'Another tab is running progress. This tab is read-only.',
+    '別のタブが進行を引き継ぎました。': 'Another tab took over progress.',
+    'このタブで進行を再開しました。': 'Progress resumed in this tab.',
+    '保存データを初期化できませんでした。': 'Could not reset save data.',
+    '中心部の道路を先行表示しました。': 'Core roads are shown first.',
+    '道路を選びながら、周辺道路の取得を待てます。': 'You can choose a road while nearby roads continue loading.',
+    '1km以内の道路を選択してください。': 'Select a road within 1 km.',
+    '周辺道路の取得が完了すると確定できます。': 'You can confirm after nearby roads finish loading.',
+    '確定すると、その道路を中心に即時開始します。': 'Confirm to start immediately around that road.',
+    '高精細': 'Full',
+    '標準': 'Balanced',
+    '省電力': 'Power saving',
+    '表示品質': 'Display quality',
+    'アニメーション': 'Animation'
+  }),
+  'zh-CN': Object.freeze({
+    'NEXT OPS // 次の行動': '下一步行动',
+    'WALK TARGETS // 近くの目標': '附近目标',
+    '現在の状況から、次に有効な行動を優先順に表示します。': '根据当前情况，按优先级显示下一步有效行动。',
+    'まず防衛施設を置く': '先建造防御设施',
+    '拠点周辺の道路へ投石台・丸太柵・蔓縄罠を配置します。': '在基地周边道路上配置投石台、圆木栅栏和藤蔓陷阱。',
+    '現在地から1km以内の道路をタップしてください。': '请点击当前位置1公里以内的道路。',
+    'アニメーション：ON': '动画：ON',
+    'アニメーション：OFF': '动画：OFF',
+    '表示品質：高精細': '显示质量：高精细',
+    '表示品質：標準': '显示质量：标准',
+    '表示品質：省電力': '显示质量：省电'
+  }),
+  'zh-TW': Object.freeze({
+    'NEXT OPS // 次の行動': '下一步行動',
+    'WALK TARGETS // 近くの目標': '附近目標',
+    '現在の状況から、次に有効な行動を優先順に表示します。': '根據目前狀況，按優先順序顯示下一步有效行動。',
+    'まず防衛施設を置く': '先建造防禦設施',
+    '拠点周辺の道路へ投石台・丸太柵・蔓縄罠を配置します。': '在基地周邊道路上配置投石台、圓木柵欄和藤蔓陷阱。',
+    '現在地から1km以内の道路をタップしてください。': '請點選目前位置1公里以內的道路。',
+    'アニメーション：ON': '動畫：ON',
+    'アニメーション：OFF': '動畫：OFF',
+    '表示品質：高精細': '顯示品質：高精細',
+    '表示品質：標準': '顯示品質：標準',
+    '表示品質：省電力': '顯示品質：省電'
+  }),
+  ko: Object.freeze({
+    'NEXT OPS // 次の行動': '다음 행동',
+    'WALK TARGETS // 近くの目標': '주변 목표',
+    '現在の状況から、次に有効な行動を優先順に表示します。': '현재 상황에서 다음에 유효한 행동을 우선순위대로 표시합니다.',
+    'まず防衛施設を置く': '먼저 방어 시설을 배치하세요',
+    '拠点周辺の道路へ投石台・丸太柵・蔓縄罠を配置します。': '거점 주변 도로에 투석대, 통나무 울타리, 덩굴 함정을 배치합니다.',
+    '現在地から1km以内の道路をタップしてください。': '현재 위치에서 1km 이내의 도로를 탭하세요.',
+    'アニメーション：ON': '애니메이션: ON',
+    'アニメーション：OFF': '애니메이션: OFF',
+    '表示品質：高精細': '표시 품질: 고화질',
+    '表示品質：標準': '표시 품질: 표준',
+    '表示品質：省電力': '표시 품질: 절전'
+  }),
+  vi: Object.freeze({
+    'NEXT OPS // 次の行動': 'Hành động tiếp theo',
+    'WALK TARGETS // 近くの目標': 'Mục tiêu gần',
+    '現在の状況から、次に有効な行動を優先順に表示します。': 'Hiển thị các hành động hữu ích tiếp theo theo thứ tự ưu tiên dựa trên tình hình hiện tại.',
+    'まず防衛施設を置く': 'Đặt công trình phòng thủ trước',
+    '拠点周辺の道路へ投石台・丸太柵・蔓縄罠を配置します。': 'Đặt máy ném đá, hàng rào gỗ và bẫy dây leo trên các đường quanh căn cứ.',
+    '現在地から1km以内の道路をタップしてください。': 'Chạm vào một con đường trong phạm vi 1 km từ vị trí hiện tại.',
+    'アニメーション：ON': 'Hoạt ảnh: ON',
+    'アニメーション：OFF': 'Hoạt ảnh: OFF',
+    '表示品質：高精細': 'Chất lượng hiển thị: cao',
+    '表示品質：標準': 'Chất lượng hiển thị: tiêu chuẩn',
+    '表示品質：省電力': 'Chất lượng hiển thị: tiết kiệm pin'
+  }),
+  id: Object.freeze({
+    'NEXT OPS // 次の行動': 'Langkah berikutnya',
+    'WALK TARGETS // 近くの目標': 'Target terdekat',
+    '現在の状況から、次に有効な行動を優先順に表示します。': 'Menampilkan tindakan berikutnya yang berguna berdasarkan prioritas situasi saat ini.',
+    'まず防衛施設を置く': 'Bangun fasilitas pertahanan terlebih dahulu',
+    '拠点周辺の道路へ投石台・丸太柵・蔓縄罠を配置します。': 'Tempatkan pelempar batu, pagar kayu, dan jerat sulur di jalan sekitar markas.',
+    '現在地から1km以内の道路をタップしてください。': 'Ketuk jalan dalam 1 km dari lokasi saat ini.',
+    'アニメーション：ON': 'Animasi: ON',
+    'アニメーション：OFF': 'Animasi: OFF',
+    '表示品質：高精細': 'Kualitas tampilan: tinggi',
+    '表示品質：標準': 'Kualitas tampilan: standar',
+    '表示品質：省電力': 'Kualitas tampilan: hemat daya'
+  }),
+  es: Object.freeze({
+    'NEXT OPS // 次の行動': 'Próximas acciones',
+    'WALK TARGETS // 近くの目標': 'Objetivos cercanos',
+    '現在の状況から、次に有効な行動を優先順に表示します。': 'Muestra las siguientes acciones útiles en orden de prioridad según la situación actual.',
+    'まず防衛施設を置く': 'Coloca primero instalaciones defensivas',
+    '拠点周辺の道路へ投石台・丸太柵・蔓縄罠を配置します。': 'Coloca lanzapiedras, empalizadas de troncos y trampas de lianas en las carreteras alrededor de la base.',
+    '現在地から1km以内の道路をタップしてください。': 'Toca una carretera a menos de 1 km de tu ubicación actual.',
+    'アニメーション：ON': 'Animación: ON',
+    'アニメーション：OFF': 'Animación: OFF',
+    '表示品質：高精細': 'Calidad visual: alta',
+    '表示品質：標準': 'Calidad visual: estándar',
+    '表示品質：省電力': 'Calidad visual: ahorro de energía'
+  }),
+  'pt-BR': Object.freeze({
+    'NEXT OPS // 次の行動': 'Próximas ações',
+    'WALK TARGETS // 近くの目標': 'Alvos próximos',
+    '現在の状況から、次に有効な行動を優先順に表示します。': 'Mostra as próximas ações úteis em ordem de prioridade conforme a situação atual.',
+    'まず防衛施設を置く': 'Construa instalações defensivas primeiro',
+    '拠点周辺の道路へ投石台・丸太柵・蔓縄罠を配置します。': 'Coloque lançadores de pedra, paliçadas de troncos e armadilhas de cipó nas estradas ao redor da base.',
+    '現在地から1km以内の道路をタップしてください。': 'Toque em uma estrada a até 1 km da sua localização atual.',
+    'アニメーション：ON': 'Animação: ON',
+    'アニメーション：OFF': 'Animação: OFF',
+    '表示品質：高精細': 'Qualidade visual: alta',
+    '表示品質：標準': 'Qualidade visual: padrão',
+    '表示品質：省電力': 'Qualidade visual: economia de energia'
+  })
+});
+
 function applyCopyPatterns(language, value) {
   const patterns = INLINE_COPY_PATTERNS[normalizeLanguage(language)] ?? [];
   return patterns.reduce((result, [pattern, replacer]) => result.replace(pattern, replacer), value);
@@ -5007,10 +5234,18 @@ function applyCopyTables(value, tables = []) {
 
 export function copyText(language, text = '') {
   const normalized = normalizeLanguage(language);
-  const value = applyCopyPatterns(normalized, String(text ?? ''));
-  const tables = [INLINE_COPY_CATALOG[normalized]];
-  if (!['ja', 'en'].includes(normalized)) tables.push(INLINE_COPY_CATALOG.en);
-  return applyCopyTables(value, tables);
+  const original = String(text ?? '');
+  let value = applyCopyPatterns(normalized, original);
+  if (normalized === 'en') {
+    value = (FINAL_COPY_PATTERNS.en ?? []).reduce((result, [pattern, replacer]) => result.replace(pattern, replacer), value);
+    return applyCopyTables(value, [INLINE_COPY_CATALOG.en, FINAL_COPY_CATALOG.en]);
+  }
+  value = applyCopyTables(value, [INLINE_COPY_CATALOG[normalized], FINAL_COPY_CATALOG[normalized]]);
+  if (normalized !== 'ja') {
+    value = (FINAL_COPY_PATTERNS.en ?? []).reduce((result, [pattern, replacer]) => result.replace(pattern, replacer), value);
+    if (!['zh-CN', 'zh-TW'].includes(normalized)) value = applyCopyTables(value, [INLINE_COPY_CATALOG.en, FINAL_COPY_CATALOG.en]);
+  }
+  return value;
 }
 
 export function bundleTextLocalized(language, bundle = {}) {
@@ -5073,10 +5308,54 @@ export function translate(language, key, fallback = '') {
   return typeof value === 'string' ? value : fallback;
 }
 
+
+const LOCALIZE_SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA', 'INPUT', 'OPTION']);
+
+function shouldSkipLocalizationNode(node) {
+  const parent = node?.parentElement;
+  if (!parent) return true;
+  if (LOCALIZE_SKIP_TAGS.has(parent.tagName)) return true;
+  if (parent.closest?.('[data-i18n-preserve]')) return true;
+  return false;
+}
+
+function localizeTextNodes(root, language, copy) {
+  if (normalizeLanguage(language) === 'ja' || !root?.createTreeWalker && !root?.ownerDocument?.createTreeWalker) return;
+  const documentRef = root.nodeType === 9 ? root : root.ownerDocument;
+  const start = root.nodeType === 9 ? root.body : root;
+  if (!documentRef?.createTreeWalker || !start) return;
+  const showText = documentRef.defaultView?.NodeFilter?.SHOW_TEXT ?? globalThis.NodeFilter?.SHOW_TEXT ?? 4;
+  const walker = documentRef.createTreeWalker(start, showText);
+  const updates = [];
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    if (shouldSkipLocalizationNode(node)) continue;
+    const before = node.nodeValue ?? '';
+    if (!before.trim()) continue;
+    const after = copy(before);
+    if (after !== before) updates.push([node, after]);
+  }
+  for (const [node, value] of updates) node.nodeValue = value;
+}
+
+function localizeTranslatableAttributes(root, copy) {
+  if (!root?.querySelectorAll) return;
+  for (const element of root.querySelectorAll('[aria-label], [title]')) {
+    if (element.closest?.('[data-i18n-preserve]')) continue;
+    const aria = element.getAttribute('aria-label');
+    if (aria) element.setAttribute('aria-label', copy(aria));
+    const title = element.getAttribute('title');
+    if (title) element.setAttribute('title', copy(title));
+  }
+}
+
 export class I18nController {
   constructor({ storage = globalThis.localStorage, navigatorLanguage = globalThis.navigator?.language } = {}) {
     this.storage = storage;
     this.language = this.loadLanguage(navigatorLanguage);
+    this.observer = null;
+    this.observerFrame = null;
+    this.observingRoot = null;
   }
 
   loadLanguage(navigatorLanguage) {
@@ -5117,6 +5396,27 @@ export class I18nController {
     for (const element of root.querySelectorAll('[data-i18n-title]')) {
       element.setAttribute('title', this.t(element.dataset.i18nTitle, element.getAttribute('title') ?? ''));
     }
+    if (this.language !== 'ja') {
+      localizeTextNodes(root, this.language, text => this.copy(text));
+      localizeTranslatableAttributes(root, text => this.copy(text));
+    }
+  }
+
+  observe(root = globalThis.document) {
+    if (!root?.body || typeof MutationObserver !== 'function') return;
+    if (this.observer && this.observingRoot === root) return;
+    this.observer?.disconnect?.();
+    this.observingRoot = root;
+    const schedule = () => {
+      if (this.observerFrame != null) return;
+      const run = () => {
+        this.observerFrame = null;
+        this.apply(root);
+      };
+      this.observerFrame = typeof requestAnimationFrame === 'function' ? requestAnimationFrame(run) : setTimeout(run, 0);
+    };
+    this.observer = new MutationObserver(schedule);
+    this.observer.observe(root.body, { childList: true, subtree: true, characterData: true });
   }
 
   guideEntries() {

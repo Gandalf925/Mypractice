@@ -4,8 +4,12 @@ import { createBaseRecoveryItem } from '../exploration/recovery-system.js';
 
 export const BASE_RESPAWN_MIN_SECONDS = 4 * 60 * 60;
 export const BASE_RESPAWN_MAX_SECONDS = 6 * 60 * 60;
-export const RESOURCE_BASE_RESPAWN_MIN_SECONDS = 45 * 60;
-export const RESOURCE_BASE_RESPAWN_MAX_SECONDS = 75 * 60;
+// All enemy facility replenishment is measured in hours, not minutes.
+// Resource camps are tied to civilization progress, but their rewards are sized so
+// a single capture can satisfy the immediate bronze-entry requirements. Keeping
+// respawn in multi-hour windows gives casual players time to react.
+export const RESOURCE_BASE_RESPAWN_MIN_SECONDS = 3 * 60 * 60;
+export const RESOURCE_BASE_RESPAWN_MAX_SECONDS = 5 * 60 * 60;
 
 function deterministicRespawnSeconds(baseId, resourceBase = false) {
   let hash = 2166136261;
@@ -28,7 +32,9 @@ export function scheduleEnemyBaseRespawn(state, base) {
     baseType: base.type,
     sourceNodeId: base.nodeId,
     remainingSec: deterministicRespawnSeconds(base.id, Boolean(ENEMY_BASE_DEFINITIONS[base.type]?.isResourceBase)),
-    attempts: 0
+    attempts: 0,
+    frontlineAnchorBaseId: base.frontlineAnchorBaseId ?? null,
+    frontlineAnchorNodeId: base.frontlineAnchorNodeId ?? null
   };
   state.world.baseRespawns.push(respawn);
   return respawn;
