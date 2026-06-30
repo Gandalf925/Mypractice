@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.38.5-indonesian-localization';
+export const APP_VERSION = '0.38.7-spanish-localization';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 
