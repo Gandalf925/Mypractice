@@ -1775,12 +1775,13 @@ button, input, select, textarea { font-size: inherit; }
 .opsCard span, .walkTargetCard span { display: block; color: rgba(178, 255, 232, .62); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; }
 .opsCard strong, .walkTargetCard strong { display: block; color: #f4fff8; font-size: 1rem; margin-top: .18rem; }
 .opsCard small, .walkTargetCard small { display: block; color: rgba(218, 255, 242, .72); line-height: 1.45; margin-top: .24rem; }
-.opsCard em { color: var(--accent); font-style: normal; border: 1px solid rgba(104,255,210,.28); padding: .36rem .5rem; white-space: nowrap; font-size: .82rem; background: rgba(18, 91, 74, .28); }
+.opsActionButton { color: var(--accent); font-style: normal; border: 1px solid rgba(104,255,210,.28); padding: .36rem .5rem; white-space: nowrap; font-size: .82rem; background: rgba(18, 91, 74, .28); min-height: 34px; cursor: pointer; }
+.opsActionButton:active { transform: translateY(1px); }
 .walkTargetGrid { grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); }
 .walkTargetCard { grid-template-columns: minmax(0, 1fr); }
 @media (max-width: 560px) {
   .opsCard { grid-template-columns: minmax(0, 1fr); }
-  .opsCard em { justify-self: start; }
+  .opsActionButton { justify-self: start; }
 }
 
 

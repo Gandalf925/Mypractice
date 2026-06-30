@@ -247,15 +247,29 @@ export class CivilizationUi {
     this.resourceSummary = queryRequired('#resourceSummary');
     this.lastPanelRenderAt = 0;
     this.activeTab = 'progress';
+    this.disclosureState = new Map();
     queryRequired('#civilizationButton').addEventListener('click', () => this.open());
     queryRequired('#closeCivilization').addEventListener('click', () => this.close());
     bindDismissibleModal(this.panel, () => this.close());
     this.body.addEventListener('click', event => this.handleAction(event));
+    this.body.addEventListener('toggle', event => this.handleDisclosureToggle(event), true);
   }
 
   localize(text = '') { return this.i18n?.copy?.(text) ?? text; }
 
   shortLabel(text = '') { return this.i18n?.short?.(text) ?? this.localize(text); }
+
+  handleDisclosureToggle(event) {
+    const target = event?.target;
+    if (!target?.matches?.('details[data-ui-disclosure]')) return;
+    const key = target.dataset?.uiDisclosure;
+    if (!key) return;
+    this.disclosureState.set(key, Boolean(target.open));
+  }
+
+  disclosureOpen(key, fallback = false) {
+    return this.disclosureState.has(key) ? Boolean(this.disclosureState.get(key)) : fallback;
+  }
 
   open() {
     this.render();
@@ -430,7 +444,7 @@ export class CivilizationUi {
         </div>
         <h4>不足している条件</h4>
         <div class="requirementList missingFirst">${missingRows}</div>
-        <details class="completedRequirements"><summary>達成済み条件 ${completeCount}件</summary><div class="requirementList">${completedRows}</div></details>
+        <details class="completedRequirements" data-ui-disclosure="civilization.completedRequirements"${this.disclosureOpen('civilization.completedRequirements') ? ' open' : ''}><summary>達成済み条件 ${completeCount}件</summary><div class="requirementList">${completedRows}</div></details>
         <div class="buttonRow">
           <button data-action="withdraw" ${locked ? 'disabled' : ''}>納入を戻す</button>
           <button class="primary" data-action="start-project" ${!evaluation.complete || project.status === 'BUILDING' ? 'disabled' : ''}>建設開始</button>

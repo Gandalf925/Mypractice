@@ -164,7 +164,8 @@ class FrontlineRoadsApp {
       onReset: () => this.reset(),
       notifications: this.notifications,
       i18n: this.i18n,
-      onLanguageChange: () => this.refreshLocalizedUi()
+      onLanguageChange: () => this.refreshLocalizedUi(),
+      onOperationAction: action => this.handleOperationGuidanceAction(action)
     });
     this.gameLoop = new GameLoop({
       store: this.store,
@@ -237,6 +238,28 @@ class FrontlineRoadsApp {
     this.baseScreen?.refreshLocalization?.();
     this.notifications?.refreshLocalization?.();
     this.i18n.apply(globalThis.document);
+  }
+
+
+  handleOperationGuidanceAction(action) {
+    if (action === 'open-civilization') {
+      this.civilizationUi.open();
+      return true;
+    }
+    if (action === 'open-bases') {
+      this.baseCommandUi.open();
+      return true;
+    }
+    if (action === 'open-items') {
+      this.roadsideSuppliesUi.open();
+      return true;
+    }
+    if (action === 'select-map' || action === 'select-enemy-base' || action === 'select-defense' || action === 'select-recovery') {
+      this.notifications.show(this.localize('メニューを閉じました。マップ上の対象を選択してください。'));
+      return true;
+    }
+    this.notifications.show(this.localize('この作戦ボタンは現在利用できません。'));
+    return true;
   }
 
   refreshLocalizedUi(view = null) {

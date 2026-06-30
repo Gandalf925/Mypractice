@@ -67,6 +67,7 @@ export class RoadsideSuppliesUi {
     this.closeButton = queryRequired('#closeSupplies');
     this.lastPanelRenderAt = 0;
     this.activeTab = 'inventory';
+    this.disclosureState = new Map();
     this.button.addEventListener('click', () => this.open());
     this.closeButton.addEventListener('click', () => this.close());
     this.panel.addEventListener('click', event => { if (event.target === this.panel) this.close(); });
@@ -76,9 +77,22 @@ export class RoadsideSuppliesUi {
       this.activeTab = tabButton.dataset.uiTab || 'inventory';
       this.render();
     });
+    this.body.addEventListener('toggle', event => this.handleDisclosureToggle(event), true);
   }
 
   localize(text = '') { return this.i18n?.copy?.(text) ?? text; }
+
+  handleDisclosureToggle(event) {
+    const target = event?.target;
+    if (!target?.matches?.('details[data-ui-disclosure]')) return;
+    const key = target.dataset?.uiDisclosure;
+    if (!key) return;
+    this.disclosureState.set(key, Boolean(target.open));
+  }
+
+  disclosureOpen(key, fallback = false) {
+    return this.disclosureState.has(key) ? Boolean(this.disclosureState.get(key)) : fallback;
+  }
 
   open() {
     this.store.transaction(state => { this.roadsideSupplySystem.refresh(state, true); }, 'roadside:manual-refresh');
@@ -266,7 +280,7 @@ export class RoadsideSuppliesUi {
       ${tabPanel('inventory', activeTab, `<h2>消耗品インベントリ</h2><p class="sectionNote">出撃札は出撃タブで対象を選んでから使用します。使用すると一時部隊がその対象へ出撃します。</p><div class="supplyInventoryList compactInventory">${inventoryHtml}</div>`)}
       ${tabPanel('deployment', activeTab, `<h2>出撃札の出撃先</h2><p class="sectionNote">突撃・遊撃・攻城の各出撃札は、ここで対象を選んで一時部隊を派遣します。対象ごとに距離・経路・HPを確認できます。</p>${deploymentHtml}`)}
       ${tabPanel('lure', activeTab, `<h2>誘導信号の誘導先</h2><p class="sectionNote">設置済み地雷または防衛設備の密集地点へ、一定時間だけ敵の目標を寄せます。地雷へ誘導した敵が踏むと高い損害を与えます。</p><div class="supplyInventoryList">${lureHtml}</div>`)}
-      ${tabPanel('workshop', activeTab, `<h2>戦術工房</h2><p class="sectionNote">${workshopReady ? '資源と戦術素材を使って、地雷・誘導信号・遠隔支援・出撃札を製作できます。' : '文明Lv.4以降で戦術工房を建設すると、この画面で戦術アイテムを製作できます。'}</p><h3>製作可能</h3><div class="supplyInventoryList">${craftableHtml}</div><details class="completedRequirements workshopUnavailable"><summary>素材不足・未解禁レシピ</summary><div class="supplyInventoryList">${unavailableHtml}</div></details>`)}
+      ${tabPanel('workshop', activeTab, `<h2>戦術工房</h2><p class="sectionNote">${workshopReady ? '資源と戦術素材を使って、地雷・誘導信号・遠隔支援・出撃札を製作できます。' : '文明Lv.4以降で戦術工房を建設すると、この画面で戦術アイテムを製作できます。'}</p><h3>製作可能</h3><div class="supplyInventoryList">${craftableHtml}</div><details class="completedRequirements workshopUnavailable" data-ui-disclosure="roadside.workshopUnavailable"${this.disclosureOpen('roadside.workshopUnavailable') ? ' open' : ''}><summary>素材不足・未解禁レシピ</summary><div class="supplyInventoryList">${unavailableHtml}</div></details>`)}
       ${tabPanel('materials', activeTab, `<h2>戦術素材</h2><p class="sectionNote">レア以上の道端物資から入手し、戦術アイテムの製作に使います。</p><div class="supplyInventoryList compactInventory">${materialHtml}</div>`)}
       ${tabPanel('nearby', activeTab, `<h2>道端物資</h2><p class="sectionNote">道路沿いの資源箱は近づくと自動回収します。保管上限を超える資源は取得されません。</p><div class="supplyStatusGrid"><span><small>周辺</small><strong>${active.length}</strong></span><span><small>取得済み</small><strong>${supplies.daily?.collectedCount ?? 0}</strong></span><span><small>レア取得</small><strong>${supplies.daily?.rareCollectedCount ?? 0}</strong></span></div><ul class="supplyNearbyList">${nearby}</ul>`)}
     `);

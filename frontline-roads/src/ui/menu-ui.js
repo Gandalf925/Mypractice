@@ -1,19 +1,20 @@
 import { bindDismissibleModal, queryRequired, setVisible } from './dom.js';
 import { buildOperationGuidance, operationGuidanceMarkup } from './operation-guidance.js';
-import { SUPPORTED_LANGUAGES } from '../i18n/catalog.js';
+import { SUPPORTED_LANGUAGES, languageMeta, nextLanguageCode } from '../i18n/catalog.js';
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 }
 
 export class MenuUi {
-  constructor({ store = null, onSave, onReset, notifications, i18n = null, onLanguageChange = null, confirmImpl = globalThis.confirm?.bind(globalThis) }) {
+  constructor({ store = null, onSave, onReset, notifications, i18n = null, onLanguageChange = null, onOperationAction = null, confirmImpl = globalThis.confirm?.bind(globalThis) }) {
     this.panel = queryRequired('#menuPanel');
     this.manualSave = queryRequired('#manualSave');
     this.store = store;
     this.i18n = i18n;
     this.onLanguageChange = onLanguageChange;
     this.notifications = notifications;
+    this.onOperationAction = onOperationAction;
     this.opsPanel = this.panel.querySelector('#operationGuidanceContent');
     this.guidePanel = this.panel.querySelector('#menuGuideContent');
     this.languageButtons = this.panel.querySelector('#languageButtons');
@@ -24,10 +25,15 @@ export class MenuUi {
     queryRequired('#closeMenu').addEventListener('click', () => setVisible(this.panel, false));
     bindDismissibleModal(this.panel, () => setVisible(this.panel, false));
     this.bootLanguageButtons?.addEventListener('click', event => {
-      const languageButton = event.target.closest('button[data-language-choice]');
-      if (languageButton) this.setLanguage(languageButton.dataset.languageChoice);
+      const toggleButton = event.target.closest('button[data-language-toggle]');
+      if (toggleButton) this.toggleBootLanguage();
     });
     this.panel.addEventListener('click', event => {
+      const operationButton = event.target.closest('button[data-operation-action]');
+      if (operationButton) {
+        this.handleOperationAction(operationButton);
+        return;
+      }
       const languageButton = event.target.closest('button[data-language-choice]');
       if (languageButton) {
         this.setLanguage(languageButton.dataset.languageChoice);
@@ -77,22 +83,37 @@ export class MenuUi {
   }
 
   currentLanguage() {
-    const current = this.i18n?.language ?? 'en';
-    return SUPPORTED_LANGUAGES.find(language => language.code === current) ?? SUPPORTED_LANGUAGES[0];
+    return languageMeta(this.i18n?.language ?? 'en');
   }
 
-  languageButtonMarkup({ compact = false } = {}) {
-    const current = this.i18n?.language ?? 'en';
+  nextBootLanguage() {
+    return nextLanguageCode(this.i18n?.language ?? this.currentLanguage().code);
+  }
+
+  toggleBootLanguage() {
+    this.setLanguage(this.nextBootLanguage());
+  }
+
+  languageButtonMarkup() {
+    const current = this.currentLanguage().code;
     return SUPPORTED_LANGUAGES.map(language => {
       const active = language.code === current;
-      const visible = compact ? language.flag : `${language.flag ?? ''} ${language.label}`.trim();
+      const visible = `${language.flag ?? ''} ${language.label}`.trim();
       return `<button type="button" data-language-choice="${escapeHtml(language.code)}" aria-label="${escapeHtml(language.nativeName)}" title="${escapeHtml(language.nativeName)}" aria-pressed="${active ? 'true' : 'false'}" class="${active ? 'active' : ''}">${escapeHtml(visible)}</button>`;
     }).join('');
   }
 
+  bootLanguageButtonMarkup() {
+    const current = this.currentLanguage();
+    const next = languageMeta(this.nextBootLanguage());
+    const label = this.t('language.toggleButtonLabel', '言語を切り替え');
+    const title = `${this.t('language.toggleButtonTitle', 'English / 中文 / 日本語')} · ${current.nativeName} → ${next.nativeName}`;
+    return `<button type="button" data-language-toggle="next" data-current-language="${escapeHtml(current.code)}" data-next-language="${escapeHtml(next.code)}" aria-label="${escapeHtml(`${label}: ${current.nativeName}`)}" title="${escapeHtml(title)}" class="active">${escapeHtml(current.flag ?? current.label)}</button>`;
+  }
+
   renderLanguageButtons() {
     if (this.languageButtons) this.languageButtons.innerHTML = this.languageButtonMarkup();
-    if (this.bootLanguageButtons) this.bootLanguageButtons.innerHTML = this.languageButtonMarkup({ compact: true });
+    if (this.bootLanguageButtons) this.bootLanguageButtons.innerHTML = this.bootLanguageButtonMarkup();
   }
 
   setTab(tab) {
@@ -105,6 +126,19 @@ export class MenuUi {
     for (const panel of this.panel.querySelectorAll('[data-menu-panel]')) {
       panel.classList.toggle('active', panel.dataset.menuPanel === tab);
     }
+  }
+
+
+  handleOperationAction(button) {
+    const action = button?.dataset?.operationAction ?? '';
+    if (!action) return;
+    const context = {
+      action,
+      operationId: button.dataset.operationId ?? '',
+      label: button.textContent ?? ''
+    };
+    const result = this.onOperationAction?.(action, context);
+    if (result !== false) setVisible(this.panel, false);
   }
 
   refreshOperations(force = false) {

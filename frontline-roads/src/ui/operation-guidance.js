@@ -34,6 +34,22 @@ function operation(id, priority, title, detail, action = null, tag = '推奨') {
   return { id, priority, title, detail, action, tag };
 }
 
+function action(label, key) {
+  return { label, key };
+}
+
+function actionLabel(operationAction) {
+  if (!operationAction) return '';
+  if (typeof operationAction === 'string') return operationAction;
+  return operationAction.label ?? '';
+}
+
+function actionKey(operationAction) {
+  if (!operationAction) return '';
+  if (typeof operationAction === 'string') return '';
+  return operationAction.key ?? '';
+}
+
 function incompleteProjectOperations(state) {
   const evaluation = evaluateProject(state);
   if (evaluation.complete || !evaluation.project) return [];
@@ -52,7 +68,7 @@ function incompleteProjectOperations(state) {
     80,
     `${civilization?.name ?? `文明Lv.${evaluation.project.targetLevel}`}へ発展`,
     detailParts.join(' / ') || '条件を確認できます。',
-    'CIVを開く',
+    action('CIVを開く', 'open-civilization'),
     '文明'
   )];
 }
@@ -82,7 +98,7 @@ function nearestEnemyBaseOperation(state) {
     55,
     '敵拠点を攻撃',
     `${definition?.name ?? '敵拠点'}・${formatMeters(base.meters)}・攻略後に回収物が出ます。`,
-    'マップで選択',
+    action('マップで選択', 'select-map'),
     '攻略'
   )];
 }
@@ -98,7 +114,7 @@ function recoveryOperations(state) {
     const point = recoveryItemPoint(state, available);
     const player = state.player?.worldPosition;
     const meters = finitePoint(player) && finitePoint(point) ? `・${formatMeters(distance(player, point))}` : '';
-    return [operation('recovery-available', 65, '回収物を確保', `${presentation.name}${meters}・${baseReady ? '回収部隊または現地回収が可能です。' : '出撃可能な拠点が必要です。'}`, '回収物を選択', '回収')];
+    return [operation('recovery-available', 65, '回収物を確保', `${presentation.name}${meters}・${baseReady ? '回収部隊または現地回収が可能です。' : '出撃可能な拠点が必要です。'}`, action('回収物を選択', 'select-recovery'), '回収')];
   }
   if (reserved) return [operation('recovery-reserved', 40, '回収部隊が移動中', `${recoveryItemPresentation(reserved).name}へ向かっています。到着まで表示は残ります。`, null, '回収')];
   if (carried) return [operation('recovery-carried', 42, '回収物を搬送中', `${recoveryItemPresentation(carried).name}を拠点へ持ち帰っています。`, null, '回収')];
@@ -110,7 +126,7 @@ function repairOperations(state) {
     .filter(defense => defense.hp > 0 && defense.maxHp > 0 && defense.hp < defense.maxHp * 0.72)
     .sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp));
   if (!damaged.length) return [];
-  return [operation('repair-defense', 46, '損傷施設を修理', `要修理 ${damaged.length}基・最も損傷した施設 HP ${Math.ceil(damaged[0].hp)}/${Math.ceil(damaged[0].maxHp)}`, '施設を選択', '防衛')];
+  return [operation('repair-defense', 46, '損傷施設を修理', `要修理 ${damaged.length}基・最も損傷した施設 HP ${Math.ceil(damaged[0].hp)}/${Math.ceil(damaged[0].maxHp)}`, action('施設を選択', 'select-defense'), '防衛')];
 }
 
 function workshopOperations(state) {
@@ -121,7 +137,7 @@ function workshopOperations(state) {
     .map(([key]) => ROADSIDE_USE_DEFINITIONS[key]?.name ?? key)
     .slice(0, 3);
   if (!craftable.length) return [];
-  return [operation('tactical-workshop', 38, '戦術アイテムを製作可能', craftable.join('・'), 'ITEMSを開く', '製作')];
+  return [operation('tactical-workshop', 38, '戦術アイテムを製作可能', craftable.join('・'), action('ITEMSを開く', 'open-items'), '製作')];
 }
 
 function hasTacticalMaterials(state, required) {
@@ -137,9 +153,9 @@ function firstTenMinuteOperations(state) {
   const defenses = (state.combat?.defenses ?? []).filter(defense => defense.hp > 0);
   const captures = Number(state.statistics?.campsCaptured) || Number(state.civilization?.progress?.campsCapturedByType?.raiderCamp) || 0;
   const level = Number(state.civilization?.level) || 0;
-  if (!defenses.length) results.push(operation('first-defense', 95, 'まず防衛施設を置く', '拠点周辺の道路へ投石台・丸太柵・蔓縄罠を配置します。', 'BASESを開く', '初回'));
-  else if (captures <= 0) results.push(operation('first-attack-base', 90, '敵拠点を1つ攻略', '文明発展には敵拠点の攻略と回収物の確保が必要です。', '敵拠点を選択', '初回'));
-  else if (level <= 0) results.push(operation('first-civ1', 88, '文明Lv.1へ発展', 'CIVで不足資源を納入して発展を開始します。', 'CIVを開く', '初回'));
+  if (!defenses.length) results.push(operation('first-defense', 95, 'まず防衛施設を置く', '拠点周辺の道路へ投石台・丸太柵・蔓縄罠を配置します。', action('BASESを開く', 'open-bases'), '初回'));
+  else if (captures <= 0) results.push(operation('first-attack-base', 90, '敵拠点を1つ攻略', '文明発展には敵拠点の攻略と回収物の確保が必要です。', action('敵拠点を選択', 'select-enemy-base'), '初回'));
+  else if (level <= 0) results.push(operation('first-civ1', 88, '文明Lv.1へ発展', 'CIVで不足資源を納入して発展を開始します。', action('CIVを開く', 'open-civilization'), '初回'));
   return results;
 }
 
@@ -206,7 +222,7 @@ function statusText(status) {
 export function operationGuidanceMarkup(guidance) {
   const operations = guidance?.operations ?? [];
   const walkTargets = guidance?.walkTargets ?? [];
-  const opHtml = operations.length ? operations.map(item => `<article class="opsCard"><div><span>${esc(item.tag)}</span><strong>${esc(item.title)}</strong><small>${esc(item.detail)}</small></div>${item.action ? `<em>${esc(item.action)}</em>` : ''}</article>`).join('') : '<p class="emptyText">現在は緊急の作戦目標はありません。周辺の敵・物資・文明条件を確認してください。</p>';
+  const opHtml = operations.length ? operations.map(item => `<article class="opsCard"><div><span>${esc(item.tag)}</span><strong>${esc(item.title)}</strong><small>${esc(item.detail)}</small></div>${actionKey(item.action) ? `<button type="button" class="opsActionButton" data-operation-action="${esc(actionKey(item.action))}" data-operation-id="${esc(item.id)}">${esc(actionLabel(item.action))}</button>` : ''}</article>`).join('') : '<p class="emptyText">現在は緊急の作戦目標はありません。周辺の敵・物資・文明条件を確認してください。</p>';
   const walkHtml = walkTargets.length ? walkTargets.map(item => `<article class="walkTargetCard"><span>${esc(item.kind)}</span><strong>${esc(item.title)}</strong><small>${esc(item.detail)}</small></article>`).join('') : '<p class="emptyText">現在地周辺に優先表示する徒歩目標はありません。</p>';
   return `<section class="opsSummary"><h2>NEXT OPS // 次の行動</h2><p class="sectionNote">現在の状況から、次に有効な行動を優先順に表示します。</p><div class="opsGrid">${opHtml}</div></section><section class="opsSummary"><h2>WALK TARGETS // 近くの目標</h2><div class="walkTargetGrid">${walkHtml}</div></section>`;
 }
