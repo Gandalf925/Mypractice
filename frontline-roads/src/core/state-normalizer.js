@@ -6,6 +6,8 @@ import { ensureRoadsideSupplyState } from '../exploration/roadside-supplies.js';
 import { ensureExplorationState } from '../exploration/exploration-system.js';
 
 export function normalizeRuntimeState(state) {
+  state.runtime ??= {};
+  if (!('gameOver' in state.runtime)) state.runtime.gameOver = null;
   if (state.world?.roadGraph) {
     attachGraphIndexes(state.world.roadGraph);
     repairRoadGraphTopology(state.world.roadGraph);

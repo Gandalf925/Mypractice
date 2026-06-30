@@ -1,4 +1,5 @@
 import { performanceProfile } from './performance-profile.js';
+import { LifecycleState } from '../core/constants.js';
 
 export class GameLoop {
   constructor({ store, combatSystem, civilizationSystem = null, roadsideSupplySystem = null, renderer, saveRepository, onUiUpdate, onError, onSaveDisabled, getPerformanceProfile = null }) {
@@ -78,6 +79,7 @@ export class GameLoop {
       for (let index = 0; index < steps; index += 1) {
         state.runtime.worldTimeMs = (state.runtime.worldTimeMs ?? Date.now()) + simulationStep * 1000;
         this.combatSystem.update(state, simulationStep);
+        if (state.lifecycle === LifecycleState.DESTROYED || state.runtime?.gameOver) break;
         this.roadsideSupplySystem?.update(state, simulationStep);
         this.civilizationAccumulator += simulationStep;
         const civilizationStep = 1 / profile.civilizationHz;
@@ -99,6 +101,7 @@ export class GameLoop {
     this.lastTime = time;
     const profile = this.getPerformanceProfile();
     this.updateSimulation(deltaSeconds, profile);
+    if (!this.running) return;
 
     this.renderAccumulator += deltaSeconds;
     const renderStep = 1 / profile.renderHz;

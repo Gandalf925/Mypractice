@@ -40,6 +40,7 @@ import { RESOURCE_LABELS } from '../civilization/data.js';
 import { TabCoordinator } from '../persistence/tab-coordinator.js';
 import { registerPwa } from './pwa.js';
 import { I18nController } from '../i18n/catalog.js';
+import { GAME_OVER_SOURCE, isGameOverState, markHomeBaseDestroyed } from '../core/home-base-destruction.js';
 
 
 async function clearFrontlineRoadsCaches() {
@@ -198,6 +199,7 @@ class FrontlineRoadsApp {
     this.criticalSaveQueued = false;
     this.baseSummarySource = queryRequired('#baseSummary').textContent;
     this.offlineTextSource = '';
+    this.gameOverDetailsSource = '';
     this.tabCoordinator = new TabCoordinator();
     this.tabCoordinator.start(primary => this.handlePrimaryChange(primary));
     this.mapInput = new MapInput(queryRequired('#mapCanvas'), this.camera, {
@@ -213,9 +215,13 @@ class FrontlineRoadsApp {
     return this.i18n?.copy?.(text) ?? String(text ?? '');
   }
 
+  localizeStatus(text) {
+    return this.i18n?.status?.(text) ?? this.localize(text);
+  }
+
   setBaseSummary(message) {
     this.baseSummarySource = String(message ?? '');
-    queryRequired('#baseSummary').textContent = this.localize(this.baseSummarySource);
+    queryRequired('#baseSummary').textContent = this.localizeStatus(this.baseSummarySource);
   }
 
   setOfflineText(message) {
@@ -224,8 +230,9 @@ class FrontlineRoadsApp {
   }
 
   applyLocalization() {
-    if (this.baseSummarySource) queryRequired('#baseSummary').textContent = this.localize(this.baseSummarySource);
+    if (this.baseSummarySource) queryRequired('#baseSummary').textContent = this.localizeStatus(this.baseSummarySource);
     if (this.offlineTextSource) queryRequired('#offlineText').textContent = this.localize(this.offlineTextSource);
+    if (this.gameOverDetailsSource) queryRequired('#gameOverDetails').textContent = this.localize(this.gameOverDetailsSource);
     this.radarPreferences?.apply();
     this.baseScreen?.refreshLocalization?.();
     this.notifications?.refreshLocalization?.();
@@ -288,7 +295,25 @@ class FrontlineRoadsApp {
     });
     queryRequired('#focusPlayer').addEventListener('click', () => this.recenterMap());
     queryRequired('#offlineClose').addEventListener('click', () => setVisible(queryRequired('#offlineSummary'), false));
+    queryRequired('#gameOverReview').addEventListener('click', () => {
+      setVisible(queryRequired('#gameOverOverlay'), false);
+      this.showGameOverReviewBanner(true);
+    });
+    queryRequired('#gameOverReopen').addEventListener('click', () => this.showGameOverOverlay());
+    queryRequired('#gameOverNewRun').addEventListener('click', () => this.confirmGameOverReset());
+    queryRequired('#gameOverBannerNewRun').addEventListener('click', () => this.confirmGameOverReset());
     document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
+  }
+
+
+  confirmGameOverReset() {
+    if (globalThis.confirm?.(this.i18n.t('static.gameOverResetConfirm', 'Start a new operation?'))) this.reset();
+  }
+
+  showGameOverReviewBanner(visible = true) {
+    const banner = queryRequired('#gameOverReviewBanner');
+    setVisible(banner, Boolean(visible) && isGameOverState(this.store.renderView()));
+    this.applyLocalization();
   }
 
   bindEvents() {
@@ -300,7 +325,7 @@ class FrontlineRoadsApp {
     this.events.on('civilization:level-up', () => { this.civilizationUi.render(); this.baseCommandUi.render(); this.applyLocalization(); });
     this.events.on('combat:defense-destroyed', () => this.queueCriticalSave());
     this.events.on('civilization:building-destroyed', () => this.queueCriticalSave());
-    this.events.on('combat:city-defeated', () => this.queueCriticalSave());
+    this.events.on('game:home-base-destroyed', payload => this.handleHomeBaseDestroyed(payload));
   }
 
   queueCriticalSave() {
@@ -343,6 +368,7 @@ class FrontlineRoadsApp {
   }
 
   async restoreSavedGame(saved, loadWarning = null) {
+    const savedDestroyed = saved?.lifecycle === LifecycleState.DESTROYED || Boolean(saved?.runtime?.gameOver) || Number(saved?.world?.city?.hp ?? 1) <= 0;
     try {
       this.restoreValidatedSave(saved);
     } catch (error) {
@@ -356,6 +382,17 @@ class FrontlineRoadsApp {
     } catch (error) {
       console.warn('Optional road cache restore failed', error);
       this.notifications.show('道路キャッシュを復元できませんでした。保存済みの進行データで続行します。', 5000);
+    }
+
+    if (savedDestroyed) {
+      this.store.transaction(draft => {
+        markHomeBaseDestroyed(draft, { source: GAME_OVER_SOURCE.RESTORE });
+      }, 'game-over:restore', { validate: true });
+      this.restoreEstablishedGameUi({ fitGraph: false, centerOnBase: true });
+      this.showGameOverOverlay({ source: GAME_OVER_SOURCE.RESTORE });
+      if (this.tabCoordinator.isPrimary()) this.persist({ notify: false });
+      if (loadWarning) this.notifications.show(loadWarning, 6500);
+      return true;
     }
 
     let offlineSummary = null;
@@ -372,6 +409,14 @@ class FrontlineRoadsApp {
         this.store.replace(beforeOffline, 'offline:rollback');
         this.notifications.show('不在中の進行計算を適用できませんでした。保存時点から再開します。', 6000);
       }
+    }
+
+    if (this.store.read(state => state.lifecycle) === LifecycleState.DESTROYED || this.store.read(state => Boolean(state.runtime?.gameOver))) {
+      this.restoreEstablishedGameUi({ fitGraph: false, centerOnBase: true });
+      this.showGameOverOverlay({ source: GAME_OVER_SOURCE.OFFLINE, summary: offlineSummary });
+      if (this.tabCoordinator.isPrimary()) this.persist({ notify: false });
+      if (loadWarning) this.notifications.show(loadWarning, 6500);
+      return true;
     }
 
     try {
@@ -507,6 +552,11 @@ class FrontlineRoadsApp {
       this.combatUi.handleMapTap(worldPoint);
       return;
     }
+    if (lifecycle === LifecycleState.DESTROYED && this.store.read(state => Boolean(state.runtime?.gameOver))) {
+      this.combatUi.selectTool?.('select');
+      this.combatUi.handleMapTap(worldPoint);
+      return;
+    }
     if (lifecycle !== LifecycleState.BASE_SELECTION || !this.basePlacement) return;
     const tolerance = 24 / this.camera.scale;
     const selection = this.basePlacement.findNearestRoad(worldPoint, tolerance);
@@ -614,7 +664,7 @@ class FrontlineRoadsApp {
 
   openSavedGame() {
     this.restoreEstablishedGameUi({ fitGraph: false, centerOnBase: true });
-    this.startRuntime();
+    if (!isGameOverState(this.store.renderView())) this.startRuntime();
   }
 
   recenterMap() {
@@ -630,6 +680,7 @@ class FrontlineRoadsApp {
   startLocationTracking() {
     this.stopLocationWatch?.();
     this.stopLocationWatch = this.geolocation.watchPosition(locationValue => {
+      if (isGameOverState(this.store.renderView())) return;
       const state = this.store.renderView();
       const worldPoint = latLonToXY(locationValue.lat, locationValue.lon, state.world.roadGraph.center);
       this.store.advance(draft => {
@@ -644,10 +695,68 @@ class FrontlineRoadsApp {
     }, error => this.notifications.show(`位置追跡：${error.message}`));
   }
 
+  formatDuration(seconds = 0) {
+    const totalMinutes = Math.max(0, Math.round(Number(seconds) / 60));
+    if (totalMinutes < 60) return `${totalMinutes}分`;
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return minutes > 0 ? `${hours}時間${minutes}分` : `${hours}時間`;
+  }
+
+  gameOverStatRows(gameOver) {
+    const record = gameOver ?? this.store.read(state => state.runtime?.gameOver) ?? {};
+    return [
+      [this.i18n.t('static.gameOverSurvival', 'Survival'), this.localize(this.formatDuration(record.survivalSeconds ?? 0))],
+      [this.i18n.t('static.gameOverCiv', 'Civilization'), `${this.i18n.t('static.civLevel', 'Civ Lv.')} ${record.civilizationLevel ?? 0}`],
+      [this.i18n.t('static.gameOverKills', 'Enemies defeated'), String(record.kills ?? 0)],
+      [this.i18n.t('static.gameOverCamps', 'Enemy bases destroyed'), String(record.campsCaptured ?? 0)],
+      [this.i18n.t('static.gameOverDefenses', 'Defenses remaining'), String(record.defensesBuilt ?? 0)],
+      [this.i18n.t('static.gameOverReason', 'Cause'), this.i18n.t('static.gameOverReasonDirect', 'Enemy forces reached the home base')]
+    ];
+  }
+
+  showGameOverOverlay({ source = null, summary = null } = {}) {
+    const overlay = queryRequired('#gameOverOverlay');
+    const title = queryRequired('#gameOverTitle');
+    const message = queryRequired('#gameOverMessage');
+    const details = queryRequired('#gameOverDetails');
+    const stats = queryRequired('#gameOverStats');
+    const state = this.store.snapshot();
+    const gameOver = state.runtime?.gameOver ?? summary?.gameOver ?? null;
+    const offline = source === GAME_OVER_SOURCE.OFFLINE || gameOver?.source === GAME_OVER_SOURCE.OFFLINE;
+    title.textContent = this.i18n.t(offline ? 'static.gameOverOfflineTitle' : 'static.gameOverTitle', 'Home Base Destroyed');
+    message.textContent = this.i18n.t(offline ? 'static.gameOverOfflineMessage' : 'static.gameOverMessage', 'The defensive line has collapsed. Operations can no longer continue.');
+    const detailParts = [];
+    if (offline && summary) {
+      detailParts.push(`不在中の進行：${this.formatDuration(summary.simulatedSeconds ?? 0)}`);
+      detailParts.push(`都市被害 ${summary.cityDamage ?? 0}`);
+    }
+    this.gameOverDetailsSource = detailParts.join('・');
+    details.textContent = this.localize(this.gameOverDetailsSource);
+    setVisible(details, Boolean(this.gameOverDetailsSource));
+    stats.innerHTML = this.gameOverStatRows(gameOver).map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join('');
+    document.documentElement.dataset.lifecycle = LifecycleState.DESTROYED;
+    queryRequired('#lifecycleText').textContent = LifecycleState.DESTROYED;
+    setVisible(queryRequired('#offlineSummary'), false);
+    setVisible(queryRequired('#gameOverReviewBanner'), false);
+    setVisible(overlay, true);
+    this.applyLocalization();
+  }
+
+  handleHomeBaseDestroyed(payload = {}) {
+    this.gameLoop.stop({ save: false });
+    this.stopLocationWatch?.();
+    this.stopLocationWatch = null;
+    this.restoreEstablishedGameUi();
+    this.showGameOverOverlay({ source: payload?.gameOver?.source });
+    this.persist({ notify: false });
+  }
+
   showOfflineSummary(summary) {
     const element = queryRequired('#offlineSummary');
     if (!summary) {
       this.offlineTextSource = '';
+      this.gameOverDetailsSource = '';
       setVisible(element, false);
       return;
     }
@@ -684,6 +793,12 @@ class FrontlineRoadsApp {
   }
 
   startRuntime() {
+    if (isGameOverState(this.store.renderView())) {
+      this.gameLoop.stop({ save: false });
+      this.stopLocationWatch?.();
+      this.showGameOverOverlay();
+      return;
+    }
     if (!this.tabCoordinator.isPrimary()) {
       if (this.store.read(state => state.lifecycle) === LifecycleState.PLAYING) {
         this.lifecycle.pause();
@@ -743,6 +858,12 @@ class FrontlineRoadsApp {
       summary = this.offlineSimulator.simulate(state, elapsed);
       state.runtime.pauseReason = null;
     }, `runtime:resume-${reason}`);
+    if (this.store.read(state => state.lifecycle) === LifecycleState.DESTROYED || this.store.read(state => Boolean(state.runtime?.gameOver))) {
+      this.restoreEstablishedGameUi();
+      this.persist({ notify: false });
+      this.showGameOverOverlay({ source: GAME_OVER_SOURCE.OFFLINE, summary });
+      return true;
+    }
     this.lifecycle.resume();
     this.restoreEstablishedGameUi();
     this.persist({ notify: false });
@@ -787,12 +908,17 @@ class FrontlineRoadsApp {
   handlePageHide() {
     const lifecycle = this.store.read(state => state.lifecycle);
     if (lifecycle === LifecycleState.PLAYING) this.pauseRuntime('visibility', { save: true });
-    else if (lifecycle === LifecycleState.PAUSED) this.persist({ notify: false });
+    else if (lifecycle === LifecycleState.PAUSED || lifecycle === LifecycleState.DESTROYED) this.persist({ notify: false });
   }
 
   async handlePageShow() {
     this.tabCoordinator.refresh();
     let lifecycle = this.store.read(state => state.lifecycle);
+    if (lifecycle === LifecycleState.DESTROYED) {
+      this.restoreEstablishedGameUi();
+      this.showGameOverOverlay();
+      return true;
+    }
     if (![LifecycleState.PLAYING, LifecycleState.PAUSED].includes(lifecycle)) {
       const saved = this.saveRepository.load();
       if (saved && hasEstablishedHomeBase(saved) && saved.world.roadGraph) {

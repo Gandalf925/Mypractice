@@ -1,8 +1,9 @@
 export const LANGUAGE_STORAGE_KEY = 'frontline-roads.language';
 
 export const SUPPORTED_LANGUAGES = Object.freeze([
-  { code: 'ja', label: '日本語', nativeName: '日本語', flag: '🇯🇵' },
-  { code: 'en', label: 'English', nativeName: 'English', flag: '🇺🇸' }
+  { code: 'en', label: 'English', nativeName: 'English', flag: '🇺🇸' },
+  { code: 'zh', label: '中文', nativeName: '中文', flag: '🇨🇳' },
+  { code: 'ja', label: '日本語', nativeName: '日本語', flag: '🇯🇵' }
 ]);
 
 export const TEXT_CATALOG = Object.freeze({
@@ -11,7 +12,9 @@ export const TEXT_CATALOG = Object.freeze({
       changed: '表示言語を日本語に変更しました。',
       title: '言語',
       description: '画面表示に使う言語を切り替えます。ゲーム進行やセーブ内容には影響しません。',
-      current: '現在の言語'
+      current: '現在の言語',
+      toggleButtonLabel: '言語を切り替え',
+      toggleButtonTitle: '日本語 / English'
     },
     menu: {
       title: 'メニュー',
@@ -74,7 +77,26 @@ export const TEXT_CATALOG = Object.freeze({
       assetRecoveryButton: '保存済みゲームを再読み込み',
       footerPrefix: '開発版',
       focusBaseShort: '拠',
-      focusPlayerShort: '現'
+      focusPlayerShort: '現',
+      gameOverLabel: '作戦終了',
+      gameOverEyebrow: 'OPERATION TERMINATED',
+      gameOverTitle: '本拠地が破壊されました',
+      gameOverMessage: '防衛線は崩壊し、作戦継続は不可能です。',
+      gameOverOfflineTitle: '不在中に本拠地が破壊されました',
+      gameOverOfflineMessage: '離れている間に防衛線が崩壊しました。作戦は終了しました。',
+      gameOverStatsTitle: '作戦結果',
+      gameOverSurvival: '生存時間',
+      gameOverCiv: '到達文明',
+      gameOverKills: '撃破数',
+      gameOverCamps: '破壊した敵拠点',
+      gameOverDefenses: '残存防衛設備',
+      gameOverReason: '敗北原因',
+      gameOverReasonDirect: '敵部隊が本拠地へ到達',
+      gameOverReview: '戦況を確認',
+      gameOverNewRun: '新しく始める',
+      gameOverResetConfirm: '現在の敗北データを削除して、新しい作戦を開始します。よろしいですか？',
+      gameOverReopen: '作戦結果を開く',
+      gameOverReviewBanner: '作戦終了：進行は停止しています'
     },
     dynamic: {
       resources: { wood: '木材', stone: '石材', fiber: '繊維', copperOre: '銅鉱石', tinOre: '錫鉱石', ironOre: '鉄鉱石', timber: '加工木材', rope: '縄', cutStone: '切石', charcoal: '木炭', copperIngot: '銅塊', tinIngot: '錫塊', bronzeIngot: '青銅塊', ironBloom: '鉄塊', wroughtIron: '鍛鉄', steel: '鋼材', mechanism: '機構部品' }
@@ -97,7 +119,9 @@ export const TEXT_CATALOG = Object.freeze({
       changed: 'Display language changed to English.',
       title: 'Language',
       description: 'Change the language used by the interface. This does not affect game progress or save data.',
-      current: 'Current language'
+      current: 'Current language',
+      toggleButtonLabel: 'Toggle language',
+      toggleButtonTitle: 'English / 日本語'
     },
     menu: {
       title: 'Menu',
@@ -160,7 +184,26 @@ export const TEXT_CATALOG = Object.freeze({
       assetRecoveryButton: 'Reload saved game',
       footerPrefix: 'Development build',
       focusBaseShort: 'BASE',
-      focusPlayerShort: 'LOC'
+      focusPlayerShort: 'LOC',
+      gameOverLabel: 'Operation ended',
+      gameOverEyebrow: 'OPERATION TERMINATED',
+      gameOverTitle: 'Home Base Destroyed',
+      gameOverMessage: 'The defensive line has collapsed. Operations can no longer continue.',
+      gameOverOfflineTitle: 'Home Base Destroyed While Away',
+      gameOverOfflineMessage: 'The defensive line collapsed while you were away. This operation has ended.',
+      gameOverStatsTitle: 'Operation Results',
+      gameOverSurvival: 'Survival time',
+      gameOverCiv: 'Civilization reached',
+      gameOverKills: 'Enemies defeated',
+      gameOverCamps: 'Enemy bases destroyed',
+      gameOverDefenses: 'Defenses remaining',
+      gameOverReason: 'Cause of defeat',
+      gameOverReasonDirect: 'Enemy forces reached the home base',
+      gameOverReview: 'Review Battlefield',
+      gameOverNewRun: 'Start New Run',
+      gameOverResetConfirm: 'This will delete the defeated run and start a new operation. Continue?',
+      gameOverReopen: 'Open Results',
+      gameOverReviewBanner: 'Operation ended: simulation is stopped'
     },
     dynamic: {
       resources: { wood: 'Wood', stone: 'Stone', fiber: 'Fiber', copperOre: 'Copper ore', tinOre: 'Tin ore', ironOre: 'Iron ore', timber: 'Timber', rope: 'Rope', cutStone: 'Cut stone', charcoal: 'Charcoal', copperIngot: 'Copper ingot', tinIngot: 'Tin ingot', bronzeIngot: 'Bronze ingot', ironBloom: 'Iron bloom', wroughtIron: 'Wrought iron', steel: 'Steel', mechanism: 'Mechanism parts' }
@@ -176,6 +219,113 @@ export const TEXT_CATALOG = Object.freeze({
       tacticalMapControls: 'Tactical map controls',
       tacticalTools: 'Defense facilities',
       menuSwitch: 'Menu tab switcher'
+    }
+  },
+  zh: {
+    language: {
+      changed: '显示语言已切换为中文。',
+      title: '语言',
+      description: '切换界面显示语言。不会影响游戏进度或存档。',
+      current: '当前语言',
+      toggleButtonLabel: '切换语言',
+      toggleButtonTitle: 'English / 中文 / 日本語'
+    },
+    menu: {
+      title: '菜单',
+      tabOps: '作战',
+      tabGuide: '指南',
+      tabDisplay: '显示',
+      tabSystem: '保存',
+      opsLoading: '正在读取作战目标。',
+      opsUnavailable: '无法取得作战目标。',
+      guideTitle: '玩法指南',
+      displayTitle: '雷达显示',
+      displayNote: '这些设置只改变显示效果，不影响游戏进度或存档。',
+      systemTitle: '保存 / 重置',
+      systemNote: '游戏通常会自动保存。更换设备或更新前可以手动保存。完全重置会删除当前存档、道路缓存和旧格式备份数据。',
+      saveReady: '保存当前状态',
+      saveUnavailable: '无法保存',
+      reset: '完全重置游戏',
+      saved: '当前状态已保存。',
+      saveFailed: '当前无法保存。关闭此标签页会丢失进度。',
+      resetConfirm: '这会完全重置游戏进度，且无法撤销。是否继续？'
+    },
+    guide: [
+      { title: '基本推进', body: '在当前位置附近的道路上建立本基地，用防御设施守住据点，并派遣部队攻击敌方基地。攻破敌方基地、取得回收物、建设设施、交付资源后，文明等级会提升。' },
+      { title: '道路防卫', body: '可以在主要基地、简易基地、当前位置和出击部队的建设范围内布置设施。墙会阻挡敌我双方，门可以让友军通过并拖住敌人。敌人的详细行军路线不会显示。' },
+      { title: '路边物资', body: '靠近道路旁的资源箱时会自动回收。超过仓储上限的资源不会取得。地雷、引导信号、轰炸支援和出击券，需要在 ITEMS 中选择目标后使用。' },
+      { title: '派遣部队', body: '选择敌方基地可发动基地攻击，选择敌方部队可开始追踪拦截。单独出击时可在地图上指定路线，并追加最多两个途经点。协同出击也可在出击前指定共通路线，让同一基地的部队沿同一路线前进。可选择先锋、同步抵达或手动延迟。' },
+      { title: '文明发展', body: '打开 CIV 界面查看未满足条件，交付资源并开始发展。“留下预备后交付”只补足缺口，同时留下防卫和建设所需的最低资源。Lv.7 后，主要基地和简易基地数量上限会解除。' },
+      { title: '位置信息与离线推进', body: '不会保存精确移动历史。追加道路时，会把附近位置信息发送给外部道路数据服务。保存的地图基准点会约略到 10 米单位。离线期间的战斗、生产和文明建设最多模拟 24 小时。' }
+    ],
+    static: {
+      titleBoot: '启动',
+      basePlacementEyebrow: '雷达初始化 // 初始基地设置',
+      basePlacementTitle: '选择 1 公里内的道路',
+      basePlacementDescription: '首先选择当前位置 1 公里内的道路，无需移动即可开始。游戏开始后，会根据实际移动逐步取得周边道路，并把未确认区域加入地图。',
+      roadSelectionLabel: '地图 // 道路选择',
+      roadSelectionHint: '点击道路选择基地候选点',
+      basePlacementStatus: '正在初始化…',
+      confirmBase: '在此道路设置基地',
+      retryLocation: '重新取得位置和道路',
+      privacyNotice: '不会保存精确移动历史。保存时会把道路地图基准点约略到 10 米单位。取得移动目的地道路时，会把周边位置发送给外部道路数据服务。',
+      homeHp: '本基地HP',
+      enemySquads: '敌军',
+      civLevel: '文明Lv.',
+      bases: '基地',
+      civ: '文明',
+      items: '物资',
+      menu: '菜单',
+      offlineTitle: '离线期间世界仍在推进',
+      confirm: '确认',
+      baseCommandLabel: '基地指挥部',
+      baseCommandTitle: '基地指挥部',
+      deploymentLabel: '向选中目标派兵',
+      deploymentTitle: '向选中目标派兵',
+      civilizationLabel: '文明与生产',
+      civilizationTitle: '文明 / 资源 / 生产',
+      suppliesLabel: '路边物资与库存',
+      suppliesTitle: '路边物资 / 消耗品',
+      assetRecoveryTitle: '无法读取显示数据',
+      assetRecoveryText: '请确认网络状态后重新读取。游戏存档不会被删除。',
+      assetRecoveryButton: '重新读取已保存游戏',
+      footerPrefix: '开发版',
+      focusBaseShort: '基',
+      focusPlayerShort: '现',
+      gameOverLabel: '作战结束',
+      gameOverEyebrow: '作战终止',
+      gameOverTitle: '本基地已被摧毁',
+      gameOverMessage: '防线已经崩溃，作战无法继续。',
+      gameOverOfflineTitle: '离线期间本基地被摧毁',
+      gameOverOfflineMessage: '你离开期间防线已经崩溃。本次作战已经结束。',
+      gameOverStatsTitle: '作战结果',
+      gameOverSurvival: '生存时间',
+      gameOverCiv: '达到文明',
+      gameOverKills: '击破数',
+      gameOverCamps: '摧毁的敌方基地',
+      gameOverDefenses: '剩余防御设施',
+      gameOverReason: '失败原因',
+      gameOverReasonDirect: '敌军到达本基地',
+      gameOverReview: '查看战况',
+      gameOverNewRun: '重新开始',
+      gameOverResetConfirm: '这将删除本次失败记录并开始新的作战。确定继续吗？',
+      gameOverReopen: '打开结果',
+      gameOverReviewBanner: '作战结束：进程已停止'
+    },
+    dynamic: {
+      resources: { wood: '木材', stone: '石材', fiber: '纤维', copperOre: '铜矿石', tinOre: '锡矿石', ironOre: '铁矿石', timber: '加工木材', rope: '绳索', cutStone: '切石', charcoal: '木炭', copperIngot: '铜锭', tinIngot: '锡锭', bronzeIngot: '青铜锭', ironBloom: '铁坯', wroughtIron: '锻铁', steel: '钢材', mechanism: '机构零件' }
+    },
+    aria: {
+      roadMap: '道路地图',
+      baseViewport: '基地候选道路选择地图',
+      mapControls: '地图操作',
+      zoomIn: '放大',
+      zoomOut: '缩小',
+      recenter: '回到中心',
+      resourceSummary: '持有资源',
+      tacticalMapControls: '战术地图操作',
+      tacticalTools: '防御设施',
+      menuSwitch: '菜单标签切换'
     }
   }
 });
@@ -212,6 +362,10 @@ export const INLINE_COPY_CATALOG = Object.freeze({
     '回収地点へ到達できる道路経路がありません。': 'No road route reaches the recovery point.',
     '敵部隊の進路へ到達できる道路経路がありません。': 'No road route reaches the enemy squad path.',
     '敵拠点へ到達できる道路経路がありません。': 'No road route reaches the enemy base.',
+    '防衛設備がありません。敵部隊が本拠地に到達すると作戦終了になります。': 'No defense facilities are built. If enemy forces reach the home base, the operation can end.',
+    '本拠地HPが50%未満です。防衛設備の建設と修理を優先してください。': 'Home base HP is below 50%. Prioritize building and repairing defenses.',
+    '本拠地HPが25%未満です。防衛線が危険域です。': 'Home base HP is below 25%. The defensive line is in danger.',
+    '本拠地HPが10%未満です。次の突破で作戦終了になる可能性があります。': 'Home base HP is below 10%. The next breach may end the operation.',
 
     '木材': 'Wood', '石材': 'Stone', '繊維': 'Fiber',
     '銅鉱石': 'Copper ore', '錫鉱石': 'Tin ore', '鉄鉱石': 'Iron ore',
@@ -375,6 +529,7 @@ export const INLINE_COPY_CATALOG = Object.freeze({
     '保存に失敗しました。': 'Save failed.',
     '保存機能を利用できません。このタブを閉じると進行状況は失われます。': 'Saving is unavailable. Progress will be lost if this tab is closed.',
     '起動に失敗しました。ページを再読み込みしてください。': 'Startup failed. Reload the page.',
+    '作戦は終了しています。戦況確認または新規開始のみ実行できます。': 'This operation has ended. You can only review the battlefield or start a new run.',
     'FRONTLINE ROADSの起動に失敗しました。ページを再読み込みしてください。': 'FRONTLINE ROADS failed to start. Reload the page.',
     '表示できる拠点がありません。': 'No base can be shown.',
     '保存データを復元できなかったため、新しいゲームとして開始します。破損データは無効化しました。': 'Save data could not be restored, so a new game will start. The damaged data was disabled.',
@@ -409,6 +564,12 @@ export const INLINE_COPY_CATALOG = Object.freeze({
     '集落施設損失': 'Settlement facilities lost',
     '長時間分は上限適用': 'Long-duration cap applied',
     '不在中の進行': 'Offline progress',
+    '本拠地が破壊されました': 'Home Base Destroyed',
+    '防衛線は崩壊し、作戦継続は不可能です。': 'The defensive line has collapsed. Operations can no longer continue.',
+    '不在中に本拠地が破壊されました': 'Home Base Destroyed While Away',
+    '離れている間に防衛線が崩壊しました。作戦は終了しました。': 'The defensive line collapsed while you were away. This operation has ended.',
+    '時間': ' h ',
+    '分': ' min',
     '復帰時の読み込みが完了しませんでした。再読み込みすると保存済みのゲームから復帰します。': 'Resume loading did not complete. Reload to restore the saved game.',
     '復帰時の表示データを読み込めませんでした。再読み込みすると保存済みのゲームから復帰します。': 'Display data could not be loaded during resume. Reload to restore the saved game.',
 
@@ -635,12 +796,425 @@ export const INLINE_COPY_CATALOG = Object.freeze({
     '有効な道路を選択してください。': 'Select a valid road.', '簡易拠点の設置直前に資源が不足しました。': 'Resources became insufficient just before placing the simple base.', '簡易拠点の再建直前に資源が不足しました。': 'Resources became insufficient just before rebuilding the simple base.', '主要拠点の設置直前に資源が不足しました。': 'Resources became insufficient just before placing the major base.', '主要拠点の再建直前に資源が不足しました。': 'Resources became insufficient just before rebuilding the major base.',
     '予備を残して納入できる資源がありません。': 'No resources can be delivered while keeping reserves.', '破壊された設備は撤去済みです。再建してください。': 'Destroyed facilities have already been removed. Rebuild them.', '修理は不要です。': 'Repair is not needed.', '修理資源が不足しています。': 'Repair resources are insufficient.', '変換できる防壁がありません。': 'There is no wall that can be converted.', '門へ変換できません。': 'Cannot convert to a gate.', '門への変換資源が不足しています。': 'Resources for gate conversion are insufficient.', '強化直前に資源が不足しました。': 'Resources became insufficient just before upgrading.', '強化先の設備定義が見つかりません。': 'The target upgrade definition was not found.',
     '文明レベルが不足しています。': 'Civilization level is too low.', 'この施設はこれ以上建設できません。': 'This facility cannot be built any further.', '資源が不足しています。': 'Resources are insufficient.', '不明な設備です。': 'Unknown facility.', '道路データを利用できません。': 'Road data is unavailable.', '道路区間の建設地点をタップしてください。': 'Tap a build point on a road section.', '表示されている戦術地点をタップしてください。': 'Tap the displayed tactical point.', '設置候補がありません。': 'No placement candidates are available.', '設置候補の種類が一致しません。': 'The placement candidate type does not match.', '建設基準となる拠点・現在地・遠征部隊を取得できません。': 'Could not resolve the base, current position, or expedition squad used as the build anchor.', 'この道路区間には既に設備があるか、建設地点として利用できません。': 'This road section already has a facility or cannot be used as a build point.', 'この戦術地点には既に設備があります。または建設地点として利用できません。': 'This tactical point already has a facility or cannot be used as a build point.', '建設直前に資源が不足しました。': 'Resources became insufficient just before construction.', '撤去する設備が見つかりません。': 'No facility to dismantle was found.', '設備': 'Facility',
-    '件': '', '範囲内の全味方': 'all allies in range', '拠点ごと1基': 'one per base', '簡易拠点ごと1基': 'one per simple base', '1区間': '1 section'
+    '件': '', '範囲内の全味方': 'all allies in range', '拠点ごと1基': 'one per base', '簡易拠点ごと1基': 'one per simple base', '1区間': '1 section',
+
+    // Explicit action/status labels used by defense panels and narrow controls.
+    '説明': 'Details',
+    '修理不要': 'Repair not needed',
+    '強化': 'Upgrade',
+    '撤去': 'Dismantle',
+    '強化を確定': 'Confirm upgrade',
+    '強化条件を満たしていません': 'Upgrade requirements not met',
+    '施設情報へ戻る': 'Back to facility info',
+    '戻る': 'Back',
+    '最高Tier': 'Max tier',
+    '最高Tierへ到達': 'Max tier reached',
+    '強化先不明': 'Unknown upgrade target',
+    '門へ変換': 'Convert to gate',
+    '門は文明Lv.2で解禁': 'Gate unlocks at Civ Lv.2',
+    '撤去を確定（資源返還なし）': 'Confirm dismantle (no refund)',
+    '撤去を中止': 'Cancel dismantle',
+    'キャッシュ': 'Cache',
+    '中': 'Medium',
+    '低': 'Low',
+    '高': 'High',
+    '標準': 'Standard',
+    '高精細': 'High detail',
+    '省電力': 'Power saving',
+    '手動': 'Manual',
+    '先導': 'Vanguard',
+    '同時到着': 'Synchronized arrival',
+    '手動遅延': 'Manual delay',
+    '未決定': 'Undecided',
+    '算出不能': 'Cannot calculate',
+    '目的地': 'Destination',
+    '中心威力': 'Core power',
+    '威力': 'Damage',
+    '射程': 'Range',
+    '再装填': 'Reload',
+    '爆発半径': 'Blast radius',
+    '減速率': 'Slow rate',
+    '再発動': 'Retrigger',
+    '塔修復': 'Tower repair',
+    '壁修復': 'Wall repair',
+    '再作動': 'Reactivation',
+    '回復範囲': 'Healing range',
+    '回復速度': 'Healing speed',
+    '区域取得': 'Area acquisition',
+    '利用不可': 'Unavailable',
+    '再計算': 'Recalculate',
+    '候補を解除': 'Clear candidate',
+    '最後の経由地点を取消': 'Remove last waypoint',
+    '命令を取消': 'Cancel order',
+    '後退地点を選び直す': 'Choose retreat point again',
+    '今すぐ測量': 'Survey now',
+    '測量通信中': 'Surveying',
+    '範囲内取得完了': 'Range complete',
+    '未成功': 'Not successful',
+    '成功': 'Success',
+    '取得待ち': 'Waiting for acquisition',
+    '道路取得中': 'Loading roads',
+    '再試行待ち': 'Waiting to retry',
+    '取得失敗': 'Acquisition failed',
+    '次回測量待ち': 'Waiting for next survey',
+    '封鎖中': 'Blocked',
+    '停止': 'Stopped',
+    '帰還': 'Return',
+    '後退': 'Retreat',
+    '進軍': 'Advance',
+    '派兵': 'Dispatch',
+    '移動再開': 'Resume movement',
+    '完了': 'Complete',
+    '範囲外': 'Out of range',
+    '現地回収中': 'Local recovery in progress',
+    '味方部隊': 'Friendly squad',
+    '通常敵と敵基地の両方へ対応する標準部隊': 'Standard squad for both normal enemies and enemy bases',
+    '追加部隊を派兵': 'Dispatch additional squads',
+    'この敵拠点へ派兵': 'Dispatch to this enemy base',
+    '地雷を撤去': 'Remove mine',
+    '周辺設備を修復': 'Repair nearby facilities',
+    '説明を表示': 'Show details',
+    '都市': 'City',
+    '防衛対象となる中枢都市です。': 'The central city you must defend.',
+    '前線支援': 'Frontline support',
+    '後方支援': 'Rear support',
+    '後方火力': 'Rear firepower',
+    '指揮': 'Command',
+    '本隊': 'Main force',
+    '護衛': 'Escort',
+    '攻城': 'Siege',
+    '指定地点': 'Selected point',
+    '回収': 'Recovery',
+    '回収物を確保': 'Secure recovery item',
+    '直進型': 'Direct advance',
+    '警戒迂回型': 'Cautious flanking',
+    '側面迂回型': 'Flanking type',
+    '部隊追跡型': 'Squad pursuit type',
+    '支援同行型': 'Support escort type',
+    '護衛型': 'Escort type',
+    '指揮型': 'Command type',
+    '正面攻撃': 'Frontal attack',
+    '側面攻撃': 'Flank attack',
+    '攻城突破': 'Siege breakthrough',
+    '統制進軍': 'Controlled advance',
+    '拠点守備': 'Base defense',
+    '側面迂回': 'Flanking maneuver',
+    '部隊追跡': 'Squad pursuit',
+    '支援同行': 'Support escort',
+    '指揮進軍': 'Command advance',
+    '状況判断': 'Tactical judgment',
+    '廃止済み探索地点': 'Deprecated exploration point',
+    '未定義': 'Undefined',
+    '到達済み': 'Reached',
+    '詳細': 'Details',
+    '選択': 'Select',
+    '選択中': 'Selected',
+    '現地回収': 'Local recovery',
+    '手動修理': 'Manual repair',
+    '自動修復': 'Auto repair',
+    '停止中': 'Stopped',
+    '稼働': 'Active',
+    '稼働中': 'Active',
+    '待機中': 'Waiting',
+    '準備中': 'Preparing',
+    '建設中': 'Building',
+    '納入中': 'Delivering',
+    '一時停止': 'Paused',
+    '条件達成': 'Requirement met',
+    '未完了': 'Incomplete',
+    '完了済み': 'Complete',
+  }),
+  zh: Object.freeze({
+    'なし': '无', '表示': '显示', '詳細': '详情', '確認': '确认', '選択': '选择', '保存': '保存', '言語': '语言', 'メニュー': '菜单',
+    '本拠地HP': '本基地HP', '敵部隊': '敌军', '文明Lv.': '文明Lv.', 'BASES // 拠点': '基地', 'CIV // 文明': '文明', 'ITEMS // 物資': '物资',
+    '拠': '基', '現': '现', '開発版': '开发版',
+    '木材': '木材', '石材': '石材', '繊維': '纤维', '銅鉱石': '铜矿石', '錫鉱石': '锡矿石', '鉄鉱石': '铁矿石', '加工木材': '加工木材', '縄': '绳索', '切石': '切石', '木炭': '木炭', '銅塊': '铜锭', '錫塊': '锡锭', '青銅塊': '青铜锭', '鉄塊': '铁坯', '鍛鉄': '锻铁', '鋼材': '钢材', '機構部品': '机构零件',
+    'Wood': '木材', 'Stone': '石材', 'Fiber': '纤维', 'Timber': '加工木材', 'Rope': '绳索', 'Cut stone': '切石', 'Charcoal': '木炭',
+    'Limit': '上限', 'Cap': '上限', 'Basic materials': '基础材料', 'Processed materials': '加工材料', 'Ore': '矿石', 'Metals / Parts': '金属 / 零件',
+    'RADAR INITIALIZATION // 初回拠点設置': '雷达初始化 // 初始基地设置',
+    '1km以内の道路を直接選択': '选择 1 公里内的道路',
+    '最初に現在地から1km以内の道路を選び、移動せず開始できます。開始後は実際の移動に合わせて周辺道路を順次取得し、未確認地域をMAPへ追加します。': '首先选择当前位置 1 公里内的道路，无需移动即可开始。游戏开始后，会根据实际移动逐步取得周边道路，并把未确认区域加入地图。',
+    'MAP // ROAD SELECTION': '地图 // 道路选择', '道路をタップして拠点候補を指定': '点击道路选择基地候选点',
+    '初期化しています…': '正在初始化…', 'この道路に拠点を設置': '在此道路设置基地', '位置情報と道路を再取得': '重新取得位置和道路',
+    '正確な移動履歴は保存しません。保存時は道路地図の基準地点を約10m単位へ丸めます。移動先の道路取得時には、その周辺位置を外部道路データサービスへ送信します。': '不会保存精确移动历史。保存时会把道路地图基准点约略到 10 米单位。取得移动目的地道路时，会把周边位置发送给外部道路数据服务。',
+    '道路地図': '道路地图', '拠点候補道路の選択地図': '基地候选道路选择地图', '地図操作': '地图操作', '拡大': '放大', '縮小': '缩小', '地図を中央へ戻す': '回到中心', '保有資材': '持有资源', '戦術地図操作': '战术地图操作',
+    '位置情報を取得しています…': '正在取得位置信息…', '現在地周辺の道路を取得しています…': '正在读取当前位置周边道路…', '周辺道路を解析しています…': '正在解析周边道路…', '道路地図を構築しています…': '正在构建道路地图…', '初期化に失敗しました。': '初始化失败。',
+    '中心部道路': '核心道路', '全道路': '全部道路', '中心部': '核心区', '周辺': '周边',
+    '中心部の道路で開始できます。開始地点を選んで拠点を確定してください。周辺道路は移動や測量施設で追加されます。': '可从核心区道路开始。请选择起点并确认基地。周边道路会通过移动或测量设施追加。',
+    '拠点を設置しました。まず投石台2基を建設し、敵拠点へ部隊を派兵してください。移動すると周辺道路を順次偵察し、MAPへ追加します。': '基地已设置。请先建造 2 座投石台，然后向敌方基地派兵。移动时会逐步侦察周边道路并加入地图。',
+    '選択地点周辺の道路を確認しています…': '正在确认选中地点周边道路…', '選択地点周辺の道路を取得できませんでした。通信状態を確認して、もう一度確定してください。': '无法取得选中地点周边道路。请确认网络状态后再次确定。', '道路更新後に選択地点を確認できませんでした。道路を選び直してください。': '道路更新后无法确认选中地点。请重新选择道路。', '拠点の設置に失敗しました。': '基地设置失败。',
+    '不在中も世界は進行しました': '离线期间世界仍在推进', '不在中の進行': '离线推进', '位置追跡': '位置追踪', '分進行': '分钟推进', '撃破': '击破', '都市被害': '城市损伤', '防衛設備損失': '防御设施损失', '集落施設損失': '聚落设施损失', '長時間分は上限適用': '长时间上限已适用',
+    '防衛設備がありません。敵部隊が本拠地に到達すると作戦終了になります。': '尚未建造防御设施。敌军抵达本基地后，作战可能结束。',
+    '本拠地HPが50%未満です。防衛設備の建設と修理を優先してください。': '本基地HP低于50%。请优先建造和修理防御设施。',
+    '本拠地HPが25%未満です。防衛線が危険域です。': '本基地HP低于25%。防线已进入危险区。',
+    '本拠地HPが10%未満です。次の突破で作戦終了になる可能性があります。': '本基地HP低于10%。下一次突破可能导致作战结束。',
+    '復帰時の読み込みが完了しませんでした。再読み込みすると保存済みのゲームから復帰します。': '恢复时读取未完成。重新读取后会从已保存游戏恢复。', '復帰時の表示データを読み込めませんでした。再読み込みすると保存済みのゲームから復帰します。': '恢复时无法读取显示数据。重新读取后会从已保存游戏恢复。',
+    '拠点司令部': '基地指挥部', 'BASE COMMAND': '基地指挥部', 'Overview': '概要', 'Build': '建设', 'Major': '主要', 'Simple': '简易', 'Major Bases': '主要基地', 'Simple Bases': '简易基地',
+    '本拠地': '本基地', '主要拠点': '主要基地', '簡易拠点': '简易基地', '主要拠点 2': '主要基地 2', '主要拠点 3': '主要基地 3', '主要拠点 4': '主要基地 4', '簡易拠点 1': '简易基地 1', '簡易拠点 2': '简易基地 2', '簡易拠点 3': '简易基地 3',
+    'Build a major base here': '在此建设主要基地', 'Build a simple base here': '在此建设简易基地', 'Place major base here': '设置主要基地', 'Place simple base here': '设置简易基地', 'Place Major': '建主要', 'Place Simple': '建简易',
+    'Construction range ': '建设范围 ', 'Can dispatch Assault, Skirmisher, and Recovery squads': '可派遣突击、游击和回收部队', '2 squad slots each': '每个 2 个部队栏位', 'Growth increases base and squad slots': '发展会增加基地和部队栏位',
+    '発展': '发展', '資源': '资源', '施設': '设施', '生産': '生产', '解禁': '解锁', '文明画面の表示切替': '文明画面标签', '現在文明': '当前文明', '次の目標': '下个目标', '拠点上限': '基地上限', '建設枠': '建设栏位',
+    '文明発展': '文明发展', '資源一覧': '资源列表', '倉庫効果': '仓储效果', '集落施設': '聚落设施', '倉庫・保管': '仓库 / 存储', '生産・加工': '生产 / 加工', '防衛設備Tier': '防御设施阶级', '派兵部隊': '派遣部队',
+    '現在文明': '当前文明', 'Primitive Settlement': '原始聚落', 'Central Fire': '中央火堆', 'Settled Village': '定居村落',
+    'Facilities are grouped by role. Multiple storehouses of the same type use one building slot, and their effects are totaled.': '设施可按作用确认。同种仓库建造多座也只占 1 个建设栏位，效果会合计显示。',
+    '施設は役割ごとに確認できます。倉庫は同じ種類を複数建てても建設枠は1枠扱いになり、効果は合計されます。': '设施可按作用确认。同种仓库建造多座也只占 1 个建设栏位，效果会合计显示。',
+    '通常資材は文明・建設・生産で使用します。所持数は保管上限を超えられず、上限超過分は取得されません。戦術素材はITEMS / 戦術工房で管理します。': '普通资源用于文明、建设和生产。持有数量不能超过存储上限，超出部分不会取得。战术素材在 ITEMS / 战术工房中管理。',
+    '該当資材なし': '无匹配资源', '該当ResourcesNone': '无匹配资源', 'No matching resources': '无匹配资源', 'No storage facilities built.': '尚未建设仓储设施。', 'Storage facilities are not unlocked yet.': '仓储设施尚未解锁。', 'Production facilities are not unlocked yet.': '生产设施尚未解锁。',
+    '倉庫系施設は未建設です。': '尚未建设仓储设施。', '倉庫系施設はまだ解放されていません。': '仓储设施尚未解锁。', '生産施設はまだ解放されていません。': '生产设施尚未解锁。', '稼働中の生産施設はまだありません。': '尚无运行中的生产设施。',
+    '同じ倉庫を複数建てても建設枠は1枠として扱い、保管上限の増加効果は合計表示します。': '同种仓库建造多座也只占 1 个建设栏位，存储上限增加效果会合计显示。', '稼働中の倉庫': '运行中的仓库', '稼働レシピ未解禁': '尚未解锁可用配方', '投入資材が不足しています。': '投入资源不足。', '資源待ち': '等待资源', '待機中': '待机中', '修理': '修理', '未回収品を回収': '回收产物', '解体': '拆除',
+    '損傷1基を修理': '修理 1 座损坏设施', '1基を解体': '拆除 1 座', '全基稼働': '全部运行', '損傷': '损坏', '稼働': '运行',
+    '現在の発展条件はすべて達成済みです。': '当前发展条件已全部达成。', '達成済み条件はまだありません。': '尚无已达成条件。', '不足している条件': '未满足条件', '達成済み条件': '已完成条件', '納入を戻す': '撤回交付', '建設開始': '开始建设',
+    '基本資源だけ予備を残して一括納入': '只交付基础资源并留下预备', '不足分を予備を残して一括納入': '补足缺口并留下预备', '全量納入': '全部交付', '予備を残す': '留下预备', 'Keep reserves': '留下预备', 'Deliver all': '全部交付', 'Withdraw deliveries': '撤回交付', 'Start construction': '开始建设',
+    '状態：': '状态：', '準備中': '准备中', '納入中': '交付中', '建設開始可能': '可以开始建设', '建設中': '建设中', '一時停止': '暂停', '残り': '剩余 ', '条件達成': '条件达成',
+    'Missing': '未满足', 'Completed requirements': '已完成条件', 'Current civilization': '当前文明', 'Next goal': '下个目标', 'Base limits': '基地上限', 'Building slots': '建设栏位',
+    '敵撃破': '击破敌军', '敵拠点破壊': '摧毁敌方基地', '資源を使った修理': '使用资源修理', '加工資材の生産': '生产加工材料', '自作青銅塊': '自产青铜锭', '自作鍛鉄': '自产锻铁', '完全防衛連続数': '连续完美防卫', '稼働中の簡易拠点': '运行中的简易基地', '現地回収した特殊アイテム': '现场回收的特殊物品',
+    '防衛戦または派兵で敵部隊を撃破します。': '通过防卫战或派兵击破敌军部队。', '敵拠点を選択して部隊を派兵し、拠点HPを0にします。': '选择敌方基地并派兵，将基地HP降为 0。', '敵拠点を破壊し、残された回収物を現地回収するか回収部隊で拠点へ持ち帰ります。': '摧毁敌方基地后，将残留回收物现场回收，或用回收部队带回基地。', '損傷した防衛設備を選択し、資源を使って手動修理します。': '选择受损防御设施，使用资源手动修理。',
+    '防衛設備': '防御设施', '防壁': '墙', '単体攻撃': '单体攻击', '範囲攻撃': '范围攻击', '減速支援': '减速支援', '自動修復': '自动修复', '範囲回復': '范围治疗', '前線兵舎': '前线兵营', '道路測量': '道路测量', '門': '门',
+    '既設Map Defenses can be upgraded individually up to the tier matching civilization level.': '已有地图防御可分别升级，最高到文明等级对应的阶级。', 'Existing map defenses can be upgraded individually up to the tier matching civilization level.': '已有地图防御可分别升级，最高到文明等级对应的阶级。',
+    '丸太柵': '原木栅栏', '木柵': '木栅栏', '石壁': '石墙', '青銅補強壁': '青铜加固墙', '鉄壁': '铁墙', '鋼鉄補強壁': '钢铁加固墙', '機構防壁': '机构防壁', '城塞防壁': '城塞防壁',
+    '投石台': '投石台', '強化投石台': '强化投石台', '石造投石塔': '石造投石塔', '青銅投槍台': '青铜投枪台', '鉄弩砲': '铁弩炮', '連弩塔': '连弩塔', '機関弩砲': '机关弩炮', '精密連弩砲': '精密连弩炮',
+    '岩落とし台': '落石台', '大型岩落とし台': '大型落石台', '牽引式投石機': '牵引式投石机', '青銅破砕機': '青铜破碎机', '重投石機': '重型投石机', '鋼鉄投石機': '钢铁投石机', '平衡錘式投石機': '配重投石机', '城塞砲撃台': '城塞炮击台',
+    '蔓縄罠': '藤绳陷阱', '杭と縄の罠': '桩绳陷阱', '重石罠': '重石陷阱', '青銅拘束具': '青铜拘束具', '鉄杭罠': '铁桩陷阱', '鎖式拘束具': '链式拘束具', '機構拘束装置': '机构拘束装置', '道路封鎖網': '道路封锁网',
+    '修繕小屋': '修缮小屋', '木工修繕所': '木工修缮所', '石工修繕所': '石工修缮所', '青銅修繕所': '青铜修缮所', '鉄器修繕所': '铁器修缮所', '鋼鉄修繕所': '钢铁修缮所', '機械修繕所': '机械修缮所', '中央整備所': '中央整备所',
+    '木造回復所': '木造治疗所', '石造回復所': '石造治疗所', '軍医療養所': '军医疗养所', '総合回復院': '综合治疗院', '野戦病院': '野战医院', '軍病院': '军医院', '中央医療院': '中央医疗院',
+    '木製測量塔': '木制测量塔', '石造測量塔': '石造测量塔', '青銅測量塔': '青铜测量塔', '鉄製測量塔': '铁制测量塔', '鋼鉄測量塔': '钢铁测量塔', '信号測量所': '信号测量所', '道路網測量局': '道路网测量局', '石門': '石门', '青銅門': '青铜门', '鉄門': '铁门', '鋼鉄門': '钢铁门', '機関門': '机关门', '城塞大門': '城塞大门',
+    'Log Palisade': '原木栅栏', 'Stone Thrower': '投石台', 'Rock Dropper': '落石台', 'Vine Snare': '藤绳陷阱', 'Palisade': '栅栏', 'Thrower': '投石', 'Dropper': '落石', 'Snare': '绳陷阱',
+    'Wall': '墙', 'Single-target attack': '单体攻击', 'Area attack': '范围攻击', 'Slow support': '减速支援', 'Upgrade cap Tier': '升级上限阶级', 'Next:': '下个：',
+    '次：': '下个：', 'で': '：', '木柵': '木栅栏',
+    '歩兵': '步兵', '斥候': '斥候', '盾兵': '盾兵', '工兵': '工兵', '重装兵': '重装兵', '破壊工作員': '破坏工作员', '弓兵': '弓兵', '縄切り兵': '断绳兵', '略奪兵': '掠夺兵', '採掘兵': '采矿兵', '破城兵': '破城兵', '攻城隊長': '攻城队长', '指揮官': '指挥官', '総司令官': '总司令官',
+    '突撃部隊': '突击部队', '遊撃部隊': '游击部队', '回収部隊': '回收部队', '工兵部隊': '工兵部队', '出撃札': '出击券', '戦術工房': '战术工房',
+    '敵圧': '敌压', '未認識': '未识别', '偵察': '侦察', '小規模': '小规模', '拡大中': '扩大中', '本格': '正式', '本格化まで約': '距正式化约 ', '同時標的上限': '同时目标上限',
+    '敵拠点': '敌方基地', '敵部隊': '敌军部队', '対象': '目标', '前哨基地': '前哨基地', '兵舎基地': '兵营基地', '採掘基地': '采矿基地', '攻城基地': '攻城基地', '装甲基地': '装甲基地',
+    '敵指揮認証鍵': '敌军指挥认证钥匙', '攻城機構コア': '攻城机构核心', '暗号通信モジュール': '加密通信模块', '装甲制御コア': '装甲控制核心', '資源調査データ': '资源调查数据', '攻城作戦記録': '攻城作战记录',
+    '回収部隊移動中': '回收部队移动中', '搬送中': '搬送中', '現地回収または回収部隊の派遣が可能です。': '可以现场回收或派遣回收部队。', '回収済み': '已回收',
+    '補給物資': '补给物资', '資源箱': '资源箱', '戦術工房の製作素材': '战术工房的制作素材', '現地装備': '现场装备', '消耗品インベントリへ追加': '加入消耗品库存',
+    '木材箱': '木材箱', '石材袋': '石材袋', '繊維束': '纤维束', '加工木材箱': '加工木材箱', '縄束': '绳索束', '切石箱': '切石箱', '木炭袋': '木炭袋', '銅鉱石箱': '铜矿石箱', '錫鉱石箱': '锡矿石箱', '鉄鉱石箱': '铁矿石箱', '青銅塊箱': '青铜锭箱', '鍛鉄箱': '锻铁箱', '鋼材箱': '钢材箱', '機構部品箱': '机构零件箱',
+    'Fiber束': '纤维束', 'Stone袋': '石材袋', 'Wood箱': '木材箱', 'Timber箱': '加工木材箱', 'Rope束': '绳索束', 'Cut stone箱': '切石箱', 'Charcoal袋': '木炭袋', 'Copper ore箱': '铜矿石箱', 'Tin ore箱': '锡矿石箱', 'Iron ore箱': '铁矿石箱', 'Bronze ingot箱': '青铜锭箱', 'Wrought iron箱': '锻铁箱', 'Steel箱': '钢材箱', 'Mechanism parts箱': '机构零件箱',
+    'Supply Cache': '补给物资', 'Resource Crate': '资源箱', 'common': '普通', 'rare': '稀有',
+    '表示品質：高精細': '显示质量：高清', '表示品質：標準': '显示质量：标准', '表示品質：省电力': '显示质量：省电', '表示品質：省電力': '显示质量：省电', 'アニメーション：ON': '动画：开', 'アニメーション：OFF': '动画：关',
+    '地図を拡大': '放大地图', '地図を縮小': '缩小地图', '選択中の拠点へ移動': '移动到选中基地', '現在地へ移動': '移动到当前位置', '拠点設置済み': '基地已设置', '拠点設置完了': '基地设置完成', '保存済み拠点': '已保存基地', '初回現在地から約': '距初始位置约 ', '現在地から': '距当前位置 ', '現在地': '当前位置',
+    '保存に失敗しました。': '保存失败。', '保存機能を利用できません。このタブを閉じると進行状況は失われます。': '无法使用保存功能。关闭此标签页会丢失进度。', '起動に失敗しました。ページを再読み込みしてください。': '启动失败。请重新读取页面。', '作戦は終了しています。戦況確認または新規開始のみ実行できます。': '本次作战已经结束。只能查看战况或重新开始。', 'FRONTLINE ROADSの起動に失敗しました。ページを再読み込みしてください。': 'FRONTLINE ROADS 启动失败。请重新读取页面。',
+    '保存データを復元できなかったため、新しいゲームとして開始します。破損データは無効化しました。': '无法恢复存档，将以新游戏开始。已停用损坏数据。', '保存データを復元できなかったため、新しいゲームとして開始します。': '无法恢复存档，将以新游戏开始。', '道路キャッシュを復元できませんでした。保存済みの進行データで続行します。': '无法恢复道路缓存。将使用已保存进度继续。', '不在中の進行計算を適用できませんでした。保存時点から再開します。': '无法应用离线推进计算。将从保存时点继续。',
+    '別のタブがゲーム進行を担当しています。そちらを閉じると、このタブで開始できます。': '另一个标签页正在负责游戏推进。关闭它后可在此标签页开始。', '別のタブがゲーム進行を担当しています。': '另一个标签页正在负责游戏推进。', '別のタブが進行を担当しています。このタブは閲覧専用です。': '另一个标签页正在负责推进。此标签页为只读。', '別のタブが進行を引き継ぎました。': '另一个标签页已接管推进。', 'このタブで進行を再開しました。': '已在此标签页恢复推进。',
+    '有効な道路を選択してください。': '请选择有效道路。', '選択した道路が見つかりません。': '找不到选中的道路。', '位置情報が古いため簡易拠点を設置できません。現在地を再取得してください。': '位置信息过旧，无法设置简易基地。请重新取得当前位置。', '位置情報が古いため拠点を設置できません。現在地を再取得してください。': '位置信息过旧，无法设置基地。请重新取得当前位置。', '文明Lv.1で簡易拠点が解禁されます。': '文明 Lv.1 解锁简易基地。', '簡易拠点の設置資源が不足しています。': '设置简易基地的资源不足。', '主要拠点の設置資源が不足しています。': '设置主要基地的资源不足。',
+    '設備が見つかりません。': '找不到设施。', '最高Tierへ到達しています。': '已达到最高阶级。', '破壊された設備は撤去済みです。': '被破坏设施已撤去。', '強化資源が不足しています。': '升级资源不足。', 'この施設では現在生産できません。': '此设施当前无法生产。', '施設が見つかりません。': '找不到设施。', '回収できる生産物はありません。': '没有可回收产物。', '現在は納入できません。': '当前无法交付资源。', '納入できる資源がありません。': '没有可交付资源。', '建設開始後は引き出せません。': '建设开始后无法取回。', '発展条件を満たしていません。': '未满足发展条件。',
+    '簡易拠点で待機': '在简易基地待机', '補給・回復・再編成': '补给、恢复、重编', '再編成': '重编', '撤退': '撤退', '進軍再開': '恢复进军',
+
+    // Explicit action/status labels used by defense panels and narrow controls.
+    '説明': '详情',
+    '修理不要': '无需修理',
+    '強化': '升级',
+    '撤去': '拆除',
+    '強化を確定': '确认升级',
+    '強化条件を満たしていません': '未满足升级条件',
+    '施設情報へ戻る': '返回设施信息',
+    '戻る': '返回',
+    '最高Tier': '最高阶级',
+    '最高Tierへ到達': '已达最高阶级',
+    '強化先不明': '未知升级目标',
+    '門へ変換': '转换为门',
+    '門は文明Lv.2で解禁': '门在文明 Lv.2 解锁',
+    '撤去を確定（資源返還なし）': '确认拆除（不返还资源）',
+    '撤去を中止': '取消拆除',
+    'キャッシュ': '缓存',
+    '中': '中',
+    '低': '低',
+    '高': '高',
+    '標準': '标准',
+    '高精細': '高精细',
+    '省電力': '省电',
+    '手動': '手动',
+    '先導': '先锋',
+    '同時到着': '同步抵达',
+    '手動遅延': '手动延迟',
+    '未決定': '未决定',
+    '算出不能': '无法计算',
+    '目的地': '目的地',
+    '中心威力': '中心威力',
+    '威力': '威力',
+    '射程': '射程',
+    '再装填': '再装填',
+    '爆発半径': '爆炸半径',
+    '減速率': '减速率',
+    '再発動': '再次触发',
+    '塔修復': '塔修复',
+    '壁修復': '墙修复',
+    '再作動': '重新启动',
+    '回復範囲': '治疗范围',
+    '回復速度': '治疗速度',
+    '区域取得': '区域取得',
+    '利用不可': '不可用',
+    '再計算': '重新计算',
+    '候補を解除': '解除候选',
+    '最後の経由地点を取消': '取消最后途经点',
+    '命令を取消': '取消命令',
+    '後退地点を選び直す': '重新选择后撤点',
+    '今すぐ測量': '立即测量',
+    '測量通信中': '测量通信中',
+    '範囲内取得完了': '范围内取得完成',
+    '未成功': '未成功',
+    '成功': '成功',
+    '取得待ち': '等待取得',
+    '道路取得中': '正在取得道路',
+    '再試行待ち': '等待重试',
+    '取得失敗': '取得失败',
+    '次回測量待ち': '等待下次测量',
+    '封鎖中': '封锁中',
+    '停止': '停止',
+    '帰還': '返回',
+    '後退': '后撤',
+    '進軍': '进军',
+    '派兵': '派兵',
+    '移動再開': '恢复移动',
+    '完了': '完成',
+    '範囲外': '范围外',
+    '現地回収中': '现场回收中',
+    '味方部隊': '友军部队',
+    '通常敵と敵基地の両方へ対応する標準部隊': '可应对普通敌军和敌方基地的标准部队',
+    '追加部隊を派兵': '派遣追加部队',
+    'この敵拠点へ派兵': '向此敌方基地派兵',
+    '地雷を撤去': '拆除地雷',
+    '周辺設備を修復': '修复周边设施',
+    '説明を表示': '显示说明',
+    '都市': '城市',
+    '防衛対象となる中枢都市です。': '需要防卫的中枢城市。',
+    '前線支援': '前线支援',
+    '後方支援': '后方支援',
+    '後方火力': '后方火力',
+    '指揮': '指挥',
+    '本隊': '主队',
+    '護衛': '护卫',
+    '攻城': '攻城',
+    '指定地点': '指定地点',
+    '回収': '回收',
+    '回収物を確保': '确保回收物',
+    '直進型': '直进型',
+    '警戒迂回型': '警戒迂回型',
+    '側面迂回型': '侧翼迂回型',
+    '部隊追跡型': '部队追踪型',
+    '支援同行型': '支援同行型',
+    '護衛型': '护卫型',
+    '指揮型': '指挥型',
+    '正面攻撃': '正面攻击',
+    '側面攻撃': '侧面攻击',
+    '攻城突破': '攻城突破',
+    '統制進軍': '统制进军',
+    '拠点守備': '基地守备',
+    '側面迂回': '侧翼迂回',
+    '部隊追跡': '部队追踪',
+    '支援同行': '支援同行',
+    '指揮進軍': '指挥进军',
+    '状況判断': '状况判断',
+    '廃止済み探索地点': '已废止探索点',
+    '未定義': '未定义',
+    '到達済み': '已抵达',
+    '詳細': '详情',
+    '選択': '选择',
+    '選択中': '选择中',
+    '現地回収': '现场回收',
+    '手動修理': '手动修理',
+    '自動修復': '自动修复',
+    '停止中': '停止中',
+    '稼働': '运行',
+    '稼働中': '运行中',
+    '待機中': '待机中',
+    '準備中': '准备中',
+    '建設中': '建设中',
+    '納入中': '交付中',
+    '一時停止': '暂停',
+    '条件達成': '条件达成',
+    '未完了': '未完成',
+    '完了済み': '已完成',
+    'があと': '还差',
+  })
+
+});
+
+
+const COMPACT_COPY_CATALOG = Object.freeze({
+  en: Object.freeze({
+    short: Object.freeze({
+      '選択': 'Select',
+      '丸太柵': 'Palisade', '木柵': 'Palisade', '石壁': 'Stone Wall', '青銅補強壁': 'Bronze Wall', '鉄壁': 'Iron Wall', '鋼鉄補強壁': 'Steel Wall', '機構防壁': 'Mech Wall', '城塞防壁': 'Fort Wall',
+      '投石台': 'Thrower', '強化投石台': 'Thrower+', '石造投石塔': 'Stone Tower', '青銅投槍台': 'Javelin', '鉄弩砲': 'Ballista', '連弩塔': 'Repeater', '機関弩砲': 'Mech Bow', '精密連弩砲': 'Precision',
+      '岩落とし台': 'Dropper', '大型岩落とし台': 'Dropper+', '牽引式投石機': 'Trebuchet', '青銅破砕機': 'Bronze Siege', '重投石機': 'Heavy Siege', '鋼鉄投石機': 'Steel Siege', '平衡錘式投石機': 'Counterweight', '城塞砲撃台': 'Fort Siege',
+      '蔓縄罠': 'Snare', '杭と縄の罠': 'Stake Snare', '重石罠': 'Stone Snare', '青銅拘束具': 'Bronze Snare', '鉄杭罠': 'Iron Snare', '鎖式拘束具': 'Chain Snare', '機構拘束装置': 'Mech Snare', '道路封鎖網': 'Road Snare',
+      '修繕小屋': 'Repair Hut', '木工修繕所': 'Repair Shop', '石工修繕所': 'Mason Repair', '青銅修繕所': 'Bronze Repair', '鉄器修繕所': 'Iron Repair', '鋼鉄修繕所': 'Steel Repair', '機械修繕所': 'Mech Repair', '中央整備所': 'Repair Hub',
+      '木造回復所': 'Aid Post', '石造回復所': 'Aid House', '軍医療養所': 'Infirmary', '総合回復院': 'Clinic', '野戦病院': 'Field Hospital', '軍病院': 'Hospital', '中央医療院': 'Med Center',
+      '前線兵舎': 'Barracks', '石造前線兵舎': 'Stone Barracks', '青銅前線兵舎': 'Bronze Barracks', '鉄器前線兵舎': 'Iron Barracks', '鋼鉄前線兵舎': 'Steel Barracks', '機械化前線兵舎': 'Mech Barracks', '前線司令所': 'Field HQ',
+      '木製測量塔': 'Survey', '石造測量塔': 'Survey+', '青銅測量塔': 'Bronze Survey', '鉄製測量塔': 'Iron Survey', '鋼鉄測量塔': 'Steel Survey', '信号測量所': 'Signal Survey', '道路網測量局': 'Road Survey',
+      '石門': 'Gate', '青銅門': 'Bronze Gate', '鉄門': 'Iron Gate', '鋼鉄門': 'Steel Gate', '機関門': 'Mech Gate', '城塞大門': 'Fort Gate',
+      'Log Palisade': 'Palisade', 'Stone Thrower': 'Thrower', 'Rock Dropper': 'Dropper', 'Vine Snare': 'Snare'
+    }),
+    micro: Object.freeze({
+      '選択': 'Select',
+      '丸太柵': 'Wall', '木柵': 'Wall', '石壁': 'Wall', '青銅補強壁': 'Wall', '鉄壁': 'Wall', '鋼鉄補強壁': 'Wall', '機構防壁': 'Wall', '城塞防壁': 'Wall',
+      '投石台': 'Gun', '強化投石台': 'Gun+', '石造投石塔': 'Tower', '青銅投槍台': 'Javelin', '鉄弩砲': 'Bow', '連弩塔': 'Bow+', '機関弩砲': 'Mech', '精密連弩砲': 'Bow++',
+      '岩落とし台': 'AOE', '大型岩落とし台': 'AOE+', '牽引式投石機': 'Siege', '青銅破砕機': 'Siege', '重投石機': 'Siege+', '鋼鉄投石機': 'Siege+', '平衡錘式投石機': 'Siege++', '城塞砲撃台': 'Fort',
+      '蔓縄罠': 'Slow', '杭と縄の罠': 'Slow+', '重石罠': 'Slow+', '青銅拘束具': 'Slow', '鉄杭罠': 'Slow', '鎖式拘束具': 'Slow+', '機構拘束装置': 'Slow+', '道路封鎖網': 'Slow++'
+    })
+  }),
+  zh: Object.freeze({
+    short: Object.freeze({
+      '選択': '选择',
+      '丸太柵': '栅栏', '木柵': '木栅栏', '石壁': '石墙', '青銅補強壁': '青铜墙', '鉄壁': '铁墙', '鋼鉄補強壁': '钢墙', '機構防壁': '机防壁', '城塞防壁': '城塞墙',
+      '投石台': '投石', '強化投石台': '强投石', '石造投石塔': '石塔', '青銅投槍台': '投枪台', '鉄弩砲': '弩炮', '連弩塔': '连弩塔', '機関弩砲': '机弩', '精密連弩砲': '精密弩',
+      '岩落とし台': '落石', '大型岩落とし台': '大落石', '牽引式投石機': '投石机', '青銅破砕機': '青铜破碎', '重投石機': '重投石', '鋼鉄投石機': '钢投石', '平衡錘式投石機': '配重投石', '城塞砲撃台': '城塞炮',
+      '蔓縄罠': '绳陷阱', '杭と縄の罠': '桩绳陷阱', '重石罠': '重石陷阱', '青銅拘束具': '青铜拘束', '鉄杭罠': '铁桩陷阱', '鎖式拘束具': '链拘束', '機構拘束装置': '机拘束', '道路封鎖網': '封路网',
+      '修繕小屋': '修缮屋', '木工修繕所': '木修缮', '石工修繕所': '石修缮', '青銅修繕所': '青铜修缮', '鉄器修繕所': '铁修缮', '鋼鉄修繕所': '钢修缮', '機械修繕所': '机修缮', '中央整備所': '整备所',
+      '木造回復所': '治疗所', '石造回復所': '石治疗', '軍医療養所': '疗养所', '総合回復院': '回復院', '野戦病院': '野战医院', '軍病院': '军医院', '中央医療院': '医疗院',
+      '前線兵舎': '兵营', '石造前線兵舎': '石兵营', '青銅前線兵舎': '青铜兵营', '鉄器前線兵舎': '铁兵营', '鋼鉄前線兵舎': '钢兵营', '機械化前線兵舎': '机兵营', '前線司令所': '前线HQ',
+      '木製測量塔': '测量塔', '石造測量塔': '石测量', '青銅測量塔': '青铜测量', '鉄製測量塔': '铁测量', '鋼鉄測量塔': '钢测量', '信号測量所': '信号测量', '道路網測量局': '路网测量',
+      '石門': '石门', '青銅門': '青铜门', '鉄門': '铁门', '鋼鉄門': '钢门', '機関門': '机关门', '城塞大門': '大门',
+      'Log Palisade': '栅栏', 'Stone Thrower': '投石', 'Rock Dropper': '落石', 'Vine Snare': '绳陷阱'
+    }),
+    micro: Object.freeze({
+      '選択': '选',
+      '丸太柵': '墙', '木柵': '墙', '石壁': '墙', '青銅補強壁': '墙', '鉄壁': '墙', '鋼鉄補強壁': '墙', '機構防壁': '墙', '城塞防壁': '墙',
+      '投石台': '投', '強化投石台': '投+', '石造投石塔': '塔', '青銅投槍台': '枪', '鉄弩砲': '弩', '連弩塔': '弩+', '機関弩砲': '机', '精密連弩砲': '弩++',
+      '岩落とし台': '落', '大型岩落とし台': '落+', '牽引式投石機': '攻', '青銅破砕機': '攻', '重投石機': '攻+', '鋼鉄投石機': '攻+', '平衡錘式投石機': '攻++', '城塞砲撃台': '炮',
+      '蔓縄罠': '缓', '杭と縄の罠': '缓+', '重石罠': '缓+', '青銅拘束具': '缓', '鉄杭罠': '缓', '鎖式拘束具': '缓+', '機構拘束装置': '缓+', '道路封鎖網': '缓++'
+    })
+  })
+
+});
+
+const RESOURCE_MICRO_LABELS = Object.freeze({
+  en: Object.freeze({
+    wood: 'W', stone: 'S', fiber: 'F', copperOre: 'Cu', tinOre: 'Sn', ironOre: 'Fe', timber: 'Tm', rope: 'Rp', cutStone: 'Cs', charcoal: 'Ch', copperIngot: 'CuI', tinIngot: 'SnI', bronzeIngot: 'Br', ironBloom: 'Ib', wroughtIron: 'WI', steel: 'St', mechanism: 'Mech'
+  }),
+  zh: Object.freeze({
+    wood: '木', stone: '石', fiber: '纤', copperOre: '铜矿', tinOre: '锡矿', ironOre: '铁矿', timber: '木加', rope: '绳', cutStone: '切石', charcoal: '炭', copperIngot: '铜', tinIngot: '锡', bronzeIngot: '青', ironBloom: '铁坯', wroughtIron: '锻', steel: '钢', mechanism: '机'
   })
 });
 
+function variantTable(language, variant) {
+  return COMPACT_COPY_CATALOG[normalizeLanguage(language)]?.[variant] ?? {};
+}
+
+function applyVariantPatterns(language, value, variant) {
+  const normalized = normalizeLanguage(language);
+  const text = String(value ?? '');
+  if (variant === 'status') {
+    let match = text.match(/^保存済み拠点：初回現在地から約(\d+)m/);
+    if (match) return normalized === 'zh' ? `基地已保存 · ${match[1]}m` : normalized === 'en' ? `Base saved · ${match[1]}m` : text;
+    match = text.match(/^拠点設置完了：初回現在地から約(\d+)m/);
+    if (match) return normalized === 'zh' ? `基地设置完成 · ${match[1]}m` : normalized === 'en' ? `Base placed · ${match[1]}m` : text;
+    match = text.match(/^Saved base: about (\d+) m from the initial location/);
+    if (match) return normalized === 'zh' ? `基地已保存 · ${match[1]}m` : normalized === 'en' ? `Base saved · ${match[1]}m` : text;
+    match = text.match(/^Base placement complete: about (\d+) m from the initial location/);
+    if (match) return normalized === 'zh' ? `基地设置完成 · ${match[1]}m` : normalized === 'en' ? `Base placed · ${match[1]}m` : text;
+  }
+  return text;
+}
+
 const INLINE_COPY_PATTERNS = Object.freeze({
   en: Object.freeze([
+    [/要修理 (\d+)基・最も損傷した施設 HP (\d+)\/(\d+)/g, (_match, count, hp, maxHp) => `Needs repair: ${count} unit(s) · most damaged facility HP ${hp}/${maxHp}`],
+    [/(\d+)基/g, (_match, count) => `${count} unit(s)`],
+    [/出撃可能な拠点が必要です。?/g, () => 'A dispatch-ready base is required.'],
+    [/NEXT OPS \/\/ 次の行動/g, () => 'NEXT OPS'],
+    [/現在の状況から、次に有効な行動を優先順に表示します。?/g, () => 'Shows the next effective actions for the current situation in priority order.'],
     [/文明Lv\.(\d+)で(.+?)(?:が|で)解禁されます。/g, (_match, level, name) => `${copyText('en', name)} unlocks at Civ Lv.${level}.`],
     [/Civ Lv\.(\d+)で(.+?)がUnlocksされます。/g, (_match, level, name) => `${copyText('en', name)} unlocks at Civ Lv.${level}.`],
     [/Next: Civ Lv\.(\d+)で(.+?)(?=<|$)/g, (_match, level, name) => `Next: Civ Lv.${level}: ${copyText('en', name)}`],
@@ -688,6 +1262,57 @@ const INLINE_COPY_PATTERNS = Object.freeze({
     [/破城爆薬で(.+)を破壊しました。/g, (_match, name) => `${copyText('en', name)} destroyed with a Breach Charge.`],
     [/(.+)を現地回収しました。(.+)/g, (_match, name, loot) => `${copyText('en', name)} recovered on site. ${copyText('en', loot)}`],
     [/道路まで約(\d+)m/g, (_match, meters) => `about ${meters} m to road`]
+  ]),
+  zh: Object.freeze([
+    [/要修理 (\d+)基・最も損傷した施設 HP (\d+)\/(\d+)/g, (_match, count, hp, maxHp) => `需修理：${count} 座 · 损坏最严重设施 HP ${hp}/${maxHp}`],
+    [/(\d+)基/g, (_match, count) => `${count} 座`],
+    [/出撃可能な拠点が必要です。?/g, () => '需要一座可派兵的据点。'],
+    [/NEXT OPS \/\/ 次の行動/g, () => '下一步行动'],
+    [/現在の状況から、次に有効な行動を優先順に表示します。?/g, () => '根据当前状况，按优先级显示下一步有效行动。'],
+    [/文明Lv\.(\d+)で(.+?)(?:が|で)解禁されます。/g, (_match, level, name) => `${copyText('zh', name)}将在文明 Lv.${level} 解锁。`],
+    [/Civ Lv\.(\d+)で(.+?)がUnlocksされます。/g, (_match, level, name) => `${copyText('zh', name)}将在文明 Lv.${level} 解锁。`],
+    [/Next: Civ Lv\.(\d+)で(.+?)(?=<|$)/g, (_match, level, name) => `下个：文明 Lv.${level}：${copyText('zh', name)}`],
+    [/Civ Lv\.(\d+)で(.+?)で解禁/g, (_match, level, name) => `${copyText('zh', name)}将在文明 Lv.${level} 解锁`],
+    [/文明Lv\.(\d+)で(.+?)で解禁/g, (_match, level, name) => `${copyText('zh', name)}将在文明 Lv.${level} 解锁`],
+    [/都市HPを(\d+)以上に保ちます。下回ると維持時間は0から再計測されます。/g, (_match, threshold) => `保持城市HP在 ${threshold} 以上。低于该值时，计时会从 0 重新开始。`],
+    [/破壊された簡易拠点から(\d+)m以内へ移動してください。/g, (_match, meters) => `请移动到被破坏的简易基地 ${meters}m 内。`],
+    [/破壊された主要拠点から(\d+)m以内へ移動してください。/g, (_match, meters) => `请移动到被破坏的主要基地 ${meters}m 内。`],
+    [/現在の取得道路上に、あと(\d+)基分の設置候補を確認しました。/g, (_match, count) => `已在取得道路上确认 ${count} 个追加候选点。`],
+    [/破壊済み簡易拠点を(\d+)基再建すると条件を満たせます。/g, (_match, count) => `重建 ${count} 座被破坏的简易基地即可满足条件。`],
+    [/現在の文明レベルでは簡易拠点を(\d+)個まで設置できます。/g, (_match, count) => `当前文明等级最多可设置 ${count} 个简易基地。`],
+    [/現在の文明レベルでは拠点を(\d+)個まで設置できます。/g, (_match, count) => `当前文明等级最多可设置 ${count} 个主要基地。`],
+    [/取得済み道路の交差点から(\d+)m以内へ移動してください。/g, (_match, meters) => `请移动到已取得道路交叉点 ${meters}m 内。`],
+    [/既存拠点から(\d+)m以上離れてください。/g, (_match, meters) => `请离现有基地至少 ${meters}m。`],
+    [/簡易拠点から(\d+)m以上離れてください。/g, (_match, meters) => `请离简易基地至少 ${meters}m。`],
+    [/敵拠点から(\d+)m以上離れてください。/g, (_match, meters) => `请离敌方基地至少 ${meters}m。`],
+    [/起動に失敗しました：(.+)/g, (_match, details) => `启动失败：${details}`],
+    [/(.+)を道路サーバーから取得しています… (.+) \((\d+)\/(\d+), 試行 (\d+)\/(\d+)\)/g, (_match, label, transport, index, total, attempt, totalAttempts) => `正在从道路服务器读取${copyText('zh', label)}… ${transport} (${index}/${total}，尝试 ${attempt}/${totalAttempts})`],
+    [/(中心部|周辺)道路を解析しています…/g, (_match, area) => `正在解析${area === '中心部' ? '核心区' : '周边'}道路…`],
+    [/拠点設置完了：初回現在地から約(\d+)m/g, (_match, meters) => `基地设置完成：距初始位置约 ${meters}m`],
+    [/保存済み拠点：初回現在地から約(\d+)m/g, (_match, meters) => `已保存基地：距初始位置约 ${meters}m`],
+    [/(\d+)分進行/g, (_match, minutes) => `推进 ${minutes} 分钟`],
+    [/撃破 (\d+)/g, (_match, count) => `击破 ${count}`],
+    [/都市被害 (\d+)/g, (_match, damage) => `城市损伤 ${damage}`],
+    [/防衛設備損失 (\d+)/g, (_match, count) => `防御设施损失 ${count}`],
+    [/集落施設損失 (\d+)/g, (_match, count) => `聚落设施损失 ${count}`],
+    [/文明 \+(\d+)/g, (_match, count) => `文明 +${count}`],
+    [/敵圧 (.+)・(\d+)%・本格化まで約(\d+)時間/g, (_match, stage, percent, hours) => `敌压 ${copyText('zh', stage)} · ${percent}% · 距正式化约 ${hours} 小时`],
+    [/回収地点の(\d+)m以内へ移動してください。/g, (_match, meters) => `请移动到回收地点 ${meters}m 内。`],
+    [/周囲(\d+)mに修復可能な設備がありません。/g, (_match, meters) => `${meters}m 范围内没有可修复设施。`],
+    [/半径(\d+)m以内に撤退可能な味方部隊がありません。/g, (_match, meters) => `${meters}m 半径内没有可撤退友军部队。`],
+    [/半径(\d+)m以内に加速可能な味方部隊がありません。/g, (_match, meters) => `${meters}m 半径内没有可加速友军部队。`],
+    [/半径(\d+)m以内に破壊可能な敵拠点がありません。/g, (_match, meters) => `${meters}m 半径内没有可破坏敌方基地。`],
+    [/(.+)で部隊の(.+)が完了しました。/g, (_match, base, completion) => `${copyText('zh', base)}完成了部队${copyText('zh', completion)}。`],
+    [/(.+)へ発展しました。/g, (_match, name) => `发展到${copyText('zh', name)}。`],
+    [/(.+)が破壊されました。現地で再建できます。/g, (_match, name) => `${copyText('zh', name)}被破坏。可在现场重建。`],
+    [/(.+)周辺で(.+)が活動を開始しました。/g, (_match, anchor, name) => `${copyText('zh', name)}已在${copyText('zh', anchor)}周边开始活动。`],
+    [/(.+)の脅威レベルがLv\.(\d+)へ上昇しました。/g, (_match, name, level) => `${copyText('zh', name)}的威胁等级上升到 Lv.${level}。`],
+    [/(.+)を取得しました。戦術工房で使用できます。/g, (_match, name) => `取得${copyText('zh', name)}。可在战术工房使用。`],
+    [/(.+)を取得しました。ITEMSから使用できます。/g, (_match, name) => `取得${copyText('zh', name)}。可从 ITEMS 使用。`],
+    [/破城爆薬で(.+)を破壊しました。/g, (_match, name) => `已用破城炸药摧毁${copyText('zh', name)}。`],
+    [/(.+)を現地回収しました。(.+)/g, (_match, name, loot) => `已现场回收${copyText('zh', name)}。${copyText('zh', loot)}`],
+    [/道路まで約(\d+)m/g, (_match, meters) => `距道路约 ${meters}m`]
+
   ])
 });
 
@@ -720,22 +1345,403 @@ function translateByTable(language, value) {
 }
 
 
+
+const ENGLISH_FINAL_COPY_REPLACEMENTS = Object.freeze([
+  ['出撃可能な拠点が必要です', 'A dispatch-ready base is required'],
+  ['NEXT OPS // 次の行動', 'NEXT OPS'],
+  ['現在の状況から、次に有効な行動を優先順に表示します', 'Shows the next effective actions for the current situation in priority order'],
+  ['次の行動', 'next actions'],
+  ['現在の状況', 'current situation'],
+  ['有効な行動', 'effective actions'],
+  ['優先順', 'priority order'],
+  ['序盤防衛線が崩壊しました', 'The early defense line collapsed'],
+  ['都市防衛線が崩壊しました', 'The city defense line collapsed'],
+  ['応急再編成後', 'after emergency reorganization'],
+  ['緊急再編成後', 'after emergency reorganization'],
+  ['備蓄を使い切らず', 'without exhausting stockpiles'],
+  ['最低限の再編成と修理余力を確保しました', 'minimum reorganization and repair capacity were secured'],
+  ['修理用資源を残して敵の再進軍を遅らせました', 'repair resources were kept and the next enemy advance was delayed'],
+  ['修理用資源を確保して敵の再進軍を遅らせました', 'repair resources were secured and the next enemy advance was delayed'],
+  ['道路上の味方部隊を捕捉し、移動先を追跡します', 'tracks friendly squads on roads and follows their destination'],
+  ['防衛塔と混雑を避け、比較的安全な道路を選びます', 'avoids defense towers and congestion, choosing comparatively safer roads'],
+  ['最短路から外れ、防衛線の側面へ回り込める道路を選びます', 'leaves the shortest route and chooses roads that can flank the defense line'],
+  ['遠回りを避け、防壁を破壊して短い経路を押し通ります', 'avoids detours and breaks through walls to force a short route'],
+  ['都市へ直行せず、支援施設や火力施設を優先して破壊します', 'does not rush the city; prioritizes support and firepower facilities'],
+  ['都市より簡易拠点や前線支援施設を狙います', 'targets simple bases and frontline support facilities instead of the city'],
+  ['周囲の敵部隊を強化しながら主力に同行します', 'escorts the main force while strengthening nearby enemies'],
+  ['高い耐久と防護効果で周囲の敵を守ります', 'protects nearby enemies with high durability and guard effects'],
+  ['周囲の部隊を加速し、攻撃部隊全体の圧力を高めます', 'accelerates nearby units and increases the pressure of the whole attacking force'],
+  ['最短経路と都市到達を優先する基本的な行動です', 'basic behavior that prioritizes the shortest route and reaching the city'],
+  ['探索ミッションは廃止済みです。現在は道端物資を利用します', 'Exploration missions are retired. Use roadside supplies instead'],
+  ['探索ミッションは廃止済みです。現在はITEMS画面の道端物資を利用してください', 'Exploration missions are retired. Use roadside supplies from the ITEMS screen'],
+  ['表示できる拠点がありません', 'No base can be shown'],
+  ['保存データを初期化できませんでした', 'Save data could not be reset'],
+  ['現在地を取得してください', 'Get the current location'],
+  ['位置情報の精度が不足しています', 'Location accuracy is insufficient'],
+  ['位置情報が古いため', 'Location data is too old, so'],
+  ['全体指揮上限に達しています', 'The total command limit has been reached'],
+  ['既存部隊を帰還・再編成してから派兵してください', 'Return or reorganize existing squads before dispatching'],
+  ['この拠点の部隊枠が満員です', 'This base has no free squad slots'],
+  ['文明レベルを上げるか、待機部隊を再編成してください', 'Raise civilization level or reorganize waiting squads'],
+  ['選択した派兵経路は道路更新または防壁によって利用できなくなりました', 'The selected dispatch route became unavailable because of road updates or walls'],
+  ['経路を選び直してください', 'Choose the route again'],
+  ['連携部隊が同じ拠点から共通ルートで出撃できません', 'The coordinated squads cannot dispatch from the same base on a shared route'],
+  ['部隊枠・解禁Lv・出撃元を確認してください', 'Check squad slots, unlock level, and dispatch origin'],
+  ['連携出撃には2部隊以上を選択してください', 'Select at least two squads for coordinated dispatch'],
+  ['連携出撃に必要な合計資源が不足しています', 'Not enough total resources for coordinated dispatch'],
+  ['連携出撃確定時に合計資源が不足しました', 'Total resources were insufficient when coordinated dispatch was confirmed'],
+  ['同じ拠点から同じルートを進軍します', 'They advance from the same base along the same route'],
+  ['拠点で回復・待機中の部隊には移動命令を出せません', 'Squads recovering or waiting at a base cannot receive movement orders'],
+  ['拠点で回復・待機中の部隊には経路命令を出せません', 'Squads recovering or waiting at a base cannot receive route orders'],
+  ['帰還中の部隊は停止命令へ変更できません', 'Returning squads cannot be changed to a hold order'],
+  ['味方部隊へ停止命令を出しました', 'Hold order issued to the friendly squad'],
+  ['撤退・帰還を開始した部隊の任務は変更できません', 'A squad that started retreating or returning cannot change mission'],
+  ['回収目標が失われています', 'The recovery target has been lost'],
+  ['迎撃対象は既に失われています', 'The interception target has already been lost'],
+  ['元の攻撃目標は既に失われています', 'The original attack target has already been lost'],
+  ['帰還可能な拠点がありません', 'No base is available for return'],
+  ['現在位置から選択ルートへ接続できません', 'The current position cannot connect to the selected route'],
+  ['療養中の拠点が失われたため', 'Because the recovery base was lost'],
+  ['部隊は', 'the squad'],
+  ['へ退避します', 'will evacuate to'],
+  ['を確保しました。拠点へ帰還します', 'secured. Returning to base'],
+  ['がLv.', ' reached Lv.'],
+  ['になりました', ''],
+  ['工兵部隊が', 'Engineer Squad'],
+  ['を現地修復しました', 'repaired on site'],
+  ['が壊滅しました', 'was wiped out'],
+  ['部隊枠を占有したまま長時間の再編成に入ります', 'will occupy its squad slot while undergoing long reorganization'],
+  ['撤退可能な通常味方部隊ではありません', 'This is not a normal friendly squad that can retreat'],
+  ['を緊急撤退させました', 'was emergency-retreated'],
+  ['壊滅再編成を回避します', 'Wipeout reorganization will be avoided'],
+  ['加速可能な味方部隊がありません', 'No friendly squad can be accelerated'],
+  ['隊の移動速度を一時的に上げました', 'squad movement speed was temporarily increased'],
+  ['は壊滅し、現地出撃任務を終了しました', 'was wiped out and ended the field dispatch mission'],
+  ['を拠点へ持ち帰りました', 'brought back to base'],
+  ['は現地出撃任務を完了し、解散しました', 'completed the field dispatch mission and disbanded'],
+  ['道路上の地点を選択してください', 'Select a point on the road'],
+  ['現在の進路先とは別の地点を選択してください', 'Select a point different from the current destination'],
+  ['後退地点は現在より敵基地から遠い道路上を選択してください', 'Select a retreat point on a road farther from the enemy base'],
+  ['が再編されました', 'was reorganized into'],
+  ['の守備隊が迎撃を開始しました', 'garrison started interception'],
+  ['が道路網に出現しました', 'appeared on the road network'],
+  ['が別の道路へ再出現しました', 'reappeared on another road'],
+  ['回収可能な特殊アイテムではありません', 'This is not a recoverable special item'],
+  ['迎撃可能な敵部隊ではありません', 'This enemy squad cannot be intercepted'],
+  ['攻撃可能な敵拠点ではありません', 'This enemy base cannot be attacked'],
+  ['回収地点へ到達できる道路経路がありません', 'No road route reaches the recovery point'],
+  ['敵部隊の進路へ到達できる道路経路がありません', 'No road route reaches the enemy squad path'],
+  ['敵拠点へ到達できる道路経路がありません', 'No road route reaches the enemy base'],
+  ['選択した部隊種類は存在しません', 'The selected squad type does not exist'],
+  ['出撃可能な拠点ではありません', 'This base cannot dispatch squads'],
+  ['派兵に必要な資源が不足しています', 'Not enough resources to dispatch'],
+  ['派兵確定時に資源が不足しました', 'Resources were insufficient when dispatch was confirmed'],
+  ['指定敵部隊の迎撃へ', 'to intercept the specified enemy squad'],
+  ['の回収へ', 'to recover'],
+  ['の共通経路を利用できません', 'cannot use the shared route'],
+  ['を出撃できません', 'cannot be dispatched'],
+  ['部隊が見つかりません', 'Squad not found'],
+  ['無効な部隊命令です', 'Invalid squad order'],
+  ['選択中の味方部隊が見つかりません', 'Selected friendly squad not found'],
+  ['設置候補を選択しました', 'Build candidate selected'],
+  ['範囲と効果を確認して建設を確定してください', 'Review range and effect, then confirm construction'],
+  ['設備・敵拠点・部隊を選択できます', 'You can select facilities, enemy bases, and squads'],
+  ['測量施設が周辺道路を解析しています', 'Survey facility is parsing nearby roads'],
+  ['測量施設は主要拠点・簡易拠点ごとに1基までです', 'One survey facility is allowed for each major or simple base'],
+  ['遠隔取得で追加されるのは道路形状です', 'Remote acquisition adds road geometry only'],
+  ['敵基地・道端物資・現地イベントの正確な位置は、実際に現地へ移動した後に表示されます', 'Exact positions of enemy bases, roadside supplies, and local events are shown after you actually move there'],
+  ['文明レベルに対する拠点上限へ到達しています', 'The base limit for the civilization level has been reached'],
+  ['資源が不足しています', 'Resources are insufficient'],
+  ['道路データを利用できません', 'Road data is unavailable'],
+  ['道路区間の建設地点をタップしてください', 'Tap a build point on a road segment'],
+  ['表示されている戦術地点をタップしてください', 'Tap a displayed tactical point'],
+  ['設置候補がありません', 'No build candidate is available'],
+  ['設置候補の種類が一致しません', 'Build candidate type does not match'],
+  ['建設基準となる拠点・現在地・遠征部隊を取得できません', 'Build anchors from bases, current location, or expedition squads could not be obtained'],
+  ['この道路区間には既に設備があるか、建設地点として利用できません', 'This road segment already has a facility or cannot be used as a build point'],
+  ['この戦術地点には既に設備があります。または建設地点として利用できません', 'This tactical point already has a facility or cannot be used as a build point'],
+  ['建設直前に資源が不足しました', 'Resources became insufficient immediately before construction'],
+  ['撤去する設備が見つかりません', 'The facility to dismantle was not found'],
+  ['資源は返還されません', 'Resources are not returned'],
+  ['撤去しました', 'dismantled'],
+  ['破壊され、建設枠から撤去されました', 'was destroyed and removed from building slots'],
+  ['破壊され、建設地点から撤去されました', 'was destroyed and removed from the build point'],
+  ['破壊され、道路から撤去されました', 'was destroyed and removed from the road'],
+  ['全滅しました', 'was eliminated'],
+  ['防衛施設を攻撃しています', 'is attacking a defense facility'],
+  ['防衛施設', 'defense facility'],
+  ['味方部隊', 'friendly squad'],
+  ['東西道路', 'east-west road'],
+  ['南北道路', 'north-south road'],
+  ['先の道路', 'road ahead'],
+  ['道路を解析しています', 'Parsing roads'],
+  ['道路ノード', 'road node'],
+  ['道路網', 'road network'],
+  ['道路サーバー', 'road server'],
+  ['道路データ', 'road data'],
+  ['道路なし', 'no roads'],
+  ['道路がない', 'no road'],
+  ['別サーバー', 'another server'],
+  ['自動再試行', 'automatic retry'],
+  ['移動後に再試行', 'retry after moving'],
+  ['ブラウザ', 'browser'],
+  ['保存領域', 'storage area'],
+  ['進行状況は失われます', 'progress will be lost'],
+  ['初期化前の保存データを検出したため、新しいゲームとして開始します', 'Pre-initialization save data was detected, so a new game will start'],
+  ['周辺の道路網が小さすぎます', 'The nearby road network is too small'],
+  ['別の場所で再試行してください', 'Try again in another location'],
+  ['通信には成功しましたが', 'communication succeeded, but'],
+  ['処理に失敗しました', 'processing failed'],
+  ['再試行します', 'retrying'],
+  ['道路まで約', 'about'],
+  ['約', 'about'],
+  ['経由地点', 'waypoint'],
+  ['経由', 'via'],
+  ['危険度', 'risk'],
+  ['半径', 'radius'],
+  ['区域', 'area'],
+  ['待機', 'waiting'],
+  ['測量', 'survey'],
+  ['現地', 'local'],
+  ['特殊アイテム', 'special item'],
+  ['回収物', 'recovery item'],
+  ['特殊回収物', 'special recovery item'],
+  ['出撃元', 'dispatch origin'],
+  ['指定地点', 'specified point'],
+  ['防衛線', 'defense line'],
+  ['備蓄', 'stockpiles'],
+  ['最短経路', 'shortest route'],
+  ['最短路', 'shortest route'],
+  ['比較的安全な道路', 'comparatively safe road'],
+  ['正面突破型', 'frontal breakthrough type'],
+  ['警戒迂回型', 'cautious detour type'],
+  ['側面迂回型', 'flanking type'],
+  ['破壊工作型', 'sabotage type'],
+  ['拠点襲撃型', 'base raid type'],
+  ['部隊狩り', 'squad hunter'],
+  ['部隊追跡型', 'squad tracking type'],
+  ['支援同行型', 'support escort type'],
+  ['護衛型', 'guard type'],
+  ['指揮型', 'command type'],
+  ['型', ' type'],
+  ['周囲', 'nearby'],
+  ['敵', 'enemy'],
+  ['都市', 'city'],
+  ['部隊', 'squad'],
+  ['拠点', 'base'],
+  ['防壁', 'wall'],
+  ['施設', 'facility'],
+  ['資源', 'resources'],
+  ['建設', 'construction'],
+  ['防衛', 'defense'],
+  ['攻撃', 'attack'],
+  ['破壊', 'destruction'],
+  ['移動', 'movement'],
+  ['帰還', 'return'],
+  ['撤退', 'retreat'],
+  ['停止', 'hold'],
+  ['命令', 'order'],
+  ['派兵', 'dispatch'],
+  ['出撃', 'dispatch'],
+  ['連携', 'coordinated'],
+  ['共通', 'shared'],
+  ['経路', 'route'],
+  ['ルート', 'route'],
+  ['モード', 'mode'],
+  ['データ', 'data'],
+  ['サーバー', 'server'],
+  ['ノード', 'node'],
+  ['キャッシュ', 'cache'],
+  ['システム', 'system'],
+  ['ミッション', 'mission'],
+  ['アイテム', 'item'],
+  ['イベント', 'event'],
+  ['ゲーム', 'game'],
+  ['タブ', 'tab'],
+  ['マップ', 'map'],
+  ['MAP', 'MAP'],
+  ['選択', 'select'],
+  ['確認', 'confirm'],
+  ['取得', 'acquire'],
+  ['利用', 'use'],
+  ['接続', 'connect'],
+  ['設定', 'set'],
+  ['確定', 'confirm'],
+  ['目標', 'target'],
+  ['対象', 'target'],
+  ['追加', 'add'],
+  ['完了', 'complete'],
+  ['失敗', 'failed'],
+  ['不足', 'insufficient'],
+  ['現在', 'current'],
+  ['位置', 'position'],
+  ['情報', 'information'],
+  ['精度', 'accuracy'],
+  ['古い', 'old'],
+  ['高い', 'high'],
+  ['低い', 'low'],
+  ['可能', 'possible'],
+  ['無効', 'invalid'],
+  ['既存', 'existing'],
+  ['新規', 'new'],
+  ['別の', 'another'],
+  ['同じ', 'same'],
+  ['最大', 'maximum'],
+  ['最低', 'minimum'],
+  ['必要', 'required'],
+  ['範囲', 'range'],
+  ['地点', 'point'],
+  ['方向', 'direction'],
+  ['圧力', 'pressure'],
+  ['損害', 'damage'],
+  ['起爆', 'detonated'],
+  ['誘導', 'guide'],
+  ['掃討', 'sweep'],
+  ['加速', 'accelerate'],
+  ['排除', 'removed'],
+  ['使用', 'use'],
+  ['開始', 'started'],
+  ['終了', 'ended'],
+  ['解散', 'disbanded'],
+  ['壊滅', 'wiped out'],
+  ['守備隊', 'garrison'],
+  ['迎撃', 'interception'],
+  ['出現', 'appeared'],
+  ['再出現', 'reappeared'],
+  ['再編', 'reorganization'],
+  ['回避', 'avoid'],
+  ['戻る', 'return'],
+  ['中', 'in progress'],
+  ['秒', 's'],
+  ['分', 'min'],
+  ['時間', 'h'],
+  ['隊', 'squad'],
+  ['体', 'unit'],
+  ['基', 'unit'],
+  ['個', ''],
+  ['か所', 'points'],
+  ['「', '"'], ['」', '"'], ['（', '('], ['）', ')'], ['・', ' · '], ['、', ', '], ['。', '.'],
+  ['してください', 'please'], ['できません', 'unavailable'], ['できます', 'available'], ['ありません', 'none'], ['います', ''], ['でした', ''], ['です', ''], ['ます', ''], ['ました', ''], ['した', ''], ['され', ''], ['する', ''], ['して', ''], ['し', ''], ['から', ' from '], ['まで', ' to '], ['には', ' '], ['では', ' '], ['とは', ' '], ['へ', ' to '], ['を', ' '], ['が', ' '], ['は', ' '], ['の', ' '], ['に', ' '], ['で', ' '], ['と', ' and '], ['や', ' and '], ['より', ' than '], ['この', 'this'], ['別', 'alternate'], ['先', 'ahead'], ['後', 'after'], ['用', 'for'], ['元', 'origin'], ['のみ', 'only'], ['あと', 'remaining'], ['再', 're'], ['約', 'about']
+]);
+
+const CHINESE_FINAL_COPY_REPLACEMENTS = Object.freeze([
+  ['出撃可能な拠点が必要です', '需要一座可派兵的据点'],
+  ['NEXT OPS // 次の行動', '下一步行动'],
+  ['現在の状況から、次に有効な行動を優先順に表示します', '根据当前状况，按优先级显示下一步有效行动'],
+  ['次の行動', '下一步行动'],
+  ['現在の状況', '当前状况'],
+  ['有効な行動', '有效行动'],
+  ['優先順', '优先级顺序'],
+  ['状況', '状况'],
+  ['行動', '行动'],
+  ['有効', '有效'],
+  ['優先', '优先'],
+  ['表示できる拠点がありません', '没有可显示的基地'],
+  ['保存データを初期化できませんでした', '无法初始化存档数据'],
+  ['現在地を取得してください', '请取得当前位置'],
+  ['位置情報の精度が不足しています', '位置信息精度不足'],
+  ['必要数の簡易拠点はすでに稼働しています', '所需数量的简易基地已经运行'],
+  ['設置枠は埋まっています。破壊済み簡易拠点を現地で再建してください', '设置栏位已满。请在现场重建被破坏的简易基地'],
+  ['現在の取得道路では必要数に届きません。道路をさらに取得するか、敵拠点周辺を制圧してください', '当前取得的道路数量不足。请取得更多道路，或压制敌方基地周边'],
+  ['簡易拠点が見つかりません', '找不到简易基地'],
+  ['この簡易拠点は稼働中です', '此简易基地正在运行'],
+  ['簡易拠点が接続していた道路を利用できません', '无法使用该简易基地连接的道路'],
+  ['簡易拠点の再建資源が不足しています', '简易基地重建资源不足'],
+  ['撤去する簡易拠点が見つかりません', '找不到要拆除的简易基地'],
+  ['簡易拠点の設置直前に資源が不足しました', '设置简易基地前资源不足'],
+  ['簡易拠点の再建直前に資源が不足しました', '重建简易基地前资源不足'],
+  ['再建対象の主要拠点が見つかりません', '找不到要重建的主要基地'],
+  ['この主要拠点は稼働中です', '此主要基地正在运行'],
+  ['位置情報が古いため再建できません', '位置信息过旧，无法重建'],
+  ['主要拠点の再建資源が不足しています', '主要基地重建资源不足'],
+  ['撤去する主要拠点が見つかりません', '找不到要拆除的主要基地'],
+  ['最後に残す主要拠点は撤去できません', '不能拆除最后一座主要基地'],
+  ['主要拠点は最低1つ必要です', '至少需要一座主要基地'],
+  ['主要拠点の設置直前に資源が不足しました', '设置主要基地前资源不足'],
+  ['主要拠点の再建直前に資源が不足しました', '重建主要基地前资源不足'],
+  ['文明レベルに対する拠点上限へ到達しています', '已达到当前文明等级的基地上限'],
+  ['防衛・建設用の予備資源を', '已为防御和建设预留预备资源 '],
+  ['残しています。必要なら「全量納入」を選んでください', '。如有需要，请选择“全部交付”'],
+  ['予備を残して納入できる資源がありません', '没有可在预留预备资源后交付的资源'],
+  ['破壊された設備は撤去済みです。再建してください', '被破坏的设施已拆除。请重建'],
+  ['修理は不要です', '无需修理'],
+  ['修理資源が不足しています', '修理资源不足'],
+  ['変換できる防壁がありません', '没有可转换的墙'],
+  ['門へ変換できません', '无法转换为门'],
+  ['門への変換資源が不足しています', '转换为门所需资源不足'],
+  ['強化直前に資源が不足しました', '升级前资源不足'],
+  ['強化先の設備定義が見つかりません', '找不到升级目标设施定义'],
+  ['不明な施設です', '未知设施'],
+  ['文明レベルが不足しています', '文明等级不足'],
+  ['集落の建設枠がありません', '聚落没有建设栏位'],
+  ['この施設はこれ以上建設できません', '此设施不能继续建设'],
+  ['資源が不足しています', '资源不足'],
+  ['資源は返還されません', '资源不会返还'],
+  ['序盤防衛線が崩壊しました。応急再編成後、修理用資源を残して敵の再進軍を遅らせました', '初期防线崩溃。紧急重编后预留修理资源，并延缓了敌军再次进军'],
+  ['都市防衛線が崩壊しました。緊急再編成後、修理用資源を確保して敵の再進軍を遅らせました', '城市防线崩溃。紧急重编后确保修理资源，并延缓了敌军再次进军'],
+  ['都市防衛線が崩壊しました。備蓄を使い切らず、最低限の再編成と修理余力を確保しました', '城市防线崩溃。未耗尽库存，已确保最低限度的重编和修理余力'],
+  ['最短経路と都市到達を優先する基本的な行動です', '优先最短路径和抵达城市的基本行动'],
+  ['防衛塔と混雑を避け、比較的安全な道路を選びます', '避开防御塔和拥堵，选择相对安全的道路'],
+  ['最短路から外れ、防衛線の側面へ回り込める道路を選びます', '偏离最短路，选择可绕到防线侧面的道路'],
+  ['遠回りを避け、防壁を破壊して短い経路を押し通ります', '避免绕路，破坏墙并强行通过短路径'],
+  ['都市へ直行せず、支援施設や火力施設を優先して破壊します', '不直奔城市，优先破坏支援设施和火力设施'],
+  ['都市より簡易拠点や前線支援施設を狙います', '优先瞄准简易基地和前线支援设施，而不是城市'],
+  ['道路上の味方部隊を捕捉し、移動先を追跡します', '捕捉道路上的友军部队并追踪其移动目标'],
+  ['周囲の敵部隊を強化しながら主力に同行します', '强化周围敌军部队并随主力同行'],
+  ['高い耐久と防護効果で周囲の敵を守ります', '以高耐久和防护效果保护周围敌军'],
+  ['周囲の部隊を加速し、攻撃部隊全体の圧力を高めます', '加速周围部队，提高攻击部队整体压力'],
+  ['部隊狩り', '部队狩猎'],
+  ['探索ミッションは廃止済みです。現在は道端物資を利用します', '探索任务已废止。现在请使用路边物资'],
+  ['探索ミッションは廃止済みです。現在はITEMS画面の道端物資を利用してください', '探索任务已废止。现在请在 ITEMS 画面使用路边物资'],
+  ['道路サーバー', '道路服务器'], ['道路データ', '道路数据'], ['道路ノード', '道路节点'], ['道路キャッシュ', '道路缓存'], ['道路網', '道路网'], ['道路なし', '没有道路'], ['道路がない', '没有道路'], ['道路', '道路'],
+  ['ルート', '路线'], ['モード', '模式'], ['データ', '数据'], ['サーバー', '服务器'], ['ノード', '节点'], ['キャッシュ', '缓存'], ['システム', '系统'], ['ミッション', '任务'], ['アイテム', '物品'], ['イベント', '事件'], ['ゲーム', '游戏'], ['タブ', '标签页'], ['ブラウザ', '浏览器'], ['マップ', '地图'], ['MAP', 'MAP'],
+  ['座点', '基地'], ['座地', '基地'], ['基準', '基准'], ['座準', '基准'],
+  ['拠点', '基地'], ['基地', '基地'], ['主要基地', '主要基地'], ['簡易基地', '简易基地'], ['簡易', '简易'], ['主要', '主要'],
+  ['敵方', '敌方'], ['敵軍', '敌军'], ['敵部隊', '敌军部队'], ['敵', '敌军'], ['味方部隊', '友军部队'], ['部隊', '部队'],
+  ['防衛設備', '防御设施'], ['防衛施設', '防御设施'], ['防衛線', '防线'], ['防衛', '防御'], ['防壁', '墙'], ['施設', '设施'], ['設備', '设施'],
+  ['資源', '资源'], ['資材', '材料'], ['建設', '建设'], ['修理', '修理'], ['修復', '修复'], ['強化', '升级'], ['撤去', '拆除'], ['破壊', '破坏'], ['攻撃', '攻击'], ['派兵', '派兵'], ['出撃', '出击'], ['連携', '协同'], ['共通', '共通'], ['経路', '路径'], ['回収', '回收'], ['誘導', '引导'], ['掃討', '扫荡'], ['加速', '加速'], ['撤退', '撤退'], ['帰還', '返回'], ['停止', '停止'], ['進軍', '进军'], ['移動', '移动'], ['選択', '选择'], ['確認', '确认'], ['取得', '取得'], ['利用', '使用'], ['接続', '连接'], ['設定', '设置'], ['確定', '确认'], ['目標', '目标'], ['対象', '目标'], ['追加', '追加'], ['完了', '完成'], ['失敗', '失败'], ['不足', '不足'], ['現在', '当前'], ['位置', '位置'], ['情報', '信息'], ['精度', '精度'], ['古いため', '过旧，因此'], ['高い', '高'], ['低い', '低'], ['可能', '可'], ['無効', '无效'], ['既存', '现有'], ['新規', '新'], ['別の', '其他'], ['同じ', '同一'], ['最大', '最大'], ['最低', '最低'], ['必要', '必要'], ['範囲', '范围'], ['地点', '地点'], ['方向', '方向'], ['圧力', '压力'], ['損害', '损害'], ['起爆', '起爆'], ['排除', '排除'], ['使用', '使用'], ['開始', '开始'], ['終了', '结束'], ['解散', '解散'], ['壊滅', '全灭'], ['守備隊', '守备队'], ['迎撃', '迎击'], ['出現', '出现'], ['再出現', '再次出现'], ['再編', '重编'], ['回避', '回避'], ['戻る', '返回'], ['中', '中'],
+  ['東西道路', '东西道路'], ['南北道路', '南北道路'], ['先の道路', '前方道路'], ['経由地点', '途经点'], ['経由', '途经'], ['危険度', '危险度'], ['半径', '半径'], ['区域', '区域'], ['周囲', '周围'], ['都市', '城市'], ['戦術', '战术'], ['現地', '现场'], ['特殊回収物', '特殊回收物'], ['特殊アイテム', '特殊物品'], ['回収物', '回收物'], ['出撃元', '出击源'], ['指定地点', '指定地点'], ['最短経路', '最短路径'], ['最短路', '最短路'], ['比較的安全な道路', '相对安全的道路'], ['正面突破型', '正面突破型'], ['警戒迂回型', '警戒迂回型'], ['側面迂回型', '侧翼迂回型'], ['破壊工作型', '破坏工作型'], ['拠点襲撃型', '基地袭击型'], ['部隊追跡型', '部队追踪型'], ['支援同行型', '支援同行型'], ['護衛型', '护卫型'], ['指揮型', '指挥型'], ['型', '型'],
+  ['秒', '秒'], ['分', '分钟'], ['時間', '小时'], ['隊', '队'], ['体', '个'], ['基', '座'], ['個', '个'], ['か所', '处'],
+  ['してください', '请'], ['して下さい', '请'], ['できません', '无法'], ['できます', '可以'], ['ありません', '没有'], ['いました', '了'], ['しています', '正在'], ['していました', '曾经'], ['しました', '了'], ['します', ''], ['でした', ''], ['です', ''], ['ます', ''], ['した', ''], ['されます', ''], ['されています', ''], ['されました', ''], ['され', ''], ['する', ''], ['して', ''], ['し', ''], ['から', '从'], ['まで', '到'], ['には', ''], ['では', ''], ['とは', ''], ['への', '到'], ['へ', '到'], ['を', ''], ['が', ''], ['は', ''], ['の', '的'], ['に', ''], ['で', '在'], ['と', '和'], ['や', '和'], ['より', '比'], ['この', '此'], ['別', '其他'], ['先', '前方'], ['後', '后'], ['用', '用'], ['元', '源'], ['のみ', '仅'], ['あと', '剩余'], ['再', '再'], ['約', '约'], ['「', '“'], ['」', '”'], ['（', '('], ['）', ')'], ['・', ' · '], ['、', '，'], ['。', '。']
+]);
+
+function replaceByFinalMap(value, replacements) {
+  return replacements
+    .slice()
+    .sort((a, b) => b[0].length - a[0].length)
+    .reduce((result, [source, target]) => result.split(source).join(target), String(value ?? ''));
+}
+
 function scrubResidualJapaneseForEnglish(value) {
   const original = String(value ?? '');
   if (!hasJapaneseText(original)) return original;
-  const cleaned = original
-    .replace(/[「」『』]/g, '"')
-    .replace(/[（）]/g, match => match === '（' ? '(' : ')')
-    .replace(/[、]/g, ', ')
-    .replace(/[。]/g, '.')
+  const rewritten = replaceByFinalMap(original, ENGLISH_FINAL_COPY_REPLACEMENTS);
+  return rewritten
     .replace(/[ぁ-んァ-ン一-龯]+/g, ' ')
     .replace(/\s+([.,:;!?])/g, '$1')
     .replace(/([(/])\s+/g, '$1')
     .replace(/\s+([)/])/g, '$1')
+    .replace(/\s*[・]\s*/g, ' · ')
     .replace(/\s{2,}/g, ' ')
-    .replace(/\s+・\s+/g, ' · ')
     .trim();
-  return cleaned || 'Untranslated text';
+}
+
+function scrubResidualJapaneseForChinese(value) {
+  const original = String(value ?? '');
+  if (!/[ぁ-んァ-ン]/u.test(original)) return original;
+  const rewritten = replaceByFinalMap(original, CHINESE_FINAL_COPY_REPLACEMENTS);
+  return rewritten
+    .replace(/[ぁ-んァ-ン]+/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([，。！？：；、])/g, '$1')
+    .trim();
+}
+
+function scrubResidualSourceLanguage(language, value) {
+  const normalized = normalizeLanguage(language);
+  if (normalized === 'en') return scrubResidualJapaneseForEnglish(value);
+  if (normalized === 'zh') return scrubResidualJapaneseForChinese(value);
+  return String(value ?? '');
 }
 
 export function copyText(language, text = '') {
@@ -746,13 +1752,32 @@ export function copyText(language, text = '') {
   result = translateByTable(normalized, result);
   result = applyCopyPatterns(normalized, result);
   result = translateByTable(normalized, result);
-  return scrubResidualJapaneseForEnglish(result);
+  return scrubResidualSourceLanguage(normalized, result);
 }
 
-export function bundleTextLocalized(language, bundle = {}) {
+export function copyTextVariant(language, text = '', variant = 'default') {
+  const normalized = normalizeLanguage(language);
+  const value = String(text ?? '');
+  if (normalized === 'ja' || !value || variant === 'default') return copyText(normalized, value);
+  const patterned = applyVariantPatterns(normalized, value, variant);
+  if (patterned !== value) return scrubResidualSourceLanguage(normalized, patterned);
+  const table = variantTable(normalized, variant);
+  if (Object.prototype.hasOwnProperty.call(table, value)) return table[value];
+  const translated = copyText(normalized, value);
+  if (Object.prototype.hasOwnProperty.call(table, translated)) return table[translated];
+  if (variant === 'micro') return copyTextVariant(normalized, value, 'short');
+  return translated;
+}
+
+export function bundleTextLocalized(language, bundle = {}, { compact = false } = {}) {
+  const normalized = normalizeLanguage(language);
   const entries = Object.entries(bundle ?? {}).filter(([, value]) => Number(value) > 0);
-  if (!entries.length) return copyText(language, 'なし');
-  return entries.map(([key, value]) => `${copyText(language, TEXT_CATALOG.ja.dynamic?.resources?.[key] ?? key)} ${Math.floor(Number(value) || 0)}`).join(language === 'en' ? ', ' : '・');
+  if (!entries.length) return copyText(normalized, 'なし');
+  if (compact && (normalized === 'en' || normalized === 'zh')) {
+    const labels = RESOURCE_MICRO_LABELS[normalized] ?? {};
+    return entries.map(([key, value]) => `${labels[key] ?? copyTextVariant(normalized, TEXT_CATALOG.ja.dynamic?.resources?.[key] ?? key, 'micro')}${Math.floor(Number(value) || 0)}`).join(' ');
+  }
+  return entries.map(([key, value]) => `${copyText(normalized, TEXT_CATALOG.ja.dynamic?.resources?.[key] ?? key)} ${Math.floor(Number(value) || 0)}`).join(normalized === 'en' ? ', ' : '・');
 }
 
 function shouldLocalizeTextNode(node) {
@@ -817,7 +1842,7 @@ function localizeDynamicTree(language, root = globalThis.document, { textSources
 
 export function normalizeLanguage(language) {
   const code = String(language || '').toLowerCase().split('-')[0];
-  return TEXT_CATALOG[code] ? code : 'ja';
+  return TEXT_CATALOG[code] ? code : 'en';
 }
 
 export function readNested(source, path) {
@@ -844,7 +1869,7 @@ export class I18nController {
       const stored = this.storage?.getItem?.(LANGUAGE_STORAGE_KEY);
       if (stored) return normalizeLanguage(stored);
     } catch {}
-    return normalizeLanguage('ja');
+    return normalizeLanguage('en');
   }
 
   setLanguage(language) {
@@ -882,6 +1907,22 @@ export class I18nController {
       attributeSources: this.dynamicAttributeSources,
       inputValueSources: this.dynamicInputValueSources
     });
+  }
+
+  short(text = '') {
+    return copyTextVariant(this.language, text, 'short');
+  }
+
+  micro(text = '') {
+    return copyTextVariant(this.language, text, 'micro');
+  }
+
+  status(text = '') {
+    return copyTextVariant(this.language, text, 'status');
+  }
+
+  compactBundleText(bundle = {}) {
+    return bundleTextLocalized(this.language, bundle, { compact: true });
   }
 
   localize(text = '') {

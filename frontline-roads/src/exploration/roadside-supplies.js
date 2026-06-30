@@ -1021,6 +1021,7 @@ export function useSmokeScreen(state, events = null) {
 export class RoadsideSupplySystem {
   constructor(events = null) { this.events = events; }
   update(state, _deltaSeconds = 0) {
+    if (state?.lifecycle === 'DESTROYED' || state?.runtime?.gameOver) return [];
     const supplies = ensureRoadsideSupplyState(state);
     const now = state.runtime?.worldTimeMs ?? Date.now();
     refreshRoadsideSupplies(state);
@@ -1035,7 +1036,10 @@ export class RoadsideSupplySystem {
     }
     return collected;
   }
-  refresh(state, force = true) { return refreshRoadsideSupplies(state, force); }
+  refresh(state, force = true) {
+    if (state?.lifecycle === 'DESTROYED' || state?.runtime?.gameOver) return ensureRoadsideSupplyState(state);
+    return refreshRoadsideSupplies(state, force);
+  }
   deploymentTargets(state, key) { return roadsideDeploymentTargets(state, key); }
   useDeploymentTarget(state, key, target) { return useLocalDeploymentCall(state, key, this.events, target); }
   use(state, key) {

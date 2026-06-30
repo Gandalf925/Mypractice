@@ -6,6 +6,7 @@ import { enemyBaseLevelForState, enemyDensityForState, expandedWaveSize, waveInt
 import { INITIAL_BASE_TYPES, selectEnemyBaseNode } from './enemy-base-placement.js';
 import { enemyBehaviorForDefinition, waveDoctrineDefinition } from './enemy-personalities.js';
 import { enemyRegroupActive } from '../core/recovery-balance.js';
+import { OPERATION_TEMPO_CONFIG, operationActiveWaveLimit, operationWaveIntervalMultiplier } from './operation-tempo.js';
 
 export { INITIAL_BASE_TYPES } from './enemy-base-placement.js';
 
@@ -90,10 +91,10 @@ export function enemyGenerationMix(state) {
   if (generation <= 0) return { generation: 0, probability: 0 };
   const worldNow = Number(state.runtime?.worldTimeMs) || Date.now();
   const elapsed = worldNow - (Number(state.civilization.completedAt) || worldNow);
-  if (elapsed < 15 * 60 * 1000) return { generation, probability: 0 };
-  if (elapsed < 30 * 60 * 1000) return { generation, probability: 0.25 };
-  if (elapsed < 45 * 60 * 1000) return { generation, probability: 0.50 };
-  if (elapsed < 60 * 60 * 1000) return { generation, probability: 0.75 };
+  if (elapsed < 60 * 60 * 1000) return { generation, probability: 0 };
+  if (elapsed < 3 * 60 * 60 * 1000) return { generation, probability: 0.25 };
+  if (elapsed < 6 * 60 * 60 * 1000) return { generation, probability: 0.50 };
+  if (elapsed < 12 * 60 * 60 * 1000) return { generation, probability: 0.75 };
   return { generation, probability: 1 };
 }
 
@@ -264,7 +265,7 @@ function createBase(type, placement, idSeed = placement.node.id, metadata = {}) 
     maxHp: definition.isResourceBase ? 120 : 100,
     alive: true,
     level: 1, ageSeconds: 0,
-    spawnClock: definition.interval - definition.firstDelay - (placement.initialDelayBonusSec ?? 0),
+    spawnClock: definition.interval - definition.firstDelay - (placement.initialDelayBonusSec ?? 0) - (metadata.operationWarmupSeconds ?? 0),
     initialDelayBonusSec: placement.initialDelayBonusSec ?? 0,
     frontPressureMultiplier: placement.frontPressureMultiplier ?? 1,
     wavesSent: 0, routeDistance: placement.route,
@@ -362,7 +363,8 @@ export class WaveSystem {
       if (!placement) continue;
       const base = createBase(type, placement, `${anchorBase.id}:${type}:${spawnedFrontline}`, {
         frontlineAnchorBaseId: anchorBase.id,
-        frontlineAnchorNodeId: anchorBase.nodeId
+        frontlineAnchorNodeId: anchorBase.nodeId,
+        operationWarmupSeconds: OPERATION_TEMPO_CONFIG.frontlineReactionDelaySeconds
       });
       state.world.enemyBases.push(base);
       spawnedFrontline += 1;
@@ -435,13 +437,18 @@ export class WaveSystem {
       const interval = waveIntervalForBase(definition, base.level, state.world.city.hp)
         * density.intervalMultiplier
         * Math.max(1, Number(base.frontPressureMultiplier) || 1)
-        * openingMultiplier;
-      if (openingPressureLimited(state) && activeWaveCount(state) >= OPENING_ACTIVE_WAVE_LIMIT) {
+        * openingMultiplier
+        * operationWaveIntervalMultiplier(state, base);
+      const activeLimit = Math.min(
+        openingPressureLimited(state) ? OPENING_ACTIVE_WAVE_LIMIT : Number.POSITIVE_INFINITY,
+        operationActiveWaveLimit(state)
+      );
+      if (activeWaveCount(state) >= activeLimit) {
         base.spawnClock = Math.min(base.spawnClock, interval);
         continue;
       }
       if (base.spawnClock >= interval) {
-        if (openingPressureLimited(state) && activeWaveCount(state) >= OPENING_ACTIVE_WAVE_LIMIT) {
+        if (activeWaveCount(state) >= activeLimit) {
           base.spawnClock = Math.min(base.spawnClock, interval);
           continue;
         }

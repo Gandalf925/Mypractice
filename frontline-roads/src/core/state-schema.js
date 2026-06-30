@@ -75,7 +75,8 @@ export function createInitialState() {
       lastError: null,
       combatInitialized: false,
       performance: { frames: 0, slowFrames: 0, lastFrameMs: 0 },
-      regionalSimulation: { peripheralAccumulator: 0, dormantAccumulator: 0 }
+      regionalSimulation: { peripheralAccumulator: 0, dormantAccumulator: 0 },
+      gameOver: null
     }
   };
 }
@@ -112,6 +113,7 @@ export function validateState(state) {
   if (!object(state?.civilization)) errors.push('civilization is required');
   if (!object(state?.inventory?.resources)) errors.push('inventory is required');
   if (!object(state?.runtime)) errors.push('runtime is required');
+  if (state?.runtime?.gameOver != null && (!object(state.runtime.gameOver) || typeof state.runtime.gameOver.reason !== 'string')) errors.push('gameOver is invalid');
   if (!Array.isArray(state?.world?.enemyBases) || !Array.isArray(state?.world?.baseRespawns) || (state?.world?.playerBases !== undefined && !Array.isArray(state.world.playerBases)) || (state?.world?.fieldBases !== undefined && !Array.isArray(state.world.fieldBases))) errors.push('world collections are invalid');
   if (!Array.isArray(state?.combat?.enemies) || (state?.combat?.friendlySquads !== undefined && !Array.isArray(state.combat.friendlySquads)) || !Array.isArray(state?.combat?.defenses) || !object(state?.combat?.waves)) errors.push('combat collections are invalid');
   if (!Array.isArray(state?.civilization?.buildings) || !Array.isArray(state?.civilization?.productionQueues)) errors.push('civilization collections are invalid');

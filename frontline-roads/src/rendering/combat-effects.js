@@ -6,7 +6,7 @@ const EFFECT_DURATION = Object.freeze({
   explosion: 720,
   kill: 780,
   cityHit: 680,
-  cityDefeated: 1500,
+  homeBaseDestroyed: 1500,
   defenseBuilt: 780,
   defenseRepaired: 720,
   defenseUpgraded: 920,
@@ -96,7 +96,7 @@ export class CombatEffects {
     register('combat:explosion', 'explosion');
     register('combat:enemy-killed', 'kill');
     register('combat:city-hit', 'cityHit', payload => ({ ...payload, city: true }));
-    register('combat:city-defeated', 'cityDefeated', payload => ({ ...payload, city: true }));
+    register('game:home-base-destroyed', 'homeBaseDestroyed', payload => ({ ...payload, city: true }));
     register('combat:defense-built', 'defenseBuilt', payload => ({ defenseId: payload.defense?.id }));
     register('combat:defense-repaired', 'defenseRepaired');
     register('combat:defense-upgraded', 'defenseUpgraded');
@@ -131,7 +131,7 @@ export class CombatEffects {
     context.save();
     context.globalCompositeOperation = glowEnabled ? 'screen' : 'source-over';
     for (const effect of visibleEffects) {
-      const critical = ['cityHit', 'cityDefeated', 'defenseDestroyed'].includes(effect.type);
+      const critical = ['cityHit', 'homeBaseDestroyed', 'defenseDestroyed'].includes(effect.type);
       if (preferences.quality === 'minimal' && !critical) continue;
       const elapsed = Math.max(0, timeMs - effect.startedAt);
       const animated = preferences.motion !== false;
@@ -179,7 +179,7 @@ export class CombatEffects {
       } else if (effect.type === 'cityHit') {
         screenAlert = Math.max(screenAlert, fade * 0.72);
         ring(context, point, 18 + progress * 42, '#ff5268', fade, 2, true, glowEnabled);
-      } else if (effect.type === 'cityDefeated') {
+      } else if (effect.type === 'homeBaseDestroyed') {
         screenAlert = Math.max(screenAlert, fade);
         ring(context, point, 20 + progress * 90, '#ff284d', fade, 3, true, glowEnabled);
         ring(context, point, 12 + progress * 56, '#ff9aaa', fade * 0.8, 1.5, false, glowEnabled);

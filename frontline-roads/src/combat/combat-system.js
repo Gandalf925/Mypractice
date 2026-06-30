@@ -5,9 +5,11 @@ import { buildCombatSpatialIndex } from './combat-spatial-index.js';
 import { FrontierSystem } from '../exploration/frontier-system.js';
 import { FriendlyForceSystem, friendlySquadPosition } from './friendly-force-system.js';
 import { RecoverySystem } from '../exploration/recovery-system.js';
-import { CITY_RECOVERY_DELAY_SECONDS, CITY_RECOVERY_HP_PER_SECOND } from './definitions.js';
+import { CITY_RECOVERY_HP_PER_SECOND } from './definitions.js';
 import { defenseWorldPosition } from './combat-geometry.js';
-import { applyCityDefeatRecovery, beginEnemyRegroup } from '../core/recovery-balance.js';
+import { GAME_OVER_SOURCE, markHomeBaseDestroyed } from '../core/home-base-destruction.js';
+import { LifecycleState } from '../core/constants.js';
+import { maybeEmitHomeBaseRiskWarnings } from './operation-tempo.js';
 import {
   REGION_ACTIVITY,
   REGION_ACTIVITY_CONFIG,
@@ -59,6 +61,15 @@ function assignmentsForState(state, spatial) {
   return { enemies, defenses, friendlySquads, counts };
 }
 
+
+function homeBaseHp(state) {
+  return Number(state?.world?.city?.hp ?? 0);
+}
+
+function homeBaseDestroyed(state) {
+  return homeBaseHp(state) <= 0;
+}
+
 export class CombatSystem {
   constructor(events) {
     this.enemySystem = new EnemySystem(events);
@@ -70,10 +81,20 @@ export class CombatSystem {
     this.events = events;
   }
 
+  finishHomeBaseDestruction(state, { source = GAME_OVER_SOURCE.COMBAT, beforeHp = null } = {}) {
+    const gameOver = markHomeBaseDestroyed(state, {
+      source,
+      finalDamage: Math.max(0, Number(beforeHp ?? 0) - homeBaseHp(state))
+    });
+    this.events?.emit('game:home-base-destroyed', { gameOver });
+    return gameOver;
+  }
+
   updateRegion(state, elapsedSeconds, activity, assignments, initialSpatial = null) {
     let remaining = Math.max(0, elapsedSeconds);
     let spatial = initialSpatial;
     while (remaining > 0.0001) {
+      if (homeBaseDestroyed(state)) return false;
       const step = Math.min(REGION_ACTIVITY_CONFIG.maximumSimulationSubstepSeconds, remaining);
       spatial ??= buildCombatSpatialIndex(state);
       this.defenseSystem.update(
@@ -82,25 +103,36 @@ export class CombatSystem {
         spatial,
         defense => assignments.defenses.get(defense.id) === activity
       );
+      if (homeBaseDestroyed(state)) return false;
       this.friendlyForceSystem.update(
         state,
         step,
         spatial,
         squad => assignments.friendlySquads.get(squad.id) === activity
       );
+      if (homeBaseDestroyed(state)) return false;
       this.enemySystem.update(
         state,
         step,
         spatial,
         enemy => assignments.enemies.get(enemy.id) === activity
       );
+      if (homeBaseDestroyed(state)) return false;
       remaining -= step;
       spatial = null;
     }
+    return true;
   }
 
   update(state, deltaSeconds) {
+    if (state?.lifecycle === LifecycleState.DESTROYED || state?.runtime?.gameOver) return;
+    const beforeHp = homeBaseHp(state);
+    if (beforeHp <= 0) {
+      this.finishHomeBaseDestruction(state, { source: GAME_OVER_SOURCE.COMBAT, beforeHp });
+      return;
+    }
     updateCityRecovery(state, deltaSeconds);
+    maybeEmitHomeBaseRiskWarnings(state, this.events);
     this.recoverySystem.update(state, deltaSeconds);
     this.frontierSystem.update(state, deltaSeconds);
     this.waveSystem.update(state, deltaSeconds);
@@ -109,35 +141,27 @@ export class CombatSystem {
     const spatial = buildCombatSpatialIndex(state);
     const assignments = assignmentsForState(state, spatial);
     if (due.active > 0 && assignments.counts[REGION_ACTIVITY.ACTIVE] > 0) {
-      this.updateRegion(state, due.active, REGION_ACTIVITY.ACTIVE, assignments, spatial);
+      if (!this.updateRegion(state, due.active, REGION_ACTIVITY.ACTIVE, assignments, spatial)) {
+        this.finishHomeBaseDestruction(state, { source: GAME_OVER_SOURCE.COMBAT, beforeHp });
+        return;
+      }
     }
     if (due.peripheral > 0 && assignments.counts[REGION_ACTIVITY.PERIPHERAL] > 0) {
-      this.updateRegion(state, due.peripheral, REGION_ACTIVITY.PERIPHERAL, assignments);
+      if (!this.updateRegion(state, due.peripheral, REGION_ACTIVITY.PERIPHERAL, assignments)) {
+        this.finishHomeBaseDestruction(state, { source: GAME_OVER_SOURCE.COMBAT, beforeHp });
+        return;
+      }
     }
     if (due.dormant > 0 && assignments.counts[REGION_ACTIVITY.DORMANT] > 0) {
-      this.updateRegion(state, due.dormant, REGION_ACTIVITY.DORMANT, assignments);
+      if (!this.updateRegion(state, due.dormant, REGION_ACTIVITY.DORMANT, assignments)) {
+        this.finishHomeBaseDestruction(state, { source: GAME_OVER_SOURCE.COMBAT, beforeHp });
+        return;
+      }
     }
 
-    if (state.world.city.hp <= 0) {
-      const opening = Math.max(0, Math.floor(Number(state.civilization?.level) || 0)) === 0;
-      const recovery = applyCityDefeatRecovery(state, opening);
-      state.world.city.hp = recovery.hp;
-      state.combat.cityRecoveryCooldown = CITY_RECOVERY_DELAY_SECONDS;
-      state.combat.enemies = [];
-      state.combat.waves.active = {};
-      for (const base of state.world.enemyBases ?? []) {
-        if (base.alive) base.spawnClock = 0;
-      }
-      beginEnemyRegroup(state, recovery.regroupSeconds);
+    if (homeBaseDestroyed(state)) {
       state.civilization.progress.perfectWaveStreak = 0;
-      this.events?.emit('combat:city-defeated', { recoveryCost: recovery.requested, paid: recovery.paid, fullyPaid: recovery.fullyPaid, recoveryReserve: recovery.reserve, openingProtection: opening });
-      this.events?.emit('message', {
-        text: recovery.fullyPaid
-          ? opening
-            ? '序盤防衛線が崩壊しました。応急再編成後、修理用資源を残して敵の再進軍を遅らせました。'
-            : '都市防衛線が崩壊しました。緊急再編成後、修理用資源を確保して敵の再進軍を遅らせました。'
-          : '都市防衛線が崩壊しました。備蓄を使い切らず、最低限の再編成と修理余力を確保しました。'
-      });
+      this.finishHomeBaseDestruction(state, { source: GAME_OVER_SOURCE.COMBAT, beforeHp });
     }
   }
 }

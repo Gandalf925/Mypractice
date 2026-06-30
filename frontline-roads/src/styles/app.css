@@ -479,7 +479,15 @@ footer::before { content: "RADAR BUILD // "; }
 }
 .contextPanel > strong { color: var(--accent); font-size: 14px; letter-spacing: 0.05em; }
 .contextPanel p { margin: 4px 0 9px; color: var(--muted); font-size: 12px; line-height: 1.48; }
-#contextActions { display: flex; gap: 7px; overflow-x: auto; }
+#contextActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  max-height: min(28vh, 160px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
 #contextActions button,
 .requirementRow button,
 .buttonRow button,
@@ -493,7 +501,15 @@ footer::before { content: "RADAR BUILD // "; }
   font-weight: 800;
   clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
 }
-#contextActions button { padding: 8px 10px; white-space: nowrap; font-size: 12px; }
+#contextActions button {
+  flex: 1 1 120px;
+  min-width: 0;
+  padding: 8px 10px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+  font-size: 12px;
+}
 
 .offlineSummary {
   position: absolute;
@@ -1213,13 +1229,23 @@ button, input, select, textarea { font-size: inherit; }
 .contextPanel.is-defense-mode #contextActions {
   position: static;
   flex: 0 0 auto;
+  flex-wrap: wrap;
+  max-height: min(22vh, 142px);
   margin-top: 7px;
   padding-top: 7px;
   border-top: 1px solid rgba(101,255,208,.13);
+  overflow-x: hidden;
+  overflow-y: auto;
   background: rgba(2,20,23,.98);
+  -webkit-overflow-scrolling: touch;
 }
 .contextPanel.is-defense-mode #contextActions button {
+  flex: 1 1 112px;
+  min-width: 0;
   padding: 7px 9px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
   font-size: 11px;
 }
 .contextPanel.is-defense-upgrade,
@@ -1803,4 +1829,165 @@ button, input, select, textarea { font-size: inherit; }
 button:disabled {
   cursor: not-allowed;
   opacity: .48;
+}
+
+/* Localized copy stays readable instead of being clipped. */
+.notification {
+  max-width: min(92vw, 560px);
+  max-height: min(18vh, 96px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  white-space: normal;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+  -webkit-overflow-scrolling: touch;
+}
+.toolButton span {
+  display: -webkit-box;
+  max-width: 82px;
+  line-height: 1.08;
+  text-align: center;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.toolButton small {
+  display: block;
+  max-width: 82px;
+  max-height: 22px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.resourceChip em {
+  white-space: nowrap;
+}
+.wideButton {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+@media (max-width: 420px) {
+  .toolButton { flex-basis: 90px; }
+  .toolButton span,
+  .toolButton small { max-width: 78px; }
+  .resourceChip { min-width: 86px; gap: 5px; padding-inline: 6px; }
+}
+
+.gameOverOverlay {
+  z-index: 64;
+  background: rgba(0, 5, 6, 0.90);
+}
+.gameOverCard {
+  width: min(640px, 100%);
+  max-height: calc(100vh - var(--safe-top) - var(--safe-bottom) - 28px);
+}
+.gameOverBody {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.gameOverMessage,
+.gameOverDetails {
+  color: var(--muted);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.gameOverStatsBlock h2 {
+  color: var(--accent);
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  margin: 14px 0 8px;
+}
+.gameOverStats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+.gameOverStats div {
+  border: 1px solid rgba(101,255,208,.24);
+  background: rgba(5, 25, 22, 0.72);
+  padding: 8px 9px;
+}
+.gameOverStats span {
+  display: block;
+  color: #8db9af;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.gameOverStats strong {
+  display: block;
+  color: #e9fff8;
+  font-size: 15px;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+.gameOverActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.gameOverActions button {
+  flex: 1 1 170px;
+  min-width: 0;
+  border: 1px solid var(--line-strong);
+  background: rgba(7, 45, 37, 0.94);
+  color: #dffdf4;
+  font: inherit;
+  font-weight: 800;
+  padding: 11px 12px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+}
+
+.gameOverReviewBanner {
+  position: fixed;
+  z-index: 58;
+  left: max(14px, env(safe-area-inset-left));
+  right: max(14px, env(safe-area-inset-right));
+  bottom: calc(var(--safe-bottom) + 92px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 109, 135, 0.72);
+  background: rgba(42, 4, 14, 0.92);
+  box-shadow: 0 0 20px rgba(255, 55, 104, 0.18);
+  color: #f9fff9;
+  clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+}
+.gameOverReviewBanner[hidden] { display: none !important; }
+.gameOverReviewBanner strong {
+  color: #ff8ba3;
+  overflow-wrap: anywhere;
+}
+.gameOverReviewBanner div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.gameOverReviewBanner button {
+  border: 1px solid rgba(101,255,208,.62);
+  background: rgba(7,45,37,.94);
+  color: #dffdf4;
+  font: inherit;
+  font-weight: 800;
+  padding: 8px 10px;
+  min-width: 112px;
+}
+html[data-lifecycle="DESTROYED"] #combatTools .toolButton:not([data-tool="select"]),
+html[data-lifecycle="DESTROYED"] #contextActions button,
+html[data-lifecycle="DESTROYED"] .modalBody button[data-action],
+html[data-lifecycle="DESTROYED"] .modalBody button[data-use-roadside],
+html[data-lifecycle="DESTROYED"] .modalBody button[data-deploy-roadside],
+html[data-lifecycle="DESTROYED"] .modalBody button[data-craft-roadside],
+html[data-lifecycle="DESTROYED"] .modalBody button[data-remove-mine] {
+  opacity: 0.45;
 }

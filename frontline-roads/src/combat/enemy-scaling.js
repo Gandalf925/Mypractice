@@ -1,3 +1,4 @@
+import { OPERATION_TEMPO_CONFIG } from './operation-tempo.js';
 const BASE_LEVEL_THRESHOLDS_SECONDS = Object.freeze([
   0, 20 * 60, 60 * 60, 120 * 60, 240 * 60, 420 * 60, 660 * 60, 960 * 60
 ]);
@@ -24,7 +25,7 @@ export const ENEMY_DENSITY_BY_CIVILIZATION = Object.freeze({
   7: Object.freeze({ populationCap: 860, waveMultiplier: 5.45, intervalMultiplier: 0.36, departureSpacingSeconds: 1.9 })
 });
 
-const POST_GRACE_DENSITY_RAMP_SECONDS = 10 * 60;
+const POST_GRACE_DENSITY_RAMP_SECONDS = OPERATION_TEMPO_CONFIG.civilizationPressureRampSeconds;
 
 export const ENEMY_WAVE_INTERVAL_MULTIPLIERS = Object.freeze({
   1: 1.00, 2: 1.00, 3: 0.95, 4: 0.90, 5: 0.85, 6: 0.81, 7: 0.77, 8: 0.73

@@ -5,6 +5,25 @@ import { cloneRuntimeState } from './runtime-state.js';
 import { attachGraphIndexes } from '../roads/road-graph.js';
 import { validateState } from './state-schema.js';
 
+
+const TERMINAL_TRANSACTION_PREFIXES = Object.freeze([
+  'save:',
+  'game-over:',
+  'tab:fresh-save-rehydrated'
+]);
+
+function isTerminalState(state) {
+  return state?.lifecycle === LifecycleState.DESTROYED || Boolean(state?.runtime?.gameOver);
+}
+
+function canMutateTerminalState(reason) {
+  return TERMINAL_TRANSACTION_PREFIXES.some(prefix => String(reason ?? '').startsWith(prefix));
+}
+
+function terminalResult() {
+  return { ok: false, reason: '作戦は終了しています。戦況確認または新規開始のみ実行できます。' };
+}
+
 function stateError(errors) {
   return new AppError(ErrorCode.INVALID_STATE, errors.join(', '), { recoverable: false });
 }
@@ -54,6 +73,7 @@ export class StateStore {
   }
 
   transaction(mutator, reason = 'state:transaction', { emit = false, validate = true } = {}) {
+    if (isTerminalState(this.#state) && !canMutateTerminalState(reason)) return terminalResult();
     return this.#events.transaction(() => {
       const draft = this.#cloneState(this.#state);
       const result = mutator(draft);
@@ -70,6 +90,7 @@ export class StateStore {
   }
 
   advance(mutator, reason = 'state:advance', { emit = false, validate = false } = {}) {
+    if (isTerminalState(this.#state) && !canMutateTerminalState(reason)) return undefined;
     const result = mutator(this.#state);
     this.#state.runtime.updatedAt = now();
     if (validate) {

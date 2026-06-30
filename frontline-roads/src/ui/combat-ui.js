@@ -74,6 +74,7 @@ export class CombatUi {
     this.buildSites = [];
     this.buildPlacementSignature = '';
     this.toolAffordabilitySignature = '';
+    this.toolLanguageSignature = '';
     this.orderPlanning = null;
     this.contextDisclosureKey = '';
     this.contextDisclosureOpen = false;
@@ -92,6 +93,10 @@ export class CombatUi {
   }
 
   localize(text = '') { return this.i18n?.copy?.(text) ?? text; }
+
+  shortLabel(text = '') { return this.i18n?.short?.(text) ?? this.localize(text); }
+
+  compactBundle(bundle = {}) { return this.i18n?.compactBundleText?.(bundle) ?? bundleText(bundle); }
 
   clearObjectSelection({ hideContext = true } = {}) {
     if (this.orderPlanning) {
@@ -123,6 +128,7 @@ export class CombatUi {
 
   renderTools(state = this.store.snapshot()) {
     this.toolAffordabilitySignature = this.affordabilitySignature(state);
+    this.toolLanguageSignature = this.i18n?.language ?? 'ja';
     this.tools.textContent = '';
     const entries = [['select', { name: '選択', icon: '☝', cost: null }], ...Object.entries(DEFENSE_DEFINITIONS)];
     for (const [type, definition] of entries) {
@@ -132,8 +138,9 @@ export class CombatUi {
       button.className = `toolButton${type === this.selectedTool ? ' is-selected' : ''}${affordable ? '' : ' is-unaffordable'}`;
       button.dataset.tool = type;
       button.setAttribute?.('aria-pressed', String(type === this.selectedTool));
-      const cost = definition.cost ? bundleText(definition.cost) : '';
-      button.innerHTML = this.localize(`<strong>${definition.icon}</strong><span>${definition.name}</span>${cost ? `<small>${cost}</small>` : ''}`);
+      const cost = definition.cost ? this.compactBundle(definition.cost) : '';
+      const label = this.shortLabel(definition.name);
+      button.innerHTML = `<strong>${definition.icon}</strong><span>${label}</span>${cost ? `<small>${cost}</small>` : ''}`;
       button.addEventListener('click', () => this.selectTool(type));
       this.tools.appendChild(button);
     }
@@ -1319,7 +1326,8 @@ export class CombatUi {
     this.enemyCount.textContent = enemyTotalPopulation(state);
     this.civilizationLevel.textContent = state.civilization.level;
     const affordability = this.affordabilitySignature(state);
-    if (affordability !== this.toolAffordabilitySignature) this.renderTools(state);
+    const languageSignature = this.i18n?.language ?? 'ja';
+    if (affordability !== this.toolAffordabilitySignature || languageSignature !== this.toolLanguageSignature) this.renderTools(state);
     if (this.selectedTool !== 'select') this.refreshBuildPlacement(false, state);
     if (this.orderPlanning) {
       const subject = this.planningSubject(state);

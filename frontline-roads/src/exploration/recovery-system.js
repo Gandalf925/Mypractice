@@ -201,6 +201,7 @@ export class RecoverySystem {
   }
 
   update(state, deltaSeconds, now = Date.now()) {
+    if (state?.lifecycle === 'DESTROYED' || state?.runtime?.gameOver) return null;
     const active = state.world.recoveryCollection;
     if (!active) return null;
     const item = state.world.recoveryItems.find(value => value.id === active.itemId);

@@ -1,7 +1,7 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const RELEASE_VERSION = '0.36.3';
-const CACHE_NAME = `${CACHE_PREFIX}v0-36-3-localization-leak-audit`;
+const RELEASE_VERSION = '0.37.2';
+const CACHE_NAME = `${CACHE_PREFIX}v0-37-2-operation-tempo-nerf`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -45,6 +45,7 @@ const APP_SHELL = [
   './src/combat/enemy-system.js',
   './src/combat/enemy-grouping.js',
   './src/combat/enemy-scaling.js',
+  './src/combat/operation-tempo.js',
   './src/combat/enemy-base-system.js',
   './src/combat/enemy-base-placement.js',
   './src/combat/enemy-personalities.js',
@@ -60,6 +61,7 @@ const APP_SHELL = [
   './src/core/constants.js',
   './src/core/errors.js',
   './src/core/recovery-balance.js',
+  './src/core/home-base-destruction.js',
   './src/core/event-bus.js',
   './src/core/state-schema.js',
   './src/core/state-store.js',
@@ -174,8 +176,11 @@ async function serveApplicationAsset(request, event) {
 }
 
 async function serveNavigation(request) {
+  const url = new URL(request.url);
+  const refreshRequested = url.searchParams.get('refresh');
   try {
-    return await cacheResponse(request, await fetchWithTimeout(request));
+    const fetchRequest = refreshRequested ? new Request(request, { cache: 'reload' }) : request;
+    return await cacheResponse(request, await fetchWithTimeout(fetchRequest));
   } catch {
     const cache = await caches.open(CACHE_NAME);
     return await cache.match('./index.html') ?? Response.error();

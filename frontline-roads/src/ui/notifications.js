@@ -7,7 +7,7 @@ export class Notifications {
   }
 
   localize(message) {
-    return this.i18n?.copy?.(message) ?? String(message ?? '');
+    return this.i18n?.status?.(message) ?? this.i18n?.copy?.(message) ?? String(message ?? '');
   }
 
   show(message, duration = 2600) {

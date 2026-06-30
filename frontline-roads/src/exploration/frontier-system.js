@@ -293,6 +293,7 @@ export class FrontierSystem {
   }
 
   update(state, deltaSeconds) {
+    if (state?.lifecycle === 'DESTROYED' || state?.runtime?.gameOver) return;
     ensureFrontierState(state);
     state.combat.waves.frontierReconcileClock += deltaSeconds;
     let reachable = reachableFrontierNodeIds(state);

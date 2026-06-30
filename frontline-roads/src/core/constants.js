@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.36.3-localization-leak-audit';
+export const APP_VERSION = '0.37.2-operation-tempo-nerf';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 

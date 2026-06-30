@@ -76,8 +76,13 @@ export class MenuUi {
     `).join('');
   }
 
+  currentLanguage() {
+    const current = this.i18n?.language ?? 'en';
+    return SUPPORTED_LANGUAGES.find(language => language.code === current) ?? SUPPORTED_LANGUAGES[0];
+  }
+
   languageButtonMarkup({ compact = false } = {}) {
-    const current = this.i18n?.language ?? 'ja';
+    const current = this.i18n?.language ?? 'en';
     return SUPPORTED_LANGUAGES.map(language => {
       const active = language.code === current;
       const visible = compact ? language.flag : `${language.flag ?? ''} ${language.label}`.trim();

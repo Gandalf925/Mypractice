@@ -1,7 +1,7 @@
 {
   "name": "FRONTLINE ROADS",
   "short_name": "FRONTLINE",
-  "description": "現実の道路を防衛線へ変える位置情報ストラテジー",
+  "description": "A location strategy game that turns real roads into defense lines",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

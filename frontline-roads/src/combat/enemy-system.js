@@ -16,6 +16,7 @@ import { destroyFieldBase } from '../base/field-base-system.js';
 import { FRIENDLY_SQUAD_DEFINITIONS, friendlySquadDefinition, friendlySquadRuntimeDefinition } from './friendly-force-definitions.js';
 import { RECOVERY_BALANCE, beginEnemyRegroup } from '../core/recovery-balance.js';
 import { detachDefense } from './defense-lifecycle.js';
+import { applyHomeBaseDamage } from './operation-tempo.js';
 
 const FACILITY_ATTACK_RANGE_METERS = 20;
 const FACILITY_PRIORITY_PENALTY_SECONDS = 18;
@@ -83,11 +84,11 @@ function applyUnderbuiltOverrunPressure(state, deltaSeconds, events = null) {
   if (population <= pressureStart) return;
   const deficitRatio = Math.max(0, expectedLine - activeDefenses) / Math.max(1, expectedLine);
   const pressureRatio = Math.max(0, population - pressureStart) / populationCap;
-  const damage = (level - 4) * deficitRatio * (0.34 + pressureRatio) * 0.34 * Math.max(0, Number(deltaSeconds) || 0);
+  const rawDamage = (level - 4) * deficitRatio * (0.34 + pressureRatio) * 0.34 * Math.max(0, Number(deltaSeconds) || 0);
+  const damage = applyHomeBaseDamage(state, rawDamage);
   if (damage <= 0) return;
-  state.world.city.hp = Math.max(0, state.world.city.hp - damage);
   state.combat.cityRecoveryCooldown = CITY_RECOVERY_DELAY_SECONDS;
-  events?.emit('combat:city-hit', { damage, enemyId: 'underbuilt-overrun', unitCount: population, pressure: true });
+  events?.emit('combat:city-hit', { damage, rawDamage, enemyId: 'underbuilt-overrun', unitCount: population, pressure: true });
 }
 
 
@@ -776,14 +777,15 @@ export class EnemySystem {
       }
 
       if (enemy.nodeId === enemy.path.targetId && enemy.path.targetId === state.world.city.nodeId) {
-        state.world.city.hp = Math.max(0, state.world.city.hp - definition.cityDamage * groupAttackMultiplier(enemy, 'settlement'));
+        const rawCityDamage = definition.cityDamage * groupAttackMultiplier(enemy, 'settlement');
+        const cityDamage = applyHomeBaseDamage(state, rawCityDamage);
         state.combat.cityRecoveryCooldown = CITY_RECOVERY_DELAY_SECONDS;
         if ((definition.settlementDamage ?? 0) > 0) {
           state.combat.pendingSettlementDamage ??= [];
           state.combat.pendingSettlementDamage.push({ enemyId: enemy.id, enemyType: enemy.type, damage: definition.settlementDamage * groupAttackMultiplier(enemy, 'settlement') });
         }
         resolveWaveEnemy(state, enemy, true);
-        this.events?.emit('combat:city-hit', { damage: definition.cityDamage * groupAttackMultiplier(enemy, 'settlement'), enemyId: enemy.id, unitCount: enemyUnitCount(enemy) });
+        this.events?.emit('combat:city-hit', { damage: cityDamage, rawDamage: rawCityDamage, enemyId: enemy.id, unitCount: enemyUnitCount(enemy) });
         return true;
       }
 

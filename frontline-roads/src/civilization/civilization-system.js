@@ -8,6 +8,7 @@ import { ensureFriendlyForceState } from '../combat/friendly-force-system.js';
 import { ensureRecoveryState } from '../exploration/recovery-system.js';
 import { synchronizeDefenseTier } from './defense-upgrade.js';
 import { MAX_CIVILIZATION_LEVEL } from './data.js';
+import { LifecycleState } from '../core/constants.js';
 
 export function ensureCivilizationState(state, { initializeInventory = false } = {}) {
   state.runtime ??= {};
@@ -64,6 +65,7 @@ export class CivilizationSystem {
   }
 
   update(state, deltaSeconds) {
+    if (state?.lifecycle === LifecycleState.DESTROYED || state?.runtime?.gameOver) return;
     this.inventory.update(state, deltaSeconds);
     this.settlement.processDamageQueue(state);
     this.production.update(state, deltaSeconds);

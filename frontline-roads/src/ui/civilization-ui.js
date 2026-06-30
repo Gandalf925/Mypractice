@@ -255,6 +255,8 @@ export class CivilizationUi {
 
   localize(text = '') { return this.i18n?.copy?.(text) ?? text; }
 
+  shortLabel(text = '') { return this.i18n?.short?.(text) ?? this.localize(text); }
+
   open() {
     this.render();
     setVisible(this.panel, true);
@@ -354,10 +356,13 @@ export class CivilizationUi {
       (state.inventory.resources[key] ?? 0) > 0
       || ['wood', 'stone', 'fiber'].includes(key)
     );
-    this.resourceSummary.innerHTML = this.localize(visibleResources.map(key => {
+    const en = this.i18n?.language === 'en';
+    this.resourceSummary.innerHTML = visibleResources.map(key => {
       const { stored, capacity } = resourceAmountParts(state, key);
-      return `<span class="resourceChip" data-resource="${key}"><small>${RESOURCE_LABELS[key]}</small><strong>${stored}</strong><em>上限 ${capacity}</em></span>`;
-    }).join(''));
+      const label = this.shortLabel(RESOURCE_LABELS[key]);
+      const cap = en ? `Cap ${capacity}` : `上限 ${capacity}`;
+      return `<span class="resourceChip" data-resource="${key}"><small>${label}</small><strong>${stored}</strong><em>${cap}</em></span>`;
+    }).join('');
     this.resourceSummary.setAttribute(
       'aria-label',
       this.localize(visibleResources.map(key => {

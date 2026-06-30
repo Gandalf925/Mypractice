@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ja">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
@@ -19,13 +19,36 @@
     #assetRecovery button { width: 100%; margin-top: 16px; padding: 12px 14px; border: 1px solid rgba(101,255,208,.72); background: #062019; color: #dffdf4; font: inherit; font-weight: 700; }
   </style>
   <script>
-    globalThis.__FRONTLINE_RELEASE__ = Object.freeze({ version: '0.36.3', directory: 'frontline-roads' });
+    globalThis.__FRONTLINE_RELEASE__ = Object.freeze({ version: '0.37.2', directory: 'frontline-roads' });
     (() => {
       const release = globalThis.__FRONTLINE_RELEASE__;
       const navigatorRef = globalThis.navigator;
       const locationRef = globalThis.location;
       const sessionStorageRef = globalThis.sessionStorage;
       if (!navigatorRef?.serviceWorker || !locationRef) return;
+      const params = new URLSearchParams(locationRef.search ?? '');
+      const refreshRequested = params.get('refresh') === release.version || params.get('refresh') === '1';
+      const resetKey = `frontline-cache-reset:${release.version}`;
+      if (refreshRequested) {
+        let alreadyReset = false;
+        try { alreadyReset = sessionStorageRef?.getItem(resetKey) === '1'; } catch {}
+        if (!alreadyReset) {
+          try { sessionStorageRef?.setItem(resetKey, '1'); } catch {}
+          const clearWorkers = navigatorRef.serviceWorker.getRegistrations
+            ? navigatorRef.serviceWorker.getRegistrations().then(registrations => Promise.all(registrations.filter(registration => { try { return new URL(registration.scope).pathname.includes('/frontline-roads/'); } catch { return false; } }).map(registration => registration.unregister?.())))
+            : Promise.resolve();
+          const clearCaches = globalThis.caches?.keys
+            ? globalThis.caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('frontline-roads-')).map(key => globalThis.caches.delete(key))))
+            : Promise.resolve();
+          Promise.allSettled([clearWorkers, clearCaches]).finally(() => {
+            params.delete('refresh');
+            params.set('entry', release.version);
+            const query = params.toString();
+            locationRef.replace?.(`${locationRef.pathname}${query ? `?${query}` : ''}${locationRef.hash ?? ''}`);
+          });
+          return;
+        }
+      }
       const localHost = ['localhost', '127.0.0.1', '::1'].includes(locationRef.hostname);
       const fixtureRequested = new URLSearchParams(locationRef.search ?? '').get('devFixture') === '1';
       const fixtureAllowed = localHost || locationRef.protocol === 'file:' || globalThis.__FRONTLINE_TEST_FIXTURE__ === true;
@@ -191,6 +214,36 @@
       <button id="offlineClose" type="button" data-i18n="static.confirm">確認</button>
     </aside>
 
+
+
+    <section id="gameOverOverlay" class="modalOverlay gameOverOverlay" hidden aria-label="作戦終了" data-i18n-aria-label="static.gameOverLabel">
+      <div class="modalCard gameOverCard">
+        <header class="modalHeader">
+          <div><span class="eyebrow" data-i18n="static.gameOverEyebrow">OPERATION TERMINATED</span><h1 id="gameOverTitle" data-i18n="static.gameOverTitle">本拠地が破壊されました</h1></div>
+        </header>
+        <div class="modalBody gameOverBody">
+          <p id="gameOverMessage" class="gameOverMessage" data-i18n="static.gameOverMessage">防衛線は崩壊し、作戦継続は不可能です。</p>
+          <p id="gameOverDetails" class="gameOverDetails" hidden></p>
+          <section class="gameOverStatsBlock">
+            <h2 data-i18n="static.gameOverStatsTitle">作戦結果</h2>
+            <div id="gameOverStats" class="gameOverStats"></div>
+          </section>
+          <div class="gameOverActions">
+            <button id="gameOverReview" type="button" data-i18n="static.gameOverReview">戦況を確認</button>
+            <button id="gameOverNewRun" type="button" data-i18n="static.gameOverNewRun">新しく始める</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <aside id="gameOverReviewBanner" class="gameOverReviewBanner" hidden>
+      <strong data-i18n="static.gameOverReviewBanner">作戦終了：進行は停止しています</strong>
+      <div>
+        <button id="gameOverReopen" type="button" data-i18n="static.gameOverReopen">作戦結果を開く</button>
+        <button id="gameOverBannerNewRun" type="button" data-i18n="static.gameOverNewRun">新しく始める</button>
+      </div>
+    </aside>
 
     <section id="baseCommandPanel" class="modalOverlay" hidden aria-label="拠点司令部" data-i18n-aria-label="static.baseCommandLabel">
       <div class="modalCard baseCommandModalCard">
