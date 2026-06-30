@@ -79,7 +79,6 @@ function labelForProjectCheck(check) {
   if (check.kind === 'progress') {
     if (check.key === 'totalKills') return `敵撃破 ${Math.floor(check.current)}/${check.required}`;
     if (check.key === 'totalCampsCaptured') return `敵拠点攻略 ${Math.floor(check.current)}/${check.required}`;
-    if (check.key === 'cityHpStreak') return `都市HP維持 ${Math.floor(check.current)}/${check.required}秒`;
     return `進行条件 ${Math.floor(check.current)}/${check.required}`;
   }
   return `${check.kind} ${Math.floor(check.current)}/${check.required}`;

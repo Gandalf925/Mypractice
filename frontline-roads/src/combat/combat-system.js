@@ -134,8 +134,8 @@ export class CombatSystem {
     updateCityRecovery(state, deltaSeconds);
     maybeEmitHomeBaseRiskWarnings(state, this.events);
     this.recoverySystem.update(state, deltaSeconds);
-    this.frontierSystem.update(state, deltaSeconds);
     this.waveSystem.update(state, deltaSeconds);
+    this.frontierSystem.update(state, deltaSeconds);
 
     const due = consumeRegionalSimulationTime(state, deltaSeconds);
     const spatial = buildCombatSpatialIndex(state);
@@ -160,7 +160,6 @@ export class CombatSystem {
     }
 
     if (homeBaseDestroyed(state)) {
-      state.civilization.progress.perfectWaveStreak = 0;
       this.finishHomeBaseDestruction(state, { source: GAME_OVER_SOURCE.COMBAT, beforeHp });
     }
   }

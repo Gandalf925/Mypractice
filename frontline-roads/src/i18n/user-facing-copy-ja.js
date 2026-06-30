@@ -3543,10 +3543,6 @@ export const USER_FACING_COPY_JA = Object.freeze([
   },
   {
     "source": "src/ui/civilization-ui.js",
-    "text": "= settlementSlotLimit(state) && !sameStorageSlot) return { ok: false, label: '枠不足', reason: '集落の建設枠がありません。' }; if (!hasBundle(state, definition.cost)) return { ok: false, label: '資源不足', reason: `不足：${bundleText(definition.cost)}` }; return { ok: true, label: '建設', reason: '建設できます。' }; } function recipeSummaryText(recipe) { const input = bundleText(recipe.input); const output = bundleText(recipe.output); const projectNote = recipe.projectDelivery ? '・発展計画へ優先納入' : ''; return `投入 ${input}・完成 ${output}・${formatDuration(recipe.seconds)}${projectNote}`; } const PROJECT_STATUS_LABELS = Object.freeze({ AVAILABLE: '準備中', CONTRIBUTING: '納入中', READY: '建設開始可能', BUILDING: '建設中', PAUSED: '一時停止' }); function projectStatusLabel(status) { return PROJECT_STATUS_LABELS[status] ?? '準備中'; } function checkProgressText(check) { if (check.key === 'cityHpStreak') return `${formatDuration(check.current)}/${formatDuration(check.required)}`; return `${Math.floor(check.current)}/${Math.floor(check.required)}`; } function tabButton(id, label, active) { return `"
-  },
-  {
-    "source": "src/ui/civilization-ui.js",
     "text": "[key, category])) )); const CAPACITY_CATEGORY_LABELS = Object.freeze({ base: '基本資材', processed: '加工資材', ore: '鉱石', metal: '金属・部品' }); function storageCapacityBonus(definition, count = 1) { const result = {}; const copies = Math.max(0, Math.floor(Number(count) || 0)); for (let index = 0; index"
   },
   {
@@ -4003,10 +3999,6 @@ export const USER_FACING_COPY_JA = Object.freeze([
   },
   {
     "source": "src/ui/civilization-ui.js",
-    "text": "資源を使った修理"
-  },
-  {
-    "source": "src/ui/civilization-ui.js",
     "text": "加工資材の生産"
   },
   {
@@ -4016,10 +4008,6 @@ export const USER_FACING_COPY_JA = Object.freeze([
   {
     "source": "src/ui/civilization-ui.js",
     "text": "自作鍛鉄"
-  },
-  {
-    "source": "src/ui/civilization-ui.js",
-    "text": "完全防衛連続数"
   },
   {
     "source": "src/ui/civilization-ui.js",
@@ -4040,10 +4028,6 @@ export const USER_FACING_COPY_JA = Object.freeze([
   {
     "source": "src/ui/civilization-ui.js",
     "text": "攻城隊長撃破"
-  },
-  {
-    "source": "src/ui/civilization-ui.js",
-    "text": "都市耐久の連続維持"
   },
   {
     "source": "src/ui/civilization-ui.js",

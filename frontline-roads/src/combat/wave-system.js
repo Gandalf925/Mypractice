@@ -15,8 +15,14 @@ const OPENING_ACTIVE_WAVE_LIMIT = 2;
 const OPENING_GRACE_SECONDS = 15 * 60;
 const WAVE_SPAWN_RETRY_SECONDS = 12;
 
-function activeWaveCount(state) {
-  return Object.values(state.combat?.waves?.active ?? {}).filter(wave => (wave?.remaining ?? 0) > 0).length;
+function activeEnemyBaseWaveCount(state) {
+  return Object.values(state.combat?.waves?.active ?? {})
+    .filter(wave => (wave?.remaining ?? 0) > 0 && !wave?.frontierSourceId)
+    .length;
+}
+
+export function activeEnemyBaseWaveCountForState(state) {
+  return activeEnemyBaseWaveCount(state);
 }
 
 export function reconcileActiveWaveRecords(state) {
@@ -443,12 +449,12 @@ export class WaveSystem {
         openingPressureLimited(state) ? OPENING_ACTIVE_WAVE_LIMIT : Number.POSITIVE_INFINITY,
         operationActiveWaveLimit(state)
       );
-      if (activeWaveCount(state) >= activeLimit) {
+      if (activeEnemyBaseWaveCount(state) >= activeLimit) {
         base.spawnClock = Math.min(base.spawnClock, interval);
         continue;
       }
       if (base.spawnClock >= interval) {
-        if (activeWaveCount(state) >= activeLimit) {
+        if (activeEnemyBaseWaveCount(state) >= activeLimit) {
           base.spawnClock = Math.min(base.spawnClock, interval);
           continue;
         }

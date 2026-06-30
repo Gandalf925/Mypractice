@@ -99,7 +99,7 @@ export class MenuUi {
     return SUPPORTED_LANGUAGES.map(language => {
       const active = language.code === current;
       const visible = `${language.flag ?? ''} ${language.label}`.trim();
-      return `<button type="button" data-language-choice="${escapeHtml(language.code)}" aria-label="${escapeHtml(language.nativeName)}" title="${escapeHtml(language.nativeName)}" aria-pressed="${active ? 'true' : 'false'}" class="${active ? 'active' : ''}">${escapeHtml(visible)}</button>`;
+      return `<button type="button" data-language-choice="${escapeHtml(language.code)}" data-i18n-raw="true" aria-label="${escapeHtml(language.nativeName)}" title="${escapeHtml(language.nativeName)}" aria-pressed="${active ? 'true' : 'false'}" class="${active ? 'active' : ''}">${escapeHtml(visible)}</button>`;
     }).join('');
   }
 
@@ -107,7 +107,7 @@ export class MenuUi {
     const current = this.currentLanguage();
     const next = languageMeta(this.nextBootLanguage());
     const label = this.t('language.toggleButtonLabel', '言語を切り替え');
-    const title = `${this.t('language.toggleButtonTitle', 'English / 中文 / 日本語')} · ${current.nativeName} → ${next.nativeName}`;
+    const title = `${this.t('language.toggleButtonTitle', 'English / 中文 / 한국어 / Tiếng Việt / 日本語')} · ${current.nativeName} → ${next.nativeName}`;
     return `<button type="button" data-language-toggle="next" data-current-language="${escapeHtml(current.code)}" data-next-language="${escapeHtml(next.code)}" aria-label="${escapeHtml(`${label}: ${current.nativeName}`)}" title="${escapeHtml(title)}" class="active">${escapeHtml(current.flag ?? current.label)}</button>`;
   }
 

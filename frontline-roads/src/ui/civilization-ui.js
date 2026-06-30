@@ -58,7 +58,6 @@ const PROJECT_STATUS_LABELS = Object.freeze({
 function projectStatusLabel(status) { return PROJECT_STATUS_LABELS[status] ?? '準備中'; }
 
 function checkProgressText(check) {
-  if (check.key === 'cityHpStreak') return `${formatDuration(check.current)}/${formatDuration(check.required)}`;
   return `${Math.floor(check.current)}/${Math.floor(check.required)}`;
 }
 
@@ -178,12 +177,12 @@ function friendlyUnitCatalog(state) {
 
 function checkLabel(check) {
   const labels = {
-    totalKills: '敵撃破', totalCampsCaptured: '敵拠点破壊', totalRepairHpPaid: '資源を使った修理',
+    totalKills: '敵撃破', totalCampsCaptured: '敵拠点破壊',
     totalProduced: '加工資材の生産', selfProducedBronze: '自作青銅塊', selfProducedWroughtIron: '自作鍛鉄',
-    perfectWaveStreak: '完全防衛連続数', activeFieldBases: '稼働中の簡易拠点',
+    activeFieldBases: '稼働中の簡易拠点',
     copperCampsCaptured: '銅鉱野営地制圧', tinCampsCaptured: '錫鉱野営地制圧',
     ironCampsCaptured: '鉄鉱野営地制圧', siegeCaptainsDefeated: '攻城隊長撃破',
-    cityHpStreak: '都市耐久の連続維持', recoveredArtifacts: '現地回収した特殊アイテム', barrier0: '丸太柵', single0: '投石台',
+    recoveredArtifacts: '現地回収した特殊アイテム', barrier0: '丸太柵', single0: '投石台',
     otherDefense0: 'その他の防衛設備', upgradedDefenses: '改良済み防衛設備',
     upgradedDefenseKinds: '改良設備の種類', barrier2: '石壁', gate2: '石門', gate3: '青銅門',
     bronzeDefenses: '青銅設備', bronzeDefenseKinds: '青銅設備の種類', wallAtLeast2: '石壁以上',
@@ -215,13 +214,11 @@ export function projectCheckGuidance(check, state) {
   const guidance = {
     totalKills: '防衛戦または派兵で敵部隊を撃破します。',
     totalCampsCaptured: '敵拠点を選択して部隊を派兵し、拠点HPを0にします。',
-    totalRepairHpPaid: '損傷した防衛設備を選択し、資源を使って手動修理します。',
     totalProduced: '対応する集落施設を建設し、生産予約を実行します。',
     selfProducedBronze: '銅炉・錫炉・試験青銅炉または青銅工房を使い、自分の施設で青銅を生産します。',
     selfProducedWroughtIron: '塊鉄炉で鉄塊を作り、鍛冶場で鍛鉄へ加工します。',
     selfProducedSteel: '製鋼炉で鍛鉄と木炭から鋼材を生産します。敵拠点の報酬だけでは加算されません。',
     selfProducedMechanism: '機構工房で鋼材・加工木材・縄から機構部品を生産します。敵拠点の報酬だけでは加算されません。',
-    perfectWaveStreak: '敵を都市へ到達させずに通常ウェーブを全滅させると1回加算されます。突破されると連続数は0へ戻ります。',
     activeFieldBases: 'BASESから道路上へ簡易拠点を設置します。既存拠点と建設圏が重ならない地点を選びます。',
     copperCampsCaptured: '「Cu」と表示される銅鉱野営地を破壊します。',
     tinCampsCaptured: '「Sn」と表示される錫鉱野営地を破壊します。',
@@ -229,8 +226,7 @@ export function projectCheckGuidance(check, state) {
     siegeCaptainsDefeated: '青銅期以降の攻城部隊に現れる攻城隊長を撃破します。',
     generation5CommandersDefeated: '鋼鉄世代のウェーブに現れる鋼鉄隊長を撃破します。',
     generation6CommandersDefeated: '機械世代のウェーブに現れる戦列指揮官を撃破します。',
-    machineWorksCaptured: '「Mc」と表示される機械工廠を破壊します。',
-    cityHpStreak: `都市HPを${Math.floor(Number(check.threshold) || 70)}以上に保ちます。下回ると維持時間は0から再計測されます。`
+    machineWorksCaptured: '「Mc」と表示される機械工廠を破壊します。'
   };
   return guidance[check.key] ?? '条件に対応する戦闘・建設・生産を進めます。';
 }

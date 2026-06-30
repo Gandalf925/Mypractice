@@ -35,7 +35,9 @@ export function ensureCivilizationState(state, { initializeInventory = false } =
   state.civilization.progress.totalProduced ??= {};
   state.civilization.progress.bossesDefeated ??= {};
   state.civilization.progress.campsCapturedByType ??= {};
-  state.civilization.progress.cityHpStreaks = { 50: 0, 60: 0, 70: 0, ...(state.civilization.progress.cityHpStreaks ?? {}) };
+  delete state.civilization.progress.totalRepairHpPaid;
+  delete state.civilization.progress.perfectWaveStreak;
+  delete state.civilization.progress.cityHpStreaks;
   state.civilization.progress.selfProducedSteel ??= 0;
   state.civilization.progress.selfProducedMechanism ??= 0;
   ensureInventoryState(state, { initialize: initializeInventory });

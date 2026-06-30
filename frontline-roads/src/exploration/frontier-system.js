@@ -6,7 +6,9 @@ import { activePlayerBases } from '../base/player-bases.js';
 import { reachableRoadNodeIds } from '../roads/road-graph.js';
 
 const MAX_FRONTIER_SOURCES = 8;
-const ACTIVE_FRONTIER_LIMIT = 3;
+const ACTIVE_FRONTIER_SOURCE_LIMIT = 3;
+const FRONTIER_ACTIVE_WAVE_LIMIT_BY_CIVILIZATION = Object.freeze([1, 1, 2, 2, 2, 3, 3, 3]);
+const FRONTIER_SPAWN_INTERVAL_MULTIPLIER = 1.65;
 const FRONTIER_EDGE_MARGIN_METERS = 130;
 const MIN_SOURCE_SEPARATION_METERS = 720;
 const FRONTIER_SPAWN_RETRY_SECONDS = 12;
@@ -236,11 +238,27 @@ function waveForSource(state, source) {
   return [...profile.waves[tier - 1]];
 }
 
+function frontierActiveWaveCount(state) {
+  return Object.values(state.combat?.waves?.active ?? {})
+    .filter(wave => (wave?.remaining ?? 0) > 0 && wave?.frontierSourceId)
+    .length;
+}
+
+export function frontierActiveWaveLimit(state) {
+  const level = Math.max(0, Math.min(7, Math.floor(Number(state?.civilization?.level) || 0)));
+  const limit = FRONTIER_ACTIVE_WAVE_LIMIT_BY_CIVILIZATION[level] ?? FRONTIER_ACTIVE_WAVE_LIMIT_BY_CIVILIZATION[0];
+  return state?.runtime?.offlineSimulation ? Math.max(1, Math.floor(limit * 0.50)) : limit;
+}
+
+export function frontierSpawnIntervalSeconds(source) {
+  return Math.max(1, Number(source?.spawnIntervalSec) || 1) * FRONTIER_SPAWN_INTERVAL_MULTIPLIER;
+}
+
 function activeSources(state, reachableNodeIds) {
   return state.world.frontierSources
     .filter(source => source.status !== 'CLEARED' && source.entryNodeId && reachableNodeIds.has(source.entryNodeId))
     .sort((a, b) => b.threat - a.threat || a.id.localeCompare(b.id))
-    .slice(0, ACTIVE_FRONTIER_LIMIT);
+    .slice(0, ACTIVE_FRONTIER_SOURCE_LIMIT);
 }
 
 export function frontierPresentation(source) {
@@ -305,14 +323,20 @@ export class FrontierSystem {
       this.reconcile(state);
       reachable = reachableFrontierNodeIds(state);
     }
+    const activeLimit = frontierActiveWaveLimit(state);
     for (const source of activeSources(state, reachable)) {
       source.spawnClock += deltaSeconds;
-      while (source.spawnClock >= source.spawnIntervalSec) {
-        if (!this.spawnWave(state, source, reachable)) {
-          source.spawnClock = Math.max(0, source.spawnIntervalSec - FRONTIER_SPAWN_RETRY_SECONDS);
+      const interval = frontierSpawnIntervalSeconds(source);
+      while (source.spawnClock >= interval) {
+        if (frontierActiveWaveCount(state) >= activeLimit) {
+          source.spawnClock = Math.min(source.spawnClock, interval);
           break;
         }
-        source.spawnClock -= source.spawnIntervalSec;
+        if (!this.spawnWave(state, source, reachable)) {
+          source.spawnClock = Math.max(0, interval - FRONTIER_SPAWN_RETRY_SECONDS);
+          break;
+        }
+        source.spawnClock -= interval;
       }
     }
   }

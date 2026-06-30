@@ -1311,7 +1311,6 @@ export function repairNearbyDefenseWithEngineer(state, squadId, events = null) {
   if (Object.keys(missing).length) return { ok: false, reason: '現地修復に必要な資源が不足しています。', missing, cost, target };
   if (!consumeBundle(state, cost)) return { ok: false, reason: '現地修復の確定時に資源が不足しました。' };
   target.hp = Math.min(target.maxHp, target.hp + repairHp);
-  state.statistics.totalRepairHpPaid = (state.statistics.totalRepairHpPaid ?? 0) + repairHp;
   events?.emit('friendly:engineer-repair', { squadId, defenseId: target.id, repairHp, cost });
   events?.emit('message', { text: `工兵部隊が${Math.round(repairHp)}HPを現地修復しました。` });
   return { ok: true, target, repairHp, cost };

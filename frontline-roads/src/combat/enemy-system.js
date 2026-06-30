@@ -382,10 +382,6 @@ function resolveWaveUnits(state, enemy, breached, unitCount = 1, countOutcome = 
   record.remaining = Math.max(0, record.remaining - units);
   if (breached) record.breached = true;
   if (record.remaining > 0) return;
-  if (!record.guard && countOutcome) {
-    if (record.breached) state.civilization.progress.perfectWaveStreak = 0;
-    else state.civilization.progress.perfectWaveStreak = (state.civilization.progress.perfectWaveStreak ?? 0) + 1;
-  }
   delete state.combat.waves.active[enemy.waveId];
 }
 

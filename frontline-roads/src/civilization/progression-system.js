@@ -34,17 +34,14 @@ export function safeProjectContributionAmount(state, resource) {
 
 export function createProgressState() {
   return {
-    totalRepairHpPaid: 0,
     barriersBuilt: 0,
     totalProduced: {},
     selfProducedBronze: 0,
     selfProducedWroughtIron: 0,
     selfProducedSteel: 0,
     selfProducedMechanism: 0,
-    perfectWaveStreak: 0,
     bossesDefeated: {},
-    campsCapturedByType: {},
-    cityHpStreaks: { 50: 0, 60: 0, 70: 0 }
+    campsCapturedByType: {}
   };
 }
 
@@ -105,13 +102,11 @@ function progressCheckValue(state, key, requirement) {
   const progress = state.civilization.progress;
   if (key === 'totalKills') return state.statistics.kills;
   if (key === 'totalCampsCaptured') return state.statistics.campsCaptured;
-  if (key === 'totalRepairHpPaid') return progress.totalRepairHpPaid;
   if (key === 'totalProduced') return Object.values(progress.totalProduced).reduce((sum, value) => sum + Number(value || 0), 0);
   if (key === 'selfProducedBronze') return progress.selfProducedBronze;
   if (key === 'selfProducedWroughtIron') return progress.selfProducedWroughtIron;
   if (key === 'selfProducedSteel') return progress.selfProducedSteel ?? 0;
   if (key === 'selfProducedMechanism') return progress.selfProducedMechanism ?? 0;
-  if (key === 'perfectWaveStreak') return progress.perfectWaveStreak;
   if (key === 'siegeCaptainsDefeated') return progress.bossesDefeated.siegeCaptain ?? 0;
   if (key === 'activeFieldBases') return activeFieldBases(state).length;
   if (key === 'copperCampsCaptured') return progress.campsCapturedByType.copperCamp ?? 0;
@@ -120,7 +115,6 @@ function progressCheckValue(state, key, requirement) {
   if (key === 'machineWorksCaptured') return progress.campsCapturedByType.machineWorks ?? 0;
   if (key === 'generation5CommandersDefeated') return progress.bossesDefeated.steelCaptain ?? 0;
   if (key === 'generation6CommandersDefeated') return progress.bossesDefeated.machineCommander ?? 0;
-  if (key === 'cityHpStreak') return progress.cityHpStreaks[requirement.threshold] ?? 0;
   return 0;
 }
 
@@ -155,11 +149,10 @@ export function evaluateProject(state) {
     checks.push({ kind: 'building', key, current, required, complete: current >= required });
   }
   for (const [key, required] of Object.entries(definition.progress)) {
-    const requiredValue = key === 'cityHpStreak' ? required.seconds : required;
+    const requiredValue = required;
     const current = progressCheckValue(state, key, required);
     checks.push({
-      kind: 'progress', key, current, required: requiredValue, complete: current >= requiredValue,
-      ...(key === 'cityHpStreak' ? { threshold: required.threshold } : {})
+      kind: 'progress', key, current, required: requiredValue, complete: current >= requiredValue
     });
   }
   if ((definition.artifactsRequired ?? 0) > 0) {
@@ -217,12 +210,6 @@ export class ProgressionSystem {
   }
 
   update(state, deltaSeconds) {
-    const progress = state.civilization.progress;
-    for (const threshold of [50, 60, 70]) {
-      progress.cityHpStreaks[threshold] = state.world.city.hp >= threshold
-        ? (progress.cityHpStreaks[threshold] ?? 0) + deltaSeconds
-        : 0;
-    }
     const project = ensureProject(state);
     if (!project) return;
     if (project.status !== 'BUILDING') {
@@ -254,7 +241,6 @@ export class ProgressionSystem {
     const cost = repairCostForDefense(defense, missingHp);
     if (!consumeBundle(state, cost)) return { ok: false, reason: '修理資源が不足しています。' };
     defense.hp = defense.maxHp;
-    state.civilization.progress.totalRepairHpPaid += missingHp;
     this.events?.emit('combat:defense-repaired', { defenseId: defense.id, repairHp: missingHp, cost, automatic: false });
     return { ok: true, defense, cost };
   }

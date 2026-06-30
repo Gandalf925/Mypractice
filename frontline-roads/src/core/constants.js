@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.37.8-operation-guidance-actions';
+export const APP_VERSION = '0.38.5-indonesian-localization';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 

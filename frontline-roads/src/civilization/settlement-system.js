@@ -88,7 +88,6 @@ export class SettlementSystem {
     if (!consumeBundle(state, cost)) return { ok: false, reason: '修理資源が不足しています。', missing: missingBundle(state, cost) };
     building.hp = building.maxHp;
     building.history.repairs += missingHp;
-    state.civilization.progress.totalRepairHpPaid += missingHp;
     recalculateCapacity(state);
     this.events?.emit('civilization:building-repaired', { building, cost });
     return { ok: true, cost };

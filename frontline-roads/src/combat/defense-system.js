@@ -87,7 +87,6 @@ function operateRelay(state, tower, definition, graph, position, events) {
   const cost = automaticRepairCost(state, target, repairHp);
   if (!consumeBundle(state, cost)) return false;
   target.hp = Math.min(target.maxHp, target.hp + repairHp);
-  state.civilization.progress.totalRepairHpPaid += repairHp;
   events?.emit('combat:defense-repaired', { defenseId: target.id, repairHp, cost, automatic: true });
   return true;
 }
