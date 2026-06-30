@@ -356,11 +356,10 @@ export class CivilizationUi {
       (state.inventory.resources[key] ?? 0) > 0
       || ['wood', 'stone', 'fiber'].includes(key)
     );
-    const en = this.i18n?.language === 'en';
     this.resourceSummary.innerHTML = visibleResources.map(key => {
       const { stored, capacity } = resourceAmountParts(state, key);
       const label = this.shortLabel(RESOURCE_LABELS[key]);
-      const cap = en ? `Cap ${capacity}` : `上限 ${capacity}`;
+      const cap = `${this.localize('上限')} ${capacity}`;
       return `<span class="resourceChip" data-resource="${key}"><small>${label}</small><strong>${stored}</strong><em>${cap}</em></span>`;
     }).join('');
     this.resourceSummary.setAttribute(

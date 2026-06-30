@@ -1,7 +1,7 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const RELEASE_VERSION = '0.37.2';
-const CACHE_NAME = `${CACHE_PREFIX}v0-37-2-operation-tempo-nerf`;
+const RELEASE_VERSION = '0.37.3';
+const CACHE_NAME = `${CACHE_PREFIX}v0-37-3-localization-hardening`;
 const APP_SHELL = [
   './',
   './index.html',
