@@ -54,7 +54,7 @@ export function parseOverpassSegments(data, center, {
   diagnostics = createRoadAcquisitionDiagnostics(data)
 } = {}) {
   if (!Array.isArray(data?.elements)) {
-    throw new AppError(ErrorCode.ROAD_DATA_INVALID, '道路データの形式が不正です。');
+    throw new AppError(ErrorCode.ROAD_DATA_INVALID, '道路データの形式が不正です。', { messageKey: 'error.roadDataInvalid', fallback: '道路データの形式が不正です。' });
   }
 
   diagnostics.responseElements = data.elements.length;
@@ -140,7 +140,7 @@ export function parseOverpassSegments(data, center, {
   }
 
   if (segments.length < minimumRawSegments) {
-    throw new AppError(ErrorCode.ROAD_NETWORK_TOO_SMALL, '周辺の利用可能な道路が少なすぎます。別の場所で再試行してください。', {
+    throw new AppError(ErrorCode.ROAD_NETWORK_TOO_SMALL, '周辺の利用可能な道路が少なすぎます。別の場所で再試行してください。', { messageKey: 'error.roadNetworkTooSmall', fallback: '周辺の利用可能な道路が少なすぎます。別の場所で再試行してください。',
       details: `elements=${diagnostics.responseElements}, ways=${diagnostics.acceptedWays}, segments=${segments.length}`
     });
   }

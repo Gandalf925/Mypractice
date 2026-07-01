@@ -573,6 +573,12 @@ export class BuildSystem {
     if (defense.kind === 'barrier') markBarrierRoutesDirty(state);
     const name = defenseRuntimeDefinition(defense).name ?? DEFENSE_DEFINITIONS[defense.type]?.name ?? '設備';
     this.events?.emit('combat:defense-removed', { defenseId: defense.id, defense });
-    return { ok: true, defense, message: `${name}を撤去しました。資源は返還されません。` };
+    return {
+      ok: true,
+      defense,
+      messageKey: 'combat.panel.defenseRemovedNoRefund',
+      messageParams: { defenseName: name },
+      message: `${name}を撤去しました。資源は返還されません。`
+    };
   }
 }

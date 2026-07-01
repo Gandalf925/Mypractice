@@ -254,7 +254,9 @@ export class OverpassClient {
       emptyEndpoints.size > 0
         ? '道路がないという応答を確認できませんでした。別の道路サーバーで自動再試行します。'
         : '道路データを取得できませんでした。下の詳細内容をスクリーンショットで共有してください。',
-      { details }
+      { details, messageKey: emptyEndpoints.size > 0 ? 'error.roadEmptyUnconfirmed' : 'error.roadRequestFailed', fallback: emptyEndpoints.size > 0
+        ? '道路がないという応答を確認できませんでした。別の道路サーバーで自動再試行します。'
+        : '道路データを取得できませんでした。下の詳細内容をスクリーンショットで共有してください。' }
     );
   }
 }

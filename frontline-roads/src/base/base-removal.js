@@ -1,4 +1,4 @@
-import { activePlayerBases } from './player-bases.js';
+import { RECOVERY_ITEM_STATUS, releaseRecoveryItem } from '../exploration/recovery-system.js';
 
 function markEnemyBaseNetworkDirty(state) {
   state.combat ??= {};
@@ -34,12 +34,51 @@ export function clearFrontlineEnemyNetworkForAnchor(state, anchorBaseId) {
   return { retiredBases, removedRespawns };
 }
 
-function fallbackMajorBase(state, removedBaseId = null) {
-  return activePlayerBases(state).find(base => base.id !== removedBaseId) ?? null;
+
+function removedBaseSquadIds(state, removedBaseId) {
+  if (!removedBaseId) return new Set();
+  return new Set((state.combat?.friendlySquads ?? [])
+    .filter(squad => squad?.originBaseId === removedBaseId || squad?.recoveryBaseId === removedBaseId)
+    .map(squad => squad.id)
+    .filter(Boolean));
 }
 
-export function clearOwnedBaseReferences(state, removedBaseId, fallback = fallbackMajorBase(state, removedBaseId)) {
-  if (!removedBaseId) return;
+function releaseRemovedSquadRecoveryItems(state, squadIds) {
+  if (!squadIds?.size) return 0;
+  let released = 0;
+  for (const item of state.world?.recoveryItems ?? []) {
+    if (!item?.assignedSquadId || !squadIds.has(item.assignedSquadId)) continue;
+    if (![RECOVERY_ITEM_STATUS.RESERVED, RECOVERY_ITEM_STATUS.CARRIED].includes(item.status)) continue;
+    const result = releaseRecoveryItem(state, item.id, item.assignedSquadId);
+    if (result?.ok) released += 1;
+  }
+  return released;
+}
+
+function clearRemovedSquadReferences(state, squadIds) {
+  if (!squadIds?.size) return;
+  for (const enemy of state.combat?.enemies ?? []) {
+    if (squadIds.has(enemy.engagedSquadId)) enemy.engagedSquadId = null;
+    if (squadIds.has(enemy.targetSquadId)) {
+      enemy.targetSquadId = null;
+      enemy.reroutePending = true;
+    }
+  }
+}
+
+export function demobilizeOwnedBaseSquads(state, removedBaseId) {
+  state.combat ??= {};
+  state.combat.friendlySquads = Array.isArray(state.combat.friendlySquads) ? state.combat.friendlySquads : [];
+  const squadIds = removedBaseSquadIds(state, removedBaseId);
+  if (!squadIds.size) return { demobilizedSquads: 0, releasedRecoveryItems: 0 };
+  const releasedRecoveryItems = releaseRemovedSquadRecoveryItems(state, squadIds);
+  clearRemovedSquadReferences(state, squadIds);
+  state.combat.friendlySquads = (state.combat?.friendlySquads ?? []).filter(squad => !squadIds.has(squad.id));
+  return { demobilizedSquads: squadIds.size, releasedRecoveryItems };
+}
+
+export function clearOwnedBaseReferences(state, removedBaseId) {
+  if (!removedBaseId) return { demobilizedSquads: 0, releasedRecoveryItems: 0 };
   for (const enemy of state.combat?.enemies ?? []) {
     let changed = false;
     if (enemy.targetPlayerBaseId === removedBaseId) { enemy.targetPlayerBaseId = null; changed = true; }
@@ -53,14 +92,5 @@ export function clearOwnedBaseReferences(state, removedBaseId, fallback = fallba
     }
   }
   clearFrontlineEnemyNetworkForAnchor(state, removedBaseId);
-  for (const squad of state.combat?.friendlySquads ?? []) {
-    if (squad.originBaseId === removedBaseId) {
-      squad.originBaseId = fallback?.id ?? null;
-      if (!fallback) squad.stranded = true;
-    }
-    if (squad.recoveryBaseId === removedBaseId) {
-      squad.recoveryBaseId = fallback?.id ?? null;
-      if (!fallback) squad.recoveryInterrupted = true;
-    }
-  }
+  return demobilizeOwnedBaseSquads(state, removedBaseId);
 }

@@ -231,10 +231,10 @@ export function dismantleFieldBase(state, baseId, events = null) {
   const index = (state.world?.fieldBases ?? []).findIndex(item => item.id === base.id);
   if (index < 0) return { ok: false, reasonKey: 'reason.fieldBase.dismantleNotFound', reason: '撤去する簡易拠点が見つかりません。' };
   state.world.fieldBases.splice(index, 1);
-  clearOwnedBaseReferences(state, base.id);
-  events?.emit('base:field-dismantled', { baseId: base.id, position: { x: base.x, y: base.y } });
+  const cleanup = clearOwnedBaseReferences(state, base.id);
+  events?.emit('base:field-dismantled', { baseId: base.id, position: { x: base.x, y: base.y }, cleanup });
   events?.emit('message', { key: 'base.dismantled', params: { baseName: base.name }, text: `${base.name}を撤去しました。` });
-  return { ok: true, base };
+  return { ok: true, base, cleanup };
 }
 
 export class FieldBaseSystem {

@@ -143,6 +143,8 @@ export class RoadsideSuppliesUi {
   localize(textValue = '') { return copy(this.i18n, textValue); }
   msg(key, params = {}, fallback = '') { return text(this.i18n, key, params, fallback); }
 
+  messagePayload(key, params = {}, fallback = '') { return { key, params, text: fallback }; }
+
   handleDisclosureToggle(event) {
     const target = event?.target;
     if (!target?.matches?.('details[data-ui-disclosure]')) return;
@@ -164,8 +166,9 @@ export class RoadsideSuppliesUi {
   close() { setVisible(this.panel, false); }
 
   reasonPayload(result, key, fallback) {
-    if (result?.reasonKey) return { key: result.reasonKey, params: result.reasonParams ?? {}, text: result.reason ?? fallback };
-    return result?.reason ? this.localize(result.reason) : this.msg(key, {}, fallback);
+    if (result?.reasonKey) return this.messagePayload(result.reasonKey, result.reasonParams ?? {}, result.reason ?? fallback);
+    if (result?.key) return this.messagePayload(result.key, result.params ?? {}, result.text ?? result.fallback ?? fallback);
+    return this.messagePayload(key, {}, result?.reason ?? fallback);
   }
 
   reasonText(result, key, fallback) {

@@ -477,7 +477,7 @@ export function drawCombatState(context, state, camera, radar = {}) {
   }
 
   for (const squad of state.combat.friendlySquads ?? []) {
-    if (squad.hp <= 0) continue;
+    if (squad.hp <= 0 || ['RECOVERING', 'READY'].includes(squad.status)) continue;
     const point = camera.worldToScreen(friendlySquadPosition(state, squad));
     if (!visiblePoint(point, camera, 24)) continue;
     drawFriendlySquad(context, point, squad.status, squad.type, timeMs, quality);

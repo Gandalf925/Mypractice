@@ -268,7 +268,14 @@ export class ProgressionSystem {
     defense.hp = Math.max(1, Math.round(definition.hp * priorRatio));
     for (const squad of state.combat?.friendlySquads ?? []) squad.reroutePending = true;
     this.events?.emit('combat:defense-upgraded', { defenseId: defense.id, tier: defense.tier, gate: true });
-    return { ok: true, defense, cost, message: `${definition.name}へ変換しました。` };
+    return {
+      ok: true,
+      defense,
+      cost,
+      messageKey: 'combat.panel.gateConverted',
+      messageParams: { defenseName: definition.name },
+      message: `${definition.name}へ変換しました。`
+    };
   }
 
   upgradeDefense(state, defenseId) {
@@ -284,6 +291,8 @@ export class ProgressionSystem {
       ok: true,
       defense,
       cost: status.cost,
+      messageKey: 'combat.panel.defenseUpgraded',
+      messageParams: { defenseName: definition.name, tier: defense.tier },
       message: `${definition.name}（Tier ${defense.tier}）へ強化しました。`
     };
   }

@@ -163,9 +163,20 @@ export class CombatUi {
     if (resultOrReason && typeof resultOrReason === 'object') {
       if (resultOrReason.reasonKey) return this.messagePayload(resultOrReason.reasonKey, resultOrReason.reasonParams ?? {}, resultOrReason.reason ?? fallbackText);
       if (typeof resultOrReason.key === 'string') return this.messagePayload(resultOrReason.key, resultOrReason.params ?? {}, resultOrReason.text ?? resultOrReason.fallback ?? fallbackText);
-      if (resultOrReason.reason) return this.localize(resultOrReason.reason);
+      return this.messagePayload(fallbackKey, {}, resultOrReason.reason ?? fallbackText);
     }
-    return resultOrReason ? this.localize(resultOrReason) : this.messagePayload(fallbackKey, {}, fallbackText);
+    return resultOrReason ? this.messagePayload(fallbackKey, {}, String(resultOrReason)) : this.messagePayload(fallbackKey, {}, fallbackText);
+  }
+
+  resultMessagePayload(result, fallbackKey = 'combat.panel.actionDone', fallbackText = '操作を実行しました。') {
+    if (result?.messageKey) return this.messagePayload(result.messageKey, result.messageParams ?? {}, result.message ?? fallbackText);
+    if (result?.key) return this.messagePayload(result.key, result.params ?? {}, result.text ?? result.fallback ?? fallbackText);
+    return this.messagePayload(fallbackKey, {}, result?.message ?? fallbackText);
+  }
+
+  resultMessageText(result, fallbackKey = 'combat.panel.actionDone', fallbackText = '操作を実行しました。') {
+    const payload = this.resultMessagePayload(result, fallbackKey, fallbackText);
+    return this.msg(payload.key, payload.params ?? {}, payload.text ?? fallbackText);
   }
 
   reasonText(resultOrReason, fallbackKey = 'combat.panel.unavailable', fallbackText = '利用不可') {
@@ -218,6 +229,18 @@ export class CombatUi {
   handleEnemyBaseDestroyed(baseId) {
     if (this.selectedObject?.kind !== 'enemyBase' || this.selectedObject.id !== baseId) return;
     this.clearObjectSelection();
+  }
+
+  handleOwnedBaseRemoved({ cleanup = null } = {}) {
+    if (!cleanup || !Number(cleanup.demobilizedSquads)) return;
+    const state = this.store.snapshot();
+    if (this.selectedObject?.kind === 'friendlySquad' && !(state.combat?.friendlySquads ?? []).some(squad => squad.id === this.selectedObject.id && squad.hp > 0)) {
+      this.clearObjectSelection();
+      return;
+    }
+    if (this.orderPlanning?.squadId && !(state.combat?.friendlySquads ?? []).some(squad => squad.id === this.orderPlanning.squadId && squad.hp > 0)) {
+      this.clearObjectSelection();
+    }
   }
 
   contextDisclosureIdentity() {
@@ -364,7 +387,7 @@ export class CombatUi {
       candidates.push({ kind: 'enemy', id: enemy.id, point: position, distance: distance(point, position) });
     }
     for (const squad of state.combat.friendlySquads ?? []) {
-      if (squad.hp <= 0) continue;
+      if (squad.hp <= 0 || [FRIENDLY_SQUAD_STATUS.RECOVERING, FRIENDLY_SQUAD_STATUS.READY].includes(squad.status)) continue;
       const position = friendlySquadPosition(state, squad);
       candidates.push({ kind: 'friendlySquad', id: squad.id, point: position, distance: distance(point, position) });
     }
@@ -1000,7 +1023,7 @@ export class CombatUi {
     if (!status.ok) {
       const reason = document.createElement('p');
       reason.className = 'defenseUpgradeReason';
-      reason.textContent = this.localize(status.reason);
+      reason.textContent = this.reasonText(status, 'combat.panel.upgradeUnavailable', status.reason ?? '強化できません。');
       block.appendChild(reason);
     }
     this.contextText.appendChild(block);
@@ -1020,7 +1043,7 @@ export class CombatUi {
     let result;
     this.store.transaction(state => { result = action(state); }, reason, { emit: true, validate: true });
     if (result?.ok) this.persist?.();
-    this.notifications.show(result?.ok ? (result?.message ? this.localize(result.message) : this.msg('combat.panel.actionDone', {}, '操作を実行しました。')) : (this.reasonPayload(result, 'combat.panel.actionUnavailable', '操作できません。')));
+    this.notifications.show(result?.ok ? this.resultMessagePayload(result, 'combat.panel.actionDone', '操作を実行しました。') : this.reasonPayload(result, 'combat.panel.actionUnavailable', '操作できません。'));
     this.renderContext();
     this.renderer.render();
   }
@@ -1046,7 +1069,7 @@ export class CombatUi {
     this.renderTools();
     this.renderer.render();
     this.persist?.();
-    this.notifications.show(result.message ? this.localize(result.message) : this.msg('combat.panel.defenseRemoved', {}, '設備を撤去しました。'));
+    this.notifications.show(this.resultMessagePayload(result, 'combat.panel.defenseRemoved', '設備を撤去しました。'));
   }
 
   cancelDefenseRemoval() {
@@ -1475,8 +1498,8 @@ export class CombatUi {
           const scan = this.action(
             surveyBusy ? this.actionMsg('combat.panel.actionSurveyBusy', {}, '測量通信中') : surveyComplete ? this.actionMsg('combat.panel.actionSurveyComplete', {}, '範囲内取得完了') : this.actionMsg('combat.panel.actionSurveyNow', {}, '今すぐ測量'),
             () => {
-              const result = this.requestSurvey?.(defense.id) ?? { ok: false, reason: this.panelMsg('combat.panel.surveyStartFailed', {}, '測量通信を開始できません。') };
-              this.notifications.show(result.ok ? (result.messageKey ? this.msg(result.messageKey, result.messageParams ?? {}, result.message ?? '道路測量を開始しました。') : result.message ? this.localize(result.message) : this.msg('combat.panel.surveyStarted', {}, '道路測量を開始しました。')) : (this.reasonPayload(result, 'combat.panel.surveyStartFailed', '道路測量を開始できません。')));
+              const result = this.requestSurvey?.(defense.id) ?? { ok: false, reasonKey: 'combat.panel.surveyStartFailed', reason: '測量通信を開始できません。' };
+              this.notifications.show(result.ok ? this.resultMessagePayload(result, 'combat.panel.surveyStarted', '道路測量を開始しました。') : this.reasonPayload(result, 'combat.panel.surveyStartFailed', '道路測量を開始できません。'));
               if (result.ok) this.persist?.();
               this.renderContext();
             },

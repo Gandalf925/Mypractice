@@ -56,21 +56,23 @@ export class DeploymentUi {
 
   msg(key, params = {}, fallback = '') { return this.i18n?.message?.(key, params, fallback) ?? this.localize(fallback || key); }
 
+  messagePayload(key, params = {}, fallback = '') { return { key, params, text: fallback }; }
+
   html(text = '') { return escapeHtml(text); }
 
   htmlMsg(key, params = {}, fallback = '') { return this.html(this.msg(key, params, fallback)); }
 
   bundleText(bundle = {}) { return this.i18n?.compactBundleText?.(bundle) ?? bundleText(bundle); }
 
-  showMessage(key, params = {}, fallback = '') { this.notifications.show(this.msg(key, params, fallback)); }
+  showMessage(key, params = {}, fallback = '') { this.notifications.show(this.messagePayload(key, params, fallback)); }
 
   reasonPayload(resultOrReason, fallbackKey, fallbackText) {
     if (resultOrReason && typeof resultOrReason === 'object') {
-      if (resultOrReason.reasonKey) return { key: resultOrReason.reasonKey, params: resultOrReason.reasonParams ?? {}, text: resultOrReason.reason ?? fallbackText };
-      if (resultOrReason.key) return { key: resultOrReason.key, params: resultOrReason.params ?? {}, text: resultOrReason.text ?? resultOrReason.fallback ?? fallbackText };
-      if (resultOrReason.reason) return this.localize(resultOrReason.reason);
+      if (resultOrReason.reasonKey) return this.messagePayload(resultOrReason.reasonKey, resultOrReason.reasonParams ?? {}, resultOrReason.reason ?? fallbackText);
+      if (resultOrReason.key) return this.messagePayload(resultOrReason.key, resultOrReason.params ?? {}, resultOrReason.text ?? resultOrReason.fallback ?? fallbackText);
+      return this.messagePayload(fallbackKey, {}, resultOrReason.reason ?? fallbackText);
     }
-    return resultOrReason ? this.localize(resultOrReason) : this.msg(fallbackKey, {}, fallbackText);
+    return resultOrReason ? this.messagePayload(fallbackKey, {}, String(resultOrReason)) : this.messagePayload(fallbackKey, {}, fallbackText);
   }
 
   showReason(resultOrReason, fallbackKey, fallbackText) { this.notifications.show(this.reasonPayload(resultOrReason, fallbackKey, fallbackText)); }

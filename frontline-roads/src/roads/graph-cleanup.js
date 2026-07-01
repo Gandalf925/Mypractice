@@ -10,7 +10,7 @@ export function finalizeRoadGraph(graph, {
     throw new AppError(
       ErrorCode.ROAD_NETWORK_DISCONNECTED,
       '周辺の道路網が小さすぎます。別の場所で再試行してください。',
-      { details: `nodes=${graph.nodes.length}, edges=${graph.edges.length}` }
+      { details: `nodes=${graph.nodes.length}, edges=${graph.edges.length}`, messageKey: 'error.roadNetworkDisconnected', fallback: '周辺の道路網が小さすぎます。別の場所で再試行してください。' }
     );
   }
   return attachGraphIndexes(graph);

@@ -26,6 +26,10 @@ function currentStoreState(store) {
   return store?.snapshot?.() ?? null;
 }
 
+function statusMessage(type, chunkId, key, params = {}, text = '') {
+  return { type, chunkId, key, params, text };
+}
+
 function nearestRoadDistance(graph, point, radius = ROAD_CONFIG.roadFrontierDistanceMeters * 2) {
   if (!graph?.nodeById || !point) return Infinity;
   const elements = graphElementsNearPoint(graph, point, radius);
@@ -397,7 +401,7 @@ export class RoadWorldManager {
           };
         } catch (error) {
           result = { ok: false, chunkId: next.chunk.id, error: String(error?.message ?? error) };
-          this.onStatus?.({ type: 'error', chunkId: next.chunk.id, text: '道路区域の統合に失敗しました。' });
+          this.onStatus?.(statusMessage('error', next.chunk.id, 'road.chunkMergeFailed'));
         } finally {
           this.pending.delete(next.chunk.id);
           this.settleChunkWaiters(next.chunk.id, result);
@@ -437,7 +441,7 @@ export class RoadWorldManager {
       return;
     }
     const worldId = roadWorldId(state.world.roadGraph);
-    this.onStatus?.({ type: 'loading', chunkId: chunk.id, text: mode === 'survey' ? '測量施設が周辺道路を解析しています…' : '周辺道路を偵察しています…' });
+    this.onStatus?.(statusMessage('loading', chunk.id, mode === 'survey' ? 'road.chunkLoadingSurvey' : 'road.chunkLoadingMovement'));
     if (defenseId) {
       this.store.advance(draft => {
         const defense = draft.combat.defenses.find(item => item.id === defenseId);
@@ -511,19 +515,16 @@ export class RoadWorldManager {
             }
           }
         }, 'roads:chunk-failed');
-        this.onStatus?.({
-          type: 'error',
-          chunkId: chunk.id,
-          text: mode === 'survey'
-            ? processingFailed
-              ? '道路サーバーとの通信には成功しましたが、道路データの処理に失敗しました。再試行します。'
-              : unconfirmedEmpty
-                ? '道路なしという応答を別サーバーで確認できませんでした。自動再試行します。'
-                : '測量施設が道路サーバーへ接続できませんでした。時間を置いて再試行します。'
+        const statusKey = mode === 'survey'
+          ? processingFailed
+            ? 'road.chunkSurveyProcessingFailed'
             : unconfirmedEmpty
-              ? '道路なしという応答を確認できなかったため、移動後に再試行します。'
-              : '周辺道路を取得できませんでした。移動後に再試行します。'
-        });
+              ? 'road.chunkSurveyEmptyUnconfirmed'
+              : 'road.chunkSurveyConnectFailed'
+          : unconfirmedEmpty
+            ? 'road.chunkMovementEmptyUnconfirmed'
+            : 'road.chunkMovementFetchFailed';
+        this.onStatus?.(statusMessage('error', chunk.id, statusKey));
         return;
       } finally {
         this.abortController = null;
@@ -584,13 +585,21 @@ export class RoadWorldManager {
     }, 'roads:chunk-merged', { validate: true });
 
     this.graphChanged({ reason: source, chunkId: chunk.id, ...mergeResult });
-    this.onStatus?.({
-      type: 'loaded',
-      chunkId: chunk.id,
-      text: graph.edges.length > 0
-        ? `${mode === 'survey' ? '測量施設が新しい道路区域を追加しました' : '新しい道路区域を確認しました'}（道路 ${mergeResult.addedEdges}${mode === 'survey' && networkSuccess?.host ? ` / ${networkSuccess.host} ${networkSuccess.transport}` : ''}）`
-        : mode === 'survey' ? '測量区域に利用可能な道路はありませんでした。' : 'この区域には利用可能な道路がありません。'
-    });
+    const loadedParams = {
+      count: Math.max(0, Number(mergeResult.addedEdges) || 0),
+      host: networkSuccess?.host ?? '',
+      transport: networkSuccess?.transport ?? ''
+    };
+    const loadedKey = graph.edges.length > 0
+      ? mode === 'survey' && networkSuccess?.host
+        ? 'road.chunkLoadedSurveyWithHost'
+        : mode === 'survey'
+          ? 'road.chunkLoadedSurvey'
+          : 'road.chunkLoadedMovement'
+      : mode === 'survey'
+        ? 'road.chunkLoadedSurveyEmpty'
+        : 'road.chunkLoadedMovementEmpty';
+    this.onStatus?.(statusMessage('loaded', chunk.id, loadedKey, loadedParams));
   }
 
   graphChanged(detail) {

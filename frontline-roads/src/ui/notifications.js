@@ -21,6 +21,12 @@ export class Notifications {
         localized: false
       };
     }
+    if (message && typeof message === 'object' && Object.hasOwn(message, 'text')) {
+      return {
+        text: String(message.text ?? ''),
+        localized: Boolean(localized || message.localized)
+      };
+    }
     return {
       text: String(message ?? ''),
       localized: Boolean(localized)

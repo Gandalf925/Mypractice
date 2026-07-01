@@ -185,7 +185,7 @@ function baseCard(state, base, { selected, label, field = false, rebuild = null,
     const kind = baseKindName(dismantleKind, i18n);
     const button = h('baseCommand.dismantle', { kind }, `${kind}を撤去`);
     const reason = dismantle?.ok
-      ? h('baseCommand.dismantleNotice', {}, '撤去すると拠点枠を空け、対象中の敵と部隊は残存主要拠点へ再割当します。')
+      ? h('baseCommand.dismantleNotice', {}, '撤去すると拠点枠を空け、この拠点に所属・待機中の部隊は解散します。対象中の敵は残存拠点へ再割当します。')
       : escapeHtml(localizedPlacementReason(i18n, dismantle ?? m('baseCommand.dismantleUnavailable', {}, '撤去できません。')));
     return `<button class="secondary wideButton danger" data-action="dismantle-${dismantleKind}-base" data-base-id="${baseId}" ${dismantle?.ok ? '' : 'disabled'}>${button}</button><p class="sectionNote">${reason}</p>`;
   })() : '';
@@ -231,13 +231,16 @@ export class BaseCommandUi {
 
   msg(key, params = {}, fallback = '') { return messageValue(this.i18n, key, params, fallback); }
 
+  messagePayload(key, params = {}, fallback = '') { return { key, params, text: fallback }; }
+
   htmlMsg(key, params = {}, fallback = '') { return htmlMessage(this.i18n, key, params, fallback); }
 
-  notify(key, params = {}, fallback = '') { this.notifications.show(this.msg(key, params, fallback)); }
+  notify(key, params = {}, fallback = '') { this.notifications.show(this.messagePayload(key, params, fallback)); }
 
   reasonPayload(result, key, fallback = '') {
-    if (result?.reasonKey) return { key: result.reasonKey, params: result.reasonParams ?? {}, text: result.reason ?? fallback };
-    return result?.reason ? this.localize(result.reason) : this.msg(key, {}, fallback);
+    if (result?.reasonKey) return this.messagePayload(result.reasonKey, result.reasonParams ?? {}, result.reason ?? fallback);
+    if (result?.key) return this.messagePayload(result.key, result.params ?? {}, result.text ?? result.fallback ?? fallback);
+    return this.messagePayload(key, {}, result?.reason ?? fallback);
   }
 
   notifyFailure(result, key, fallback = '') { this.notifications.show(this.reasonPayload(result, key, fallback)); }

@@ -119,7 +119,7 @@ class FrontlineRoadsApp {
         if (this.store.read(state => state.lifecycle) === LifecycleState.PLAYING) this.persist({ notify: false });
       },
       onStatus: status => {
-        if (status.type === 'loaded' || status.type === 'error') this.notifications.show(status.text, 4500);
+        if ((status.type === 'loaded' || status.type === 'error') && status.key) this.notifications.show(status, 4500);
       }
     });
     this.deploymentUi = new DeploymentUi({
@@ -180,7 +180,7 @@ class FrontlineRoadsApp {
         this.applyLocalization({ fullDocument: false });
         this.roadWorld.considerSurveyFacilities();
       },
-      onError: error => this.notifications.show(error?.message ?? this.i18n.message('app.saveFailed')),
+      onError: error => this.notifications.show(this.errorPayload(error, 'app.saveFailed'), 4500),
       onSaveDisabled: () => this.updateStorageUi(),
       getPerformanceProfile: () => this.renderer.getPerformanceProfile()
     });
@@ -217,6 +217,14 @@ class FrontlineRoadsApp {
 
   messagePayload(key, params = {}, fallback = '') {
     return { key, params, text: fallback };
+  }
+
+  errorPayload(error, fallbackKey = 'app.actionUnavailable', fallback = '') {
+    if (error?.messageKey) {
+      return this.messagePayload(error.messageKey, error.messageParams ?? {}, error.fallback ?? error.message ?? fallback);
+    }
+    if (error?.code) return this.messagePayload(`error.${error.code}`, {}, error.message ?? fallback);
+    return this.messagePayload(fallbackKey, {}, error?.message ?? fallback);
   }
 
   localizeStatus(text) {
@@ -279,10 +287,10 @@ class FrontlineRoadsApp {
       return true;
     }
     if (action === 'select-map' || action === 'select-enemy-base' || action === 'select-defense' || action === 'select-recovery') {
-      this.notifications.show(this.i18n.message('app.menuClosedSelectTarget'));
+      this.showNotificationMessage('app.menuClosedSelectTarget');
       return true;
     }
-    this.notifications.show(this.i18n.message('app.actionUnavailable'));
+    this.showNotificationMessage('app.actionUnavailable');
     return true;
   }
 
@@ -340,7 +348,7 @@ class FrontlineRoadsApp {
       this.renderer.render();
     });
     queryRequired('#focusSelectedBase').addEventListener('click', () => {
-      if (!this.baseCommandUi.focusCurrentBase()) this.notifications.show(this.i18n.message('app.noDisplayableBases'));
+      if (!this.baseCommandUi.focusCurrentBase()) this.showNotificationMessage('app.noDisplayableBases');
     });
     queryRequired('#focusPlayer').addEventListener('click', () => this.recenterMap());
     queryRequired('#offlineClose').addEventListener('click', () => setVisible(queryRequired('#offlineSummary'), false));
@@ -371,7 +379,7 @@ class FrontlineRoadsApp {
         this.notifications.show({ key: payload.key, params: payload.params ?? {}, text: payload.text ?? payload.fallback ?? '' }, 2600);
         return;
       }
-      this.notifications.show(payload?.text, 2600);
+      if (payload?.text) this.notifications.show({ text: payload.text }, 2600, { localized: true });
     });
     this.events.on('lifecycle:changed', ({ current }) => {
       document.documentElement.dataset.lifecycle = current;
@@ -380,6 +388,8 @@ class FrontlineRoadsApp {
     this.events.on('civilization:level-up', () => { this.civilizationUi.render(); this.baseCommandUi.render(); this.applyLocalization({ fullDocument: false }); });
     this.events.on('combat:defense-destroyed', () => this.queueCriticalSave());
     this.events.on('combat:enemy-base-destroyed', ({ baseId }) => { this.combatUi?.handleEnemyBaseDestroyed?.(baseId); this.queueCriticalSave(); });
+    this.events.on('base:player-dismantled', payload => { this.combatUi?.handleOwnedBaseRemoved?.(payload); this.queueCriticalSave(); });
+    this.events.on('base:field-dismantled', payload => { this.combatUi?.handleOwnedBaseRemoved?.(payload); this.queueCriticalSave(); });
     this.events.on('civilization:building-destroyed', () => this.queueCriticalSave());
     this.events.on('game:home-base-destroyed', payload => this.handleHomeBaseDestroyed(payload));
   }
@@ -697,7 +707,7 @@ class FrontlineRoadsApp {
       this.roadsideSuppliesUi.update();
       this.applyLocalization({ fullDocument: false });
       this.startRuntime();
-      this.notifications.show(this.i18n.message('app.basePlacedOpening'), 7000);
+      this.showNotificationMessage('app.basePlacedOpening', {}, '拠点を設置しました。まず投石台を2基建て、敵拠点へ部隊を派兵してください。', 7000);
     } catch (error) {
       this.store.setError(error);
       this.showBaseErrorMessage('app.basePlacementFailedWithMessage', { errorMessage: error?.message ?? this.message('app.basePlacementFailed', {}, '拠点の設置に失敗しました。') }, error?.message ?? '拠点の設置に失敗しました。');
@@ -861,7 +871,7 @@ class FrontlineRoadsApp {
       return true;
     } catch (error) {
       this.updateStorageUi();
-      if (notify) this.notifications.show(error?.message ?? this.i18n.message('app.saveFailed'));
+      if (notify) this.notifications.show(this.errorPayload(error, 'app.saveFailed'), 4500);
       return false;
     }
   }

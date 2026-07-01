@@ -135,11 +135,11 @@ export function dismantlePlayerBase(state, baseId, events = null) {
   const index = state.world.playerBases.findIndex(item => item.id === base.id);
   if (index < 0) return { ok: false, reasonKey: 'reason.majorBase.dismantleNotFound', reason: '撤去する主要拠点が見つかりません。' };
   state.world.playerBases.splice(index, 1);
-  clearOwnedBaseReferences(state, base.id);
+  const cleanup = clearOwnedBaseReferences(state, base.id);
   ensurePlayerBaseState(state);
-  events?.emit('base:player-dismantled', { baseId: base.id, position: { x: base.x, y: base.y } });
+  events?.emit('base:player-dismantled', { baseId: base.id, position: { x: base.x, y: base.y }, cleanup });
   events?.emit('message', { key: 'base.dismantled', params: { baseName: base.name }, text: `${base.name}を撤去しました。` });
-  return { ok: true, base };
+  return { ok: true, base, cleanup };
 }
 
 export class PlayerBaseSystem {

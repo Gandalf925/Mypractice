@@ -203,7 +203,7 @@ export class SaveRepository {
   }
 
   saveState(state, { detached }) {
-    if (!this.storage) throw new AppError(ErrorCode.STORAGE_UNAVAILABLE, 'ブラウザの保存領域を利用できません。');
+    if (!this.storage) throw new AppError(ErrorCode.STORAGE_UNAVAILABLE, 'ブラウザの保存領域を利用できません。', { messageKey: 'save.storageUnavailable', fallback: 'ブラウザの保存領域を利用できません。このタブを閉じると進行状況は失われます。' });
     try {
       if (statePredatesReset(state, resetMarkerTime(this.storage))) return false;
       const { copy, timestamp } = sanitizeState(state, { detached });
@@ -215,7 +215,7 @@ export class SaveRepository {
       return timestamp;
     } catch (error) {
       this.markUnavailable(SAVE_WARNING.saveFailedProgressLost);
-      throw new AppError(ErrorCode.STORAGE_UNAVAILABLE, 'ゲームの保存に失敗しました。', { details: error?.message });
+      throw new AppError(ErrorCode.STORAGE_UNAVAILABLE, 'ゲームの保存に失敗しました。', { details: error?.message, messageKey: 'save.saveFailedProgressLost', fallback: '保存に失敗しました。このタブを閉じると、以後の進行状況は失われます。' });
     }
   }
 

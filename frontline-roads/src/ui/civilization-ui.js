@@ -387,17 +387,20 @@ export class CivilizationUi {
 
   msg(key, params = {}, fallback = '') { return messageValue(this.i18n, key, params, fallback); }
 
+  messagePayload(key, params = {}, fallback = '') { return { key, params, text: fallback }; }
+
   htmlMsg(key, params = {}, fallback = '') { return htmlMessage(this.i18n, key, params, fallback); }
 
   bundle(bundle = {}) { return i18nBundle(this.i18n, bundle); }
 
   htmlCopy(text = '') { return htmlCopy(this.i18n, text); }
 
-  notify(key, params = {}, fallback = '') { this.notifications.show(this.msg(key, params, fallback)); }
+  notify(key, params = {}, fallback = '') { this.notifications.show(this.messagePayload(key, params, fallback)); }
 
   reasonPayload(result, key, fallback = '') {
-    if (result?.reasonKey) return { key: result.reasonKey, params: result.reasonParams ?? {}, text: result.reason ?? fallback };
-    return result?.reason ? this.localize(result.reason) : this.msg(key, {}, fallback);
+    if (result?.reasonKey) return this.messagePayload(result.reasonKey, result.reasonParams ?? {}, result.reason ?? fallback);
+    if (result?.key) return this.messagePayload(result.key, result.params ?? {}, result.text ?? result.fallback ?? fallback);
+    return this.messagePayload(key, {}, result?.reason ?? fallback);
   }
 
   notifyFailure(result, key, fallback = '') { this.notifications.show(this.reasonPayload(result, key, fallback)); }

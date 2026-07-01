@@ -5,6 +5,9 @@ export class AppError extends Error {
     this.code = code;
     this.recoverable = options.recoverable ?? true;
     this.details = options.details ?? null;
+    this.messageKey = options.messageKey ?? null;
+    this.messageParams = options.messageParams ?? {};
+    this.fallback = options.fallback ?? message;
   }
 }
 
