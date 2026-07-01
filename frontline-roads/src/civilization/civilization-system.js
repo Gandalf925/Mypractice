@@ -9,6 +9,7 @@ import { ensureRecoveryState } from '../exploration/recovery-system.js';
 import { synchronizeDefenseTier } from './defense-upgrade.js';
 import { MAX_CIVILIZATION_LEVEL } from './data.js';
 import { LifecycleState } from '../core/constants.js';
+import { ensureRegionControlState, updateRegionControlAndLogistics } from '../base/region-control.js';
 
 export function ensureCivilizationState(state, { initializeInventory = false } = {}) {
   state.runtime ??= {};
@@ -46,6 +47,7 @@ export function ensureCivilizationState(state, { initializeInventory = false } =
   state.combat.defenses ??= [];
   ensureFriendlyForceState(state);
   ensureRecoveryState(state);
+  ensureRegionControlState(state);
   for (const defense of state.combat.defenses) synchronizeDefenseTier(defense);
   delete state.world.outposts;
   state.world.baseRespawns ??= [];
@@ -58,6 +60,7 @@ export function ensureCivilizationState(state, { initializeInventory = false } =
 
 export class CivilizationSystem {
   constructor(events = null) {
+    this.events = events;
     this.inventory = new InventorySystem();
     this.production = new ProductionSystem(events);
     this.progression = new ProgressionSystem(events);
@@ -72,5 +75,6 @@ export class CivilizationSystem {
     this.settlement.processDamageQueue(state);
     this.production.update(state, deltaSeconds);
     this.progression.update(state, deltaSeconds);
+    updateRegionControlAndLogistics(state, deltaSeconds, this.events);
   }
 }

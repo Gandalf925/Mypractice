@@ -1,5 +1,6 @@
 import { ENEMY_BASE_DEFINITIONS } from './definitions.js';
 import { chunkForWorldPoint } from '../roads/world-chunk-grid.js';
+import { activeOwnedBases } from '../base/field-bases.js';
 
 export const INITIAL_BASE_TYPES = Object.freeze(['barracks', 'engineer', 'raider', 'motor']);
 
@@ -112,10 +113,31 @@ export function selectInitialEnemyBasePlacements(graph, cityNodeId) {
 }
 
 function activeOwnedBaseNodes(state) {
-  return [
-    ...(state.world?.playerBases ?? []).filter(base => base.status === 'ESTABLISHED'),
-    ...(state.world?.fieldBases ?? []).filter(base => base.status === 'ESTABLISHED')
-  ].map(base => base.nodeId).filter(Boolean);
+  return activeOwnedBases(state).map(base => base.nodeId).filter(Boolean);
+}
+
+function buildEnemyBaseCandidates({ graph, anchorNode, anchorNodeId, distances, sourceNode, occupiedNodes, occupiedPoints, physicallyObservedChunks, state, minimumDegree, occupiedRadiusMeters, respectObservedChunks, sourceMinimumMeters }) {
+  return graph.nodes
+    .filter(node => !respectObservedChunks || physicallyObservedChunks.size === 0 || physicallyObservedChunks.has(chunkForWorldPoint(node, state.world.roadChunks?.sizeMeters).id))
+    .filter(node => !occupiedNodes.has(node.id) && (graph.adjacency.get(node.id)?.length ?? 0) >= minimumDegree)
+    .filter(node => !sourceNode || Math.hypot(node.x - sourceNode.x, node.y - sourceNode.y) >= sourceMinimumMeters)
+    .filter(node => occupiedPoints.every(point => Math.hypot(node.x - point.x, node.y - point.y) >= occupiedRadiusMeters))
+    .map(node => candidateForNode(node, anchorNode, distances.get(node.id) ?? Infinity))
+    .filter(item => Number.isFinite(item.routeDistance));
+}
+
+function selectFromCandidatePool(candidates, definition, references, target, options = {}) {
+  const [minimum, maximum] = definition.range;
+  const inRange = candidates.filter(item => item.routeDistance >= minimum && item.routeDistance <= maximum);
+  let pool = inRange;
+  if (!pool.length && options.frontline) {
+    const fallbackMaximum = Math.max(maximum, maximum * 1.4);
+    pool = candidates.filter(item => item.routeDistance >= Math.min(120, minimum) && item.routeDistance <= fallbackMaximum);
+    if (!pool.length) return null;
+  }
+  if (!pool.length) pool = candidates.filter(item => item.routeDistance >= 120);
+  if (!pool.length) return null;
+  return pool.reduce((best, item) => compareCandidate(item, best, references, target) < 0 ? item : best, pool[0]);
 }
 
 export function selectEnemyBaseNode(state, type, sourceNodeId = null, options = {}) {
@@ -129,34 +151,48 @@ export function selectEnemyBaseNode(state, type, sourceNodeId = null, options = 
   const distances = distancesFrom(graph, anchorNodeId);
   const sourceNode = sourceNodeId ? graph.nodeById.get(sourceNodeId) : null;
   const activeBases = state.world.enemyBases.filter(base => base.alive);
+  const visibleRecoveryItems = (state.world.recoveryItems ?? [])
+    .filter(item => item && item.status !== 'COLLECTED' && item.status !== 'CARRIED');
+  const recoveryNodes = visibleRecoveryItems.map(item => item.nodeId).filter(Boolean);
+  const recoveryPoints = visibleRecoveryItems
+    .map(item => Number.isFinite(Number(item.x)) && Number.isFinite(Number(item.y)) ? { x: Number(item.x), y: Number(item.y) } : graph.nodeById.get(item.nodeId))
+    .filter(Boolean);
   const occupiedNodes = new Set([
     state.world.city.nodeId,
     ...activeOwnedBaseNodes(state),
-    ...activeBases.map(base => base.nodeId)
+    ...activeBases.map(base => base.nodeId),
+    ...recoveryNodes
   ]);
-  const occupiedPoints = [...occupiedNodes].map(id => graph.nodeById.get(id)).filter(Boolean);
+  const occupiedPoints = [...occupiedNodes].map(id => graph.nodeById.get(id)).filter(Boolean).concat(recoveryPoints);
   const references = activeBases
     .map(base => graph.nodeById.get(base.nodeId))
     .filter(Boolean)
     .map(node => candidateForNode(node, anchorNode, distances.get(node.id) ?? 0));
   const target = (definition.range[0] + definition.range[1]) / 2;
   const physicallyObservedChunks = new Set(state.world.roadChunks?.playerObserved ?? state.world.roadChunks?.loaded ?? []);
-  const candidates = graph.nodes
-    .filter(node => physicallyObservedChunks.size === 0 || physicallyObservedChunks.has(chunkForWorldPoint(node, state.world.roadChunks?.sizeMeters).id))
-    .filter(node => !occupiedNodes.has(node.id) && (graph.adjacency.get(node.id)?.length ?? 0) >= 2)
-    .filter(node => !sourceNode || Math.hypot(node.x - sourceNode.x, node.y - sourceNode.y) >= 150)
-    .filter(node => occupiedPoints.every(point => Math.hypot(node.x - point.x, node.y - point.y) >= 100))
-    .map(node => candidateForNode(node, anchorNode, distances.get(node.id) ?? Infinity))
-    .filter(item => Number.isFinite(item.routeDistance));
-  const inRange = candidates.filter(item => item.routeDistance >= definition.range[0] && item.routeDistance <= definition.range[1]);
-  const pool = inRange.length ? inRange : candidates.filter(item => item.routeDistance >= 120);
-  if (!pool.length) return null;
-  const chosen = pool.reduce((best, item) => compareCandidate(item, best, references, target) < 0 ? item : best, pool[0]);
+  const candidateContext = { graph, anchorNode, anchorNodeId, distances, sourceNode, occupiedNodes, occupiedPoints, physicallyObservedChunks, state };
+  const passes = [
+    { respectObservedChunks: true, minimumDegree: 2, occupiedRadiusMeters: 100, sourceMinimumMeters: 150 },
+    { respectObservedChunks: false, minimumDegree: 2, occupiedRadiusMeters: 100, sourceMinimumMeters: 150 },
+    { respectObservedChunks: false, minimumDegree: 1, occupiedRadiusMeters: 80, sourceMinimumMeters: 120 },
+    { respectObservedChunks: false, minimumDegree: 1, occupiedRadiusMeters: 60, sourceMinimumMeters: 90 }
+  ];
+  let chosen = null;
+  let passIndex = 0;
+  for (const pass of passes) {
+    const candidates = buildEnemyBaseCandidates({ ...candidateContext, ...pass });
+    chosen = selectFromCandidatePool(candidates, definition, references, target, options);
+    if (chosen) break;
+    passIndex += 1;
+  }
+  if (!chosen) return null;
   return {
     node: chosen.node,
     route: chosen.routeDistance,
     sector: chosen.sector,
     anchorNodeId,
+    placementFallbackLevel: passIndex,
     ...frontMetadata(references, chosen.sector)
   };
 }
+

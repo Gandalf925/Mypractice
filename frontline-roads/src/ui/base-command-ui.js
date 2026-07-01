@@ -7,12 +7,13 @@ import {
 } from '../base/field-bases.js';
 import { enemyPosition } from '../combat/enemy-system.js';
 import { defenseWorldPosition } from '../combat/combat-geometry.js';
-import { bindDismissibleModal, queryRequired, setVisible } from './dom.js';
+import { bindDismissibleModal, escapeHtml, queryRequired, setVisible } from './dom.js';
 import { bundleText } from '../civilization/inventory-system.js';
 import { diagnoseFieldBaseNetwork } from '../base/field-base-system.js';
 import { friendlySquadCapacityForBase } from '../combat/friendly-force-system.js';
 import { fieldBaseBuildRange, majorBaseBuildRange } from '../base/construction-range.js';
 import { basePressureProfile, basePressureUiText } from '../base/base-pressure.js';
+import { regionControlSummaryText, regionLogisticsSummaryText } from '../base/region-control.js';
 
 const BASE_STATUS_RADIUS_METERS = 300;
 const FACILITY_RADIUS_METERS = 120;
@@ -108,7 +109,8 @@ function baseCard(state, base, { selected, label, field = false, rebuild = null,
   const pressure = basePressureProfile(state, base, field ? 'FIELD' : base.primary ? 'PRIMARY' : 'MAJOR');
   const c = text => i18nCopy(i18n, text);
   const t = (source, translations = {}) => uiText(i18n, source, translations);
-  const baseName = c(base.name);
+  const baseName = escapeHtml(c(base.name));
+  const baseId = escapeHtml(base.id);
   const baseKind = baseKindName(field ? 'field' : 'major', i18n);
   const targetCap = pressure.kind === 'PRIMARY' ? localizedLimit(Infinity, i18n) : pressure.targetCap;
   const fieldRangeNote = field
@@ -125,6 +127,8 @@ function baseCard(state, base, { selected, label, field = false, rebuild = null,
     en: `Deployed ${status.activeSquads} · Recovering ${status.recoveringSquads} · Ready to redeploy ${status.readySquads}`,
     zh: `派兵中 ${status.activeSquads} · 恢复中 ${status.recoveringSquads} · 可再出击 ${status.readySquads}`
   });
+  const regionNotice = escapeHtml(regionControlSummaryText(state, base, i18n));
+  const logisticsNotice = escapeHtml(regionLogisticsSummaryText(state, base, i18n));
   const recoveryNotice = status.recoveryItems
     ? `<p class="baseRecoveryNotice">${t(`周辺に未回収アイテム ${status.recoveryItems}`, {
       en: `Unrecovered nearby items ${status.recoveryItems}`,
@@ -141,7 +145,7 @@ function baseCard(state, base, { selected, label, field = false, rebuild = null,
     const reason = rebuild?.ok
       ? t('現在地から再建できます。', { en: 'Can rebuild from your current location.', zh: '可从当前位置重建。' })
       : localizedPlacementReason(i18n, rebuild?.reason ?? '現地へ移動してください。');
-    return `<button class="secondary wideButton" data-action="rebuild-${rebuildKind}-base" data-base-id="${base.id}" ${rebuild?.ok ? '' : 'disabled'}>${button}</button><p class="sectionNote">${t('費用', { en: 'Cost', zh: '费用' })} ${i18nBundle(i18n, rebuild?.cost)}・${reason}</p>`;
+    return `<button class="secondary wideButton" data-action="rebuild-${rebuildKind}-base" data-base-id="${baseId}" ${rebuild?.ok ? '' : 'disabled'}>${button}</button><p class="sectionNote">${t('費用', { en: 'Cost', zh: '费用' })} ${i18nBundle(i18n, rebuild?.cost)}・${reason}</p>`;
   })() : '';
   const dismantleHtml = dismantleKind ? (() => {
     const kind = baseKindName(dismantleKind, i18n);
@@ -155,16 +159,18 @@ function baseCard(state, base, { selected, label, field = false, rebuild = null,
         zh: '拆除后会空出基地栏位，并把正在以它为目标的敌军和部队重新分配到剩余主要基地。'
       })
       : localizedPlacementReason(i18n, dismantle?.reason ?? '撤去できません。');
-    return `<button class="secondary wideButton danger" data-action="dismantle-${dismantleKind}-base" data-base-id="${base.id}" ${dismantle?.ok ? '' : 'disabled'}>${button}</button><p class="sectionNote">${reason}</p>`;
+    return `<button class="secondary wideButton danger" data-action="dismantle-${dismantleKind}-base" data-base-id="${baseId}" ${dismantle?.ok ? '' : 'disabled'}>${button}</button><p class="sectionNote">${reason}</p>`;
   })() : '';
   return `<article class="baseCommandCard ${selected ? 'selected' : ''} ${destroyed ? 'destroyed' : ''}">
     <header><div><small>${label}</small><strong>${baseName}</strong></div><span data-alert="${destroyed || status.nearbyEnemies > 0 ? 'danger' : 'clear'}">${c(status.alert)}</span></header>
     <div class="contextMetricGrid"><span><small>HP</small><b>${Math.ceil(base.hp)}/${base.maxHp}</b></span><span><small>ENEMY</small><b>${status.nearbyEnemies}</b></span><span><small>DEF</small><b>${status.facilities}</b></span><span><small>SQUAD</small><b>${status.squads}/${status.squadCapacity}</b></span><span><small>PRESS</small><b>${Math.round(pressure.ratio * 100)}%</b></span></div>
     ${fieldRangeNote}
     <p class="basePressureNotice">${pressureNotice}</p>
+    <p class="basePressureNotice">${regionNotice}</p>
+    <p class="baseSquadNotice">${logisticsNotice}</p>
     <p class="baseSquadNotice">${squadNotice}</p>
     ${recoveryNotice}
-    <button class="primary wideButton" data-action="focus-base" data-base-id="${base.id}" data-base-kind="${field ? 'field' : 'major'}">${focusLabel}</button>
+    <button class="primary wideButton" data-action="focus-base" data-base-id="${baseId}" data-base-kind="${field ? 'field' : 'major'}">${focusLabel}</button>
     ${rebuildHtml}
     ${dismantleHtml}
   </article>`;

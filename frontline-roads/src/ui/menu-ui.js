@@ -147,7 +147,9 @@ export class MenuUi {
     if (!force && this.lastOpsRefreshAt && now - this.lastOpsRefreshAt < 1200) return;
     this.lastOpsRefreshAt = now;
     const state = this.store.snapshot ? this.store.snapshot() : null;
-    this.opsPanel.innerHTML = this.i18n?.copy?.(state ? operationGuidanceMarkup(buildOperationGuidance(state)) : `<p class="emptyText">${escapeHtml(this.t('menu.opsUnavailable', '作戦目標を取得できません。'))}</p>`) ?? (state ? operationGuidanceMarkup(buildOperationGuidance(state)) : `<p class="emptyText">${escapeHtml(this.t('menu.opsUnavailable', '作戦目標を取得できません。'))}</p>`);
+    this.opsPanel.innerHTML = state
+      ? operationGuidanceMarkup(buildOperationGuidance(state, this.i18n), this.i18n)
+      : `<p class="emptyText">${escapeHtml(this.t('menu.opsUnavailable', '作戦目標を取得できません。'))}</p>`;
   }
 
   update() {

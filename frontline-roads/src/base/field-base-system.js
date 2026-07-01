@@ -2,7 +2,7 @@ import { distance, stableId } from '../core/utilities.js';
 import { graphElementsNearPoint } from '../roads/road-graph.js';
 import { activePlayerBases, playerBasesView } from './player-bases.js';
 import { consumeBundle, missingBundle } from '../civilization/inventory-system.js';
-import { clearOwnedBaseReferences } from './base-removal.js';
+import { clearOwnedBaseReferences, clearFrontlineEnemyNetworkForAnchor } from './base-removal.js';
 import {
   FIELD_BASE_ENEMY_EXCLUSION_METERS,
   fieldBaseMaxHpForCivilization,
@@ -211,8 +211,10 @@ export function destroyFieldBase(state, base, events = null, { enemyId = null } 
       enemy.reroutePending = true;
     }
   }
+  clearFrontlineEnemyNetworkForAnchor(state, base.id);
+  markEnemyBaseNetworkDirty(state);
   events?.emit('base:field-destroyed', { baseId: base.id, enemyId, position: { x: base.x, y: base.y } });
-  events?.emit('message', { text: `${base.name}が破壊されました。現地で再建できます。` });
+  events?.emit('message', { key: 'base.destroyedRebuildable', params: { baseName: base.name }, text: `${base.name}が破壊されました。現地で再建できます。` });
   return true;
 }
 
@@ -231,7 +233,7 @@ export function dismantleFieldBase(state, baseId, events = null) {
   state.world.fieldBases.splice(index, 1);
   clearOwnedBaseReferences(state, base.id);
   events?.emit('base:field-dismantled', { baseId: base.id, position: { x: base.x, y: base.y } });
-  events?.emit('message', { text: `${base.name}を撤去しました。` });
+  events?.emit('message', { key: 'base.dismantled', params: { baseName: base.name }, text: `${base.name}を撤去しました。` });
   return { ok: true, base };
 }
 
@@ -266,7 +268,7 @@ export class FieldBaseSystem {
     state.world.fieldBases.push(base);
     markEnemyBaseNetworkDirty(state);
     this.events?.emit('base:field-established', { base });
-    this.events?.emit('message', { text: `${base.name}を設置しました。` });
+    this.events?.emit('message', { key: 'base.established', params: { baseName: base.name }, text: `${base.name}を設置しました。` });
     return { ok: true, base, cost: preview.cost, current: activeFieldBases(state).length, limit: fieldBaseLimitForCivilization(state.civilization?.level) };
   }
 
@@ -285,7 +287,7 @@ export class FieldBaseSystem {
     base.rebuiltAt = state.runtime?.worldTimeMs ?? now;
     markEnemyBaseNetworkDirty(state);
     this.events?.emit('base:field-rebuilt', { base });
-    this.events?.emit('message', { text: `${base.name}を再建しました。` });
+    this.events?.emit('message', { key: 'base.rebuilt', params: { baseName: base.name }, text: `${base.name}を再建しました。` });
     return { ok: true, base, cost: preview.cost };
   }
 

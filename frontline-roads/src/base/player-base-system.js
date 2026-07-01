@@ -1,7 +1,7 @@
 import { distance, stableId } from '../core/utilities.js';
 import { graphElementsNearPoint } from '../roads/road-graph.js';
 import { consumeBundle, missingBundle } from '../civilization/inventory-system.js';
-import { clearOwnedBaseReferences } from './base-removal.js';
+import { clearOwnedBaseReferences, clearFrontlineEnemyNetworkForAnchor } from './base-removal.js';
 import {
   PLAYER_BASE_MINIMUM_SEPARATION_METERS,
   PLAYER_BASE_PLACEMENT_RANGE_METERS,
@@ -111,8 +111,10 @@ export function destroyPlayerBase(state, base, events = null, { enemyId = null }
       enemy.reroutePending = true;
     }
   }
+  clearFrontlineEnemyNetworkForAnchor(state, base.id);
+  markEnemyBaseNetworkDirty(state);
   events?.emit('base:player-destroyed', { baseId: base.id, enemyId, position: { x: base.x, y: base.y } });
-  events?.emit('message', { text: `${base.name}が破壊されました。現地で再建できます。` });
+  events?.emit('message', { key: 'base.destroyedRebuildable', params: { baseName: base.name }, text: `${base.name}が破壊されました。現地で再建できます。` });
   return true;
 }
 
@@ -136,7 +138,7 @@ export function dismantlePlayerBase(state, baseId, events = null) {
   clearOwnedBaseReferences(state, base.id);
   ensurePlayerBaseState(state);
   events?.emit('base:player-dismantled', { baseId: base.id, position: { x: base.x, y: base.y } });
-  events?.emit('message', { text: `${base.name}を撤去しました。` });
+  events?.emit('message', { key: 'base.dismantled', params: { baseName: base.name }, text: `${base.name}を撤去しました。` });
   return { ok: true, base };
 }
 
@@ -170,7 +172,7 @@ export class PlayerBaseSystem {
     state.world.playerBases.push(base);
     markEnemyBaseNetworkDirty(state);
     this.events?.emit('base:player-established', { base });
-    this.events?.emit('message', { text: `${base.name}を設置しました。` });
+    this.events?.emit('message', { key: 'base.established', params: { baseName: base.name }, text: `${base.name}を設置しました。` });
     return { ok: true, base, cost: preview.cost, current: activePlayerBases(state).length, limit: baseLimitForCivilization(state.civilization?.level) };
   }
 
@@ -189,7 +191,7 @@ export class PlayerBaseSystem {
     base.rebuiltAt = state.runtime?.worldTimeMs ?? now;
     markEnemyBaseNetworkDirty(state);
     this.events?.emit('base:player-rebuilt', { base });
-    this.events?.emit('message', { text: `${base.name}を再建しました。` });
+    this.events?.emit('message', { key: 'base.rebuilt', params: { baseName: base.name }, text: `${base.name}を再建しました。` });
     return { ok: true, base, cost: preview.cost };
   }
 

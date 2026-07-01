@@ -23,3 +23,12 @@ export function bindDismissibleModal(element, close, documentRef = element?.owne
     documentRef?.removeEventListener?.('keydown', closeFromKeyboard);
   };
 }
+
+export function escapeHtml(value = '') {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}

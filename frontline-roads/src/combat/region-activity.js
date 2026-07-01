@@ -1,5 +1,6 @@
 import { distance } from '../core/utilities.js';
 import { activeOwnedBases } from '../base/field-bases.js';
+import { REGION_SIMULATION_MODE } from '../base/region-control.js';
 
 export const REGION_ACTIVITY = Object.freeze({
   ACTIVE: 'ACTIVE',
@@ -12,32 +13,67 @@ export const REGION_ACTIVITY_CONFIG = Object.freeze({
   peripheralRadiusMeters: 2400,
   peripheralIntervalSeconds: 2,
   dormantIntervalSeconds: 8,
-  maximumSimulationSubstepSeconds: 0.25
+  maximumSimulationSubstepSeconds: 0.25,
+  offlineActiveSubstepSeconds: 1,
+  offlinePeripheralSubstepSeconds: 4
 });
 
 function finitePoint(point) {
   return point && Number.isFinite(Number(point.x)) && Number.isFinite(Number(point.y));
 }
 
+function regionProfileForAnchor(state, base) {
+  return base?.id ? state.world?.regionProfiles?.[base.id] ?? null : null;
+}
+
+function recentlyIncident(profile, now) {
+  return profile && now - Math.max(0, Number(profile.lastIncidentAt) || 0) <= 10 * 60 * 1000;
+}
+
+function anchorActivityShape(profile, now) {
+  if (!profile) return { activeRadius: REGION_ACTIVITY_CONFIG.activeRadiusMeters, peripheralRadius: REGION_ACTIVITY_CONFIG.peripheralRadiusMeters };
+  if (profile.simulationMode === REGION_SIMULATION_MODE.SECURED) {
+    if (!recentlyIncident(profile, now)) return null;
+    return { activeRadius: 180, peripheralRadius: 900 };
+  }
+  if (profile.simulationMode === REGION_SIMULATION_MODE.ABSTRACT) return { activeRadius: 360, peripheralRadius: 1500 };
+  return { activeRadius: REGION_ACTIVITY_CONFIG.activeRadiusMeters, peripheralRadius: REGION_ACTIVITY_CONFIG.peripheralRadiusMeters };
+}
+
 export function regionActivityAnchors(state) {
-  const anchors = activeOwnedBases(state).filter(finitePoint).map(base => ({ x: base.x, y: base.y }));
+  const now = Number(state.runtime?.worldTimeMs) || Date.now();
+  const anchors = [];
+  for (const base of activeOwnedBases(state).filter(finitePoint)) {
+    const shape = anchorActivityShape(regionProfileForAnchor(state, base), now);
+    if (!shape) continue;
+    anchors.push({ x: base.x, y: base.y, ...shape });
+  }
   if (finitePoint(state.player?.worldPosition)) {
     const player = state.player.worldPosition;
-    if (!anchors.some(anchor => distance(anchor, player) < 1)) anchors.push(player);
+    if (!anchors.some(anchor => distance(anchor, player) < 1)) {
+      anchors.push({ x: player.x, y: player.y, activeRadius: REGION_ACTIVITY_CONFIG.activeRadiusMeters, peripheralRadius: REGION_ACTIVITY_CONFIG.peripheralRadiusMeters });
+    }
   }
   return anchors;
 }
 
 export function regionActivityForAnchors(point, anchors = []) {
-  if (!finitePoint(point) || anchors.length === 0) return REGION_ACTIVITY.ACTIVE;
-  let nearestSquared = Infinity;
+  if (!finitePoint(point)) return REGION_ACTIVITY.ACTIVE;
+  if (anchors.length === 0) return REGION_ACTIVITY.DORMANT;
+  let active = false;
+  let peripheral = false;
   for (const anchor of anchors) {
     const dx = Number(anchor.x) - Number(point.x);
     const dy = Number(anchor.y) - Number(point.y);
-    nearestSquared = Math.min(nearestSquared, dx * dx + dy * dy);
+    const squared = dx * dx + dy * dy;
+    const activeRadius = Math.max(0, Number(anchor.activeRadius) || REGION_ACTIVITY_CONFIG.activeRadiusMeters);
+    const peripheralRadius = Math.max(activeRadius, Number(anchor.peripheralRadius) || REGION_ACTIVITY_CONFIG.peripheralRadiusMeters);
+    if (squared <= activeRadius ** 2) active = true;
+    if (squared <= peripheralRadius ** 2) peripheral = true;
+    if (active) break;
   }
-  if (nearestSquared <= REGION_ACTIVITY_CONFIG.activeRadiusMeters ** 2) return REGION_ACTIVITY.ACTIVE;
-  if (nearestSquared <= REGION_ACTIVITY_CONFIG.peripheralRadiusMeters ** 2) return REGION_ACTIVITY.PERIPHERAL;
+  if (active) return REGION_ACTIVITY.ACTIVE;
+  if (peripheral) return REGION_ACTIVITY.PERIPHERAL;
   return REGION_ACTIVITY.DORMANT;
 }
 

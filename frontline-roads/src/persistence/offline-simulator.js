@@ -38,14 +38,19 @@ export class OfflineSimulator {
       civilizationLevel: state.civilization?.level ?? 0
     };
 
-    const step = Math.min(this.maximumStepSeconds, simulatedSeconds);
     let remaining = simulatedSeconds;
     let iterations = 0;
     const previousOfflineSimulation = state.runtime.offlineSimulation;
     state.runtime.offlineSimulation = true;
     try {
       while (remaining > 0.0001 && iterations < this.maximumIterations) {
-        const currentStep = Math.min(step, remaining);
+        const simulatedSoFar = simulatedSeconds - remaining;
+        const adaptiveStep = simulatedSoFar < 10 * 60
+          ? this.maximumStepSeconds
+          : simulatedSoFar < 2 * 60 * 60
+            ? Math.max(this.maximumStepSeconds, 10)
+            : Math.max(this.maximumStepSeconds, 60);
+        const currentStep = Math.min(adaptiveStep, remaining);
         state.runtime.worldTimeMs = (state.runtime.worldTimeMs ?? Date.now()) + currentStep * 1000;
         this.combatSystem.update(state, currentStep);
         if (state.lifecycle === LifecycleState.DESTROYED || state.runtime?.gameOver) {

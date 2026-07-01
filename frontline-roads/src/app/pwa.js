@@ -1,3 +1,5 @@
+import { APP_VERSION } from '../core/constants.js';
+
 export async function registerPwa({
   navigatorRef = globalThis.navigator,
   locationRef = globalThis.location,
@@ -16,7 +18,7 @@ export async function registerPwa({
     if (globalRef.__FRONTLINE_SW_READY__?.then) return await globalRef.__FRONTLINE_SW_READY__;
     const appRoot = new URL('../../', moduleUrl);
     const workerUrl = new URL('sw.js', appRoot);
-    const releaseVersion = globalRef.__FRONTLINE_RELEASE__?.version ?? '0.38.7';
+    const releaseVersion = globalRef.__FRONTLINE_RELEASE__?.version ?? APP_VERSION;
     workerUrl.searchParams.set('v', releaseVersion);
     const reloadKey = `frontline-sw-reload:${releaseVersion}`;
     navigatorRef.serviceWorker.addEventListener?.('controllerchange', () => {

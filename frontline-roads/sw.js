@@ -1,7 +1,7 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const RELEASE_VERSION = '0.38.7';
-const CACHE_NAME = `${CACHE_PREFIX}v0-38-7-spanish-localization`;
+const RELEASE_VERSION = '0.38.25';
+const CACHE_NAME = `${CACHE_PREFIX}v0-38-25-defense-build-i18n-hardening`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -19,6 +19,7 @@ const APP_SHELL = [
   './src/base/base-state.js',
   './src/base/base-pressure.js',
   './src/base/base-removal.js',
+  './src/base/region-control.js',
   './src/base/construction-range.js',
   './src/base/field-bases.js',
   './src/base/field-base-system.js',
@@ -69,7 +70,6 @@ const APP_SHELL = [
   './src/core/state-normalizer.js',
   './src/core/utilities.js',
   './src/i18n/catalog.js',
-  './src/i18n/user-facing-copy-ja.js',
   './src/exploration/frontier-system.js',
   './src/exploration/exploration-system.js',
   './src/exploration/recovery-system.js',
@@ -89,7 +89,6 @@ const APP_SHELL = [
   './src/rendering/combat-renderer.js',
   './src/rendering/frontier-renderer.js',
   './src/rendering/friendly-order-overlay.js',
-  './src/rendering/exploration-renderer.js',
   './src/rendering/combat-effects.js',
   './src/rendering/renderer.js',
   './src/rendering/radar-renderer.js',

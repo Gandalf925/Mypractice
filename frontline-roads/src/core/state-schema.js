@@ -20,6 +20,7 @@ export function createInitialState() {
       exploredSiteChunks: [],
       recoveryItems: [],
       recoveryCollection: null,
+      regionProfiles: {},
       roadsideSupplies: {
         version: 1,
         collectedIds: [],
@@ -114,7 +115,7 @@ export function validateState(state) {
   if (!object(state?.inventory?.resources)) errors.push('inventory is required');
   if (!object(state?.runtime)) errors.push('runtime is required');
   if (state?.runtime?.gameOver != null && (!object(state.runtime.gameOver) || typeof state.runtime.gameOver.reason !== 'string')) errors.push('gameOver is invalid');
-  if (!Array.isArray(state?.world?.enemyBases) || !Array.isArray(state?.world?.baseRespawns) || (state?.world?.playerBases !== undefined && !Array.isArray(state.world.playerBases)) || (state?.world?.fieldBases !== undefined && !Array.isArray(state.world.fieldBases))) errors.push('world collections are invalid');
+  if (!Array.isArray(state?.world?.enemyBases) || !Array.isArray(state?.world?.baseRespawns) || (state?.world?.playerBases !== undefined && !Array.isArray(state.world.playerBases)) || (state?.world?.fieldBases !== undefined && !Array.isArray(state.world.fieldBases)) || (state?.world?.regionProfiles !== undefined && (!object(state.world.regionProfiles) || Array.isArray(state.world.regionProfiles)))) errors.push('world collections are invalid');
   if (!Array.isArray(state?.combat?.enemies) || (state?.combat?.friendlySquads !== undefined && !Array.isArray(state.combat.friendlySquads)) || !Array.isArray(state?.combat?.defenses) || !object(state?.combat?.waves)) errors.push('combat collections are invalid');
   if (!Array.isArray(state?.civilization?.buildings) || !Array.isArray(state?.civilization?.productionQueues)) errors.push('civilization collections are invalid');
   if (state?.world?.roadGraph) validateRoadGraph(state.world.roadGraph, errors);

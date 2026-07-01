@@ -1,6 +1,7 @@
 import { distance, stableId } from '../core/utilities.js';
 import { ENEMY_BASE_DEFINITIONS } from '../combat/definitions.js';
 import { addBundle, bundleText } from '../civilization/inventory-system.js';
+import { applyRegionControlEvent, nearestRegionAnchor } from '../base/region-control.js';
 
 export const RECOVERY_RANGE_METERS = 40;
 export const RECOVERY_LOCATION_MAX_AGE_MS = 60_000;
@@ -145,6 +146,8 @@ function awardRecoveryItem(state, item) {
   state.civilization.artifacts[item.artifactType] = (state.civilization.artifacts[item.artifactType] ?? 0) + item.amount;
   state.civilization.totalArtifactsRecovered += item.amount;
   const lootResult = addBundle(state, item.loot ?? {});
+  const anchor = nearestRegionAnchor(state, recoveryItemPoint(state, item));
+  applyRegionControlEvent(state, anchor?.id, 0.018, { pressure: -0.025 });
   return { ok: true, item, artifactType: item.artifactType, amount: item.amount, loot: { ...(item.loot ?? {}) }, lootResult };
 }
 

@@ -145,7 +145,10 @@ export function migrateLegacySave(legacy) {
     baseType: item.baseType,
     sourceNodeId: item.sourceNodeId,
     remainingSec: Math.max(0, Number(item.remainingSec) || ((Number(item.readyAt) || Date.now()) - Date.now()) / 1000),
-    attempts: Math.max(0, Number(item.attempts) || 0)
+    attempts: Math.max(0, Number(item.attempts) || 0),
+    frontlineAnchorBaseId: item.frontlineAnchorBaseId ?? null,
+    frontlineAnchorNodeId: item.frontlineAnchorNodeId ?? null,
+    frontlineSlotIndex: Number.isInteger(item.frontlineSlotIndex) ? item.frontlineSlotIndex : null
   }));
   state.player.currentPosition = legacy.player?.lat && legacy.player?.lon ? { lat: legacy.player.lat, lon: legacy.player.lon } : null;
   state.player.worldPosition = { x: Number(legacy.player?.x) || state.world.homeBase.x, y: Number(legacy.player?.y) || state.world.homeBase.y };

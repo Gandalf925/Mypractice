@@ -1,8 +1,8 @@
 export const OPERATION_TEMPO_CONFIG = Object.freeze({
-  standardWaveIntervalMultiplier: 3.35,
-  frontlineWaveIntervalMultiplier: 4.50,
+  standardWaveIntervalMultiplier: 2.75,
+  frontlineWaveIntervalMultiplier: 2.60,
   offlineWaveIntervalMultiplier: 3.25,
-  frontlineReactionDelaySeconds: 12 * 60 * 60,
+  frontlineReactionDelaySeconds: 10 * 60,
   civilizationPressureRampSeconds: 12 * 60 * 60,
   noDefenseDamageMultiplier: 0.45,
   thinDefenseDamageMultiplier: 0.72,
@@ -103,15 +103,15 @@ export function maybeEmitHomeBaseRiskWarnings(state, events = null) {
   state.runtime.operationTempoWarnings ??= {};
   const warnings = state.runtime.operationTempoWarnings;
   const repeatMs = OPERATION_TEMPO_CONFIG.warningRepeatSeconds * 1000;
-  const emitRepeatable = (key, text) => {
+  const emitRepeatable = (key, messageKey, text) => {
     const previous = finiteNumber(warnings[key], 0);
     if (previous > 0 && now - previous < repeatMs) return;
     warnings[key] = now;
-    events.emit('message', { text });
+    events.emit('message', { key: messageKey, text });
   };
 
   if (activeDefenseCount(state) <= 0) {
-    emitRepeatable('noDefense', '防衛設備がありません。敵部隊が本拠地に到達すると作戦終了になります。');
+    emitRepeatable('noDefense', 'operation.noDefense', '防衛設備がありません。敵部隊が本拠地に到達すると作戦終了になります。');
   }
 
   const maxHp = Math.max(1, finiteNumber(state.world.city.maxHp, 100));
@@ -119,12 +119,12 @@ export function maybeEmitHomeBaseRiskWarnings(state, events = null) {
   if (hpRatio <= 0) return;
   if (hpRatio <= 0.10 && !warnings.hp10) {
     warnings.hp10 = now;
-    events.emit('message', { text: '本拠地HPが10%未満です。次の突破で作戦終了になる可能性があります。' });
+    events.emit('message', { key: 'operation.hp10', text: '本拠地HPが10%未満です。次の突破で作戦終了になる可能性があります。' });
   } else if (hpRatio <= 0.25 && !warnings.hp25) {
     warnings.hp25 = now;
-    events.emit('message', { text: '本拠地HPが25%未満です。防衛線が危険域です。' });
+    events.emit('message', { key: 'operation.hp25', text: '本拠地HPが25%未満です。防衛線が危険域です。' });
   } else if (hpRatio <= 0.50 && !warnings.hp50) {
     warnings.hp50 = now;
-    events.emit('message', { text: '本拠地HPが50%未満です。防衛設備の建設と修理を優先してください。' });
+    events.emit('message', { key: 'operation.hp50', text: '本拠地HPが50%未満です。防衛設備の建設と修理を優先してください。' });
   }
 }

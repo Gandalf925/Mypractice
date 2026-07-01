@@ -70,6 +70,24 @@ function homeBaseDestroyed(state) {
   return homeBaseHp(state) <= 0;
 }
 
+function simulationSubstepSeconds(state, activity) {
+  if (!state?.runtime?.offlineSimulation) return REGION_ACTIVITY_CONFIG.maximumSimulationSubstepSeconds;
+  if (activity === REGION_ACTIVITY.ACTIVE) return REGION_ACTIVITY_CONFIG.offlineActiveSubstepSeconds;
+  if (activity === REGION_ACTIVITY.PERIPHERAL) return REGION_ACTIVITY_CONFIG.offlinePeripheralSubstepSeconds;
+  return Infinity;
+}
+
+function advanceDormantTimers(state, elapsedSeconds, assignments) {
+  const elapsed = Math.max(0, Number(elapsedSeconds) || 0);
+  if (elapsed <= 0) return;
+  for (const enemy of state.combat?.enemies ?? []) {
+    if (assignments.enemies.get(enemy.id) !== REGION_ACTIVITY.DORMANT) continue;
+    enemy.departDelay = Math.max(0, (Number(enemy.departDelay) || 0) - elapsed);
+    enemy.slowTimer = Math.max(0, (Number(enemy.slowTimer) || 0) - elapsed);
+    enemy.routeFailureSeconds = Math.max(0, Number(enemy.routeFailureSeconds) || 0);
+  }
+}
+
 export class CombatSystem {
   constructor(events) {
     this.enemySystem = new EnemySystem(events);
@@ -91,11 +109,16 @@ export class CombatSystem {
   }
 
   updateRegion(state, elapsedSeconds, activity, assignments, initialSpatial = null) {
+    const substepSeconds = simulationSubstepSeconds(state, activity);
+    if (!Number.isFinite(substepSeconds)) {
+      advanceDormantTimers(state, elapsedSeconds, assignments);
+      return true;
+    }
     let remaining = Math.max(0, elapsedSeconds);
     let spatial = initialSpatial;
     while (remaining > 0.0001) {
       if (homeBaseDestroyed(state)) return false;
-      const step = Math.min(REGION_ACTIVITY_CONFIG.maximumSimulationSubstepSeconds, remaining);
+      const step = Math.min(substepSeconds, remaining);
       spatial ??= buildCombatSpatialIndex(state);
       this.defenseSystem.update(
         state,

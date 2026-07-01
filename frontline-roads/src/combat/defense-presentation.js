@@ -1,7 +1,11 @@
 import { DEFENSE_DEFINITIONS } from './definitions.js';
 
 const percent = value => `${Math.round(value * 100)}%`;
-const seconds = value => `${Number(value).toFixed(value < 10 ? 1 : 0)}秒`;
+const messageValue = (key, params = {}, fallback = '') => ({ key, params, fallback });
+const seconds = value => {
+  const rendered = Number(value).toFixed(value < 10 ? 1 : 0);
+  return messageValue('combat.panel.seconds', { seconds: rendered }, `${rendered}秒`);
+};
 
 const TEXT = Object.freeze({
   barrier: {
@@ -77,7 +81,7 @@ export function defensePresentation(type, definition = DEFENSE_DEFINITIONS[type]
   if (!text || !definition) return null;
   const metrics = [];
   if (type === 'barrier' || type === 'gate') {
-    metrics.push(['HP', String(definition.hp)], ['BLOCK', '1区間']);
+    metrics.push(['HP', String(definition.hp)], ['BLOCK', messageValue('combat.defense.metric.oneSegment', {}, '1区間')]);
   } else if (type === 'gun') {
     metrics.push(['RANGE', `${definition.range}m`], ['DAMAGE', String(definition.damage)], ['RELOAD', seconds(definition.cooldown)]);
   } else if (type === 'mortar') {
@@ -87,11 +91,18 @@ export function defensePresentation(type, definition = DEFENSE_DEFINITIONS[type]
   } else if (type === 'relay') {
     metrics.push(['RANGE', `${definition.range}m`], ['TOWER', `+${definition.repairTower}`], ['WALL', `+${definition.repairBarrier}`]);
   } else if (type === 'survey') {
-    metrics.push(['MAP RADIUS', `${definition.surveyRadius}m`], ['SCAN', `${definition.scanInterval}秒/区域`], ['LIMIT', '拠点ごと1基']);
+    metrics.push(['MAP RADIUS', `${definition.surveyRadius}m`], ['SCAN', messageValue('combat.defense.metric.scanSecondsPerZone', { seconds: definition.scanInterval }, `${definition.scanInterval}秒/区域`)], ['LIMIT', messageValue('combat.defense.metric.onePerBase', {}, '拠点ごと1基')]);
   } else if (type === 'medical') {
-    metrics.push(['RANGE', `${definition.range}m`], ['HEAL', `${(definition.recoveryRate * 100).toFixed(1)}%最大HP/秒`], ['TARGETS', '範囲内の全味方']);
+    metrics.push(['RANGE', `${definition.range}m`], ['HEAL', messageValue('combat.defense.metric.healMaxHpPerSecond', { percent: (definition.recoveryRate * 100).toFixed(1) }, `${(definition.recoveryRate * 100).toFixed(1)}%最大HP/秒`)], ['TARGETS', messageValue('combat.defense.metric.allAlliesInRange', {}, '範囲内の全味方')]);
   } else if (type === 'fieldBarracks') {
-    metrics.push(['SQUAD SLOT', `+${definition.squadCapacityBonus}`], ['LIMIT', '簡易拠点ごと1基']);
+    metrics.push(['SQUAD SLOT', `+${definition.squadCapacityBonus}`], ['LIMIT', messageValue('combat.defense.metric.onePerFieldBase', {}, '簡易拠点ごと1基')]);
   }
-  return { ...text, metrics };
+  return {
+    ...text,
+    roleKey: `combat.defense.${type}.role`,
+    summaryKey: `combat.defense.${type}.summary`,
+    effectKey: `combat.defense.${type}.effect`,
+    placementKey: `combat.defense.${type}.placement`,
+    metrics
+  };
 }

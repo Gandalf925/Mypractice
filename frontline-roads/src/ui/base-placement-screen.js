@@ -64,13 +64,20 @@ export class BasePlacementScreen {
     return this.i18n?.copy?.(text) ?? String(text ?? '');
   }
 
+  localizeStatus(message) {
+    if (message && typeof message === 'object' && message.key) {
+      return this.i18n?.message?.(message.key, message.params ?? {}, message.text ?? '') ?? String(message.text ?? message.key);
+    }
+    return this.localize(message);
+  }
+
   setStatus(message) {
-    this.statusSource = String(message ?? '');
-    this.status.textContent = this.localize(this.statusSource);
+    this.statusSource = message ?? '';
+    this.status.textContent = this.localizeStatus(this.statusSource);
   }
 
   refreshLocalization() {
-    if (this.statusSource) this.status.textContent = this.localize(this.statusSource);
+    if (this.statusSource) this.status.textContent = this.localizeStatus(this.statusSource);
   }
 
   showLoading(message) {
@@ -83,20 +90,26 @@ export class BasePlacementScreen {
   showSelection(selection, { roadsPending = false } = {}) {
     this.scheduleViewportSync();
     if (!selection) {
+      const radiusKm = ROAD_CONFIG.selectionRadiusMeters / 1000;
       this.setStatus(roadsPending
-        ? `中心部の道路を先行表示しました。${ROAD_CONFIG.selectionRadiusMeters / 1000}km以内の道路を選びながら、周辺道路の取得を待てます。`
-        : `現在地から${ROAD_CONFIG.selectionRadiusMeters / 1000}km以内の道路をタップしてください。`);
+        ? { key: 'basePlacement.previewRoadsShown', params: { radiusKm }, text: `中心部の道路を先行表示しました。${radiusKm}km以内の道路を選びながら、周辺道路の取得を待てます。` }
+        : { key: 'basePlacement.selectRoadPrompt', params: { radiusKm }, text: `現在地から${radiusKm}km以内の道路をタップしてください。` });
       this.confirmButton.disabled = true;
       return;
     }
     if (!selection.valid) {
-      this.setStatus(`${formatMeters(selection.distanceFromOrigin)}離れています。1km以内の道路を選択してください。`);
+      this.setStatus({
+        key: 'basePlacement.tooFar',
+        params: { distanceText: formatMeters(selection.distanceFromOrigin), radiusKm: 1 },
+        text: `${formatMeters(selection.distanceFromOrigin)}離れています。1km以内の道路を選択してください。`
+      });
       this.confirmButton.disabled = true;
       return;
     }
+    const distanceText = formatMeters(selection.distanceFromOrigin);
     this.setStatus(roadsPending
-      ? `${formatMeters(selection.distanceFromOrigin)}先の道路を選択中です。周辺道路の取得が完了すると確定できます。`
-      : `${formatMeters(selection.distanceFromOrigin)}先の道路を選択中です。確定すると、その道路を中心に即時開始します。`);
+      ? { key: 'basePlacement.selectingPending', params: { distanceText }, text: `${distanceText}先の道路を選択中です。周辺道路の取得が完了すると確定できます。` }
+      : { key: 'basePlacement.selectingReady', params: { distanceText }, text: `${distanceText}先の道路を選択中です。確定すると、その道路を中心に即時開始します。` });
     this.confirmButton.disabled = roadsPending;
   }
 

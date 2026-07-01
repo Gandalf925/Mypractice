@@ -10,6 +10,7 @@ import { roadUnitPosition } from './road-unit-position.js';
 import { activeFieldBases, fieldBaseById } from '../base/field-bases.js';
 import { activePlayerBases, playerBaseById } from '../base/player-bases.js';
 import { activeSettlementAttackCounts, basePressureLoadPenaltySeconds, basePressureProfile } from '../base/base-pressure.js';
+import { applyRegionControlEvent } from '../base/region-control.js';
 import { destroyPlayerBase } from '../base/player-base-system.js';
 import { enemyBehaviorForDefinition } from './enemy-personalities.js';
 import { destroyFieldBase } from '../base/field-base-system.js';
@@ -72,23 +73,91 @@ function underbuiltBreakthroughMultiplier(state) {
   return 1 + Math.min(0.95, deficitRatio * 1.55);
 }
 
+function expansionBaseDamageMultiplier(state, base, kind) {
+  if (!base?.id || base?.primary) return 1;
+  const profile = basePressureProfile(state, base, kind);
+  const rawRatio = Math.max(0, Math.min(1, Number(profile?.rawRatio ?? 1)));
+  const minimum = kind === 'FIELD' ? 0.20 : 0.28;
+  const offlineMultiplier = state?.runtime?.offlineSimulation ? 0.85 : 1;
+  return Math.max(0.12, Math.min(1, (minimum + (1 - minimum) * rawRatio) * offlineMultiplier));
+}
+
+function sourceEnemyBaseForEnemy(state, enemy) {
+  return (state.world?.enemyBases ?? []).find(base => base.id === enemy?.sourceBaseId) ?? null;
+}
+
+function baseNodePoint(state, base) {
+  if (!base?.nodeId) return null;
+  return state.world?.roadGraph?.nodeById?.get(base.nodeId) ?? null;
+}
+
+function localDefenseCount(state, base, radiusMeters = 360) {
+  const point = baseNodePoint(state, base);
+  if (!point) return 0;
+  const radiusSquared = radiusMeters * radiusMeters;
+  return (state.combat?.defenses ?? []).filter(defense => {
+    if (defense.hp <= 0) return false;
+    const node = defense.nodeId ? state.world?.roadGraph?.nodeById?.get(defense.nodeId) : null;
+    if (!node) return false;
+    return distanceSquared(point, node) <= radiusSquared;
+  }).length;
+}
+
+function applyAnchoredOverrunDamage(state, anchorId, population, deltaSeconds, level, events = null) {
+  const majorBase = playerBaseById(state, anchorId, { includeDestroyed: false });
+  const fieldBase = majorBase ? null : fieldBaseById(state, anchorId, { includeDestroyed: false });
+  const base = majorBase ?? fieldBase;
+  if (!base || base.hp <= 0) return;
+  const kind = fieldBase ? 'FIELD' : 'MAJOR';
+  const expectedDefenses = kind === 'FIELD' ? 2 + Math.floor(level / 2) : 3 + level;
+  const defenses = localDefenseCount(state, base);
+  if (defenses >= expectedDefenses) return;
+  const deficitRatio = Math.max(0, expectedDefenses - defenses) / Math.max(1, expectedDefenses);
+  const pressureRatio = Math.min(1, Math.max(0, population - 4) / Math.max(8, 18 + level * 4));
+  if (pressureRatio <= 0) return;
+  const rawDamage = (level - 4) * deficitRatio * pressureRatio * 0.18 * Math.max(0, Number(deltaSeconds) || 0);
+  const damage = rawDamage * expansionBaseDamageMultiplier(state, base, kind);
+  if (damage <= 0) return;
+  base.hp = Math.max(0, base.hp - damage);
+  applyRegionControlEvent(state, base.id, -Math.min(0.045, damage / Math.max(1, Number(base.maxHp) || 1) * 0.35), { pressure: 0.035, incident: true });
+  if (kind === 'FIELD') {
+    events?.emit('combat:field-base-hit', { baseId: base.id, damage, rawDamage, enemyId: 'anchored-overrun', unitCount: population, pressure: true });
+    if (base.hp <= 0) destroyFieldBase(state, base, events, { enemyId: 'anchored-overrun' });
+  } else {
+    events?.emit('combat:player-base-hit', { baseId: base.id, damage, rawDamage, enemyId: 'anchored-overrun', unitCount: population, pressure: true });
+    if (base.hp <= 0) destroyPlayerBase(state, base, events, { enemyId: 'anchored-overrun' });
+  }
+}
+
 function applyUnderbuiltOverrunPressure(state, deltaSeconds, events = null) {
   const level = Math.max(0, Math.floor(Number(state?.civilization?.level) || 0));
   if (level < 5 || !state.world?.city || state.world.city.hp <= 0) return;
   const activeDefenses = (state.combat?.defenses ?? []).filter(defense => defense.hp > 0).length;
   const expectedLine = (18 + level * 7) * 0.85;
-  if (activeDefenses >= expectedLine) return;
+  const populationByAnchor = new Map();
+  let corePopulation = 0;
+  for (const enemy of state.combat?.enemies ?? []) {
+    if (!enemy || enemy.hp <= 0) continue;
+    const units = enemyUnitCount(enemy);
+    const sourceBase = sourceEnemyBaseForEnemy(state, enemy);
+    const anchorId = enemy.frontlineAnchorBaseId ?? sourceBase?.frontlineAnchorBaseId ?? null;
+    if (anchorId) populationByAnchor.set(anchorId, (populationByAnchor.get(anchorId) ?? 0) + units);
+    else corePopulation += units;
+  }
+  for (const [anchorId, population] of populationByAnchor) {
+    applyAnchoredOverrunDamage(state, anchorId, population, deltaSeconds, level, events);
+  }
+  if (activeDefenses >= expectedLine || corePopulation <= 0) return;
   const populationCap = Math.max(1, enemyPopulationCap(state));
-  const population = enemyTotalPopulation(state);
   const pressureStart = populationCap * 0.45;
-  if (population <= pressureStart) return;
+  if (corePopulation <= pressureStart) return;
   const deficitRatio = Math.max(0, expectedLine - activeDefenses) / Math.max(1, expectedLine);
-  const pressureRatio = Math.max(0, population - pressureStart) / populationCap;
+  const pressureRatio = Math.max(0, corePopulation - pressureStart) / populationCap;
   const rawDamage = (level - 4) * deficitRatio * (0.34 + pressureRatio) * 0.34 * Math.max(0, Number(deltaSeconds) || 0);
   const damage = applyHomeBaseDamage(state, rawDamage);
   if (damage <= 0) return;
   state.combat.cityRecoveryCooldown = CITY_RECOVERY_DELAY_SECONDS;
-  events?.emit('combat:city-hit', { damage, rawDamage, enemyId: 'underbuilt-overrun', unitCount: population, pressure: true });
+  events?.emit('combat:city-hit', { damage, rawDamage, enemyId: 'underbuilt-overrun', unitCount: corePopulation, pressure: true });
 }
 
 
@@ -130,7 +199,7 @@ export function spawnEnemy(state, base, type, departDelay = 0, waveId = null, do
     hp: definition.hp * unitCount, maxHp: definition.hp * unitCount, radius: definition.radius, nodeId: base.nodeId,
     path: null, pathIndex: 0, edgeId: null, edgeProgress: 0,
     slowTimer: 0, slowMultiplier: 0.52, attackClock: 0, departDelay,
-    sourceBaseId: base.id, waveId, doctrineKey, waveResolved: false, rewardGranted: false,
+    sourceBaseId: base.id, frontlineAnchorBaseId: base.frontlineAnchorBaseId ?? null, waveId, doctrineKey, waveResolved: false, rewardGranted: false,
     reroutePending: false, routeFailureSeconds: 0, routeFailureTopologyRevision: null, routeRecoveryStage: 0, hasDeparted: false, routeBias: stableRouteBias(id), targetDefenseId: null, targetFieldBaseId: null, targetPlayerBaseId: null, targetSquadId: null,
     notifiedDefenseIds: [], engagedSquadId: null
   };
@@ -264,22 +333,27 @@ function planPath(state, enemy) {
   const fieldPenalty = Math.max(0, Number(definition.fieldBasePriorityPenalty ?? FIELD_BASE_PRIORITY_PENALTY_SECONDS)) + (raid ? 0 : 0);
   const majorPenalty = Math.max(0, Number(definition.majorBasePriorityPenalty ?? 14)) + (raid ? 0 : 0);
   const attackCounts = activeSettlementAttackCounts(state);
+  const sourceBase = sourceEnemyBaseForEnemy(state, enemy);
+  const anchorTargetId = enemy.frontlineAnchorBaseId ?? sourceBase?.frontlineAnchorBaseId ?? null;
+  const anchorBias = -220;
   const majorTargets = activePlayerBases(state).filter(base => !base.primary).map(base => {
     const pressure = basePressureProfile(state, base, 'MAJOR');
     const currentAttackers = attackCounts.major.get(base.id) ?? 0;
+    const localBias = anchorTargetId === base.id ? anchorBias : 0;
     return {
       nodeId: base.nodeId,
       targetObjectId: `major:${base.id}`,
-      priorityPenalty: majorPenalty + pressure.targetPenaltySeconds + basePressureLoadPenaltySeconds(pressure, currentAttackers)
+      priorityPenalty: majorPenalty + pressure.targetPenaltySeconds + basePressureLoadPenaltySeconds(pressure, currentAttackers) + localBias
     };
   });
   const fieldTargets = activeFieldBases(state).map(base => {
     const pressure = basePressureProfile(state, base, 'FIELD');
     const currentAttackers = attackCounts.field.get(base.id) ?? 0;
+    const localBias = anchorTargetId === base.id ? anchorBias : 0;
     return {
       nodeId: base.nodeId,
       targetObjectId: `field:${base.id}`,
-      priorityPenalty: fieldPenalty + pressure.targetPenaltySeconds + basePressureLoadPenaltySeconds(pressure, currentAttackers)
+      priorityPenalty: fieldPenalty + pressure.targetPenaltySeconds + basePressureLoadPenaltySeconds(pressure, currentAttackers) + localBias
     };
   });
   const settlementTargets = [
@@ -745,8 +819,11 @@ export class EnemySystem {
       if (enemy.nodeId === enemy.path.targetId && enemy.targetPlayerBaseId) {
         const majorBase = playerBaseById(state, enemy.targetPlayerBaseId, { includeDestroyed: false });
         if (majorBase && majorBase.nodeId === enemy.path.targetId) {
-          majorBase.hp = Math.max(0, majorBase.hp - definition.cityDamage * groupAttackMultiplier(enemy, 'settlement'));
-          this.events?.emit('combat:player-base-hit', { baseId: majorBase.id, damage: definition.cityDamage * groupAttackMultiplier(enemy, 'settlement'), enemyId: enemy.id, unitCount: enemyUnitCount(enemy) });
+          const rawDamage = definition.cityDamage * groupAttackMultiplier(enemy, 'settlement');
+          const damage = rawDamage * expansionBaseDamageMultiplier(state, majorBase, 'MAJOR');
+          majorBase.hp = Math.max(0, majorBase.hp - damage);
+          applyRegionControlEvent(state, majorBase.id, -Math.min(0.04, damage / Math.max(1, Number(majorBase.maxHp) || 1) * 0.32), { pressure: 0.035, incident: true });
+          this.events?.emit('combat:player-base-hit', { baseId: majorBase.id, damage, rawDamage, enemyId: enemy.id, unitCount: enemyUnitCount(enemy) });
           if (majorBase.hp <= 0) destroyPlayerBase(state, majorBase, this.events, { enemyId: enemy.id });
           resolveWaveEnemy(state, enemy, true);
           return true;
@@ -760,8 +837,11 @@ export class EnemySystem {
       if (enemy.nodeId === enemy.path.targetId && enemy.targetFieldBaseId) {
         const fieldBase = activeFieldBaseById(state, enemy.targetFieldBaseId);
         if (fieldBase && fieldBase.nodeId === enemy.path.targetId) {
-          fieldBase.hp = Math.max(0, fieldBase.hp - definition.cityDamage * groupAttackMultiplier(enemy, 'settlement'));
-          this.events?.emit('combat:field-base-hit', { baseId: fieldBase.id, damage: definition.cityDamage * groupAttackMultiplier(enemy, 'settlement'), enemyId: enemy.id, unitCount: enemyUnitCount(enemy) });
+          const rawDamage = definition.cityDamage * groupAttackMultiplier(enemy, 'settlement');
+          const damage = rawDamage * expansionBaseDamageMultiplier(state, fieldBase, 'FIELD');
+          fieldBase.hp = Math.max(0, fieldBase.hp - damage);
+          applyRegionControlEvent(state, fieldBase.id, -Math.min(0.05, damage / Math.max(1, Number(fieldBase.maxHp) || 1) * 0.40), { pressure: 0.045, incident: true });
+          this.events?.emit('combat:field-base-hit', { baseId: fieldBase.id, damage, rawDamage, enemyId: enemy.id, unitCount: enemyUnitCount(enemy) });
           if (fieldBase.hp <= 0) destroyFieldBase(state, fieldBase, this.events, { enemyId: enemy.id });
           resolveWaveEnemy(state, enemy, true);
           return true;
@@ -775,6 +855,8 @@ export class EnemySystem {
       if (enemy.nodeId === enemy.path.targetId && enemy.path.targetId === state.world.city.nodeId) {
         const rawCityDamage = definition.cityDamage * groupAttackMultiplier(enemy, 'settlement');
         const cityDamage = applyHomeBaseDamage(state, rawCityDamage);
+        const primaryBase = activePlayerBases(state).find(base => base.primary) ?? null;
+        applyRegionControlEvent(state, primaryBase?.id, -Math.min(0.035, cityDamage / Math.max(1, Number(state.world.city.maxHp) || 1) * 0.30), { pressure: 0.04, incident: true });
         state.combat.cityRecoveryCooldown = CITY_RECOVERY_DELAY_SECONDS;
         if ((definition.settlementDamage ?? 0) > 0) {
           state.combat.pendingSettlementDamage ??= [];

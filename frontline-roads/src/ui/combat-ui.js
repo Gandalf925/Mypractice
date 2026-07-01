@@ -3,6 +3,7 @@ import { distance } from '../core/utilities.js';
 import { DEFENSE_DEFINITIONS, ENEMY_BASE_DEFINITIONS, ENEMY_DEFINITIONS, defenseRuntimeDefinition } from '../combat/definitions.js';
 import { deploymentBases, ownedBaseById } from '../base/field-bases.js';
 import { constructionRangeSummary } from '../base/construction-range.js';
+import { basePressureProfile } from '../base/base-pressure.js';
 import { defensePresentation, uniqueDefenseDescriptionParagraphs } from '../combat/defense-presentation.js';
 import { surveyFacilityPresentation } from '../exploration/survey-system.js';
 import { scaleEnemyDefinition } from '../combat/enemy-scaling.js';
@@ -53,6 +54,37 @@ function squadRecoveryRemainingSeconds(recovery, squad) {
   return Math.max(reorganization, healRemaining);
 }
 
+function enemyBaseAnchorPresentation(state, enemyBase) {
+  const anchor = enemyBase?.frontlineAnchorBaseId ? ownedBaseById(state, enemyBase.frontlineAnchorBaseId, { includeDestroyed: false }) : null;
+  if (!anchor) {
+    return {
+      targetKey: 'combat.panel.enemyBaseCoreTarget',
+      targetFallback: '本拠地・周辺拠点',
+      pressureKey: 'combat.panel.pressureFull',
+      pressureFallback: '本格',
+      riskKey: 'combat.panel.enemyBaseRiskCore',
+      riskFallback: '放置すると本拠地または周辺施設へ侵攻します。'
+    };
+  }
+  const kind = anchor.kind === 'FIELD' ? 'FIELD' : 'MAJOR';
+  const profile = basePressureProfile(state, anchor, kind);
+  return {
+    target: anchor.name ?? (kind === 'FIELD' ? '簡易拠点' : '主要拠点'),
+    pressure: `${profile.stageLabel} ${Math.round(profile.ratio * 100)}%`,
+    riskKey: 'combat.panel.enemyBaseRiskAnchor',
+    riskParams: { baseName: anchor.name ?? 'この拠点' },
+    riskFallback: `放置すると${anchor.name ?? 'この拠点'}への攻撃が強まります。`
+  };
+}
+
+function enemyBaseNextWaveState(state, enemyBase) {
+  const now = Number(state.runtime?.worldTimeMs) || Date.now();
+  const readyAt = Number(enemyBase?.frontlineFirstWaveReadyAt) || 0;
+  if (readyAt > now) return { key: 'combat.panel.nextWaveMinutes', params: { minutes: Math.max(1, Math.ceil((readyAt - now) / 60000)) }, fallback: `約${Math.max(1, Math.ceil((readyAt - now) / 60000))}分` };
+  if (Math.max(0, Math.floor(Number(enemyBase?.wavesSent) || 0)) <= 0) return { key: 'combat.panel.nextWaveReady', params: {}, fallback: '準備完了' };
+  return { key: 'combat.panel.nextWavePeriodic', params: {}, fallback: '周期的に発生' };
+}
+
 export class CombatUi {
   constructor({ store, buildSystem, civilizationSystem, explorationSystem, recoverySystem, friendlyForceSystem, roadsideSupplySystem = null, camera, renderer, notifications, persist = null, openDeployment = null, requestSurvey = null, i18n = null }) {
     this.store = store;
@@ -94,6 +126,34 @@ export class CombatUi {
 
   localize(text = '') { return this.i18n?.copy?.(text) ?? text; }
 
+  msg(key, params = {}, fallback = '') { return this.i18n?.message?.(key, params, fallback) ?? this.localize(fallback || key); }
+
+  panelMsg(key, params = {}, fallback = '') { return this.msg(key, params, fallback); }
+
+  actionMsg(key, params = {}, fallback = '') { return this.msg(key, params, fallback); }
+
+  textValue(value) {
+    if (value && typeof value === 'object' && typeof value.key === 'string') {
+      return this.msg(value.key, value.params ?? {}, value.fallback ?? value.key);
+    }
+    return this.localize(String(value ?? ''));
+  }
+
+  defenseText(presentation, field) {
+    const key = presentation?.[`${field}Key`];
+    const fallback = presentation?.[field] ?? '';
+    return key ? this.panelMsg(key, {}, fallback) : this.localize(fallback);
+  }
+
+  secondsText(value) {
+    const seconds = Number(value).toFixed(Number(value) < 10 ? 1 : 0);
+    return this.panelMsg('combat.panel.seconds', { seconds }, `${seconds}秒`);
+  }
+
+  showMessage(key, params = {}, fallback = '') { this.notifications.show(this.msg(key, params, fallback)); }
+
+  showReason(reason, fallbackKey, fallbackText) { this.notifications.show(reason ? this.localize(reason) : this.msg(fallbackKey, {}, fallbackText)); }
+
   shortLabel(text = '') { return this.i18n?.short?.(text) ?? this.localize(text); }
 
   compactBundle(bundle = {}) { return this.i18n?.compactBundleText?.(bundle) ?? bundleText(bundle); }
@@ -130,7 +190,7 @@ export class CombatUi {
     this.toolAffordabilitySignature = this.affordabilitySignature(state);
     this.toolLanguageSignature = this.i18n?.language ?? 'ja';
     this.tools.textContent = '';
-    const entries = [['select', { name: '選択', icon: '☝', cost: null }], ...Object.entries(DEFENSE_DEFINITIONS)];
+    const entries = [['select', { name: this.msg('combat.panel.selectTool', {}, '選択'), icon: '☝', cost: null }], ...Object.entries(DEFENSE_DEFINITIONS)];
     for (const [type, definition] of entries) {
       const affordable = type === 'select' || this.buildSystem.canAfford(state, type);
       const button = document.createElement('button');
@@ -139,7 +199,7 @@ export class CombatUi {
       button.dataset.tool = type;
       button.setAttribute?.('aria-pressed', String(type === this.selectedTool));
       const cost = definition.cost ? this.compactBundle(definition.cost) : '';
-      const label = this.shortLabel(definition.name);
+      const label = type === 'select' ? definition.name : this.shortLabel(definition.name);
       button.innerHTML = `<strong>${definition.icon}</strong><span>${label}</span>${cost ? `<small>${cost}</small>` : ''}`;
       button.addEventListener('click', () => this.selectTool(type));
       this.tools.appendChild(button);
@@ -157,14 +217,15 @@ export class CombatUi {
       this.buildSites = [];
       this.renderer.setBuildPlacement(null);
       this.context.classList?.remove('is-build-mode', 'has-candidate', 'is-order-mode', 'is-defense-mode', 'is-defense-summary', 'is-defense-details', 'is-defense-upgrade', 'is-target-mode');
-      this.notifications.show('設備・敵拠点・部隊を選択できます。');
+      this.showMessage('combat.selectToolReady', {}, '設備・敵拠点・部隊を選択できます。');
       return;
     }
 
     this.refreshBuildPlacement(true);
     this.renderContext();
     const presentation = defensePresentation(this.selectedTool);
-    this.notifications.show(`${presentation?.role ?? '建設'}：表示された有効地点を選択してください。`);
+    const role = this.defenseText(presentation, 'role') || this.panelMsg('combat.panel.buildRoleFallback', {}, '建設');
+    this.showMessage('combat.panel.buildToolPrompt', { role }, `${role}：表示された有効地点を選択してください。`);
   }
 
   placementSignature(state) {
@@ -320,7 +381,7 @@ export class CombatUi {
   beginDeploymentRoutePlanning({ originNodeId, squadType, destinationNodeId, targetLabel = '敵拠点', confirmLabel = null, onConfirm = null, onCancel = null }) {
     const state = this.store.snapshot();
     if (!state.world.roadGraph.nodeById.has(originNodeId) || !state.world.roadGraph.nodeById.has(destinationNodeId)) {
-      this.notifications.show('派兵経路の始点または目的地が道路上にありません。');
+      this.showMessage('combat.routeEndpointsMissing', {}, '派兵経路の始点または目的地が道路上にありません。');
       return false;
     }
     this.selectedTool = 'select';
@@ -346,7 +407,7 @@ export class CombatUi {
     };
     this.rebuildOrderRoutes(state);
     this.renderContext(state);
-    this.notifications.show('派兵経路を選択してください。MAP上で最大2か所の経由地点を追加できます。');
+    this.showMessage('combat.deploymentRoutePrompt', {}, '派兵経路を選択してください。MAP上で最大2か所の経由地点を追加できます。');
     return true;
   }
 
@@ -356,7 +417,7 @@ export class CombatUi {
     if (!squad) return;
     const destinationNodeId = orderDestinationNodeId(state, squad, mode);
     if (mode !== FRIENDLY_ORDER_MODE.RETREAT && !destinationNodeId) {
-      this.notifications.show(mode === FRIENDLY_ORDER_MODE.RESUME ? '元の攻撃目標は既に失われています。' : '出撃元へ戻る経路を設定できません。');
+      this.showMessage(mode === FRIENDLY_ORDER_MODE.RESUME ? 'combat.resumeTargetLost' : 'combat.withdrawRouteUnavailable', {}, mode === FRIENDLY_ORDER_MODE.RESUME ? '元の攻撃目標は既に失われています。' : '出撃元へ戻る経路を設定できません。');
       return;
     }
     this.selectedTool = 'select';
@@ -374,9 +435,11 @@ export class CombatUi {
     };
     this.rebuildOrderRoutes();
     this.renderContext();
-    this.notifications.show(mode === FRIENDLY_ORDER_MODE.RETREAT
-      ? 'MAP上で後退地点を選択してください。続けて最大2か所の経由地点を追加できます。'
-      : '表示された経路を選ぶか、MAP上で最大2か所の経由地点を追加してください。');
+    this.showMessage(mode === FRIENDLY_ORDER_MODE.RETREAT
+      ? 'combat.retreatRoutePrompt'
+      : 'combat.orderRoutePrompt', {}, mode === FRIENDLY_ORDER_MODE.RETREAT
+        ? 'MAP上で後退地点を選択してください。続けて最大2か所の経由地点を追加できます。'
+        : '表示された経路を選ぶか、MAP上で最大2か所の経由地点を追加してください。');
   }
 
   handleOrderPlanningTap(worldPoint) {
@@ -387,16 +450,16 @@ export class CombatUi {
       const routeIndex = friendlyRouteIndexAtPoint(state, squad, this.orderPlanning.routes, worldPoint, 12 / this.camera.scale);
       if (routeIndex >= 0) {
         this.selectOrderRoute(routeIndex);
-        this.notifications.show(`${this.orderPlanning.routes[routeIndex].label}ルートを選択しました。`);
+        this.showMessage('combat.routeSelected', { routeLabel: this.localize(this.orderPlanning.routes[routeIndex].label) }, `${this.orderPlanning.routes[routeIndex].label}ルートを選択しました。`);
         return;
       }
     }
     const nearest = nearestRoadNode(state, worldPoint, 28 / this.camera.scale);
-    if (!nearest) { this.notifications.show('道路上の交差点または経路線を選択してください。'); return; }
+    if (!nearest) { this.showMessage('combat.selectRoadJunctionOrRoute', {}, '道路上の交差点または経路線を選択してください。'); return; }
     const nodeId = nearest.node.id;
     if (this.orderPlanning.mode === FRIENDLY_ORDER_MODE.RETREAT && !this.orderPlanning.destinationNodeId) {
       const validation = validateRetreatDestination(state, squad, nodeId);
-      if (!validation.ok) { this.notifications.show(validation.reason); return; }
+      if (!validation.ok) { this.notifications.show(this.localize(validation.reason)); return; }
       this.orderPlanning.destinationNodeId = nodeId;
       this.orderPlanning.waypointNodeIds = [];
       this.orderPlanning.selectedRouteIndex = 0;
@@ -408,15 +471,15 @@ export class CombatUi {
       ? this.orderPlanning.originNodeId
       : commandStartNodeId(state, squad);
     if (nodeId === this.orderPlanning.destinationNodeId || nodeId === startNodeId) {
-      this.notifications.show('目的地または現在の進路先とは別の交差点を選択してください。');
+      this.showMessage('combat.selectDifferentWaypoint', {}, '目的地または現在の進路先とは別の交差点を選択してください。');
       return;
     }
     if (this.orderPlanning.waypointNodeIds.includes(nodeId)) {
-      this.notifications.show('その経由地点は既に選択されています。');
+      this.showMessage('combat.waypointAlreadySelected', {}, 'その経由地点は既に選択されています。');
       return;
     }
     if (this.orderPlanning.waypointNodeIds.length >= 2) {
-      this.notifications.show('経由地点は最大2か所です。');
+      this.showMessage('combat.waypointLimit', {}, '経由地点は最大2か所です。');
       return;
     }
     this.orderPlanning.waypointNodeIds.push(nodeId);
@@ -464,7 +527,7 @@ export class CombatUi {
     this.rebuildOrderRoutes();
     this.orderPlanning.selectedRouteIndex = Math.min(priorIndex, Math.max(0, this.orderPlanning.routes.length - 1));
     const route = this.orderPlanning.routes[this.orderPlanning.selectedRouteIndex];
-    if (!route) { this.notifications.show('実行可能な道路経路がありません。'); return; }
+    if (!route) { this.showMessage('combat.noExecutableRoute', {}, '実行可能な道路経路がありません。'); return; }
     if (this.orderPlanning.mode === FRIENDLY_ORDER_MODE.DEPLOYMENT) {
       const completed = this.orderPlanning;
       this.orderPlanning = null;
@@ -473,7 +536,7 @@ export class CombatUi {
         route: { ...route, path: { ...route.path, nodeIds: [...route.path.nodeIds], edgeIds: [...route.path.edgeIds] } },
         waypointNodeIds: [...completed.waypointNodeIds]
       });
-      this.notifications.show(`${route.label}ルートで派兵を確定しました。`);
+      this.showMessage('combat.deploymentRouteConfirmed', { routeLabel: this.localize(route.label) }, `${route.label}ルートで派兵を確定しました。`);
       this.renderContext();
       return;
     }
@@ -494,11 +557,11 @@ export class CombatUi {
         destinationNodeId: this.orderPlanning.destinationNodeId
       });
     }, 'friendly:order', { emit: true, validate: true });
-    if (!result?.ok) { this.notifications.show(result?.reason ?? '命令を実行できません。'); return; }
+    if (!result?.ok) { this.showReason(result?.reason, 'combat.orderFailed', '命令を実行できません。'); return; }
     this.orderPlanning = null;
     this.updateOrderPlanningOverlay();
     this.persist?.();
-    this.notifications.show(order === FRIENDLY_SQUAD_ORDER.RETREAT ? '後退を開始しました。' : order === FRIENDLY_SQUAD_ORDER.WITHDRAW ? '撤退を開始しました。' : '選択ルートで進軍を再開しました。');
+    this.showMessage(order === FRIENDLY_SQUAD_ORDER.RETREAT ? 'combat.retreatStarted' : order === FRIENDLY_SQUAD_ORDER.WITHDRAW ? 'combat.withdrawStarted' : 'combat.resumeStarted', {}, order === FRIENDLY_SQUAD_ORDER.RETREAT ? '後退を開始しました。' : order === FRIENDLY_SQUAD_ORDER.WITHDRAW ? '撤退を開始しました。' : '選択ルートで進軍を再開しました。');
     this.renderContext();
   }
 
@@ -507,7 +570,7 @@ export class CombatUi {
     if (!squad) return;
     let result;
     this.store.transaction(state => { result = this.friendlyForceSystem.hold(state, squad.id); }, 'friendly:hold', { emit: true, validate: true });
-    this.notifications.show(result?.ok ? '部隊を停止させました。' : result?.reason ?? '停止できません。');
+    this.notifications.show(result?.ok ? this.msg('combat.squadHeld', {}, '部隊を停止させました。') : result?.reason ? this.localize(result.reason) : this.msg('combat.holdFailed', {}, '停止できません。'));
     if (result?.ok) this.persist?.();
     this.renderContext();
   }
@@ -598,7 +661,7 @@ export class CombatUi {
     const targets = this.roadsideSupplySystem.lureTargets?.(state) ?? [];
     const cluster = targets.find(target => target.kind === 'defenseCluster' && (target.defenseIds ?? []).includes(defense.id));
     if (!cluster) return;
-    const lure = this.action(`誘導信号 ×${lureCount}`, () => this.useLureSignalOnTarget({ kind: 'defenseCluster', id: cluster.id }), 'primary');
+    const lure = this.action(this.actionMsg('combat.panel.lureSignalCount', { count: lureCount }, `誘導信号 ×${lureCount}`), () => this.useLureSignalOnTarget({ kind: 'defenseCluster', id: cluster.id }), 'primary');
     lure.title = '周辺敵をこの防衛密集地点へ誘導します。';
   }
 
@@ -672,13 +735,13 @@ export class CombatUi {
       this.buildCandidate = null;
       this.refreshBuildPlacement(true);
       this.renderContext();
-      this.notifications.show(result.reason ?? 'この位置には設置できません。');
+      this.notifications.show(result.reason ? this.localize(result.reason) : this.msg('combat.panel.buildInvalidPosition', {}, 'この位置には設置できません。'));
       return;
     }
     this.buildCandidate = result.candidate;
     this.refreshBuildPlacement(true);
     this.renderContext();
-    this.notifications.show('設置候補を選択しました。範囲と効果を確認して建設を確定してください。');
+    this.showMessage('combat.panel.buildCandidateSelected', {}, '設置候補を選択しました。範囲と効果を確認して建設を確定してください。');
   }
 
   confirmBuildCandidate() {
@@ -686,7 +749,7 @@ export class CombatUi {
     const state = this.store.snapshot();
     const validation = this.buildSystem.validateCandidate(state, this.buildCandidate, { checkResources: true });
     if (!validation.ok) {
-      this.notifications.show(validation.reason ?? '建設できません。');
+      this.notifications.show(validation.reason ? this.localize(validation.reason) : this.msg('combat.panel.buildFailed', {}, '建設できません。'));
       this.refreshBuildPlacement(true);
       this.renderContext();
       return;
@@ -697,14 +760,14 @@ export class CombatUi {
       result = this.buildSystem.buildCandidate(draft, validation.candidate);
     }, 'combat:build', { emit: true, validate: true });
     if (!result?.ok) {
-      this.notifications.show(result?.reason ?? '建設できません。');
+      this.notifications.show(result?.reason ? this.localize(result.reason) : this.msg('combat.panel.buildFailed', {}, '建設できません。'));
       this.refreshBuildPlacement(true);
       this.renderContext();
       return;
     }
 
     this.persist?.();
-    this.notifications.show(`${DEFENSE_DEFINITIONS[this.selectedTool].name}を設置しました。`);
+    this.showMessage('combat.panel.defenseBuilt', { facilityName: this.localize(DEFENSE_DEFINITIONS[this.selectedTool].name) }, `${DEFENSE_DEFINITIONS[this.selectedTool].name}を設置しました。`);
     this.buildCandidate = null;
     this.buildPlacementSignature = '';
     this.renderTools();
@@ -726,8 +789,8 @@ export class CombatUi {
       const item = document.createElement('span');
       const key = document.createElement('small');
       const data = document.createElement('b');
-      key.textContent = this.localize(label);
-      data.textContent = this.localize(value);
+      key.textContent = this.textValue(label);
+      data.textContent = this.textValue(value);
       item.append(key, data);
       grid.appendChild(item);
     }
@@ -751,11 +814,16 @@ export class CombatUi {
     this.contextText.textContent = '';
     const copy = document.createElement('div');
     copy.className = 'defenseDetailCopy';
-    uniqueDefenseDescriptionParagraphs(presentation, notes)
+    const localizedPresentation = presentation ? {
+      summary: this.defenseText(presentation, 'summary'),
+      effect: this.defenseText(presentation, 'effect'),
+      placement: this.defenseText(presentation, 'placement')
+    } : null;
+    uniqueDefenseDescriptionParagraphs(localizedPresentation, notes)
       .forEach((text, index) => {
         const paragraph = document.createElement('p');
         paragraph.className = index === 0 ? 'contextSummary' : 'contextDetail';
-        paragraph.textContent = this.localize(text);
+        paragraph.textContent = text;
         copy.appendChild(paragraph);
       });
     this.contextText.appendChild(copy);
@@ -780,7 +848,7 @@ export class CombatUi {
       if (this.contextDisclosureKey === disclosureKey) this.contextDisclosureOpen = Boolean(disclosure.open);
     });
     const toggle = document.createElement('summary');
-    toggle.textContent = this.localize('説明を表示');
+    toggle.textContent = this.panelMsg('combat.panel.showDetails', {}, '説明を表示');
     disclosure.appendChild(toggle);
     explanation.forEach((detailText, index) => {
       const detail = document.createElement('p');
@@ -797,15 +865,15 @@ export class CombatUi {
     const heading = document.createElement('div');
     heading.className = 'defenseUpgradeHeading';
     const label = document.createElement('small');
-    label.textContent = this.localize(status.atMax ? 'UPGRADE COMPLETE' : `NEXT // TIER ${status.nextTier}`);
+    label.textContent = status.atMax ? this.panelMsg('combat.panel.upgradeComplete', {}, 'UPGRADE COMPLETE') : this.panelMsg('combat.panel.nextTier', { tier: status.nextTier }, `NEXT // TIER ${status.nextTier}`);
     const name = document.createElement('strong');
-    name.textContent = this.localize(status.atMax ? '最高Tierへ到達' : status.nextDefinition?.name ?? '強化先不明');
+    name.textContent = status.atMax ? this.panelMsg('combat.panel.maxTierReached', {}, '最高Tierへ到達') : this.localize(status.nextDefinition?.name ?? this.panelMsg('combat.panel.upgradeUnknown', {}, '強化先不明'));
     heading.append(label, name);
     block.appendChild(heading);
 
     if (status.atMax) {
       const note = document.createElement('p');
-      note.textContent = this.localize('この設備は現在の最終形です。');
+      note.textContent = this.panelMsg('combat.panel.finalFacilityTier', {}, 'この設備は現在の最終形です。');
       block.appendChild(note);
       this.contextText.appendChild(block);
       return;
@@ -814,35 +882,37 @@ export class CombatUi {
     const current = defenseRuntimeDefinition(defense);
     const next = defenseRuntimeDefinition({ ...defense, tier: status.nextTier, maxHp: status.nextMaxHp, line: status.line });
     const rows = [];
-    const add = (labelText, before, after) => {
-      if (String(before) !== String(after)) rows.push([labelText, `${before} → ${after}`]);
+    const add = (labelKey, fallbackLabel, before, after) => {
+      if (String(before) !== String(after)) rows.push([this.panelMsg(labelKey, {}, fallbackLabel), `${before} → ${after}`]);
     };
-    add('HP', defense.maxHp, status.nextMaxHp);
-    if (defense.kind !== 'barrier') add('射程', `${current.range}m`, `${next.range}m`);
+    const secondsValue = value => this.secondsText(value);
+    const healSpeed = value => this.panelMsg('combat.panel.healSpeedPercentPerSecond', { percent: (value * 100).toFixed(1) }, `${(value * 100).toFixed(1)}%/秒`);
+    add('combat.panel.deltaHp', 'HP', defense.maxHp, status.nextMaxHp);
+    if (defense.kind !== 'barrier') add('combat.panel.deltaRange', '射程', `${current.range}m`, `${next.range}m`);
     if (defense.type === 'gun') {
-      add('威力', current.damage, next.damage);
-      add('再装填', `${current.cooldown}秒`, `${next.cooldown}秒`);
+      add('combat.panel.deltaDamage', '威力', current.damage, next.damage);
+      add('combat.panel.deltaReload', '再装填', secondsValue(current.cooldown), secondsValue(next.cooldown));
     } else if (defense.type === 'mortar') {
-      add('中心威力', current.damage, next.damage);
-      add('再装填', `${current.cooldown}秒`, `${next.cooldown}秒`);
-      add('爆発半径', `${current.blastRadius}m`, `${next.blastRadius}m`);
-      add('最大命中', current.maxTargets, next.maxTargets);
-      add('周辺威力', `${Math.round(current.splashMultiplier * 100)}%`, `${Math.round(next.splashMultiplier * 100)}%`);
+      add('combat.panel.deltaImpactDamage', '中心威力', current.damage, next.damage);
+      add('combat.panel.deltaReload', '再装填', secondsValue(current.cooldown), secondsValue(next.cooldown));
+      add('combat.panel.deltaBlastRadius', '爆発半径', `${current.blastRadius}m`, `${next.blastRadius}m`);
+      add('combat.panel.deltaMaxTargets', '最大命中', current.maxTargets, next.maxTargets);
+      add('combat.panel.deltaSplashDamage', '周辺威力', `${Math.round(current.splashMultiplier * 100)}%`, `${Math.round(next.splashMultiplier * 100)}%`);
     } else if (defense.type === 'slow') {
-      add('減速率', `${Math.round(current.slow * 100)}%`, `${Math.round(next.slow * 100)}%`);
-      add('効果時間', `${current.slowSeconds}秒`, `${next.slowSeconds}秒`);
-      add('最大対象', current.maxTargets, next.maxTargets);
-      add('再発動', `${current.cooldown}秒`, `${next.cooldown}秒`);
+      add('combat.panel.deltaSlowRate', '減速率', `${Math.round(current.slow * 100)}%`, `${Math.round(next.slow * 100)}%`);
+      add('combat.panel.deltaSlowDuration', '効果時間', secondsValue(current.slowSeconds), secondsValue(next.slowSeconds));
+      add('combat.panel.deltaMaxTargets', '最大対象', current.maxTargets, next.maxTargets);
+      add('combat.panel.deltaCooldown', '再発動', secondsValue(current.cooldown), secondsValue(next.cooldown));
     } else if (defense.type === 'relay') {
-      add('塔修復', current.repairTower, next.repairTower);
-      add('壁修復', current.repairBarrier, next.repairBarrier);
-      add('再作動', `${current.cooldown}秒`, `${next.cooldown}秒`);
+      add('combat.panel.deltaTowerRepair', '塔修復', current.repairTower, next.repairTower);
+      add('combat.panel.deltaWallRepair', '壁修復', current.repairBarrier, next.repairBarrier);
+      add('combat.panel.deltaCooldown', '再作動', secondsValue(current.cooldown), secondsValue(next.cooldown));
     } else if (defense.type === 'medical') {
-      add('回復範囲', `${current.range}m`, `${next.range}m`);
-      add('回復速度', `${(current.recoveryRate * 100).toFixed(1)}%/秒`, `${(next.recoveryRate * 100).toFixed(1)}%/秒`);
+      add('combat.panel.deltaMedicalRange', '回復範囲', `${current.range}m`, `${next.range}m`);
+      add('combat.panel.deltaHealSpeed', '回復速度', healSpeed(current.recoveryRate), healSpeed(next.recoveryRate));
     } else if (defense.type === 'survey') {
-      add('MAP半径', `${current.surveyRadius}m`, `${next.surveyRadius}m`);
-      add('区域取得', `${current.scanInterval}秒`, `${next.scanInterval}秒`);
+      add('combat.panel.deltaMapRadius', 'MAP半径', `${current.surveyRadius}m`, `${next.surveyRadius}m`);
+      add('combat.panel.deltaScanInterval', '区域取得', secondsValue(current.scanInterval), secondsValue(next.scanInterval));
     }
 
     const grid = document.createElement('div');
@@ -860,7 +930,7 @@ export class CombatUi {
 
     const cost = document.createElement('p');
     cost.className = 'defenseUpgradeCost';
-    cost.textContent = this.localize(`強化費用：${bundleText(status.cost)}`);
+    cost.textContent = this.panelMsg('combat.panel.upgradeCost', { resourceText: { __resourceBundle: true, bundle: status.cost } }, `強化費用：${bundleText(status.cost)}`);
     block.appendChild(cost);
     if (!status.ok) {
       const reason = document.createElement('p');
@@ -885,7 +955,7 @@ export class CombatUi {
     let result;
     this.store.transaction(state => { result = action(state); }, reason, { emit: true, validate: true });
     if (result?.ok) this.persist?.();
-    this.notifications.show(this.localize(result?.ok ? result?.message ?? '操作を実行しました。' : result?.reason ?? '操作できません。'));
+    this.notifications.show(result?.ok ? (result?.message ? this.localize(result.message) : this.msg('combat.panel.actionDone', {}, '操作を実行しました。')) : (result?.reason ? this.localize(result.reason) : this.msg('combat.panel.actionUnavailable', {}, '操作できません。')));
     this.renderContext();
     this.renderer.render();
   }
@@ -893,7 +963,7 @@ export class CombatUi {
   requestDefenseRemoval(defenseId) {
     if (this.pendingDefenseRemovalId !== defenseId) {
       this.pendingDefenseRemovalId = defenseId;
-      this.notifications.show('撤去すると設備は消失し、資源は返還されません。もう一度ボタンを押すと確定します。');
+      this.showMessage('combat.panel.removalConfirmWarning', {}, '撤去すると設備は消失し、資源は返還されません。もう一度ボタンを押すと確定します。');
       this.renderContext();
       return;
     }
@@ -902,7 +972,7 @@ export class CombatUi {
     this.store.transaction(state => { result = this.buildSystem.removeDefense(state, defenseId); }, 'defense:remove', { emit: true, validate: true });
     this.pendingDefenseRemovalId = null;
     if (!result?.ok) {
-      this.notifications.show(result?.reason ?? '設備を撤去できません。');
+      this.notifications.show(result?.reason ? this.localize(result.reason) : this.msg('combat.panel.removeDefenseFailed', {}, '設備を撤去できません。'));
       this.renderContext();
       return;
     }
@@ -911,7 +981,7 @@ export class CombatUi {
     this.renderTools();
     this.renderer.render();
     this.persist?.();
-    this.notifications.show(result.message ?? '設備を撤去しました。');
+    this.notifications.show(result.message ? this.localize(result.message) : this.msg('combat.panel.defenseRemoved', {}, '設備を撤去しました。'));
   }
 
   cancelDefenseRemoval() {
@@ -931,37 +1001,39 @@ export class CombatUi {
     this.context.classList?.add('is-build-mode');
     this.context.classList?.toggle('has-candidate', Boolean(this.buildCandidate));
     this.contextActions.textContent = '';
-    this.contextTitle.textContent = this.localize(`BUILD // ${definition.name} // ${presentation.role}`);
+    const facilityName = this.localize(definition.name);
+    const role = this.defenseText(presentation, 'role');
+    this.contextTitle.textContent = this.panelMsg('combat.panel.buildTitle', { facilityName, role }, `BUILD // ${facilityName} // ${role}`);
     const instruction = !buildStatus.ok && buildStatus.requiredCivilizationLevel
       ? buildStatus.reason
       : this.buildCandidate
-      ? '白い照準が現在の設置候補です。効果範囲と費用を確認して確定してください。'
+      ? this.panelMsg('combat.panel.buildCandidateInstruction', {}, '白い照準が現在の設置候補です。効果範囲と費用を確認して確定してください。')
       : this.buildSites.length
-        ? '緑色で表示された有効地点から設置位置を選択してください。'
-        : '現在の建設可能範囲内に空いている設置地点がありません。';
+        ? this.panelMsg('combat.panel.buildSelectSiteInstruction', {}, '緑色で表示された有効地点から設置位置を選択してください。')
+        : this.panelMsg('combat.panel.buildNoSitesInstruction', {}, '現在の建設可能範囲内に空いている設置地点がありません。');
     const anchors = this.buildSystem.getBuildAnchors(state);
     const ranges = constructionRangeSummary(state.civilization?.level);
     const metrics = [
       ...presentation.metrics,
-      ['STATUS', affordable ? 'READY' : buildStatus.reason ?? '利用不可'],
+      ['STATUS', affordable ? 'READY' : buildStatus.reason ? this.localize(buildStatus.reason) : this.panelMsg('combat.panel.unavailable', {}, '利用不可')],
       ['SITES', String(this.buildSites.length)],
-      ...(this.buildCandidate ? [['SOURCE', this.buildCandidate.anchorLabel ?? '再計算']] : [])
+      ...(this.buildCandidate ? [['SOURCE', this.buildCandidate.anchorLabel ? this.localize(this.buildCandidate.anchorLabel) : this.panelMsg('combat.panel.recalculated', {}, '再計算')]] : [])
     ];
     this.setContextContent(instruction, metrics, [
-      presentation.summary,
-      presentation.effect,
-      presentation.placement,
-      `新設時はTier ${definition.initialTier ?? 0}です。文明レベル上昇後、既設設備を選択して資源を支払い個別に強化できます。`,
+      this.defenseText(presentation, 'summary'),
+      this.defenseText(presentation, 'effect'),
+      this.defenseText(presentation, 'placement'),
+      this.panelMsg('combat.panel.buildInitialTierDetail', { initialTier: definition.initialTier ?? 0 }, `新設時はTier ${definition.initialTier ?? 0}です。文明レベル上昇後、既設設備を選択して資源を支払い個別に強化できます。`),
       this.selectedTool === 'survey'
-        ? `測量施設は主要拠点・簡易拠点ごとに1基までです。設置範囲は主要拠点${ranges.major}m、簡易拠点${ranges.field}mです。遠隔取得で追加されるのは道路形状です。敵基地・道端物資・現地イベントの正確な位置は、実際に現地へ移動した後に表示されます。`
-        : `文明Lv.${ranges.level}の建設範囲は主要拠点${ranges.major}m、簡易拠点${ranges.field}m、現在地${ranges.player}m、出撃中の遠征部隊${ranges.expedition}mです。設置済み施設は新たな建設基準点になりません。移動先の道路は周辺区域の取得完了後に建設へ利用できます。`
+        ? this.panelMsg('combat.panel.buildSurveyRangeDetail', { major: ranges.major, field: ranges.field }, `測量施設は主要拠点・簡易拠点ごとに1基までです。設置範囲は主要拠点${ranges.major}m、簡易拠点${ranges.field}mです。遠隔取得で追加されるのは道路形状です。敵基地・道端物資・現地イベントの正確な位置は、実際に現地へ移動した後に表示されます。`)
+        : this.panelMsg('combat.panel.buildRangeDetail', { level: ranges.level, major: ranges.major, field: ranges.field, player: ranges.player, expedition: ranges.expedition }, `文明Lv.${ranges.level}の建設範囲は主要拠点${ranges.major}m、簡易拠点${ranges.field}m、現在地${ranges.player}m、出撃中の遠征部隊${ranges.expedition}mです。設置済み施設は新たな建設基準点になりません。移動先の道路は周辺区域の取得完了後に建設へ利用できます。`)
     ]);
     if (this.buildCandidate) {
-      const confirm = this.action(affordable ? '建設を確定' : buildStatus.requiredCivilizationLevel ? '文明未解禁' : '資源不足', () => this.confirmBuildCandidate(), 'primary');
+      const confirm = this.action(affordable ? this.actionMsg('combat.panel.buildConfirm', {}, '建設を確定') : buildStatus.requiredCivilizationLevel ? this.actionMsg('combat.panel.buildCivLocked', {}, '文明未解禁') : this.actionMsg('combat.panel.buildResourceShortage', {}, '資源不足'), () => this.confirmBuildCandidate(), 'primary');
       confirm.disabled = !affordable;
-      this.action('候補を解除', () => this.cancelBuildCandidate());
+      this.action(this.actionMsg('combat.panel.buildCancelCandidate', {}, '候補を解除'), () => this.cancelBuildCandidate());
     }
-    this.action('選択モードへ戻る', () => this.selectTool('select'));
+    this.action(this.actionMsg('combat.panel.buildBackToSelect', {}, '選択モードへ戻る'), () => this.selectTool('select'));
     setVisible(this.context, true);
   }
 
@@ -994,17 +1066,17 @@ export class CombatUi {
       const available = item.status === RECOVERY_ITEM_STATUS.AVAILABLE;
       const eligibility = available ? recoveryEligibility(state, item) : { ok: false, reason: statusPresentation.detail };
       const progress = Math.min(RECOVERY_COLLECTION_DURATION_SECONDS, collection?.progressSec ?? 0);
-      this.contextTitle.textContent = this.localize(`RECOVERY // ${presentation.name}`);
-      const statusLabel = collection ? '現地回収中' : statusPresentation.label;
+      this.contextTitle.textContent = this.panelMsg('combat.panel.recoveryTitle', { itemName: presentation.name }, `RECOVERY // ${presentation.name}`);
+      const statusLabel = collection ? this.panelMsg('combat.panel.recoveryCollecting', {}, '現地回収中') : this.localize(statusPresentation.label);
       this.setContextContent(
         available
-          ? `${presentation.sourceName}の破壊地点に残された特殊回収物です。現地へ移動するか、回収部隊を派遣して回収できます。`
-          : `${presentation.sourceName}の破壊地点に残された特殊回収物です。${statusPresentation.detail}`,
+          ? this.panelMsg('combat.panel.recoveryAvailableSummary', { sourceName: presentation.sourceName }, `${presentation.sourceName}の破壊地点に残された特殊回収物です。現地へ移動するか、回収部隊を派遣して回収できます。`)
+          : this.panelMsg('combat.panel.recoveryUnavailableSummary', { sourceName: presentation.sourceName, statusDetail: statusPresentation.detail }, `${presentation.sourceName}の破壊地点に残された特殊回収物です。${statusPresentation.detail}`),
         [['DIST', Number.isFinite(gap) ? `${Math.round(gap)}m` : 'NO GPS'], ['ENTRY', `${RECOVERY_RANGE_METERS}m`], ['STATUS', statusLabel], ['TIME', collection ? `${progress.toFixed(1)}/${RECOVERY_COLLECTION_DURATION_SECONDS}s` : available ? `${RECOVERY_COLLECTION_DURATION_SECONDS}s` : '--'], ['SOURCE', presentation.sourceName], ['LOOT', presentation.lootText]],
-        [presentation.description, collection ? '回収完了まで範囲内に留まってください。' : available ? (eligibility.ok ? '回収後は文明発展の実績として記録されます。' : eligibility.reason) : statusPresentation.detail]
+        [presentation.description, collection ? this.panelMsg('combat.panel.recoveryStayInRange', {}, '回収完了まで範囲内に留まってください。') : available ? (eligibility.ok ? this.panelMsg('combat.panel.recoveryRecorded', {}, '回収後は文明発展の実績として記録されます。') : eligibility.reason) : statusPresentation.detail]
       );
       this.context.classList?.add('is-target-mode');
-      const collect = this.action(collection ? `回収中 ${Math.floor(progress)}/${RECOVERY_COLLECTION_DURATION_SECONDS}秒` : '現地で回収', () => this.mutateAction(draft => this.recoverySystem.beginCollection(draft, item.id), 'recovery:begin'), 'primary');
+      const collect = this.action(collection ? this.actionMsg('combat.panel.collectingButton', { seconds: Math.floor(progress), totalSeconds: RECOVERY_COLLECTION_DURATION_SECONDS }, `回収中 ${Math.floor(progress)}/${RECOVERY_COLLECTION_DURATION_SECONDS}秒`) : this.actionMsg('combat.panel.collectOnSite', {}, '現地で回収'), () => this.mutateAction(draft => this.recoverySystem.beginCollection(draft, item.id), 'recovery:begin'), 'primary');
       collect.disabled = Boolean(collection) || !available || !eligibility.ok;
       const retrievalPreview = available && this.friendlyForceSystem
         ? deploymentBases(state, 'retrieval')
@@ -1014,28 +1086,28 @@ export class CombatUi {
       const retrievalReason = available && !retrievalPreview && this.friendlyForceSystem
         ? deploymentBases(state, 'retrieval')
           .map(base => this.friendlyForceSystem.previewDeployment(state, base.id, item.id, 'retrieval', 'recoveryItem'))
-          .find(result => result.reason)?.reason ?? '回収部隊を派遣できる拠点がありません。'
+          .find(result => result.reason)?.reason ?? this.panelMsg('combat.panel.noRecoveryDispatchBase', {}, '回収部隊を派遣できる拠点がありません。')
         : statusPresentation.shortLabel;
-      const dispatch = this.action(available ? '回収部隊を派遣' : statusPresentation.shortLabel, () => this.openDeployment?.({ kind: 'recoveryItem', id: item.id }));
+      const dispatch = this.action(available ? this.actionMsg('combat.panel.dispatchRecoverySquad', {}, '回収部隊を派遣') : statusPresentation.shortLabel, () => this.openDeployment?.({ kind: 'recoveryItem', id: item.id }));
       dispatch.disabled = !available || Boolean(collection) || typeof this.openDeployment !== 'function' || !retrievalPreview;
-      dispatch.title = dispatch.disabled ? retrievalReason : '回収部隊を派遣します。';
-      if (available && !retrievalPreview) this.contextText?.insertAdjacentHTML?.('beforeend', `<p class="sectionNote">${retrievalReason}</p>`);
+      dispatch.title = dispatch.disabled ? this.localize(retrievalReason) : this.panelMsg('combat.panel.dispatchRecoveryTitle', {}, '回収部隊を派遣します。');
+      if (available && !retrievalPreview && this.contextText) { const note = document.createElement('p'); note.className = 'sectionNote'; note.textContent = this.localize(retrievalReason); this.contextText.appendChild(note); }
     } else if (selected.kind === 'roadsideMine') {
       const mine = (state.world.roadsideSupplies?.placedMines ?? []).find(item => item.id === selected.id);
       if (!mine) { this.clearObjectSelection(); return; }
       const definition = ROADSIDE_USE_DEFINITIONS[mine.itemKey ?? 'roadMine'] ?? ROADSIDE_USE_DEFINITIONS.roadMine;
       const inventory = ensureRoadsideSupplyState(state).inventory ?? {};
       const lureCount = Math.max(0, Math.floor(Number(inventory.lureSignal) || 0));
-      this.contextTitle.textContent = this.localize(`MINE // ${mine.name ?? definition.name}`);
-      this.setContextContent('設置済み地雷です。時間制限はなく、敵が通過するまで残ります。誘導信号弾で敵をこの地点へ誘導できます。', [
+      this.contextTitle.textContent = this.panelMsg('combat.panel.mineTitle', { mineName: mine.name ?? definition.name }, `MINE // ${mine.name ?? definition.name}`);
+      this.setContextContent(this.panelMsg('combat.panel.mineSummary', {}, '設置済み地雷です。時間制限はなく、敵が通過するまで残ります。誘導信号弾で敵をこの地点へ誘導できます。'), [
         ['TYPE', definition.name],
         ['RADIUS', `${definition.radiusMeters}m`],
         ['TRIGGER', `${definition.triggerRadiusMeters}m`],
         ['NODE', mine.nodeId ?? '--']
-      ], ['誘導中の敵が踏んだ場合、爆発半径と威力が上昇します。']);
-      const lure = this.action(`誘導信号 ×${lureCount}`, () => this.useLureSignalOnTarget({ kind: 'mine', id: mine.id }), 'primary');
+      ], [this.panelMsg('combat.panel.mineLureDetail', {}, '誘導中の敵が踏んだ場合、爆発半径と威力が上昇します。')]);
+      const lure = this.action(this.actionMsg('combat.panel.lureSignalCount', { count: lureCount }, `誘導信号 ×${lureCount}`), () => this.useLureSignalOnTarget({ kind: 'mine', id: mine.id }), 'primary');
       lure.disabled = lureCount <= 0;
-      this.action('地雷を撤去', () => this.removeSelectedMine(mine.id), 'danger');
+      this.action(this.actionMsg('combat.panel.removeMine', {}, '地雷を撤去'), () => this.removeSelectedMine(mine.id), 'danger');
     } else if (selected.kind === 'friendlySquad') {
       const squad = (state.combat.friendlySquads ?? []).find(item => item.id === selected.id);
       if (!squad || squad.hp <= 0) { this.clearObjectSelection(); return; }
@@ -1046,26 +1118,26 @@ export class CombatUi {
       const interceptTarget = state.combat.enemies.find(enemy => enemy.id === squad.targetEnemyId && enemy.hp > 0);
       const recoveryItem = (state.world.recoveryItems ?? []).find(item => item.id === squad.targetRecoveryItemId);
       const recoveryTargetName = recoveryItem ? recoveryItemPresentation(recoveryItem).name : null;
-      this.contextTitle.textContent = this.localize(`ALLY // ${definition.name}`);
-      const orderLabel = ({ ADVANCE: '進軍', HOLD: '停止', RETREAT: '後退', WITHDRAW: '撤退', RETURN: '帰還' })[squad.order] ?? squad.order;
+      this.contextTitle.textContent = this.panelMsg('combat.panel.allyTitle', { unitName: definition.name }, `ALLY // ${definition.name}`);
+      const orderLabel = ({ ADVANCE: this.panelMsg('combat.panel.orderAdvance', {}, '進軍'), HOLD: this.panelMsg('combat.panel.orderHold', {}, '停止'), RETREAT: this.panelMsg('combat.panel.orderRetreat', {}, '後退'), WITHDRAW: this.panelMsg('combat.panel.orderWithdraw', {}, '撤退'), RETURN: this.panelMsg('combat.panel.orderReturn', {}, '帰還') })[squad.order] ?? squad.order;
       const progress = unitProgressText(squad);
       const special = definition.type === 'skirmisher'
-        ? `軽装敵への攻撃 ×${definition.lightTargetMultiplier}・重装敵 ×${definition.armoredTargetMultiplier}`
+        ? this.panelMsg('combat.panel.allySpecialSkirmisher', { lightMultiplier: definition.lightTargetMultiplier, armoredMultiplier: definition.armoredTargetMultiplier }, `軽装敵への攻撃 ×${definition.lightTargetMultiplier}・重装敵 ×${definition.armoredTargetMultiplier}`)
         : definition.type === 'heavy'
-          ? `${definition.guardRange}m以内の味方損害を${Math.round(definition.guardShare * 100)}%肩代わり`
+          ? this.panelMsg('combat.panel.allySpecialHeavy', { range: definition.guardRange, sharePercent: Math.round(definition.guardShare * 100) }, `${definition.guardRange}m以内の味方損害を${Math.round(definition.guardShare * 100)}%肩代わり`)
           : definition.type === 'expedition'
-            ? `非戦闘${definition.recoveryDelaySeconds}秒後から毎秒${definition.nonCombatRecoveryPerSecond}HP回復・周囲120mを建設圏化`
+            ? this.panelMsg('combat.panel.allySpecialExpedition', { seconds: definition.recoveryDelaySeconds, hp: definition.nonCombatRecoveryPerSecond, range: 120 }, `非戦闘${definition.recoveryDelaySeconds}秒後から毎秒${definition.nonCombatRecoveryPerSecond}HP回復・周囲120mを建設圏化`)
             : definition.type === 'siege'
-              ? '敵基地への攻撃に特化し、通常敵への火力は低い'
+              ? this.panelMsg('combat.panel.allySpecialSiege', {}, '敵基地への攻撃に特化し、通常敵への火力は低い')
               : definition.type === 'engineer'
-                ? `周囲${definition.repairRange}mの設備を最大${definition.repairAmount}HP手動修復・敵施設への攻撃に強い`
+                ? this.panelMsg('combat.panel.allySpecialEngineer', { range: definition.repairRange, hp: definition.repairAmount }, `周囲${definition.repairRange}mの設備を最大${definition.repairAmount}HP手動修復・敵施設への攻撃に強い`)
                 : definition.type === 'artillery'
-                  ? `射程${definition.engagementRange}m・半径${definition.splashRadius}mへ最大${definition.maxSplashTargets}体を範囲攻撃`
+                  ? this.panelMsg('combat.panel.allySpecialArtillery', { range: definition.engagementRange, radius: definition.splashRadius, maxTargets: definition.maxSplashTargets }, `射程${definition.engagementRange}m・半径${definition.splashRadius}mへ最大${definition.maxSplashTargets}体を範囲攻撃`)
                   : definition.type === 'command'
-                    ? `周囲${definition.auraRange}mの味方へ攻撃+${Math.round(definition.commandAura * 100)}%・移動+${Math.round(definition.speedAura * 100)}%`
+                    ? this.panelMsg('combat.panel.allySpecialCommand', { range: definition.auraRange, attackPercent: Math.round(definition.commandAura * 100), speedPercent: Math.round(definition.speedAura * 100) }, `周囲${definition.auraRange}mの味方へ攻撃+${Math.round(definition.commandAura * 100)}%・移動+${Math.round(definition.speedAura * 100)}%`)
                     : definition.type === 'retrieval'
-                      ? `現地で${definition.collectionSeconds}秒停止して回収。戦闘力と耐久は非常に低い`
-                      : '通常敵と敵基地の両方へ対応する標準部隊';
+                      ? this.panelMsg('combat.panel.allySpecialRetrieval', { seconds: definition.collectionSeconds }, `現地で${definition.collectionSeconds}秒停止して回収。戦闘力と耐久は非常に低い`)
+                      : this.panelMsg('combat.panel.allySpecialStandard', {}, '通常敵と敵基地の両方へ対応する標準部隊');
       if ([FRIENDLY_SQUAD_STATUS.RECOVERING, FRIENDLY_SQUAD_STATUS.READY].includes(squad.status)) {
         const recovery = recoveryPresentation(state, squad);
         const recoveryBase = ownedBaseById(state, squad.recoveryBaseId ?? squad.originBaseId, { includeDestroyed: true });
@@ -1074,42 +1146,42 @@ export class CombatUi {
         this.setContextContent(
           squad.status === FRIENDLY_SQUAD_STATUS.READY
             ? recovery.baseHealing
-              ? '主要拠点で補給・回復・再編成が完了し、再出撃命令を待っています。'
-              : '簡易拠点で再編成が完了し、再出撃命令を待っています。前線でのHP回復には回復施設を利用します。'
+              ? this.panelMsg('combat.panel.allyReadyMajor', {}, '主要拠点で補給・回復・再編成が完了し、再出撃命令を待っています。')
+              : this.panelMsg('combat.panel.allyReadyField', {}, '簡易拠点で再編成が完了し、再出撃命令を待っています。前線でのHP回復には回復施設を利用します。')
             : recovery.baseHealing
-              ? '主要拠点へ帰還し、補給による回復と再編成を行っています。'
-              : '簡易拠点へ帰還し、再編成を行っています。HP回復には回復施設の範囲内での待機が必要です。',
+              ? this.panelMsg('combat.panel.allyRecoveringMajor', {}, '主要拠点へ帰還し、補給による回復と再編成を行っています。')
+              : this.panelMsg('combat.panel.allyRecoveringField', {}, '簡易拠点へ帰還し、再編成を行っています。HP回復には回復施設の範囲内での待機が必要です。'),
           [
             ['HP', `${Math.ceil(squad.hp)}/${squad.maxHp}`],
             ['LV', `Lv.${progress.level}`],
             ['XP', progress.xpText],
             ['NEXT', progress.nextText],
             ['STATUS', squad.status],
-            ['BASE', recoveryBase?.name ?? '不明'],
-            ['RECOVERY', squad.status === FRIENDLY_SQUAD_STATUS.READY ? '完了' : `${Math.ceil(recoveryRemaining)}秒`],
-            ['HEAL', recovery.baseHealing ? '主要拠点補給' : medical ? `${medical.definition.name} ${Math.round(medical.distance)}m` : '範囲外']
+            ['BASE', recoveryBase?.name ?? this.panelMsg('combat.panel.unknown', {}, '不明')],
+            ['RECOVERY', squad.status === FRIENDLY_SQUAD_STATUS.READY ? this.panelMsg('combat.panel.recoveryComplete', {}, '完了') : this.panelMsg('combat.panel.seconds', { seconds: Math.ceil(recoveryRemaining) }, `${Math.ceil(recoveryRemaining)}秒`)],
+            ['HEAL', recovery.baseHealing ? this.panelMsg('combat.panel.majorBaseSupply', {}, '主要拠点補給') : medical ? `${this.localize(medical.definition.name)} ${Math.round(medical.distance)}m` : this.panelMsg('combat.panel.outOfRange', {}, '範囲外')]
           ],
           [special, recovery.baseHealing
-            ? '主要拠点では帰還部隊へ基礎補給を行います。回復施設は拠点外でも範囲内の全味方部隊を同時に回復します。'
-            : '簡易拠点には自動回復機能がありません。回復施設の射程内へ配置してください。']
+            ? this.panelMsg('combat.panel.allyMajorHealingDetail', {}, '主要拠点では帰還部隊へ基礎補給を行います。回復施設は拠点外でも範囲内の全味方部隊を同時に回復します。')
+            : this.panelMsg('combat.panel.allyFieldHealingDetail', {}, '簡易拠点には自動回復機能がありません。回復施設の射程内へ配置してください。')]
         );
       } else {
         this.setContextContent(
           squad.order === FRIENDLY_SQUAD_ORDER.HOLD
-            ? `指定地点で停止中です。${definition.description}`
+            ? this.panelMsg('combat.panel.allyHoldingSummary', { description: definition.description }, `指定地点で停止中です。${definition.description}`)
             : squad.order === FRIENDLY_SQUAD_ORDER.RETREAT
-              ? `選択した道路ルートで後退中です。${definition.description}`
+              ? this.panelMsg('combat.panel.allyRetreatingSummary', { description: definition.description }, `選択した道路ルートで後退中です。${definition.description}`)
               : squad.order === FRIENDLY_SQUAD_ORDER.WITHDRAW
-                ? `現在の任務を破棄し、出撃元へ撤退中です。${definition.description}`
+                ? this.panelMsg('combat.panel.allyWithdrawingSummary', { description: definition.description }, `現在の任務を破棄し、出撃元へ撤退中です。${definition.description}`)
                 : squad.missionType === 'RECOVERY' && recoveryItem?.status === RECOVERY_ITEM_STATUS.CARRIED
-                  ? `特殊アイテムを確保し、出撃元へ輸送中です。${definition.description}`
+                  ? this.panelMsg('combat.panel.allyCarryingRecoverySummary', { description: definition.description }, `特殊アイテムを確保し、出撃元へ輸送中です。${definition.description}`)
                   : squad.missionType === 'RECOVERY' && recoveryItem
-                    ? `特殊アイテムの回収地点へ進行中です。${definition.description}`
+                    ? this.panelMsg('combat.panel.allyMovingToRecoverySummary', { description: definition.description }, `特殊アイテムの回収地点へ進行中です。${definition.description}`)
                     : squad.missionType === 'INTERCEPT' && interceptTarget
-                      ? `指定した敵部隊を追跡・迎撃中です。${definition.description}`
+                      ? this.panelMsg('combat.panel.allyInterceptingSummary', { description: definition.description }, `指定した敵部隊を追跡・迎撃中です。${definition.description}`)
                       : squad.targetBaseId
-                        ? `敵基地へ進軍中です。${definition.description}`
-                        : `任務を終えて出撃元へ帰還中です。${definition.description}`,
+                        ? this.panelMsg('combat.panel.allyAdvancingBaseSummary', { description: definition.description }, `敵基地へ進軍中です。${definition.description}`)
+                        : this.panelMsg('combat.panel.allyReturningSummary', { description: definition.description }, `任務を終えて出撃元へ帰還中です。${definition.description}`),
           [
             ['HP', `${Math.ceil(squad.hp)}/${squad.maxHp}`],
             ['LV', `Lv.${progress.level}`],
@@ -1123,22 +1195,22 @@ export class CombatUi {
             ['ENEMY DPS', String(definition.enemyDps)],
             ['BASE DPS', String(definition.baseDps)],
             ['RANGE', Number.isFinite(remaining) ? `${Math.round(remaining)}m` : 'RECALC'],
-            ['ORIGIN', origin?.name ?? '不明'],
+            ['ORIGIN', origin?.name ?? this.panelMsg('combat.panel.unknown', {}, '不明')],
             ['TARGET', recoveryItem?.status === RECOVERY_ITEM_STATUS.CARRIED
-              ? '出撃元へ輸送'
+              ? this.panelMsg('combat.panel.targetCarryToOrigin', {}, '出撃元へ輸送')
               : recoveryTargetName
-                ?? (interceptTarget ? ENEMY_DEFINITIONS[interceptTarget.type]?.name ?? '敵部隊' : null)
-                ?? (target ? ENEMY_BASE_DEFINITIONS[target.type]?.name ?? '敵拠点' : squad.order === FRIENDLY_SQUAD_ORDER.WITHDRAW ? '出撃元' : '帰還')]
+                ?? (interceptTarget ? ENEMY_DEFINITIONS[interceptTarget.type]?.name ?? this.panelMsg('combat.panel.enemySquad', {}, '敵部隊') : null)
+                ?? (target ? ENEMY_BASE_DEFINITIONS[target.type]?.name ?? this.panelMsg('combat.panel.enemyBase', {}, '敵拠点') : squad.order === FRIENDLY_SQUAD_ORDER.WITHDRAW ? this.panelMsg('combat.panel.origin', {}, '出撃元') : this.panelMsg('combat.panel.returning', {}, '帰還'))]
           ],
           [special]
         );
         if (![FRIENDLY_SQUAD_ORDER.RETURN, FRIENDLY_SQUAD_ORDER.WITHDRAW].includes(squad.order)) {
-          if (squad.order !== FRIENDLY_SQUAD_ORDER.HOLD) this.action('停止', () => this.holdSelectedSquad());
-          if (squad.order === FRIENDLY_SQUAD_ORDER.HOLD && ((squad.missionTargetBaseId ?? squad.targetBaseId ?? squad.targetEnemyId ?? squad.targetRecoveryItemId) || squad.heldDestinationNodeId)) this.action('移動再開', () => this.beginOrderPlanning(FRIENDLY_ORDER_MODE.RESUME), 'primary');
-          if (squad.type === 'engineer') this.action('周辺設備を修復', () => this.mutateAction(draft => this.friendlyForceSystem.repairNearby(draft, squad.id), 'friendly:engineer-repair'), 'primary');
+          if (squad.order !== FRIENDLY_SQUAD_ORDER.HOLD) this.action(this.actionMsg('combat.panel.actionHold', {}, '停止'), () => this.holdSelectedSquad());
+          if (squad.order === FRIENDLY_SQUAD_ORDER.HOLD && ((squad.missionTargetBaseId ?? squad.targetBaseId ?? squad.targetEnemyId ?? squad.targetRecoveryItemId) || squad.heldDestinationNodeId)) this.action(this.actionMsg('combat.panel.actionResume', {}, '移動再開'), () => this.beginOrderPlanning(FRIENDLY_ORDER_MODE.RESUME), 'primary');
+          if (squad.type === 'engineer') this.action(this.actionMsg('combat.panel.actionRepairNearby', {}, '周辺設備を修復'), () => this.mutateAction(draft => this.friendlyForceSystem.repairNearby(draft, squad.id), 'friendly:engineer-repair'), 'primary');
           this.appendSelectedSquadItemActions(state, squad);
-          this.action('後退', () => this.beginOrderPlanning(FRIENDLY_ORDER_MODE.RETREAT));
-          this.action('撤退', () => this.beginOrderPlanning(FRIENDLY_ORDER_MODE.WITHDRAW), 'danger');
+          this.action(this.actionMsg('combat.panel.actionRetreat', {}, '後退'), () => this.beginOrderPlanning(FRIENDLY_ORDER_MODE.RETREAT));
+          this.action(this.actionMsg('combat.panel.actionWithdraw', {}, '撤退'), () => this.beginOrderPlanning(FRIENDLY_ORDER_MODE.WITHDRAW), 'danger');
         }
       }
     } else if (selected.kind === 'enemy') {
@@ -1157,20 +1229,20 @@ export class CombatUi {
         ? (state.combat.friendlySquads ?? []).find(squad => squad.id === enemy.targetSquadId && squad.hp > 0)
         : null;
       const targetName = targetDefense
-        ? defenseRuntimeDefinition(targetDefense).name ?? '防衛施設'
+        ? defenseRuntimeDefinition(targetDefense).name ?? this.panelMsg('combat.panel.defenseFacility', {}, '防衛施設')
         : targetSquad
-          ? FRIENDLY_SQUAD_DEFINITIONS[targetSquad.type]?.name ?? '味方部隊'
-          : targetPlayerBase?.name ?? targetFieldBase?.name ?? (enemy.targetPlayerBaseId ? '主要拠点' : enemy.targetFieldBaseId ? '簡易拠点' : '都市');
+          ? FRIENDLY_SQUAD_DEFINITIONS[targetSquad.type]?.name ?? this.panelMsg('combat.panel.allySquad', {}, '味方部隊')
+          : targetPlayerBase?.name ?? targetFieldBase?.name ?? (enemy.targetPlayerBaseId ? this.panelMsg('combat.panel.majorBase', {}, '主要拠点') : enemy.targetFieldBaseId ? this.panelMsg('combat.panel.fieldBase', {}, '簡易拠点') : this.panelMsg('combat.panel.city', {}, '都市'));
       const summary = targetDefense
-        ? `${targetName}を優先目標として進行中です。目標喪失時は性格に従って再経路を選択します。`
+        ? this.panelMsg('combat.panel.enemyTargetsDefense', { targetName }, `${targetName}を優先目標として進行中です。目標喪失時は性格に従って再経路を選択します。`)
         : targetSquad
-          ? `${targetName}を追跡中です。部隊が移動すると次の道路節点で追跡経路を更新します。`
+          ? this.panelMsg('combat.panel.enemyTargetsSquad', { targetName }, `${targetName}を追跡中です。部隊が移動すると次の道路節点で追跡経路を更新します。`)
           : enemy.targetPlayerBaseId || enemy.targetFieldBaseId
-            ? `${targetName}への襲撃を優先しています。都市へ直行する敵とは異なる防衛線が必要です。`
-            : '都市へ進行中です。経路は敵の性格と波の作戦に応じて選択されます。';
-      const routeMode = ({ FLANK: '側面迂回', EVASIVE: '危険回避', BREACH: '正面突破', SABOTAGE: '施設潜入', RAID: '拠点襲撃', HUNT: '部隊追跡', SUPPORT: '支援同行', GUARD: '護衛進軍', COMMAND: '指揮進軍', DIRECT: '最短進軍' })[enemy.path?.routeMode ?? behavior.routeMode] ?? definition.routeLabel ?? '状況判断';
+            ? this.panelMsg('combat.panel.enemyRaidingBase', { targetName }, `${targetName}への襲撃を優先しています。都市へ直行する敵とは異なる防衛線が必要です。`)
+            : this.panelMsg('combat.panel.enemyAdvancingCity', {}, '都市へ進行中です。経路は敵の性格と波の作戦に応じて選択されます。');
+      const routeMode = ({ FLANK: this.panelMsg('combat.panel.routeFlank', {}, '側面迂回'), EVASIVE: this.panelMsg('combat.panel.routeEvasive', {}, '危険回避'), BREACH: this.panelMsg('combat.panel.routeBreach', {}, '正面突破'), SABOTAGE: this.panelMsg('combat.panel.routeSabotage', {}, '施設潜入'), RAID: this.panelMsg('combat.panel.routeRaid', {}, '拠点襲撃'), HUNT: this.panelMsg('combat.panel.routeHunt', {}, '部隊追跡'), SUPPORT: this.panelMsg('combat.panel.routeSupport', {}, '支援同行'), GUARD: this.panelMsg('combat.panel.routeGuard', {}, '護衛進軍'), COMMAND: this.panelMsg('combat.panel.routeCommand', {}, '指揮進軍'), DIRECT: this.panelMsg('combat.panel.routeDirect', {}, '最短進軍') })[enemy.path?.routeMode ?? behavior.routeMode] ?? definition.routeLabel ?? this.panelMsg('combat.panel.routeAdaptive', {}, '状況判断');
       const detour = Number(enemy.path?.detourPercent) > 0 ? `+${enemy.path.detourPercent}%` : '—';
-      this.contextTitle.textContent = this.localize(`TARGET // ${definition.name}`);
+      this.contextTitle.textContent = this.panelMsg('combat.panel.enemyTitle', { enemyName: definition.name }, `TARGET // ${definition.name}`);
       this.setContextContent(summary, [
         ['LEVEL', `Lv.${enemy.level ?? 1}`],
         ['HP', `${Math.ceil(enemy.hp)}/${enemy.maxHp}`],
@@ -1181,8 +1253,8 @@ export class CombatUi {
         ['DETOUR', detour],
         ['DAMAGE', String(definition.cityDamage)],
         ['OBJECTIVE', targetName]
-      ], [behavior.description, `基本目標：${definition.objectiveLabel ?? '都市'}`]);
-      const intercept = this.action('この敵部隊へ派兵', () => this.openDeployment?.({ kind: 'enemy', id: enemy.id }), 'primary');
+      ], [behavior.description, this.panelMsg('combat.panel.enemyBaseObjective', { objective: definition.objectiveLabel ?? this.panelMsg('combat.panel.city', {}, '都市') }, `基本目標：${definition.objectiveLabel ?? '都市'}`)]);
+      const intercept = this.action(this.actionMsg('combat.panel.dispatchToEnemy', {}, 'この敵部隊へ派兵'), () => this.openDeployment?.({ kind: 'enemy', id: enemy.id }), 'primary');
       intercept.disabled = enemy.departDelay > 0 || typeof this.openDeployment !== 'function';
       this.appendStrategicItemActions(state, { kind: 'enemy', id: enemy.id });
     } else if (selected.kind === 'frontier') {
@@ -1192,33 +1264,43 @@ export class CombatUi {
       const entry = state.world.roadGraph.nodeById.get(source.entryNodeId);
       const sourceDistance = entry ? distance(entry, source.point) : Infinity;
       const playerDistance = state.player.worldPosition ? distance(state.player.worldPosition, source.point) : Infinity;
-      this.contextTitle.textContent = this.localize(`FRONTIER // ${presentation.title}`);
+      this.contextTitle.textContent = this.panelMsg('combat.panel.frontierTitle', { title: presentation.title }, `FRONTIER // ${presentation.title}`);
       this.setContextContent(
         presentation.stage === 'DISTANT'
-          ? '道路網の外側から断続的な敵性反応を検出しています。実際にこの方向へ移動すると情報精度が上がります。'
-          : '敵性反応の方向と規模が絞り込まれています。道路を探索して発生源を特定してください。',
+          ? this.panelMsg('combat.panel.frontierDistantSummary', {}, '道路網の外側から断続的な敵性反応を検出しています。実際にこの方向へ移動すると情報精度が上がります。')
+          : this.panelMsg('combat.panel.frontierLocatedSummary', {}, '敵性反応の方向と規模が絞り込まれています。道路を探索して発生源を特定してください。'),
         [
           ['SIGNAL', presentation.stage],
           ['THREAT', `T${presentation.threat}`],
           ['TYPE', presentation.profileLabel],
-          ['SOURCE', Number.isFinite(sourceDistance) ? `約${Math.round(sourceDistance)}m先` : '不明'],
+          ['SOURCE', Number.isFinite(sourceDistance) ? this.panelMsg('combat.panel.distanceAhead', { meters: Math.round(sourceDistance) }, `約${Math.round(sourceDistance)}m先`) : this.panelMsg('combat.panel.unknown', {}, '不明')],
           ['YOU', Number.isFinite(playerDistance) ? `${Math.round(playerDistance)}m` : 'NO GPS'],
           ['WAVES', String(source.wavesSent ?? 0)]
         ],
-        ['未確認地域から敵部隊が侵入します。発生源は同じ世界座標に固定され、道路を探索して近づいても遠ざかりません。']
+        [this.panelMsg('combat.panel.frontierDetail', {}, '未確認地域から敵部隊が侵入します。発生源は同じ世界座標に固定され、道路を探索して近づいても遠ざかりません。')]
       );
     } else if (selected.kind === 'enemyBase') {
-      const base = state.world.enemyBases.find(item => item.id === selected.id);
+      const base = state.world.enemyBases.find(item => item.id === selected.id && item.alive);
       if (!base?.alive) { this.clearObjectSelection(); return; }
       const definition = ENEMY_BASE_DEFINITIONS[base.type];
       this.contextTitle.textContent = this.localize(definition.name);
       const attackers = (state.combat.friendlySquads ?? []).filter(squad => squad.targetBaseId === base.id).length;
       this.context.classList?.add('is-target-mode');
+      const anchor = enemyBaseAnchorPresentation(state, base);
       this.setContextContent(
-        '選択中の敵拠点です。攻撃部隊は道路上を移動し、この拠点へ到達後に攻撃を開始します。',
-        [['HP', `${Math.ceil(base.hp)}/${base.maxHp}`], ['LEVEL', `Lv.${base.level ?? 1}`], ['ATTACKERS', String(attackers)], ['STATUS', attackers ? 'UNDER ATTACK' : 'HOSTILE']]
+        this.panelMsg('combat.panel.enemyBaseSummary', {}, '選択中の敵拠点です。攻撃部隊は道路上を移動し、この拠点へ到達後に攻撃を開始します。'),
+        [
+          ['HP', `${Math.ceil(base.hp)}/${base.maxHp}`],
+          ['LEVEL', `Lv.${base.level ?? 1}`],
+          ['TARGET', anchor.targetKey ? this.panelMsg(anchor.targetKey, anchor.targetParams ?? {}, anchor.targetFallback) : anchor.target],
+          ['NEXT', (() => { const nextWave = enemyBaseNextWaveState(state, base); return this.panelMsg(nextWave.key, nextWave.params, nextWave.fallback); })()],
+          ['PRESSURE', anchor.pressureKey ? this.panelMsg(anchor.pressureKey, anchor.pressureParams ?? {}, anchor.pressureFallback) : anchor.pressure],
+          ['ATTACKERS', String(attackers)],
+          ['STATUS', attackers ? 'UNDER ATTACK' : 'HOSTILE']
+        ],
+        [this.panelMsg(anchor.riskKey, anchor.riskParams ?? {}, anchor.riskFallback), this.panelMsg('combat.panel.enemyBaseLootDetail', {}, '破壊すると特殊回収物と資源備蓄が現地に残ります。')]
       );
-      const deploy = this.action(attackers ? '追加部隊を派兵' : 'この敵拠点へ派兵', () => this.openDeployment?.({ kind: 'enemyBase', id: base.id }), 'primary');
+      const deploy = this.action(attackers ? this.actionMsg('combat.panel.dispatchAdditionalSquad', {}, '追加部隊を派兵') : this.actionMsg('combat.panel.dispatchToEnemyBase', {}, 'この敵拠点へ派兵'), () => this.openDeployment?.({ kind: 'enemyBase', id: base.id }), 'primary');
       deploy.disabled = typeof this.openDeployment !== 'function';
       this.appendStrategicItemActions(state, { kind: 'enemyBase', id: base.id });
     } else if (selected.kind === 'defense') {
@@ -1234,46 +1316,46 @@ export class CombatUi {
       const presentation = defensePresentation(defense.isGate ? 'gate' : defense.type, runtime);
       const survey = defense.type === 'survey' ? surveyFacilityPresentation(state, defense) : null;
       const operatingStatus = defense.disabledTimer > 0
-          ? `停止 ${defense.disabledTimer.toFixed(1)}秒`
+          ? this.panelMsg('combat.panel.statusDisabledSeconds', { seconds: defense.disabledTimer.toFixed(1) }, `停止 ${defense.disabledTimer.toFixed(1)}秒`)
           : survey
             ? survey.statusLabel
-            : defense.cooldown > 0 ? `再装填 ${defense.cooldown.toFixed(1)}秒` : defense.isGate ? '封鎖中' : '稼働';
+            : defense.cooldown > 0 ? this.panelMsg('combat.panel.statusReloadingSeconds', { seconds: defense.cooldown.toFixed(1) }, `再装填 ${defense.cooldown.toFixed(1)}秒`) : defense.isGate ? this.panelMsg('combat.panel.statusClosed', {}, '封鎖中') : this.panelMsg('combat.panel.statusOperating', {}, '稼働');
       const upgrade = defenseUpgradeStatus(state, defense);
       const surveyMetrics = survey ? [
-        ['NEXT', `${survey.nextScanSeconds}秒`],
-        ['EXPANDED', `${survey.completedCount}区域`],
+        ['NEXT', this.panelMsg('combat.panel.seconds', { seconds: survey.nextScanSeconds }, `${survey.nextScanSeconds}秒`)],
+        ['EXPANDED', this.panelMsg('combat.panel.zoneCount', { count: survey.completedCount }, `${survey.completedCount}区域`)],
         ['REMAIN', String(survey.remainingChunks)],
-        ['COMM', survey.lastConnectionAt > 0 ? '成功' : survey.lastTransport === 'CACHE' ? 'キャッシュ' : '未成功'],
-        ['LINK', survey.lastEndpoint ? `${survey.lastEndpoint} ${{ SANDBOX_JSONP: '隔離JSONP', GET: 'GET', POST: 'POST', CACHE: 'キャッシュ' }[survey.lastTransport] ?? survey.lastTransport ?? ''}`.trim() : '未成功'],
+        ['COMM', survey.lastConnectionAt > 0 ? this.panelMsg('combat.panel.commSuccess', {}, '成功') : survey.lastTransport === 'CACHE' ? this.panelMsg('combat.panel.commCache', {}, 'キャッシュ') : this.panelMsg('combat.panel.commNoSuccess', {}, '未成功')],
+        ['LINK', survey.lastEndpoint ? `${survey.lastEndpoint} ${{ SANDBOX_JSONP: '隔離JSONP', GET: 'GET', POST: 'POST', CACHE: 'キャッシュ' }[survey.lastTransport] ?? survey.lastTransport ?? ''}`.trim() : this.panelMsg('combat.panel.commNoSuccess', {}, '未成功')],
         ...(survey.lastConnectionAt > 0 ? [['RESPONSE', `${survey.lastResponseElements}件`]] : []),
         ...(survey.lastSuccessAt > 0 ? [['ROADS', String(survey.lastRoadCount)]] : []),
         ...(survey.errorCount > 0 ? [['RETRY', String(survey.errorCount)]] : [])
       ] : [];
-      const notes = presentation ? ['強化しても損傷率は維持され、全回復はしません。'] : [];
+      const notes = presentation ? [this.panelMsg('combat.panel.upgradeKeepsDamageRatio', {}, '強化しても損傷率は維持され、全回復はしません。')] : [];
       if (survey) {
-        notes.push('遠隔測量済み区域へプレイヤーが実際に入ると、現地イベントや敵発生源の正確な情報が解禁されます。');
-        if (survey.lastConnectionAt <= 0) notes.push('この施設にはまだ道路サーバーとの通信成功記録がありません。COMMが未成功のままなら「今すぐ測量」で再試行してください。');
-        else if (survey.lastSuccessAt <= 0) notes.push('道路サーバーとの通信は成功していますが、道路の解析・統合はまだ完了していません。');
-        if (survey.lastError) notes.push(`直近の${survey.lastErrorStage === 'PROCESSING' ? '道路処理' : '通信'}失敗：${survey.lastError}`);
+        notes.push(this.panelMsg('combat.panel.surveyFieldVisitDetail', {}, '遠隔測量済み区域へプレイヤーが実際に入ると、現地イベントや敵発生源の正確な情報が解禁されます。'));
+        if (survey.lastConnectionAt <= 0) notes.push(this.panelMsg('combat.panel.surveyNoConnectionDetail', {}, 'この施設にはまだ道路サーバーとの通信成功記録がありません。COMMが未成功のままなら「今すぐ測量」で再試行してください。'));
+        else if (survey.lastSuccessAt <= 0) notes.push(this.panelMsg('combat.panel.surveyConnectionNoRoadsDetail', {}, '道路サーバーとの通信は成功していますが、道路の解析・統合はまだ完了していません。'));
+        if (survey.lastError) notes.push(this.panelMsg('combat.panel.surveyLastError', { stage: survey.lastErrorStage === 'PROCESSING' ? this.panelMsg('combat.panel.surveyStageProcessing', {}, '道路処理') : this.panelMsg('combat.panel.surveyStageCommunication', {}, '通信'), errorMessage: survey.lastError }, `直近の${survey.lastErrorStage === 'PROCESSING' ? '道路処理' : '通信'}失敗：${survey.lastError}`));
       }
 
       this.context.classList?.add(`is-defense-${this.defensePanelMode}`);
       if (this.defensePanelMode === 'details') {
-        this.contextTitle.textContent = this.localize(`DETAIL // ${runtime.name}`);
+        this.contextTitle.textContent = this.panelMsg('combat.panel.defenseDetailTitle', { facilityName: runtime.name }, `DETAIL // ${runtime.name}`);
         this.setDefenseDetails(presentation, notes);
-        this.action('施設情報へ戻る', () => this.setDefensePanelMode('summary', defense.id), 'primary');
+        this.action(this.actionMsg('combat.panel.actionBackToFacility', {}, '施設情報へ戻る'), () => this.setDefensePanelMode('summary', defense.id), 'primary');
       } else if (this.defensePanelMode === 'upgrade') {
-        this.contextTitle.textContent = this.localize(`UPGRADE // ${runtime.name}`);
+        this.contextTitle.textContent = this.panelMsg('combat.panel.defenseUpgradeTitle', { facilityName: runtime.name }, `UPGRADE // ${runtime.name}`);
         this.contextText.textContent = '';
         this.appendDefenseUpgradePreview(state, defense, upgrade);
-        this.action('戻る', () => this.setDefensePanelMode('summary', defense.id));
-        const confirmUpgrade = this.action(upgrade.atMax ? '最高Tier' : upgrade.ok ? '強化を確定' : '強化条件を満たしていません', () => {
+        this.action(this.actionMsg('combat.panel.actionBack', {}, '戻る'), () => this.setDefensePanelMode('summary', defense.id));
+        const confirmUpgrade = this.action(upgrade.atMax ? this.actionMsg('combat.panel.actionMaxTier', {}, '最高Tier') : upgrade.ok ? this.actionMsg('combat.panel.actionConfirmUpgrade', {}, '強化を確定') : this.actionMsg('combat.panel.actionUpgradeLocked', {}, '強化条件を満たしていません'), () => {
           this.defensePanelMode = 'summary';
           this.mutateAction(draft => this.civilizationSystem.progression.upgradeDefense(draft, defense.id), 'defense:upgrade');
         }, 'primary');
         confirmUpgrade.disabled = !upgrade.ok;
       } else {
-        this.contextTitle.textContent = this.localize(`${runtime.name} // Tier ${defense.tier ?? 0}`);
+        this.contextTitle.textContent = this.panelMsg('combat.panel.defenseSummaryTitle', { facilityName: runtime.name, tier: defense.tier ?? 0 }, `${runtime.name} // Tier ${defense.tier ?? 0}`);
         this.setContextMetrics([
           ['HP', `${Math.ceil(defense.hp)}/${defense.maxHp}`],
           ['STATUS', operatingStatus],
@@ -1281,18 +1363,18 @@ export class CombatUi {
           ...(presentation?.metrics ?? []).filter(([label]) => label !== 'HP'),
           ...surveyMetrics
         ]);
-        this.action('説明', () => this.setDefensePanelMode('details', defense.id));
-        const repair = this.action(defense.hp >= defense.maxHp ? '修理不要' : '修理', () => this.mutateAction(draft => this.civilizationSystem.progression.repairDefense(draft, defense.id), 'defense:repair'));
+        this.action(this.actionMsg('combat.panel.actionDetails', {}, '説明'), () => this.setDefensePanelMode('details', defense.id));
+        const repair = this.action(defense.hp >= defense.maxHp ? this.actionMsg('combat.panel.actionRepairNotNeeded', {}, '修理不要') : this.actionMsg('combat.panel.actionRepair', {}, '修理'), () => this.mutateAction(draft => this.civilizationSystem.progression.repairDefense(draft, defense.id), 'defense:repair'));
         repair.disabled = defense.hp >= defense.maxHp;
         this.appendDefenseLureAction(state, defense);
         if (survey) {
           const surveyBusy = ['QUEUED', 'LOADING'].includes(survey.status);
           const surveyComplete = survey.status === 'COMPLETE' && survey.remainingChunks <= 0;
           const scan = this.action(
-            surveyBusy ? '測量通信中' : surveyComplete ? '範囲内取得完了' : '今すぐ測量',
+            surveyBusy ? this.actionMsg('combat.panel.actionSurveyBusy', {}, '測量通信中') : surveyComplete ? this.actionMsg('combat.panel.actionSurveyComplete', {}, '範囲内取得完了') : this.actionMsg('combat.panel.actionSurveyNow', {}, '今すぐ測量'),
             () => {
-              const result = this.requestSurvey?.(defense.id) ?? { ok: false, reason: '測量通信を開始できません。' };
-              this.notifications.show(result.ok ? result.message ?? '道路測量を開始しました。' : result.reason ?? '道路測量を開始できません。');
+              const result = this.requestSurvey?.(defense.id) ?? { ok: false, reason: this.panelMsg('combat.panel.surveyStartFailed', {}, '測量通信を開始できません。') };
+              this.notifications.show(result.ok ? (result.message ? this.localize(result.message) : this.msg('combat.panel.surveyStarted', {}, '道路測量を開始しました。')) : (result.reason ? this.localize(result.reason) : this.msg('combat.panel.surveyStartFailed', {}, '道路測量を開始できません。')));
               if (result.ok) this.persist?.();
               this.renderContext();
             },
@@ -1300,23 +1382,23 @@ export class CombatUi {
           );
           scan.disabled = defense.hp <= 0 || defense.disabledTimer > 0 || surveyBusy || surveyComplete || typeof this.requestSurvey !== 'function';
         }
-        const upgradeButton = this.action(upgrade.atMax ? '最高Tier' : '強化', () => this.setDefensePanelMode('upgrade', defense.id), 'primary');
+        const upgradeButton = this.action(upgrade.atMax ? this.actionMsg('combat.panel.actionMaxTier', {}, '最高Tier') : this.actionMsg('combat.panel.actionUpgrade', {}, '強化'), () => this.setDefensePanelMode('upgrade', defense.id), 'primary');
         upgradeButton.disabled = upgrade.atMax;
         if (defense.kind === 'barrier' && !defense.isGate) {
-          const gate = this.action((state.civilization.level ?? 0) >= 2 ? '門へ変換' : '門は文明Lv.2で解禁', () => this.mutateAction(draft => this.civilizationSystem.progression.convertBarrierToGate(draft, defense.id), 'defense:gate'));
+          const gate = this.action((state.civilization.level ?? 0) >= 2 ? this.actionMsg('combat.panel.actionConvertGate', {}, '門へ変換') : this.actionMsg('combat.panel.actionGateLocked', {}, '門は文明Lv.2で解禁'), () => this.mutateAction(draft => this.civilizationSystem.progression.convertBarrierToGate(draft, defense.id), 'defense:gate'));
           gate.disabled = (state.civilization.level ?? 0) < 2 || defense.hp <= 0;
         }
         const removalPending = this.pendingDefenseRemovalId === defense.id;
         this.action(
-          removalPending ? '撤去を確定（資源返還なし）' : '撤去',
+          removalPending ? this.actionMsg('combat.panel.actionConfirmRemoval', {}, '撤去を確定（資源返還なし）') : this.actionMsg('combat.panel.actionRemove', {}, '撤去'),
           () => this.requestDefenseRemoval(defense.id),
           'danger'
         );
-        if (removalPending) this.action('撤去を中止', () => this.cancelDefenseRemoval());
+        if (removalPending) this.action(this.actionMsg('combat.panel.actionCancelRemoval', {}, '撤去を中止'), () => this.cancelDefenseRemoval());
       }
     } else {
-      this.contextTitle.textContent = this.localize('都市');
-      this.setContextContent('防衛対象となる中枢都市です。', [['HP', `${Math.ceil(state.world.city.hp)}/${state.world.city.maxHp}`], ['CIV', String(state.civilization.level)], ['KILLS', String(state.statistics.kills ?? 0)]]);
+      this.contextTitle.textContent = this.panelMsg('combat.panel.city', {}, '都市');
+      this.setContextContent(this.panelMsg('combat.panel.citySummary', {}, '防衛対象となる中枢都市です。'), [['HP', `${Math.ceil(state.world.city.hp)}/${state.world.city.maxHp}`], ['CIV', String(state.civilization.level)], ['KILLS', String(state.statistics.kills ?? 0)]]);
     }
     setVisible(this.context, true);
   }
