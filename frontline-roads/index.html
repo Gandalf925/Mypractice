@@ -19,7 +19,7 @@
     #assetRecovery button { width: 100%; margin-top: 16px; padding: 12px 14px; border: 1px solid rgba(101,255,208,.72); background: #062019; color: #dffdf4; font: inherit; font-weight: 700; }
   </style>
   <script>
-    globalThis.__FRONTLINE_RELEASE__ = Object.freeze({ version: '0.38.39', directory: 'frontline-roads' });
+    globalThis.__FRONTLINE_RELEASE__ = Object.freeze({ version: '0.38.42', directory: 'frontline-roads' });
     (() => {
       const release = globalThis.__FRONTLINE_RELEASE__;
       const navigatorRef = globalThis.navigator;
@@ -50,9 +50,7 @@
         }
       }
       const localHost = ['localhost', '127.0.0.1', '::1'].includes(locationRef.hostname);
-      const fixtureRequested = new URLSearchParams(locationRef.search ?? '').get('devFixture') === '1';
-      const fixtureAllowed = localHost || locationRef.protocol === 'file:' || globalThis.__FRONTLINE_TEST_FIXTURE__ === true;
-      if ((fixtureRequested && fixtureAllowed) || (locationRef.protocol !== 'https:' && !localHost)) return;
+      if (locationRef.protocol !== 'https:' && !localHost) return;
       const appRoot = new URL('./', locationRef.href);
       const workerUrl = new URL('sw.js', appRoot);
       workerUrl.searchParams.set('v', release.version);

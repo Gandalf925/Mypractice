@@ -46,6 +46,36 @@ function drawWorldCircle(context, camera, world, radiusMeters, { stroke, fill = 
   context.restore();
 }
 
+
+function screenMargin(camera, base = 36) {
+  return Math.max(base, 18 / Math.max(0.1, Number(camera?.scale) || 1));
+}
+
+function isScreenPointVisible(point, camera, margin = screenMargin(camera)) {
+  return point.x >= -margin
+    && point.x <= (camera.viewportWidth ?? 0) + margin
+    && point.y >= -margin
+    && point.y <= (camera.viewportHeight ?? 0) + margin;
+}
+
+function worldPointVisible(camera, world, margin = screenMargin(camera)) {
+  return isScreenPointVisible(camera.worldToScreen(world), camera, margin);
+}
+
+function segmentVisible(camera, a, b, margin = screenMargin(camera)) {
+  const start = camera.worldToScreen(a);
+  const end = camera.worldToScreen(b);
+  if (isScreenPointVisible(start, camera, margin) || isScreenPointVisible(end, camera, margin)) return true;
+  const minX = Math.min(start.x, end.x);
+  const maxX = Math.max(start.x, end.x);
+  const minY = Math.min(start.y, end.y);
+  const maxY = Math.max(start.y, end.y);
+  return maxX >= -margin
+    && minX <= (camera.viewportWidth ?? 0) + margin
+    && maxY >= -margin
+    && minY <= (camera.viewportHeight ?? 0) + margin;
+}
+
 function anchorPalette(anchor, affordable) {
   if (!affordable) return {
     stroke: 'rgba(255,180,84,0.52)',
@@ -75,6 +105,7 @@ function anchorPalette(anchor, affordable) {
 }
 
 function drawAnchor(context, camera, anchor, affordable, quality) {
+  if (!worldPointVisible(camera, anchor.point, Math.max(screenMargin(camera), (anchor.range ?? BUILD_RANGE_METERS) * camera.scale + 20))) return;
   const palette = anchorPalette(anchor, affordable);
   drawWorldCircle(context, camera, anchor.point, anchor.range ?? BUILD_RANGE_METERS, {
     stroke: palette.stroke,
@@ -109,6 +140,7 @@ function drawTowerSites(context, camera, sites, color, quality) {
   }
   for (const site of sites) {
     const point = camera.worldToScreen(site.point);
+    if (!isScreenPointVisible(point, camera)) continue;
     context.beginPath();
     context.arc(point.x, point.y, 5, 0, TAU);
     context.fill();
@@ -135,6 +167,7 @@ function drawBarrierSites(context, camera, sites, anchors, color, quality) {
   for (const site of sites) {
     for (const anchor of anchors) {
       if (site.anchorIds?.length && !site.anchorIds.includes(anchor.id)) continue;
+      if (!segmentVisible(camera, site.a, site.b, Math.max(screenMargin(camera), (anchor.range ?? BUILD_RANGE_METERS) * camera.scale + 20))) continue;
       const segment = clipSegmentToCircle(site.a, site.b, anchor.point, anchor.range ?? BUILD_RANGE_METERS);
       if (!segment) continue;
       const a = camera.worldToScreen(segment.a);
@@ -169,6 +202,7 @@ function drawCandidate(context, camera, placement, timeMs, quality) {
   if (!candidate) return;
   const definition = DEFENSE_DEFINITIONS[placement.type];
   const point = camera.worldToScreen(candidate.point);
+  if (!isScreenPointVisible(point, camera, 80)) return;
   const pulse = quality === 'minimal' ? 12 : 13 + Math.sin(timeMs * 0.006) * 1.5;
   const affordable = placement.affordable !== false;
   const color = affordable ? '#ffffff' : '#ffb454';
@@ -212,7 +246,7 @@ function drawCandidate(context, camera, placement, timeMs, quality) {
   context.restore();
 }
 
-export function drawBuildPlacement(context, camera, placement, timeMs = 0, preferences = {}) {
+export function drawBuildPlacementStatic(context, camera, placement, preferences = {}) {
   if (!placement?.type || !placement.anchors?.length) return;
   const definition = DEFENSE_DEFINITIONS[placement.type];
   if (!definition) return;
@@ -224,5 +258,15 @@ export function drawBuildPlacement(context, camera, placement, timeMs = 0, prefe
   const sites = placement.sites ?? [];
   if (definition.kind === 'barrier') drawBarrierSites(context, camera, sites, placement.anchors, siteColor, quality);
   else drawTowerSites(context, camera, sites, siteColor, quality);
+}
+
+export function drawBuildPlacementDynamic(context, camera, placement, timeMs = 0, preferences = {}) {
+  if (!placement?.type || !placement.anchors?.length) return;
+  const quality = preferences.quality ?? 'balanced';
   drawCandidate(context, camera, placement, timeMs, quality);
+}
+
+export function drawBuildPlacement(context, camera, placement, timeMs = 0, preferences = {}) {
+  drawBuildPlacementStatic(context, camera, placement, preferences);
+  drawBuildPlacementDynamic(context, camera, placement, timeMs, preferences);
 }

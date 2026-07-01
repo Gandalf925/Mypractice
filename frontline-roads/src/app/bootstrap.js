@@ -21,7 +21,6 @@ import { MapInput } from '../ui/map-input.js';
 import { BasePlacementScreen } from '../ui/base-placement-screen.js';
 import { Notifications } from '../ui/notifications.js';
 import { queryRequired, setVisible } from '../ui/dom.js';
-import { createDevelopmentDependencies } from './development-fixture.js';
 import { initializeCombatState } from '../combat/combat-initializer.js';
 import { CombatSystem } from '../combat/combat-system.js';
 import { BuildSystem } from '../combat/build-system.js';
@@ -63,13 +62,9 @@ class FrontlineRoadsApp {
     this.saveRepository = new SaveRepository();
     this.store = new StateStore(createInitialState(), this.events, { cloneState: cloneRuntimeState });
     this.lifecycle = new LifecycleController(this.store);
-    const fixtureRequested = new URLSearchParams(location.search).get('devFixture') === '1';
-    const localFixtureAllowed = ['localhost', '127.0.0.1', '::1'].includes(location.hostname) || location.protocol === 'file:' || globalThis.__FRONTLINE_TEST_FIXTURE__ === true;
-    const developmentMode = fixtureRequested && localFixtureAllowed;
-    const development = developmentMode ? createDevelopmentDependencies() : null;
-    this.geolocation = development?.geolocation ?? new GeolocationService();
+    this.geolocation = new GeolocationService();
     this.roadService = new RoadService(new OverpassClient({
-      fetchImpl: development?.fetchImpl ?? globalThis.fetch
+      fetchImpl: globalThis.fetch
     }));
     this.roadChunkCache = new RoadChunkCache();
     this.camera = new Camera();
@@ -384,6 +379,7 @@ class FrontlineRoadsApp {
     });
     this.events.on('civilization:level-up', () => { this.civilizationUi.render(); this.baseCommandUi.render(); this.applyLocalization({ fullDocument: false }); });
     this.events.on('combat:defense-destroyed', () => this.queueCriticalSave());
+    this.events.on('combat:enemy-base-destroyed', ({ baseId }) => { this.combatUi?.handleEnemyBaseDestroyed?.(baseId); this.queueCriticalSave(); });
     this.events.on('civilization:building-destroyed', () => this.queueCriticalSave());
     this.events.on('game:home-base-destroyed', payload => this.handleHomeBaseDestroyed(payload));
   }
@@ -1049,22 +1045,31 @@ class FrontlineRoadsApp {
   }
 }
 
-const app = new FrontlineRoadsApp();
-const startup = app.start();
-startup.then(() => {
+let app = null;
+let startup = null;
+
+try {
+  app = new FrontlineRoadsApp();
+  startup = app.start();
+  startup.then(() => {
+    globalThis.__FRONTLINE_BOOT_COMPLETE__?.();
+    return registerPwa();
+  }).catch(error => {
+    globalThis.__FRONTLINE_BOOT_COMPLETE__?.();
+    app?.handleFatal(error);
+  });
+} catch (error) {
   globalThis.__FRONTLINE_BOOT_COMPLETE__?.();
-  return registerPwa();
-}).catch(error => {
-  globalThis.__FRONTLINE_BOOT_COMPLETE__?.();
-  app.handleFatal(error);
-});
+  console.error(error);
+}
+
 globalThis.addEventListener('error', event => {
-  if (event?.error) app.handleFatal(event.error);
+  if (event?.error) app?.handleFatal(event.error);
 });
-globalThis.addEventListener('unhandledrejection', event => app.handleFatal(event.reason));
-globalThis.addEventListener?.('pagehide', () => app.handlePageHide());
-document.addEventListener('freeze', () => app.handlePageHide());
+globalThis.addEventListener('unhandledrejection', event => app?.handleFatal(event.reason));
+globalThis.addEventListener?.('pagehide', () => app?.handlePageHide());
+document.addEventListener('freeze', () => app?.handlePageHide());
 globalThis.addEventListener('pageshow', event => {
   if (!event.persisted && !document.wasDiscarded) return;
-  startup.then(() => app.handlePageShow()).catch(error => app.handleFatal(error));
+  startup?.then(() => app?.handlePageShow()).catch(error => app?.handleFatal(error));
 });

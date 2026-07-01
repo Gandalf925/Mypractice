@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.38.39-language-switch-performance-regression-fix';
+export const APP_VERSION = '0.38.42-civilization-i18n-consistency';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 

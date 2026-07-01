@@ -6,7 +6,7 @@ import {
   radarCenter, radarSweepAngle
 } from './radar-renderer.js';
 import { drawTacticalFocus } from './tactical-overlay.js';
-import { drawBuildPlacement } from './build-placement-overlay.js';
+import { drawBuildPlacementDynamic, drawBuildPlacementStatic } from './build-placement-overlay.js';
 import { drawFriendlyOrderPlanning } from './friendly-order-overlay.js';
 import { CombatEffects } from './combat-effects.js';
 import { drawFrontierSignals } from './frontier-renderer.js';
@@ -51,11 +51,16 @@ export class Renderer {
     this.backgroundLayer = createLayer(canvas);
     this.combatLayer = createLayer(canvas);
     this.overlayLayer = createLayer(canvas);
+    this.buildPlacementStaticLayer = createLayer(canvas);
     this.backgroundContext = null;
     this.combatContext = null;
     this.overlayContext = null;
+    this.buildPlacementStaticContext = null;
     this.combatDirty = true;
     this.combatSignature = '';
+    this.buildPlacementStaticDirty = true;
+    this.buildPlacementStaticSignature = '';
+    this.buildPlacementSignature = '';
     this.lastAmbientFrame = 0;
     this.ambientFrameId = null;
     this.resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(() => this.resize()) : null;
@@ -83,6 +88,7 @@ export class Renderer {
     this.backgroundContext = configureLayer(this.backgroundLayer, this.cssWidth, this.cssHeight, this.dpr);
     this.combatContext = configureLayer(this.combatLayer, this.cssWidth, this.cssHeight, this.dpr);
     this.overlayContext = configureLayer(this.overlayLayer, this.cssWidth, this.cssHeight, this.dpr);
+    this.buildPlacementStaticContext = configureLayer(this.buildPlacementStaticLayer, this.cssWidth, this.cssHeight, this.dpr);
     this.camera.setViewport(this.cssWidth, this.cssHeight);
     this.invalidateStatic();
     this.render();
@@ -91,6 +97,7 @@ export class Renderer {
   invalidateStatic() {
     this.staticDirty = true;
     this.combatDirty = true;
+    this.buildPlacementStaticDirty = true;
   }
 
   invalidateCombat() {
@@ -122,7 +129,54 @@ export class Renderer {
 
   bindEvents(events) { this.effects.bind(events, () => this.stateProvider?.()); }
   setFocus(focus) { this.focus = focus; this.render(); }
-  setBuildPlacement(placement) { this.buildPlacement = placement; this.render(); }
+
+  buildPlacementStateSignature(placement) {
+    if (!placement?.type) return 'none';
+    const anchors = (placement.anchors ?? [])
+      .map(anchor => [anchor.id, anchor.kind ?? '', Number(anchor.point?.x).toFixed(1), Number(anchor.point?.y).toFixed(1), Math.round(Number(anchor.range) || 0)].join(':'))
+      .sort()
+      .join(';');
+    const sites = (placement.sites ?? [])
+      .map(site => [site.kind ?? '', site.nodeId ?? '', site.edgeId ?? '', site.barrierSectionId ?? '', Number(site.point?.x).toFixed(1), Number(site.point?.y).toFixed(1)].join(':'))
+      .sort()
+      .join(';');
+    const candidate = placement.candidate
+      ? [placement.candidate.kind ?? '', placement.candidate.nodeId ?? '', placement.candidate.edgeId ?? '', placement.candidate.barrierSectionId ?? '', Number(placement.candidate.point?.x).toFixed(1), Number(placement.candidate.point?.y).toFixed(1)].join(':')
+      : 'none';
+    return [placement.type, placement.affordable !== false ? 1 : 0, anchors, sites, candidate].join('|');
+  }
+
+  buildPlacementStaticLayerSignature(scenePreferences = this.preferences) {
+    if (!this.buildPlacement?.type) return 'none';
+    return [
+      this.cssWidth, this.cssHeight, this.dpr, scenePreferences.quality,
+      this.camera.x.toFixed(3), this.camera.y.toFixed(3), this.camera.scale.toFixed(5),
+      this.buildPlacementStateSignature({ ...this.buildPlacement, candidate: null })
+    ].join('|');
+  }
+
+  rebuildBuildPlacementStaticLayer(scenePreferences = this.preferences) {
+    if (!this.buildPlacement?.type || !this.buildPlacementStaticContext) return false;
+    const signature = this.buildPlacementStaticLayerSignature(scenePreferences);
+    if (!this.buildPlacementStaticDirty && signature === this.buildPlacementStaticSignature) return true;
+    this.buildPlacementStaticSignature = signature;
+    this.buildPlacementStaticDirty = false;
+    this.buildPlacementStaticContext.clearRect(0, 0, this.cssWidth, this.cssHeight);
+    drawBuildPlacementStatic(this.buildPlacementStaticContext, this.camera, this.buildPlacement, scenePreferences);
+    return true;
+  }
+
+  setBuildPlacement(placement) {
+    const signature = this.buildPlacementStateSignature(placement);
+    const previousStaticSignature = this.buildPlacementStateSignature(this.buildPlacement ? { ...this.buildPlacement, candidate: null } : null);
+    const nextStaticSignature = this.buildPlacementStateSignature(placement ? { ...placement, candidate: null } : null);
+    if (signature === this.buildPlacementSignature) return;
+    this.buildPlacement = placement;
+    this.buildPlacementSignature = signature;
+    if (previousStaticSignature !== nextStaticSignature) this.buildPlacementStaticDirty = true;
+    this.render();
+  }
+
   setFriendlyOrderPlanning(planning) { this.friendlyOrderPlanning = planning; this.render(); }
 
   centerOn(point, minimumScale = 0.75) {
@@ -241,7 +295,8 @@ export class Renderer {
       else drawCombatState(this.context, state, this.camera, { center, sweepAngle, timeMs: visualTime, preferences: scenePreferences });
       drawTacticalFocus(this.context, state, this.camera, this.focus, visualTime, this.preferences);
       this.effects.draw(this.context, this.camera, state, timeMs, this.cssWidth, this.cssHeight, scenePreferences);
-      drawBuildPlacement(this.context, this.camera, this.buildPlacement, visualTime, scenePreferences);
+      if (this.rebuildBuildPlacementStaticLayer(scenePreferences)) this.drawCachedLayer(this.buildPlacementStaticLayer);
+      drawBuildPlacementDynamic(this.context, this.camera, this.buildPlacement, visualTime, scenePreferences);
       drawFriendlyOrderPlanning(this.context, state, this.camera, this.friendlyOrderPlanning, visualTime);
     }
 

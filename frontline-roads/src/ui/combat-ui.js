@@ -105,6 +105,7 @@ export class CombatUi {
     this.buildCandidate = null;
     this.buildSites = [];
     this.buildPlacementSignature = '';
+    this.buildContextSignature = '';
     this.toolAffordabilitySignature = '';
     this.toolLanguageSignature = '';
     this.orderPlanning = null;
@@ -210,7 +211,13 @@ export class CombatUi {
     this.defensePanelMode = 'summary';
     this.defensePanelDefenseId = null;
     this.renderer.setFocus(null);
+    this.buildContextSignature = '';
     if (hideContext) setVisible(this.context, false);
+  }
+
+  handleEnemyBaseDestroyed(baseId) {
+    if (this.selectedObject?.kind !== 'enemyBase' || this.selectedObject.id !== baseId) return;
+    this.clearObjectSelection();
   }
 
   contextDisclosureIdentity() {
@@ -250,6 +257,7 @@ export class CombatUi {
     this.selectedTool = type === 'select' || DEFENSE_DEFINITIONS[type] ? type : 'select';
     this.buildCandidate = null;
     this.buildPlacementSignature = '';
+    this.buildContextSignature = '';
     this.clearObjectSelection({ hideContext: this.selectedTool === 'select' });
     this.renderTools();
 
@@ -277,6 +285,7 @@ export class CombatUi {
       .map(defense => `${defense.id}:${defense.hp > 0 ? 1 : 0}`)
       .join(',');
     const graph = state.world.roadGraph;
+    const topologyRevision = Math.max(1, Math.floor(Number(graph?.topologyRevision) || 1));
     const anchorState = this.buildSystem.getBuildAnchors(state)
       .map(anchor => `${anchor.id}:${anchor.point.x.toFixed(1)},${anchor.point.y.toFixed(1)}:${Number(anchor.range).toFixed(0)}`)
       .join(';');
@@ -284,6 +293,7 @@ export class CombatUi {
       this.selectedTool,
       affordabilityState,
       occupiedState,
+      topologyRevision,
       graph?.nodes?.length ?? 0,
       graph?.edges?.length ?? 0,
       anchorState
@@ -430,6 +440,7 @@ export class CombatUi {
     this.selectedObject = null;
     this.renderer.setBuildPlacement(null);
     this.renderer.setFocus(null);
+    this.buildContextSignature = '';
     this.renderTools();
     this.orderPlanning = {
       mode: FRIENDLY_ORDER_MODE.DEPLOYMENT,
@@ -822,6 +833,7 @@ export class CombatUi {
     this.showMessage('combat.panel.defenseBuilt', { facilityName: this.localize(DEFENSE_DEFINITIONS[this.selectedTool].name) }, `${DEFENSE_DEFINITIONS[this.selectedTool].name}を設置しました。`);
     this.buildCandidate = null;
     this.buildPlacementSignature = '';
+    this.buildContextSignature = '';
     this.renderTools();
     this.refreshBuildPlacement(true);
     this.renderContext();
@@ -829,6 +841,7 @@ export class CombatUi {
 
   cancelBuildCandidate() {
     this.buildCandidate = null;
+    this.buildContextSignature = '';
     this.refreshBuildPlacement(true);
     this.renderContext();
   }
@@ -1041,6 +1054,40 @@ export class CombatUi {
     this.renderContext();
   }
 
+
+  buildCandidateSignature() {
+    const candidate = this.buildCandidate;
+    if (!candidate) return 'none';
+    return [
+      candidate.kind ?? '',
+      candidate.nodeId ?? '',
+      candidate.edgeId ?? '',
+      candidate.barrierSectionId ?? '',
+      Number(candidate.point?.x).toFixed(1),
+      Number(candidate.point?.y).toFixed(1),
+      candidate.anchorId ?? '',
+      candidate.anchorKind ?? ''
+    ].join(':');
+  }
+
+  buildContextRenderSignature(state, buildStatus) {
+    const inventory = state.civilization?.inventory ?? {};
+    const resourceState = Object.keys(RESOURCE_LABELS)
+      .sort()
+      .map(key => `${key}:${Math.floor(Number(inventory[key]) || 0)}`)
+      .join(',');
+    return [
+      this.selectedTool,
+      this.i18n?.language ?? 'ja',
+      state.civilization?.level ?? 0,
+      buildStatus.ok ? 1 : 0,
+      buildStatus.reasonKey ?? buildStatus.reason ?? '',
+      this.buildSites.length,
+      this.buildCandidateSignature(),
+      resourceState
+    ].join('|');
+  }
+
   renderBuildContext(state = this.store.snapshot()) {
     const definition = DEFENSE_DEFINITIONS[this.selectedTool];
     const presentation = defensePresentation(this.selectedTool, definition);
@@ -1050,6 +1097,9 @@ export class CombatUi {
     }
     const buildStatus = this.buildSystem.getBuildStatus(state, this.selectedTool);
     const affordable = buildStatus.ok;
+    const renderSignature = this.buildContextRenderSignature(state, buildStatus);
+    if (!this.context.hidden && renderSignature === this.buildContextSignature) return;
+    this.buildContextSignature = renderSignature;
     this.context.classList?.add('is-build-mode');
     this.context.classList?.toggle('has-candidate', Boolean(this.buildCandidate));
     this.contextActions.textContent = '';

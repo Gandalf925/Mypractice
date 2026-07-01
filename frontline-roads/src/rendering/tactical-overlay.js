@@ -148,7 +148,9 @@ export function drawTacticalFocus(context, state, camera, focus = null, timeMs =
   let world = null;
   let color = '#65ffd0';
   if (focus.kind === 'enemyBase') {
-    world = graph.nodeById.get(state.world.enemyBases.find(item => item.id === focus.id)?.nodeId);
+    const base = state.world.enemyBases.find(item => item.id === focus.id && item.alive && item.hp > 0);
+    if (!base) return;
+    world = graph.nodeById.get(base.nodeId);
     color = '#ff5268';
   } else if (focus.kind === 'city') {
     world = graph.nodeById.get(state.world.city.nodeId);

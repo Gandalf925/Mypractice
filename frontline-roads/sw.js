@@ -1,7 +1,7 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const RELEASE_VERSION = '0.38.39';
-const CACHE_NAME = `${CACHE_PREFIX}v0-38-39-language-switch-performance-regression-fix`;
+const RELEASE_VERSION = '0.38.42';
+const CACHE_NAME = `${CACHE_PREFIX}v0-38-42-civilization-i18n-consistency`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -9,7 +9,6 @@ const APP_SHELL = [
   './icon-192.png',
   './icon-512.png',
   './src/app/bootstrap.js',
-  './src/app/development-fixture.js',
   './src/app/game-loop.js',
   './src/app/performance-profile.js',
   './src/app/lifecycle.js',

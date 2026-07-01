@@ -254,6 +254,87 @@ function nearestGraphNode(graph, anchor) {
   return best;
 }
 
+
+function graphTopologyRevision(graph) {
+  return Math.max(1, Math.floor(Number(graph?.topologyRevision) || 1));
+}
+
+function buildAnchorSignature(anchors = []) {
+  return anchors
+    .map(anchor => [
+      anchor.id,
+      anchor.kind ?? '',
+      anchor.baseId ?? '',
+      anchor.squadId ?? '',
+      Number(anchor.point?.x).toFixed(1),
+      Number(anchor.point?.y).toFixed(1),
+      Math.round(Number(anchor.range) || BUILD_RANGE_METERS),
+      Math.max(0, Math.floor(Number(anchor.civilizationLevel) || 0))
+    ].join(':'))
+    .sort()
+    .join(';');
+}
+
+function buildDefenseOccupancySignature(state, definition) {
+  return (state.combat?.defenses ?? [])
+    .filter(defense => definition?.kind ? defense.kind === definition.kind : true)
+    .map(defense => [
+      defense.id,
+      defense.type ?? '',
+      defense.kind ?? '',
+      defense.hp > 0 ? 1 : 0,
+      defense.nodeId ?? '',
+      defense.edgeId ?? '',
+      defense.barrierSectionId ?? '',
+      defense.buildAnchorId ?? '',
+      Number(defense.placementPoint?.x ?? 0).toFixed(1),
+      Number(defense.placementPoint?.y ?? 0).toFixed(1)
+    ].join(':'))
+    .sort()
+    .join(';');
+}
+
+function buildFriendlyBlockerSignature(state) {
+  return (state.combat?.friendlySquads ?? [])
+    .filter(squad => squad.hp > 0 && squad.edgeId)
+    .map(squad => `${squad.id}:${squad.edgeId}`)
+    .sort()
+    .join(';');
+}
+
+function buildSitesCacheKey(state, type, definition, anchors) {
+  const graph = state.world?.roadGraph;
+  return [
+    type,
+    definition.kind,
+    Math.max(0, Math.floor(Number(state.civilization?.level) || 0)),
+    graphTopologyRevision(graph),
+    graph?.nodes?.length ?? 0,
+    graph?.edges?.length ?? 0,
+    buildAnchorSignature(anchors),
+    buildDefenseOccupancySignature(state, definition),
+    definition.kind === 'barrier' ? buildFriendlyBlockerSignature(state) : ''
+  ].join('|');
+}
+
+const BUILD_SITES_CACHE_LIMIT = 24;
+
+function cloneBuildSite(site) {
+  return {
+    ...site,
+    point: site.point ? { ...site.point } : site.point,
+    a: site.a ? { ...site.a } : site.a,
+    b: site.b ? { ...site.b } : site.b,
+    barrierSectionEdgeIds: site.barrierSectionEdgeIds ? [...site.barrierSectionEdgeIds] : site.barrierSectionEdgeIds,
+    anchorIds: site.anchorIds ? [...site.anchorIds] : site.anchorIds
+  };
+}
+
+function rememberBuildSites(cache, key, sites) {
+  if (cache.size >= BUILD_SITES_CACHE_LIMIT) cache.clear();
+  cache.set(key, sites.map(cloneBuildSite));
+}
+
 function markBarrierRoutesDirty(state) {
   for (const enemy of state.combat?.enemies ?? []) enemy.reroutePending = true;
   for (const squad of state.combat?.friendlySquads ?? []) squad.reroutePending = true;
@@ -262,6 +343,7 @@ function markBarrierRoutesDirty(state) {
 export class BuildSystem {
   constructor(events) {
     this.events = events;
+    this.buildSitesCache = new Map();
   }
 
   getBuildAnchors(state) {
@@ -285,10 +367,14 @@ export class BuildSystem {
     let anchors = allowedAnchorsForDefinition(buildAnchors(state), definition);
     anchors = anchors.filter(anchor => !anchorHasFacility(state, definition, anchor));
     if (!anchors.length || civilizationFailure(state, definition)) return [];
+    const cacheKey = buildSitesCacheKey(state, type, definition, anchors);
+    const cached = this.buildSitesCache.get(cacheKey);
+    if (cached) return cached.map(cloneBuildSite);
+
     const planner = buildSitePlanner(graph);
+    let sites = [];
 
     if (definition.kind === 'barrier') {
-      const sites = [];
       for (const section of planner.barrierSections) {
         const placements = anchors
           .map(anchor => ({ anchor, placement: barrierSiteForAnchor(graph, section, anchor) }))
@@ -307,6 +393,7 @@ export class BuildSystem {
           anchorIds: placements.map(item => item.anchor.id)
         });
       }
+      rememberBuildSites(this.buildSitesCache, cacheKey, sites);
       return sites;
     }
 
@@ -338,7 +425,9 @@ export class BuildSystem {
       }
     }
 
-    return [...chosen.values()].map(({ site, anchor, node }) => towerCandidate(type, node, anchor, site.reason));
+    sites = [...chosen.values()].map(({ site, anchor, node }) => towerCandidate(type, node, anchor, site.reason));
+    rememberBuildSites(this.buildSitesCache, cacheKey, sites);
+    return sites;
   }
 
   previewAt(state, type, worldPoint, selectionToleranceMeters) {
@@ -441,6 +530,7 @@ export class BuildSystem {
       state.combat.defenses.push(defense);
       state.civilization.progress.barriersBuilt = (state.civilization.progress.barriersBuilt ?? 0) + 1;
       markBarrierRoutesDirty(state);
+      this.buildSitesCache.clear();
       this.events?.emit('combat:defense-built', { defense });
       return { ok: true, defense, candidate: normalized };
     }
@@ -469,6 +559,7 @@ export class BuildSystem {
       defense.surveyLastRoadCount = 0;
     }
     state.combat.defenses.push(defense);
+    this.buildSitesCache.clear();
     this.events?.emit('combat:defense-built', { defense });
     return { ok: true, defense, candidate: normalized };
   }
