@@ -130,14 +130,14 @@ function barrierCandidate(type, edge, point, anchor = null, section = null) {
 function resourceFailure(state, definition) {
   const missing = missingBundle(state, definition.cost);
   return Object.keys(missing).length
-    ? { ok: false, reason: `資源が不足しています：${bundleText(missing)}`, missing }
+    ? { ok: false, reasonKey: 'reason.resource.shortageWithBundle', reasonParams: { missingText: bundleText(missing) }, reason: `資源が不足しています：${bundleText(missing)}`, missing }
     : null;
 }
 
 function civilizationFailure(state, definition) {
   const required = Math.max(0, Number(definition.requiredCivilizationLevel) || 0);
   return (state.civilization?.level ?? 0) < required
-    ? { ok: false, reason: `文明Lv.${required}で解禁されます。`, requiredCivilizationLevel: required }
+    ? { ok: false, reasonKey: 'reason.civilization.unlockLevel', reasonParams: { level: required }, reason: `文明Lv.${required}で解禁されます。`, requiredCivilizationLevel: required }
     : null;
 }
 
@@ -162,7 +162,8 @@ function buildRangeReason(state, definition) {
   const kinds = Array.isArray(definition.allowedAnchorKinds)
     ? definition.allowedAnchorKinds
     : ['MAJOR', 'FIELD', 'PLAYER', 'EXPEDITION'];
-  return `建設可能範囲内へ設置してください（${kinds.map(kind => labels[kind]).filter(Boolean).join('、')}）。`;
+  const ranges = kinds.map(kind => labels[kind]).filter(Boolean).join('、');
+  return { reasonKey: 'reason.build.outOfRange', reasonParams: { ranges }, reason: `建設可能範囲内へ設置してください（${ranges}）。` };
 }
 
 function edgeGeometry(graph, edgeId) {
@@ -269,7 +270,7 @@ export class BuildSystem {
 
   getBuildStatus(state, type) {
     const definition = DEFENSE_DEFINITIONS[type];
-    if (!definition) return { ok: false, reason: '不明な設備です。' };
+    if (!definition) return { ok: false, reasonKey: 'reason.defense.unknownType', reason: '不明な設備です。' };
     return civilizationFailure(state, definition) ?? resourceFailure(state, definition) ?? { ok: true, definition };
   }
 
@@ -342,9 +343,9 @@ export class BuildSystem {
 
   previewAt(state, type, worldPoint, selectionToleranceMeters) {
     const definition = DEFENSE_DEFINITIONS[type];
-    if (!definition) return { ok: false, reason: '不明な設備です。' };
+    if (!definition) return { ok: false, reasonKey: 'reason.defense.unknownType', reason: '不明な設備です。' };
     const graph = state.world.roadGraph;
-    if (!graph?.nodeById) return { ok: false, reason: '道路データを利用できません。' };
+    if (!graph?.nodeById) return { ok: false, reasonKey: 'reason.road.dataUnavailable', reason: '道路データを利用できません。' };
     const tolerance = Math.max(0, Number(selectionToleranceMeters) || 0);
     const legalSites = this.listBuildSites(state, type);
     const legalMatches = legalSites.map(site => ({ site, distance: distance(worldPoint, site.point) }));
@@ -372,30 +373,29 @@ export class BuildSystem {
         }).filter(Boolean);
     const allowedAnchors = allowedAnchorsForDefinition(buildAnchors(state), definition);
     if (rawCandidates.length && !coveringAnchor(allowedAnchors, worldPoint)) {
-      return { ok: false, reason: buildRangeReason(state, definition) };
+      return { ok: false, ...buildRangeReason(state, definition) };
     }
     let nearestFailure = null;
     for (const candidate of rawCandidates) {
       const validation = this.validateCandidate(state, candidate, { checkResources: false });
       if (!validation.ok) nearestFailure ??= validation;
     }
-    return nearestFailure ?? {
-      ok: false,
-      reason: definition.kind === 'barrier' ? '道路区間の建設地点をタップしてください。' : '表示されている戦術地点をタップしてください。'
-    };
+    return nearestFailure ?? (definition.kind === 'barrier'
+      ? { ok: false, reasonKey: 'reason.build.tapRoadSegment', reason: '道路区間の建設地点をタップしてください。' }
+      : { ok: false, reasonKey: 'reason.build.tapTacticalPoint', reason: '表示されている戦術地点をタップしてください。' });
   }
 
   validateCandidate(state, candidate, { checkResources = true } = {}) {
-    if (!candidate || typeof candidate !== 'object') return { ok: false, reason: '設置候補がありません。' };
+    if (!candidate || typeof candidate !== 'object') return { ok: false, reasonKey: 'reason.build.noCandidate', reason: '設置候補がありません。' };
     const definition = DEFENSE_DEFINITIONS[candidate.type];
-    if (!definition) return { ok: false, reason: '不明な設備です。' };
-    if (candidate.kind !== definition.kind) return { ok: false, reason: '設置候補の種類が一致しません。' };
+    if (!definition) return { ok: false, reasonKey: 'reason.defense.unknownType', reason: '不明な設備です。' };
+    if (candidate.kind !== definition.kind) return { ok: false, reasonKey: 'reason.build.candidateTypeMismatch', reason: '設置候補の種類が一致しません。' };
     const graph = state.world.roadGraph;
-    if (!graph?.nodeById) return { ok: false, reason: '道路データを利用できません。' };
+    if (!graph?.nodeById) return { ok: false, reasonKey: 'reason.road.dataUnavailable', reason: '道路データを利用できません。' };
     const locked = civilizationFailure(state, definition);
     if (locked) return locked;
     const anchors = allowedAnchorsForDefinition(buildAnchors(state), definition);
-    if (!anchors.length) return { ok: false, reason: '建設基準となる拠点・現在地・遠征部隊を取得できません。' };
+    if (!anchors.length) return { ok: false, reasonKey: 'reason.build.noAnchor', reason: '建設基準となる拠点・現在地・遠征部隊を取得できません。' };
 
     const legalSites = this.listBuildSites(state, candidate.type);
     const normalized = definition.kind === 'barrier'
@@ -407,7 +407,7 @@ export class BuildSystem {
       : legalSites.find(site => site.nodeId === candidate.nodeId);
     if (!normalized) {
       const inRange = coveringAnchor(anchors, candidate.point ?? graph.nodeById.get(candidate.nodeId));
-      if (!inRange) return { ok: false, reason: buildRangeReason(state, definition) };
+      if (!inRange) return { ok: false, ...buildRangeReason(state, definition) };
       return { ok: false, reason: definition.kind === 'barrier'
         ? 'この道路区間には既に設備があるか、建設地点として利用できません。'
         : 'この戦術地点には既に設備があります。または建設地点として利用できません。' };
@@ -424,7 +424,7 @@ export class BuildSystem {
     if (!validation.ok) return validation;
     const normalized = validation.candidate;
     const definition = DEFENSE_DEFINITIONS[normalized.type];
-    if (!consumeBundle(state, definition.cost)) return { ok: false, reason: '建設直前に資源が不足しました。' };
+    if (!consumeBundle(state, definition.cost)) return { ok: false, reasonKey: 'reason.build.shortageAtCommit', reason: '建設直前に資源が不足しました。' };
 
     if (definition.kind === 'barrier') {
       const defense = {
@@ -476,9 +476,9 @@ export class BuildSystem {
   removeDefense(state, defenseId) {
     const defenses = state.combat?.defenses ?? [];
     const index = defenses.findIndex(defense => defense.id === defenseId);
-    if (index < 0) return { ok: false, reason: '撤去する設備が見つかりません。' };
+    if (index < 0) return { ok: false, reasonKey: 'reason.defense.removeNotFound', reason: '撤去する設備が見つかりません。' };
     const defense = detachDefense(state, defenses[index].id);
-    if (!defense) return { ok: false, reason: '撤去する設備が見つかりません。' };
+    if (!defense) return { ok: false, reasonKey: 'reason.defense.removeNotFound', reason: '撤去する設備が見つかりません。' };
     if (defense.kind === 'barrier') markBarrierRoutesDirty(state);
     const name = defenseRuntimeDefinition(defense).name ?? DEFENSE_DEFINITIONS[defense.type]?.name ?? '設備';
     this.events?.emit('combat:defense-removed', { defenseId: defense.id, defense });

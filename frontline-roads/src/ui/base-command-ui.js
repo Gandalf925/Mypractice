@@ -14,12 +14,13 @@ import { friendlySquadCapacityForBase } from '../combat/friendly-force-system.js
 import { fieldBaseBuildRange, majorBaseBuildRange } from '../base/construction-range.js';
 import { basePressureProfile, basePressureUiText } from '../base/base-pressure.js';
 import { regionControlSummaryText, regionLogisticsSummaryText } from '../base/region-control.js';
+import { runtimeMessage } from '../i18n/catalog.js';
 
 const BASE_STATUS_RADIUS_METERS = 300;
 const FACILITY_RADIUS_METERS = 120;
 function localizedLimit(value, i18n = null) {
   if (Number.isFinite(value)) return String(value);
-  return uiText(i18n, '上限なし', { en: 'No limit', zh: '无限' });
+  return messageValue(i18n, 'baseCommand.limitUnlimited', {}, '上限なし');
 }
 
 function tabButton(id, label, active) {
@@ -33,6 +34,12 @@ function tabPanel(id, active, html) {
 function i18nCopy(i18n, text = '') { return i18n?.copy?.(text) ?? String(text ?? ''); }
 function i18nBundle(i18n, bundle = {}) { return i18n?.bundleText?.(bundle) ?? bundleText(bundle); }
 function languageCode(i18n) { return i18n?.language ?? 'ja'; }
+function messageValue(i18n, key, params = {}, fallback = '') {
+  return runtimeMessage(languageCode(i18n), key, params, fallback);
+}
+function htmlMessage(i18n, key, params = {}, fallback = '') {
+  return escapeHtml(messageValue(i18n, key, params, fallback));
+}
 function uiText(i18n, source = '', translations = {}) {
   const language = languageCode(i18n);
   if (language === 'ja') return String(source ?? '');
@@ -41,18 +48,37 @@ function uiText(i18n, source = '', translations = {}) {
 
 function baseKindName(kind, i18n = null) {
   const field = kind === 'field' || kind === 'FIELD';
-  return uiText(i18n, field ? '簡易拠点' : '主要拠点', {
-    en: field ? 'Simple Base' : 'Major Base',
-    zh: field ? '简易基地' : '主要基地'
-  });
+  return messageValue(i18n, field ? 'baseCommand.kindField' : 'baseCommand.kindMajor', {}, field ? '簡易拠点' : '主要拠点');
+}
+
+function basePressureStageText(profile, i18n = null) {
+  const stageKeys = [
+    'baseCommand.pressureStageUnrecognized',
+    'baseCommand.pressureStageScouting',
+    'baseCommand.pressureStageMinor',
+    'baseCommand.pressureStageExpanding',
+    'baseCommand.pressureStageFull'
+  ];
+  const key = stageKeys[Math.max(0, Math.min(stageKeys.length - 1, Number(profile?.stage) || 0))];
+  return messageValue(i18n, key, {}, profile?.stageLabel ?? '不明');
 }
 
 function localizedBasePressureText(profile, i18n = null) {
-  if (!profile) return uiText(i18n, '敵圧 不明', { en: 'Enemy pressure unknown', zh: '敌压 不明' });
-  return i18nCopy(i18n, basePressureUiText(profile));
+  if (!profile) return messageValue(i18n, 'baseCommand.pressureUnknown', {}, '敵圧 不明');
+  if (profile.kind === 'PRIMARY') return messageValue(i18n, 'baseCommand.pressureFull', {}, '敵圧 本格');
+  const percent = Math.round(profile.ratio * 100);
+  const stage = basePressureStageText(profile, i18n);
+  if (profile.mature) return messageValue(i18n, 'baseCommand.pressureStage', { stage, percent }, `敵圧 ${profile.stageLabel}・${percent}%`);
+  const hours = Math.max(1, Math.ceil(profile.remainingMs / 3_600_000));
+  return messageValue(i18n, 'baseCommand.pressureMaturing', { stage, percent, hours }, `敵圧 ${profile.stageLabel}・${percent}%・本格化まで約${hours}時間`);
 }
 
 function localizedPlacementReason(i18n, reason = '') {
+  if (reason && typeof reason === 'object') {
+    if (reason.reasonKey) return messageValue(i18n, reason.reasonKey, reason.reasonParams ?? {}, reason.reason ?? '');
+    if (reason.key) return messageValue(i18n, reason.key, reason.params ?? {}, reason.text ?? reason.fallback ?? '');
+    reason = reason.reason ?? '';
+  }
   const text = String(reason ?? '');
   if (!text) return '';
   return uiText(i18n, text);
@@ -94,75 +120,77 @@ export function summarizePlayerBase(state, base) {
     readySquads,
     recoveryItems,
     alert: base.status === 'DESTROYED' || base.hp <= 0
-      ? '破壊'
+      ? 'DESTROYED'
       : nearbyEnemies > 0
-        ? '交戦警戒'
+        ? 'ENGAGED'
         : recoveryItems > 0
-          ? '回収物あり'
-          : '安定'
+          ? 'RECOVERY'
+          : 'STABLE'
   };
+}
+
+function baseAlertText(alert, i18n = null) {
+  const key = {
+    DESTROYED: 'baseCommand.alertDestroyed',
+    ENGAGED: 'baseCommand.alertEngaged',
+    RECOVERY: 'baseCommand.alertRecovery',
+    STABLE: 'baseCommand.alertStable'
+  }[alert] ?? 'baseCommand.alertStable';
+  const fallback = {
+    DESTROYED: '破壊',
+    ENGAGED: '交戦警戒',
+    RECOVERY: '回収物あり',
+    STABLE: '安定'
+  }[alert] ?? '安定';
+  return messageValue(i18n, key, {}, fallback);
 }
 
 function baseCard(state, base, { selected, label, field = false, rebuild = null, rebuildKind = null, dismantle = null, dismantleKind = null, i18n = null }) {
   const status = summarizePlayerBase(state, base);
   const destroyed = base.status === 'DESTROYED' || base.hp <= 0;
   const pressure = basePressureProfile(state, base, field ? 'FIELD' : base.primary ? 'PRIMARY' : 'MAJOR');
-  const c = text => i18nCopy(i18n, text);
-  const t = (source, translations = {}) => uiText(i18n, source, translations);
-  const baseName = escapeHtml(c(base.name));
+  const m = (key, params = {}, fallback = '') => messageValue(i18n, key, params, fallback);
+  const h = (key, params = {}, fallback = '') => htmlMessage(i18n, key, params, fallback);
+  const baseName = escapeHtml(i18nCopy(i18n, base.name));
   const baseId = escapeHtml(base.id);
-  const baseKind = baseKindName(field ? 'field' : 'major', i18n);
   const targetCap = pressure.kind === 'PRIMARY' ? localizedLimit(Infinity, i18n) : pressure.targetCap;
+  const fieldRange = fieldBaseBuildRange(state.civilization?.level);
   const fieldRangeNote = field
-    ? `<p class="sectionNote">${t(`建設範囲${fieldBaseBuildRange(state.civilization?.level)}m。突撃／遊撃／回収部隊を派兵できます。`, {
-      en: `Construction range ${fieldBaseBuildRange(state.civilization?.level)} m. Can dispatch Assault, Skirmisher, and Recovery squads.`,
-      zh: `建设范围 ${fieldBaseBuildRange(state.civilization?.level)}m。可派遣突击、游击和回收部队。`
-    })}</p>`
+    ? `<p class="sectionNote">${h('baseCommand.fieldRangeNote', { range: fieldRange }, `建設範囲${fieldRange}m。突撃／遊撃／回収部隊を派兵できます。`)}</p>`
     : '';
-  const pressureNotice = t(`${basePressureUiText(pressure)}・同時標的上限 ${targetCap}`, {
-    en: `${localizedBasePressureText(pressure, i18n)} · simultaneous target cap ${targetCap}`,
-    zh: `${localizedBasePressureText(pressure, i18n)} · 同时目标上限 ${targetCap}`
-  });
-  const squadNotice = t(`派兵中 ${status.activeSquads}・回復中 ${status.recoveringSquads}・再出撃待機 ${status.readySquads}`, {
-    en: `Deployed ${status.activeSquads} · Recovering ${status.recoveringSquads} · Ready to redeploy ${status.readySquads}`,
-    zh: `派兵中 ${status.activeSquads} · 恢复中 ${status.recoveringSquads} · 可再出击 ${status.readySquads}`
-  });
+  const pressureNotice = h('baseCommand.pressureNotice', {
+    pressure: localizedBasePressureText(pressure, i18n),
+    targetCap
+  }, `${basePressureUiText(pressure)}・同時標的上限 ${targetCap}`);
+  const squadNotice = h('baseCommand.squadNotice', {
+    active: status.activeSquads,
+    recovering: status.recoveringSquads,
+    ready: status.readySquads
+  }, `派兵中 ${status.activeSquads}・回復中 ${status.recoveringSquads}・再出撃待機 ${status.readySquads}`);
   const regionNotice = escapeHtml(regionControlSummaryText(state, base, i18n));
   const logisticsNotice = escapeHtml(regionLogisticsSummaryText(state, base, i18n));
   const recoveryNotice = status.recoveryItems
-    ? `<p class="baseRecoveryNotice">${t(`周辺に未回収アイテム ${status.recoveryItems}`, {
-      en: `Unrecovered nearby items ${status.recoveryItems}`,
-      zh: `周边未回收物品 ${status.recoveryItems}`
-    })}</p>`
+    ? `<p class="baseRecoveryNotice">${h('baseCommand.recoveryNotice', { count: status.recoveryItems }, `周辺に未回収アイテム ${status.recoveryItems}`)}</p>`
     : '';
-  const focusLabel = t('この拠点をMAP表示', { en: 'Show this base on MAP', zh: '在地图显示此基地' });
+  const focusLabel = h('baseCommand.focusMap', {}, 'この拠点をMAP表示');
   const rebuildHtml = destroyed && rebuildKind ? (() => {
     const kind = baseKindName(rebuildKind, i18n);
-    const button = t(`現地で${kind}を再建`, {
-      en: `Rebuild on site: ${kind}`,
-      zh: `现场重建${kind}`
-    });
+    const button = h('baseCommand.rebuildOnSite', { kind }, `現地で${kind}を再建`);
     const reason = rebuild?.ok
-      ? t('現在地から再建できます。', { en: 'Can rebuild from your current location.', zh: '可从当前位置重建。' })
-      : localizedPlacementReason(i18n, rebuild?.reason ?? '現地へ移動してください。');
-    return `<button class="secondary wideButton" data-action="rebuild-${rebuildKind}-base" data-base-id="${baseId}" ${rebuild?.ok ? '' : 'disabled'}>${button}</button><p class="sectionNote">${t('費用', { en: 'Cost', zh: '费用' })} ${i18nBundle(i18n, rebuild?.cost)}・${reason}</p>`;
+      ? h('baseCommand.rebuildReady', {}, '現在地から再建できます。')
+      : escapeHtml(localizedPlacementReason(i18n, rebuild ?? m('baseCommand.rebuildMoveOnSite', {}, '現地へ移動してください。')));
+    return `<button class="secondary wideButton" data-action="rebuild-${rebuildKind}-base" data-base-id="${baseId}" ${rebuild?.ok ? '' : 'disabled'}>${button}</button><p class="sectionNote">${h('baseCommand.cost', {}, '費用')} ${escapeHtml(i18nBundle(i18n, rebuild?.cost))} · ${reason}</p>`;
   })() : '';
   const dismantleHtml = dismantleKind ? (() => {
     const kind = baseKindName(dismantleKind, i18n);
-    const button = t(`${kind}を撤去`, {
-      en: `Dismantle ${kind}`,
-      zh: `拆除${kind}`
-    });
+    const button = h('baseCommand.dismantle', { kind }, `${kind}を撤去`);
     const reason = dismantle?.ok
-      ? t('撤去すると拠点枠を空け、対象中の敵と部隊は残存主要拠点へ再割当します。', {
-        en: 'Dismantling frees a base slot and reassigns enemies and squads targeting it to a remaining major base.',
-        zh: '拆除后会空出基地栏位，并把正在以它为目标的敌军和部队重新分配到剩余主要基地。'
-      })
-      : localizedPlacementReason(i18n, dismantle?.reason ?? '撤去できません。');
+      ? h('baseCommand.dismantleNotice', {}, '撤去すると拠点枠を空け、対象中の敵と部隊は残存主要拠点へ再割当します。')
+      : escapeHtml(localizedPlacementReason(i18n, dismantle ?? m('baseCommand.dismantleUnavailable', {}, '撤去できません。')));
     return `<button class="secondary wideButton danger" data-action="dismantle-${dismantleKind}-base" data-base-id="${baseId}" ${dismantle?.ok ? '' : 'disabled'}>${button}</button><p class="sectionNote">${reason}</p>`;
   })() : '';
   return `<article class="baseCommandCard ${selected ? 'selected' : ''} ${destroyed ? 'destroyed' : ''}">
-    <header><div><small>${label}</small><strong>${baseName}</strong></div><span data-alert="${destroyed || status.nearbyEnemies > 0 ? 'danger' : 'clear'}">${c(status.alert)}</span></header>
+    <header><div><small>${escapeHtml(label)}</small><strong>${baseName}</strong></div><span data-alert="${destroyed || status.nearbyEnemies > 0 ? 'danger' : 'clear'}">${escapeHtml(baseAlertText(status.alert, i18n))}</span></header>
     <div class="contextMetricGrid"><span><small>HP</small><b>${Math.ceil(base.hp)}/${base.maxHp}</b></span><span><small>ENEMY</small><b>${status.nearbyEnemies}</b></span><span><small>DEF</small><b>${status.facilities}</b></span><span><small>SQUAD</small><b>${status.squads}/${status.squadCapacity}</b></span><span><small>PRESS</small><b>${Math.round(pressure.ratio * 100)}%</b></span></div>
     ${fieldRangeNote}
     <p class="basePressureNotice">${pressureNotice}</p>
@@ -200,6 +228,19 @@ export class BaseCommandUi {
   }
 
   localize(text = '') { return this.i18n?.copy?.(text) ?? text; }
+
+  msg(key, params = {}, fallback = '') { return messageValue(this.i18n, key, params, fallback); }
+
+  htmlMsg(key, params = {}, fallback = '') { return htmlMessage(this.i18n, key, params, fallback); }
+
+  notify(key, params = {}, fallback = '') { this.notifications.show(this.msg(key, params, fallback)); }
+
+  reasonPayload(result, key, fallback = '') {
+    if (result?.reasonKey) return { key: result.reasonKey, params: result.reasonParams ?? {}, text: result.reason ?? fallback };
+    return result?.reason ? this.localize(result.reason) : this.msg(key, {}, fallback);
+  }
+
+  notifyFailure(result, key, fallback = '') { this.notifications.show(this.reasonPayload(result, key, fallback)); }
 
   availableBases(state) {
     return [...(state.world?.playerBases ?? []), ...(state.world?.fieldBases ?? [])];
@@ -249,13 +290,14 @@ export class BaseCommandUi {
     const majorLimit = localizedLimit(baseLimitForCivilization(state.civilization?.level), this.i18n);
     const fieldLimit = localizedLimit(fieldBaseLimitForCivilization(state.civilization?.level), this.i18n);
     const focusedName = focused ? i18nCopy(this.i18n, focused.name) : '';
-    this.summary.textContent = uiText(this.i18n,
-      `主要 ${major.length}稼働・${majorSlots}/${majorLimit}・簡易 ${fieldBaseSlotsUsed(state)}/${fieldLimit}${repairCount ? `・要修理 ${repairCount}` : ''}${focused ? `・表示 ${focusedName}` : ''}`,
-      {
-        en: `Major ${major.length} active · ${majorSlots}/${majorLimit} · Simple ${fieldBaseSlotsUsed(state)}/${fieldLimit}${repairCount ? ` · Repairs needed ${repairCount}` : ''}${focused ? ` · Focused ${focusedName}` : ''}`,
-        zh: `主要 ${major.length} 运行 · ${majorSlots}/${majorLimit} · 简易 ${fieldBaseSlotsUsed(state)}/${fieldLimit}${repairCount ? ` · 需修理 ${repairCount}` : ''}${focused ? ` · 显示 ${focusedName}` : ''}`
-      }
-    );
+    const separator = this.msg('baseCommand.inlineSeparator', {}, '・');
+    const summaryParts = [
+      this.msg('baseCommand.summaryMajor', { majorActive: major.length, majorSlots, majorLimit }, `主要 ${major.length}稼働・${majorSlots}/${majorLimit}`),
+      this.msg('baseCommand.summaryField', { fieldSlots: fieldBaseSlotsUsed(state), fieldLimit }, `簡易 ${fieldBaseSlotsUsed(state)}/${fieldLimit}`)
+    ];
+    if (repairCount) summaryParts.push(this.msg('baseCommand.summaryRepairs', { repairCount }, `要修理 ${repairCount}`));
+    if (focused) summaryParts.push(this.msg('baseCommand.summaryFocused', { focusedName }, `表示 ${focusedName}`));
+    this.summary.textContent = summaryParts.join(separator);
     this.summary.classList?.toggle('has-repairs', repairCount > 0);
   }
 
@@ -283,13 +325,13 @@ export class BaseCommandUi {
     if (action === 'establish-base') {
       let result;
       this.store.transaction(state => { result = this.system.establishAtCurrentLocation(state); }, 'base:player-established', { emit: true, validate: true });
-      if (!result?.ok) this.notifications.show(this.localize(result?.reason ?? '拠点を設置できません。'));
+      if (!result?.ok) this.notifyFailure(result, 'baseCommand.establishMajorFailed', '拠点を設置できません。');
       else {
         this.focusedBaseId = result.base.id;
         this.focusedBaseKind = 'major';
         this.renderer.invalidateStatic();
         this.renderer.render();
-        this.notifications.show(this.localize(`${result.base.name}を設置しました。`));
+        this.notify('baseCommand.established', { baseName: result.base.name }, `${result.base.name}を設置しました。`);
         this.persist?.();
       }
       this.render();
@@ -299,13 +341,13 @@ export class BaseCommandUi {
       if (!this.fieldSystem) return;
       let result;
       this.store.transaction(state => { result = this.fieldSystem.establishAtCurrentLocation(state); }, 'base:field-established', { emit: true, validate: true });
-      if (!result?.ok) this.notifications.show(this.localize(result?.reason ?? '簡易拠点を設置できません。'));
+      if (!result?.ok) this.notifyFailure(result, 'baseCommand.establishFieldFailed', '簡易拠点を設置できません。');
       else {
         this.focusedBaseId = result.base.id;
         this.focusedBaseKind = 'field';
         this.renderer.invalidateStatic();
         this.renderer.render();
-        this.notifications.show(this.localize(`${result.base.name}を設置しました。`));
+        this.notify('baseCommand.established', { baseName: result.base.name }, `${result.base.name}を設置しました。`);
         this.persist?.();
       }
       this.render();
@@ -314,11 +356,11 @@ export class BaseCommandUi {
     if (action === 'rebuild-major-base') {
       let result;
       this.store.transaction(state => { result = this.system.rebuild(state, baseId); }, 'base:player-rebuilt', { emit: true, validate: true });
-      if (!result?.ok) this.notifications.show(this.localize(result?.reason ?? '主要拠点を再建できません。'));
+      if (!result?.ok) this.notifyFailure(result, 'baseCommand.rebuildMajorFailed', '主要拠点を再建できません。');
       else {
         this.renderer.invalidateStatic();
         this.renderer.render();
-        this.notifications.show(this.localize(`${result.base.name}を再建しました。`));
+        this.notify('baseCommand.rebuilt', { baseName: result.base.name }, `${result.base.name}を再建しました。`);
         this.persist?.();
       }
       this.render();
@@ -328,11 +370,11 @@ export class BaseCommandUi {
       if (!this.fieldSystem) return;
       let result;
       this.store.transaction(state => { result = this.fieldSystem.rebuild(state, baseId); }, 'base:field-rebuilt', { emit: true, validate: true });
-      if (!result?.ok) this.notifications.show(this.localize(result?.reason ?? '簡易拠点を再建できません。'));
+      if (!result?.ok) this.notifyFailure(result, 'baseCommand.rebuildFieldFailed', '簡易拠点を再建できません。');
       else {
         this.renderer.invalidateStatic();
         this.renderer.render();
-        this.notifications.show(this.localize(`${result.base.name}を再建しました。`));
+        this.notify('baseCommand.rebuilt', { baseName: result.base.name }, `${result.base.name}を再建しました。`);
         this.persist?.();
       }
       this.render();
@@ -341,14 +383,14 @@ export class BaseCommandUi {
     if (action === 'dismantle-major-base') {
       let result;
       this.store.transaction(state => { result = this.system.dismantle(state, baseId); }, 'base:player-dismantled', { emit: true, validate: true });
-      if (!result?.ok) this.notifications.show(this.localize(result?.reason ?? '主要拠点を撤去できません。'));
+      if (!result?.ok) this.notifyFailure(result, 'baseCommand.dismantleMajorFailed', '主要拠点を撤去できません。');
       else {
         const state = this.store.snapshot();
         this.focusedBaseId = (state.world?.playerBases ?? [])[0]?.id ?? (state.world?.fieldBases ?? [])[0]?.id ?? null;
         this.focusedBaseKind = 'major';
         this.renderer.invalidateStatic();
         this.renderer.render();
-        this.notifications.show(this.localize(`${result.base.name}を撤去しました。`));
+        this.notify('baseCommand.dismantled', { baseName: result.base.name }, `${result.base.name}を撤去しました。`);
         this.persist?.();
       }
       this.render();
@@ -358,14 +400,14 @@ export class BaseCommandUi {
       if (!this.fieldSystem) return;
       let result;
       this.store.transaction(state => { result = this.fieldSystem.dismantle(state, baseId); }, 'base:field-dismantled', { emit: true, validate: true });
-      if (!result?.ok) this.notifications.show(this.localize(result?.reason ?? '簡易拠点を撤去できません。'));
+      if (!result?.ok) this.notifyFailure(result, 'baseCommand.dismantleFieldFailed', '簡易拠点を撤去できません。');
       else {
         const state = this.store.snapshot();
         this.focusedBaseId = (state.world?.playerBases ?? [])[0]?.id ?? (state.world?.fieldBases ?? [])[0]?.id ?? null;
         this.focusedBaseKind = 'major';
         this.renderer.invalidateStatic();
         this.renderer.render();
-        this.notifications.show(this.localize(`${result.base.name}を撤去しました。`));
+        this.notify('baseCommand.dismantled', { baseName: result.base.name }, `${result.base.name}を撤去しました。`);
         this.persist?.();
       }
       this.render();
@@ -374,7 +416,7 @@ export class BaseCommandUi {
 
   render(state = this.store.snapshot()) {
     this.lastRenderAt = Date.now();
-    const t = (source, translations = {}) => uiText(this.i18n, source, translations);
+    const h = (key, params = {}, fallback = '') => this.htmlMsg(key, params, fallback);
     const majorBases = state.world?.playerBases ?? [];
     const fieldBases = state.world?.fieldBases ?? [];
     const majorLimit = baseLimitForCivilization(state.civilization?.level);
@@ -383,7 +425,7 @@ export class BaseCommandUi {
     if (!all.some(base => base.id === this.focusedBaseId)) this.focusedBaseId = majorBases[0]?.id ?? fieldBases[0]?.id ?? null;
 
     const majorPlacement = this.system.previewCurrentLocation(state);
-    const fieldPlacement = this.fieldSystem?.previewCurrentLocation(state) ?? { ok: false, reason: '簡易拠点システムを利用できません。' };
+    const fieldPlacement = this.fieldSystem?.previewCurrentLocation(state) ?? { ok: false, reason: this.msg('baseCommand.fieldSystemUnavailable', {}, '簡易拠点システムを利用できません。') };
     const fieldDiagnostic = diagnoseFieldBaseNetwork(state, Math.min(3, fieldLimit));
     const majorCards = majorBases.map((base, index) => baseCard(state, base, {
       selected: base.id === this.focusedBaseId,
@@ -393,7 +435,7 @@ export class BaseCommandUi {
       dismantle: this.system.previewDismantle(state, base.id),
       dismantleKind: base.primary ? null : 'major',
       i18n: this.i18n
-    })).join('') || `<p class="emptyText">${t('稼働中の主要拠点がありません。', { en: 'No active major bases.', zh: '尚无运行中的主要基地。' })}</p>`;
+    })).join('') || `<p class="emptyText">${h('baseCommand.emptyMajor', {}, '稼働中の主要拠点がありません。')}</p>`;
     const fieldCards = fieldBases.map((base, index) => baseCard(state, base, {
       selected: base.id === this.focusedBaseId,
       label: `FIELD ${String(index + 1).padStart(2, '0')}`,
@@ -403,54 +445,52 @@ export class BaseCommandUi {
       dismantle: this.fieldSystem?.previewDismantle(state, base.id),
       dismantleKind: 'field',
       i18n: this.i18n
-    })).join('') || `<p class="emptyText">${t('簡易拠点はまだありません。', { en: 'No simple bases yet.', zh: '尚无简易基地。' })}</p>`;
+    })).join('') || `<p class="emptyText">${h('baseCommand.emptyField', {}, '簡易拠点はまだありません。')}</p>`;
 
     const active = ['overview', 'major', 'field', 'build'].includes(this.activeTab) ? this.activeTab : 'overview';
     const majorLimitText = localizedLimit(majorLimit, this.i18n);
     const fieldLimitText = localizedLimit(fieldLimit, this.i18n);
     const majorSlotsPerBase = friendlySquadCapacityForBase(state, { kind: 'MAJOR' });
     const fieldSlotsPerBase = friendlySquadCapacityForBase(state, { kind: 'FIELD' });
-    const buildMajorCost = i18nBundle(this.i18n, majorPlacement.cost);
-    const buildFieldCost = i18nBundle(this.i18n, fieldPlacement.cost);
+    const buildMajorCost = escapeHtml(i18nBundle(this.i18n, majorPlacement.cost));
+    const buildFieldCost = escapeHtml(i18nBundle(this.i18n, fieldPlacement.cost));
+    const majorDistance = Math.round(majorPlacement.distanceToRoad ?? 0);
+    const fieldDistance = Math.round(fieldPlacement.distanceToRoad ?? 0);
     const majorBuildStatus = majorPlacement.ok
-      ? t(`設置可能・道路まで約${Math.round(majorPlacement.distanceToRoad)}m`, {
-        en: `Can place · about ${Math.round(majorPlacement.distanceToRoad)} m to road`,
-        zh: `可设置 · 距道路约 ${Math.round(majorPlacement.distanceToRoad)}m`
-      })
-      : localizedPlacementReason(this.i18n, majorPlacement.reason);
+      ? h('baseCommand.buildAvailable', { distance: majorDistance }, `設置可能・道路まで約${majorDistance}m`)
+      : escapeHtml(localizedPlacementReason(this.i18n, majorPlacement.reason));
     const fieldBuildStatus = fieldPlacement.ok
-      ? t(`設置可能・道路まで約${Math.round(fieldPlacement.distanceToRoad)}m`, {
-        en: `Can place · about ${Math.round(fieldPlacement.distanceToRoad)} m to road`,
-        zh: `可设置 · 距道路约 ${Math.round(fieldPlacement.distanceToRoad)}m`
-      })
-      : localizedPlacementReason(this.i18n, fieldPlacement.reason);
-    const fieldDiagnosticTitle = t(`道路網診断：${fieldDiagnostic.active}/${fieldDiagnostic.required}基稼働`, {
-      en: `Road network check: ${fieldDiagnostic.active}/${fieldDiagnostic.required} active`,
-      zh: `道路网诊断：${fieldDiagnostic.active}/${fieldDiagnostic.required} 座运行`
-    });
-    const fieldDiagnosticDetail = t(`追加候補 ${fieldDiagnostic.confirmedAdditional}基・破壊済み ${fieldDiagnostic.destroyed}基`, {
-      en: `Additional candidates ${fieldDiagnostic.confirmedAdditional} · Destroyed ${fieldDiagnostic.destroyed}`,
-      zh: `追加候选 ${fieldDiagnostic.confirmedAdditional} 座 · 已破坏 ${fieldDiagnostic.destroyed} 座`
-    });
+      ? h('baseCommand.buildAvailable', { distance: fieldDistance }, `設置可能・道路まで約${fieldDistance}m`)
+      : escapeHtml(localizedPlacementReason(this.i18n, fieldPlacement.reason));
+    const fieldDiagnosticTitle = h('baseCommand.fieldDiagnosticTitle', {
+      active: fieldDiagnostic.active,
+      required: fieldDiagnostic.required
+    }, `道路網診断：${fieldDiagnostic.active}/${fieldDiagnostic.required}基稼働`);
+    const fieldDiagnosticDetail = h('baseCommand.fieldDiagnosticDetail', {
+      confirmedAdditional: fieldDiagnostic.confirmedAdditional,
+      destroyed: fieldDiagnostic.destroyed
+    }, `追加候補 ${fieldDiagnostic.confirmedAdditional}基・破壊済み ${fieldDiagnostic.destroyed}基`);
+    const majorRange = majorBaseBuildRange(state.civilization?.level);
 
-    this.body.innerHTML = `<div class="uiTabBar" role="tablist" aria-label="${t('拠点画面の表示切替', { en: 'Base tab switcher', zh: '基地画面标签切换' })}">
-        ${tabButton('overview', t('概要', { en: 'Overview', zh: '概要' }), active)}
-        ${tabButton('major', t('主要', { en: 'Major', zh: '主要' }), active)}
-        ${tabButton('field', t('簡易', { en: 'Simple', zh: '简易' }), active)}
-        ${tabButton('build', t('建設', { en: 'Build', zh: '建设' }), active)}
+    this.body.innerHTML = `<div class="uiTabBar" role="tablist" aria-label="${h('baseCommand.tabAria', {}, '拠点画面の表示切替')}">
+        ${tabButton('overview', h('baseCommand.tabOverview', {}, '概要'), active)}
+        ${tabButton('major', h('baseCommand.tabMajor', {}, '主要'), active)}
+        ${tabButton('field', h('baseCommand.tabField', {}, '簡易'), active)}
+        ${tabButton('build', h('baseCommand.tabBuild', {}, '建設'), active)}
       </div>
       <section class="overviewHero baseHero">
-        <div><small>${t('主要拠点', { en: 'Major Bases', zh: '主要基地' })}</small><strong>${majorBases.length}/${majorLimitText}</strong><span>${t(`各 ${majorSlotsPerBase}部隊枠`, { en: `${majorSlotsPerBase} squad slots each`, zh: `每个 ${majorSlotsPerBase} 个部队栏位` })}</span></div>
-        <div><small>${t('簡易拠点', { en: 'Simple Bases', zh: '简易基地' })}</small><strong>${fieldBaseSlotsUsed(state)}/${fieldLimitText}</strong><span>${t(`各 ${fieldSlotsPerBase}部隊枠`, { en: `${fieldSlotsPerBase} squad slots each`, zh: `每个 ${fieldSlotsPerBase} 个部队栏位` })}</span></div>
-        <div><small>${t('文明', { en: 'Civilization', zh: '文明' })}</small><strong>Lv.${state.civilization.level}</strong><span>${t('発展で拠点・部隊枠が増加', { en: 'Growth increases base and squad slots', zh: '发展会增加基地和部队栏位' })}</span></div>
+        <div><small>${h('baseCommand.majorBasesLabel', {}, '主要拠点')}</small><strong>${majorBases.length}/${escapeHtml(majorLimitText)}</strong><span>${h('baseCommand.squadSlotsEach', { count: majorSlotsPerBase }, `各 ${majorSlotsPerBase}部隊枠`)}</span></div>
+        <div><small>${h('baseCommand.simpleBasesLabel', {}, '簡易拠点')}</small><strong>${fieldBaseSlotsUsed(state)}/${escapeHtml(fieldLimitText)}</strong><span>${h('baseCommand.squadSlotsEach', { count: fieldSlotsPerBase }, `各 ${fieldSlotsPerBase}部隊枠`)}</span></div>
+        <div><small>${h('baseCommand.civilizationLabel', {}, '文明')}</small><strong>Lv.${state.civilization.level}</strong><span>${h('baseCommand.growthNote', {}, '発展で拠点・部隊枠が増加')}</span></div>
       </section>
-      ${tabPanel('overview', active, `<h2>${t('拠点概要', { en: 'Base Overview', zh: '基地概要' })}</h2><div class="baseCommandGrid compactBaseGrid">${majorCards}${fieldCards}</div>`)}
-      ${tabPanel('major', active, `<h2>${t('主要拠点', { en: 'Major Bases', zh: '主要基地' })}</h2><p class="sectionNote">${t('すべての部隊を派兵できる中核拠点です。主要拠点は最低1つを残し、それ以外は撤去できます。', { en: 'Core bases that can dispatch all squad types. At least one major base must remain; the rest can be dismantled.', zh: '可派遣所有部队的核心基地。必须留下至少一座主要基地，其余可拆除。' })}</p><div class="baseCommandGrid">${majorCards}</div>`)}
-      ${tabPanel('field', active, `<h2>${t('簡易拠点', { en: 'Simple Bases', zh: '简易基地' })}</h2><p class="sectionNote">${t('突撃部隊・遊撃部隊・回収部隊の前線運用に使います。不要な簡易拠点は撤去できます。', { en: 'Used for frontline operation of Assault, Skirmisher, and Recovery squads. Unneeded simple bases can be dismantled.', zh: '用于突击、游击和回收部队的前线运用。不需要的简易基地可以拆除。' })}</p><div class="baseCommandGrid">${fieldCards}</div>`)}
-      ${tabPanel('build', active, `<h2>${t('現在地に主要拠点', { en: 'Build Major Base', zh: '在当前位置建设主要基地' })}</h2><div class="baseEstablishSection"><p class="sectionNote">${t(`建設範囲${majorBaseBuildRange(state.civilization?.level)}m。すべての部隊を派兵できます。`, { en: `Construction range ${majorBaseBuildRange(state.civilization?.level)} m. All squad types can be dispatched.`, zh: `建设范围 ${majorBaseBuildRange(state.civilization?.level)}m。可派遣所有部队。` })}</p><button class="primary wideButton" data-action="establish-base" ${majorPlacement.ok ? '' : 'disabled'}>${t('現在地に主要拠点を設置', { en: 'Place Major', zh: '设置主要基地' })}</button><p class="sectionNote">${t('費用', { en: 'Cost', zh: '费用' })} ${buildMajorCost}・${majorBuildStatus}</p></div><h2>${t('現在地に簡易拠点', { en: 'Build Simple Base', zh: '在当前位置建设简易基地' })}</h2><div class="baseEstablishSection"><p class="sectionNote">${t('文明Lv.1で解禁。取得済み道路の交差点から100m以内で設置できます。', { en: 'Unlocked at Civ Lv.1. Can be placed within 100 m of an acquired road intersection.', zh: '文明 Lv.1 解锁。可在已取得道路交叉点 100m 内设置。' })}</p><div class="fieldBaseDiagnostic ${fieldDiagnostic.sufficient ? 'is-sufficient' : 'is-insufficient'}"><strong>${fieldDiagnosticTitle}</strong><span>${fieldDiagnosticDetail}</span><small>${localizedDiagnosticGuidance(this.i18n, fieldDiagnostic.guidance)}</small></div><button class="primary wideButton" data-action="establish-field-base" ${fieldPlacement.ok ? '' : 'disabled'}>${t('現在地に簡易拠点を設置', { en: 'Place Simple', zh: '设置简易基地' })}</button><p class="sectionNote">${t('費用', { en: 'Cost', zh: '费用' })} ${buildFieldCost}・${fieldBuildStatus}</p></div>`)}
+      ${tabPanel('overview', active, `<h2>${h('baseCommand.overviewTitle', {}, '拠点概要')}</h2><div class="baseCommandGrid compactBaseGrid">${majorCards}${fieldCards}</div>`)}
+      ${tabPanel('major', active, `<h2>${h('baseCommand.majorTitle', {}, '主要拠点')}</h2><p class="sectionNote">${h('baseCommand.majorNote', {}, 'すべての部隊を派兵できる中核拠点です。主要拠点は最低1つを残し、それ以外は撤去できます。')}</p><div class="baseCommandGrid">${majorCards}</div>`)}
+      ${tabPanel('field', active, `<h2>${h('baseCommand.fieldTitle', {}, '簡易拠点')}</h2><p class="sectionNote">${h('baseCommand.fieldNote', {}, '突撃部隊・遊撃部隊・回収部隊の前線運用に使います。不要な簡易拠点は撤去できます。')}</p><div class="baseCommandGrid">${fieldCards}</div>`)}
+      ${tabPanel('build', active, `<h2>${h('baseCommand.buildMajorTitle', {}, '現在地に主要拠点')}</h2><div class="baseEstablishSection"><p class="sectionNote">${h('baseCommand.majorBuildRangeNote', { range: majorRange }, `建設範囲${majorRange}m。すべての部隊を派兵できます。`)}</p><button class="primary wideButton" data-action="establish-base" ${majorPlacement.ok ? '' : 'disabled'}>${h('baseCommand.placeMajor', {}, '現在地に主要拠点を設置')}</button><p class="sectionNote">${h('baseCommand.cost', {}, '費用')} ${buildMajorCost} · ${majorBuildStatus}</p></div><h2>${h('baseCommand.buildSimpleTitle', {}, '現在地に簡易拠点')}</h2><div class="baseEstablishSection"><p class="sectionNote">${h('baseCommand.fieldUnlockNote', {}, '文明Lv.1で解禁。取得済み道路の交差点から100m以内で設置できます。')}</p><div class="fieldBaseDiagnostic ${fieldDiagnostic.sufficient ? 'is-sufficient' : 'is-insufficient'}"><strong>${fieldDiagnosticTitle}</strong><span>${fieldDiagnosticDetail}</span><small>${escapeHtml(localizedDiagnosticGuidance(this.i18n, fieldDiagnostic.guidance))}</small></div><button class="primary wideButton" data-action="establish-field-base" ${fieldPlacement.ok ? '' : 'disabled'}>${h('baseCommand.placeField', {}, '現在地に簡易拠点を設置')}</button><p class="sectionNote">${h('baseCommand.cost', {}, '費用')} ${buildFieldCost} · ${fieldBuildStatus}</p></div>`)}
     `;
     this.i18n?.localizeElement?.(this.body);
     this.updateSummary(state);
   }
+
 
 }

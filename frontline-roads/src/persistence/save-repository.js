@@ -11,6 +11,27 @@ const MAX_SAVE_BYTES = 4_500_000;
 const RESET_MARKER_KEY = 'frontline_roads_reset_marker_v1';
 const APP_STORAGE_PREFIX = 'frontline_roads_';
 
+function messageSource(key, text, params = {}) {
+  return { key, params, text };
+}
+
+function normalizeWarning(message, fallbackKey = 'save.storageUnavailable', fallbackText = 'ブラウザの保存領域を利用できません。このタブを閉じると進行状況は失われます。') {
+  if (message && typeof message === 'object' && message.key) {
+    return { key: String(message.key), params: message.params ?? {}, text: message.text ?? message.fallback ?? fallbackText };
+  }
+  if (typeof message === 'string' && message.trim()) return { key: fallbackKey, params: {}, text: message };
+  return messageSource(fallbackKey, fallbackText);
+}
+
+const SAVE_WARNING = Object.freeze({
+  storageUnavailable: messageSource('save.storageUnavailable', 'ブラウザの保存領域を利用できません。このタブを閉じると進行状況は失われます。'),
+  invalidSaveQuarantined: messageSource('save.invalidSaveQuarantined', '保存データを復元できなかったため、新しいゲームとして開始します。破損データは無効化しました。'),
+  resetMarkerDetected: messageSource('save.resetMarkerDetected', '初期化前の保存データを検出したため、新しいゲームとして開始します。'),
+  corruptSaveQuarantined: messageSource('save.corruptSaveQuarantined', '保存データが破損していたため、新しいゲームとして開始します。破損データは無効化しました。'),
+  loadFailed: messageSource('save.loadFailed', '保存データを読み込めなかったため、新しいゲームとして開始します。'),
+  saveFailedProgressLost: messageSource('save.saveFailedProgressLost', '保存に失敗しました。このタブを閉じると、以後の進行状況は失われます。')
+});
+
 function sanitizeGraph(graph) {
   if (!graph) return graph;
   if (Number.isFinite(Number(graph.center?.lat)) && Number.isFinite(Number(graph.center?.lon))) graph.center = roundPublicLocation(graph.center, 4);
@@ -76,7 +97,7 @@ export class SaveRepository {
     this.legacyKeys = legacyKeys;
     this.backupKey = `${key}_legacy_backup`;
     this.corruptBackupKey = `${key}_corrupt_backup`;
-    this.warning = this.storage ? null : 'ブラウザの保存領域を利用できません。このタブを閉じると進行状況は失われます。';
+    this.warning = this.storage ? null : SAVE_WARNING.storageUnavailable;
   }
 
   isAvailable() {
@@ -89,9 +110,9 @@ export class SaveRepository {
     return warning;
   }
 
-  markUnavailable(message = 'ブラウザの保存領域を利用できません。このタブを閉じると進行状況は失われます。') {
+  markUnavailable(message = SAVE_WARNING.storageUnavailable) {
     this.storage = null;
-    this.warning = message;
+    this.warning = normalizeWarning(message);
   }
 
   discardInvalid(raw = null) {
@@ -115,12 +136,12 @@ export class SaveRepository {
     }
   }
 
-  quarantineCurrent(message = '保存データを復元できなかったため、新しいゲームとして開始します。') {
+  quarantineCurrent(message = messageSource('save.invalidSaveRecovered', '保存データを復元できなかったため、新しいゲームとして開始します。')) {
     if (!this.storage) return false;
     try {
       const raw = this.storage.getItem(this.key);
       this.discardInvalid(raw);
-      this.warning = message;
+      this.warning = normalizeWarning(message, 'save.invalidSaveRecovered', '保存データを復元できなかったため、新しいゲームとして開始します。');
       return true;
     } catch {
       this.markUnavailable();
@@ -148,7 +169,7 @@ export class SaveRepository {
         const migratedValidation = validateState(state);
         if (!migratedValidation.valid) {
           this.discardInvalid(raw);
-          this.warning = '保存データを復元できなかったため、新しいゲームとして開始します。破損データは無効化しました。';
+          this.warning = SAVE_WARNING.invalidSaveQuarantined;
           return null;
         }
         const { copy } = sanitizeState(state);
@@ -156,19 +177,19 @@ export class SaveRepository {
       }
       if (statePredatesReset(state, resetMarkerTime(this.storage))) {
         this.discardInvalid(raw);
-        this.warning = '初期化前の保存データを検出したため、新しいゲームとして開始します。';
+        this.warning = SAVE_WARNING.resetMarkerDetected;
         return null;
       }
       const validation = validateState(state);
       if (!validation.valid) {
         this.discardInvalid(raw);
-        this.warning = '保存データが破損していたため、新しいゲームとして開始します。破損データは無効化しました。';
+        this.warning = SAVE_WARNING.corruptSaveQuarantined;
         return null;
       }
       state.runtime.loadedFromKey = sourceKey;
       return state;
     } catch {
-      this.warning = '保存データを読み込めなかったため、新しいゲームとして開始します。';
+      this.warning = SAVE_WARNING.loadFailed;
       return null;
     }
   }
@@ -193,7 +214,7 @@ export class SaveRepository {
       this.storage.setItem(this.key, serialized);
       return timestamp;
     } catch (error) {
-      this.markUnavailable('保存に失敗しました。このタブを閉じると、以後の進行状況は失われます。');
+      this.markUnavailable(SAVE_WARNING.saveFailedProgressLost);
       throw new AppError(ErrorCode.STORAGE_UNAVAILABLE, 'ゲームの保存に失敗しました。', { details: error?.message });
     }
   }

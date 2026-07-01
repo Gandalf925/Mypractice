@@ -163,8 +163,18 @@ export class RoadsideSuppliesUi {
 
   close() { setVisible(this.panel, false); }
 
+  reasonPayload(result, key, fallback) {
+    if (result?.reasonKey) return { key: result.reasonKey, params: result.reasonParams ?? {}, text: result.reason ?? fallback };
+    return result?.reason ? this.localize(result.reason) : this.msg(key, {}, fallback);
+  }
+
+  reasonText(result, key, fallback) {
+    const payload = this.reasonPayload(result, key, fallback);
+    return payload && typeof payload === 'object' && payload.key ? this.msg(payload.key, payload.params ?? {}, payload.text ?? fallback) : String(payload ?? '');
+  }
+
   showFailure(result, key, fallback) {
-    this.notifications.show(result?.reason ? this.localize(result.reason) : this.msg(key, {}, fallback));
+    this.notifications.show(this.reasonPayload(result, key, fallback));
   }
 
   useItem(key) {
@@ -314,7 +324,7 @@ export class RoadsideSuppliesUi {
             ? this.msg('roadside.recipeNeedsWorkshop', {}, '戦術工房を建設すると製作できます。')
             : missing
               ? this.msg('roadside.recipeMissing', { missing }, `不足：${missing}`)
-              : this.localize(status.reason ?? this.msg('roadside.craftFailed', {}, '製作できません。'));
+              : this.reasonText(status, 'roadside.craftFailed', '製作できません。');
       const html = `<div class="supplyInventoryRow tacticalRecipe${ready ? ' is-ready' : unlocked ? '' : ' is-locked'}"><div><strong>${escapeHtml(this.localize(recipe.name))}</strong><span>${escapeHtml(reason)}</span><small>${escapeHtml(this.msg('roadside.resourceCost', { cost: resourceCost }, `資材 ${resourceCost}`))}</small><small>${escapeHtml(this.msg('roadside.materialCost', { cost: materialCost }, `素材 ${materialCost}`))}</small></div><button type="button" data-craft-roadside="${escapeHtml(key)}" ${ready ? '' : 'disabled'}>${escapeHtml(this.msg('roadside.buttonCraft', {}, '製作'))}</button></div>`;
       return { key, ready, unlocked, html };
     });

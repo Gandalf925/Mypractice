@@ -304,18 +304,20 @@ export class RoadWorldManager {
   requestSurvey(defenseId) {
     const state = currentStoreState(this.store);
     const defense = activeSurveyFacilities(state).find(item => item.id === defenseId);
-    if (!defense) return { ok: false, reason: 'この測量施設は現在稼働できません。' };
-    if (defense.disabledTimer > 0) return { ok: false, reason: `機能停止中です。あと${Math.ceil(defense.disabledTimer)}秒待ってください。` };
+    if (!defense) return { ok: false, reasonKey: 'reason.survey.unavailable', reason: 'この測量施設は現在稼働できません。' };
+    if (defense.disabledTimer > 0) return { ok: false, reasonKey: 'reason.survey.disabledTimer', reasonParams: { seconds: Math.ceil(defense.disabledTimer) }, reason: `機能停止中です。あと${Math.ceil(defense.disabledTimer)}秒待ってください。` };
     const queued = this.considerSurveyFacilities({ forceDefenseId: defenseId });
     const latest = currentStoreState(this.store).combat.defenses.find(item => item.id === defenseId);
-    if (queued.length > 0) return { ok: true, message: '道路測量を開始しました。', chunkId: queued[0] };
+    if (queued.length > 0) return { ok: true, messageKey: 'combat.panel.surveyStarted', message: '道路測量を開始しました。', chunkId: queued[0] };
     if (latest?.surveyStatus === 'LOADING' || latest?.surveyStatus === 'QUEUED') {
-      return { ok: true, message: '道路測量はすでに進行中です。' };
+      return { ok: true, messageKey: 'reason.survey.alreadyRunning', message: '道路測量はすでに進行中です。' };
     }
     if (latest?.surveyStatus === 'COMPLETE') {
-      return { ok: false, reason: '現在の測量半径内に未取得の道路区域はありません。' };
+      return { ok: false, reasonKey: 'reason.survey.noUnloadedChunk', reason: '現在の測量半径内に未取得の道路区域はありません。' };
     }
-    return { ok: false, reason: latest?.surveyLastError ? `道路取得に失敗しました：${latest.surveyLastError}` : '測量可能な隣接区域がありません。' };
+    return latest?.surveyLastError
+    ? { ok: false, reasonKey: 'reason.survey.fetchFailed', reasonParams: { error: latest.surveyLastError }, reason: `道路取得に失敗しました：${latest.surveyLastError}` }
+    : { ok: false, reasonKey: 'reason.survey.noAdjacentChunk', reason: '測量可能な隣接区域がありません。' };
   }
 
   waitForChunk(chunkId) {

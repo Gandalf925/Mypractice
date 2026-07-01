@@ -434,7 +434,7 @@ function attackTargetFacility(state, enemy, definition, deltaSeconds, events) {
     if ((definition.stunSeconds ?? 0) > 0) {
       target.disabledTimer = Math.max(target.disabledTimer ?? 0, definition.stunSeconds);
     }
-    events?.emit('message', { text: definition.attackMessage ?? `${definition.name}が防衛施設を攻撃しています。` });
+    events?.emit('message', { key: 'enemy.notice.facilityAttacking', params: { enemyName: definition.name }, text: definition.attackMessage ?? `${definition.name}が防衛施設を攻撃しています。` });
   }
 
   target.hp -= Math.max(0.1, definition.facilityDps ?? definition.barrierDps ?? 1) * groupAttackMultiplier(enemy, 'facility') * deltaSeconds * fortifiedDefenseDamageMultiplier(state) * underbuiltBreakthroughMultiplier(state);
@@ -444,7 +444,7 @@ function attackTargetFacility(state, enemy, definition, deltaSeconds, events) {
   const destroyed = detachDefense(state, target.id) ?? target;
   beginEnemyRegroup(state, RECOVERY_BALANCE.defenseBreakthroughRegroupSeconds);
   events?.emit('combat:defense-destroyed', { defenseId: destroyed.id, defense: destroyed, position: node });
-  events?.emit('message', { text: `${defenseRuntimeDefinition(destroyed).name ?? '防衛施設'}が破壊され、建設地点から撤去されました。` });
+  events?.emit('message', { key: 'enemy.notice.defenseDestroyedRemoved', params: { facilityName: defenseRuntimeDefinition(destroyed).name ?? '防衛施設' }, text: `${defenseRuntimeDefinition(destroyed).name ?? '防衛施設'}が破壊され、建設地点から撤去されました。` });
   return true;
 }
 
@@ -532,7 +532,7 @@ function destroyFriendlySquad(state, squad, squadPoint, events) {
     if (other.engagedSquadId === squad.id) other.engagedSquadId = null;
   }
   events?.emit('friendly:squad-destroyed', { squadId: squad.id, position: squadPoint, originBaseId: squad.originBaseId });
-  events?.emit('message', { text: `${friendlySquadDefinition(squad.type).name}が全滅しました。` });
+  events?.emit('message', { key: 'friendly.notice.squadWipedOut', params: { squadName: friendlySquadDefinition(squad.type).name }, text: `${friendlySquadDefinition(squad.type).name}が全滅しました。` });
 }
 
 function applyFriendlyDamage(state, squad, amount, events) {
@@ -745,7 +745,7 @@ export class EnemySystem {
         clearBarrierContact(enemy);
         this.invalidateAllPaths(state);
         this.events?.emit('combat:defense-destroyed', { defenseId: destroyed.id, defense: destroyed, position: defenseWorldPosition(graph, destroyed) });
-        this.events?.emit('message', { text: `${destroyed.isGate ? '門' : '防壁'}が破壊され、道路から撤去されました。` });
+        this.events?.emit('message', { key: 'enemy.notice.roadDefenseDestroyedRemoved', params: { facilityName: destroyed.isGate ? '門' : '防壁' }, text: `${destroyed.isGate ? '門' : '防壁'}が破壊され、道路から撤去されました。` });
         continue;
       }
 

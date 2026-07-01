@@ -51,7 +51,7 @@ export function synchronizeDefenseTier(defense) {
 }
 
 export function defenseUpgradeStatus(state, defense) {
-  if (!defense) return { ok: false, reason: '設備が見つかりません。', atMax: false };
+  if (!defense) return { ok: false, reasonKey: 'reason.defense.notFound', reason: '設備が見つかりません。', atMax: false };
   const line = defenseLineForInstance(defense);
   const minimumTier = minimumTierForLine(line);
   const currentTier = Math.max(minimumTier, Math.floor(Number(defense.tier) || minimumTier));
@@ -70,7 +70,7 @@ export function defenseUpgradeStatus(state, defense) {
       line,
       currentTier,
       currentDefinition,
-      reason: '最高Tierへ到達しています。'
+      reasonKey: 'reason.defense.maxTier', reason: '最高Tierへ到達しています。'
     };
   }
 
@@ -80,9 +80,11 @@ export function defenseUpgradeStatus(state, defense) {
   const affordable = hasBundle(state, cost);
   const missing = missingBundle(state, cost);
   let reason = null;
-  if (defense.hp <= 0) reason = '破壊された設備は撤去済みです。';
-  else if (!unlocked) reason = `文明Lv.${requiredCivilizationLevel}で解禁されます。`;
-  else if (!affordable) reason = '強化資源が不足しています。';
+  let reasonKey = null;
+  let reasonParams = {};
+  if (defense.hp <= 0) { reasonKey = 'reason.defense.destroyedRemoved'; reason = '破壊された設備は撤去済みです。'; }
+  else if (!unlocked) { reasonKey = 'reason.civilization.unlockLevel'; reasonParams = { level: requiredCivilizationLevel }; reason = `文明Lv.${requiredCivilizationLevel}で解禁されます。`; }
+  else if (!affordable) { reasonKey = 'reason.defense.upgradeShortage'; reason = '強化資源が不足しています。'; }
 
   return {
     ok: !reason,
@@ -99,6 +101,8 @@ export function defenseUpgradeStatus(state, defense) {
     affordable,
     cost,
     missing,
+    reasonKey,
+    reasonParams,
     reason
   };
 }

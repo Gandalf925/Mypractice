@@ -326,31 +326,31 @@ function deploymentTarget(state, definition, targetId, targetKind = 'enemyBase')
 }
 
 function unavailableTargetReason(definition, targetKind) {
-  if (definition.missionKind === 'RECOVERY') return '回収可能な特殊アイテムではありません。';
-  if (targetKind === 'enemy') return '迎撃可能な敵部隊ではありません。';
-  return '攻撃可能な敵拠点ではありません。';
+  if (definition.missionKind === 'RECOVERY') return { reasonKey: 'reason.deployment.unavailableRecoveryTarget', reason: '回収可能な特殊アイテムではありません。' };
+  if (targetKind === 'enemy') return { reasonKey: 'reason.deployment.unavailableEnemyTarget', reason: '迎撃可能な敵部隊ではありません。' };
+  return { reasonKey: 'reason.deployment.enemyBaseUnavailable', reason: '攻撃可能な敵拠点ではありません。' };
 }
 
 function unreachableTargetReason(definition, targetKind) {
-  if (definition.missionKind === 'RECOVERY') return '回収地点へ到達できる道路経路がありません。';
-  if (targetKind === 'enemy') return '敵部隊の進路へ到達できる道路経路がありません。';
-  return '敵拠点へ到達できる道路経路がありません。';
+  if (definition.missionKind === 'RECOVERY') return { reasonKey: 'reason.deployment.unreachableRecoveryTarget', reason: '回収地点へ到達できる道路経路がありません。' };
+  if (targetKind === 'enemy') return { reasonKey: 'reason.deployment.unreachableEnemyTarget', reason: '敵部隊の進路へ到達できる道路経路がありません。' };
+  return { reasonKey: 'reason.deployment.unreachableEnemyBase', reason: '敵拠点へ到達できる道路経路がありません。' };
 }
 
 export function previewFriendlyDeployment(state, squadType, originBaseId, targetId, planning = null, targetKind = 'enemyBase', routeOverride = null) {
   const baseDefinition = FRIENDLY_SQUAD_DEFINITIONS[squadType];
-  if (!baseDefinition) return { ok: false, reason: '選択した部隊種類は存在しません。' };
+  if (!baseDefinition) return { ok: false, reasonKey: 'reason.squad.unknownType', reason: '選択した部隊種類は存在しません。' };
   const definition = friendlySquadRuntimeDefinition(state, squadType);
-  if (!friendlySquadUnlocked(state, squadType)) return { ok: false, reason: `${definition.name}は文明Lv.${definition.unlockLevel}で解禁されます。`, definition };
+  if (!friendlySquadUnlocked(state, squadType)) return { ok: false, reasonKey: 'reason.squad.unlockLevel', reasonParams: { squadName: definition.name, level: definition.unlockLevel }, reason: `${definition.name}は文明Lv.${definition.unlockLevel}で解禁されます。`, definition };
   const origin = ownedBaseById(state, originBaseId);
-  if (!origin || origin.status !== 'ESTABLISHED' || origin.hp <= 0) return { ok: false, reason: '出撃可能な拠点ではありません。', definition };
-  if (!deploymentBases(state, squadType).some(base => base.id === origin.id)) return { ok: false, reason: `この拠点から${definition.name}は派兵できません。`, definition };
+  if (!origin || origin.status !== 'ESTABLISHED' || origin.hp <= 0) return { ok: false, reasonKey: 'reason.deployment.originUnavailable', reason: '出撃可能な拠点ではありません。', definition };
+  if (!deploymentBases(state, squadType).some(base => base.id === origin.id)) return { ok: false, reasonKey: 'reason.deployment.originCannotDeploySquad', reasonParams: { squadName: definition.name }, reason: `この拠点から${definition.name}は派兵できません。`, definition };
   const resolved = deploymentTarget(state, definition, targetId, targetKind);
-  if (!resolved) return { ok: false, reason: unavailableTargetReason(definition, targetKind), definition };
+  if (!resolved) return { ok: false, ...unavailableTargetReason(definition, targetKind), definition };
   const overriddenPath = routeOverride ? validatedDeploymentPath(state, routeOverride, origin.nodeId, resolved.nodeId) : null;
-  if (routeOverride && !overriddenPath) return { ok: false, reason: '選択した派兵経路は道路更新または防壁によって利用できなくなりました。経路を選び直してください。', definition, origin, target: resolved.target, missionType: resolved.missionType };
+  if (routeOverride && !overriddenPath) return { ok: false, reasonKey: 'reason.deployment.routeInvalidated', reason: '選択した派兵経路は道路更新または防壁によって利用できなくなりました。経路を選び直してください。', definition, origin, target: resolved.target, missionType: resolved.missionType };
   const path = overriddenPath ?? findFriendlyRoadPath(state, origin.nodeId, resolved.nodeId);
-  if (!path) return { ok: false, reason: unreachableTargetReason(definition, targetKind), definition };
+  if (!path) return { ok: false, ...unreachableTargetReason(definition, targetKind), definition };
 
   const routeDistance = routePhysicalDistance(state, path);
   const assignedSquads = squadsFromBase(state, origin.id);
@@ -366,17 +366,19 @@ export function previewFriendlyDeployment(state, squadType, originBaseId, target
   const plannedGlobal = planning ? [...planning.additionalSquadsByBase.values()].reduce((total, value) => total + value, 0) : 0;
   const globalStatus = friendlyGlobalCommandStatus(state);
   if (!reusableGarrison && !replaceableGarrison && globalStatus.assigned + plannedGlobal >= globalStatus.capacity) {
-    return { ok: false, reason: `全体指揮上限に達しています（${globalStatus.assigned + plannedGlobal}/${globalStatus.capacity}）。既存部隊を帰還・再編成してから派兵してください。`, definition, origin, target: resolved.target, missionType: resolved.missionType, path, routeDistance };
+    return { ok: false, reasonKey: 'reason.deployment.globalCommandLimit', reasonParams: { assigned: globalStatus.assigned + plannedGlobal, capacity: globalStatus.capacity }, reason: `全体指揮上限に達しています（${globalStatus.assigned + plannedGlobal}/${globalStatus.capacity}）。既存部隊を帰還・再編成してから派兵してください。`, definition, origin, target: resolved.target, missionType: resolved.missionType, path, routeDistance };
   }
   const plannedTypeCount = planningTypeReservationCount(planning, origin.id, squadType);
   if (definition.maxPerBase && !reusableGarrison && assignedSquads.filter(squad => squad.type === squadType).length + plannedTypeCount >= definition.maxPerBase) {
-    return { ok: false, reason: `${definition.name}は主要拠点ごとに${definition.maxPerBase}隊までです。`, definition, origin, target: resolved.target, missionType: resolved.missionType, path, routeDistance };
+    return { ok: false, reasonKey: 'reason.deployment.maxPerBase', reasonParams: { squadName: definition.name, limit: definition.maxPerBase }, reason: `${definition.name}は主要拠点ごとに${definition.maxPerBase}隊までです。`, definition, origin, target: resolved.target, missionType: resolved.missionType, path, routeDistance };
   }
   if (!reusableGarrison && !canCreateNewSquad && !replaceableGarrison) {
     const capacityStatus = friendlySquadCapacityStatus(state, origin);
     const recoveryNote = capacityStatus.recovering ? `・回復中 ${capacityStatus.recovering}` : '';
     return {
       ok: false,
+      reasonKey: 'reason.deployment.baseSquadSlotsFull',
+      reasonParams: { assigned: capacityStatus.assigned + plannedAdditional, capacity, recovering: capacityStatus.recovering ?? 0 },
       reason: `この拠点の部隊枠が満員です（${capacityStatus.assigned + plannedAdditional}/${capacity}${recoveryNote}）。文明レベルを上げるか、待機部隊を再編成してください。`,
       definition,
       origin,
@@ -396,6 +398,7 @@ export function previewFriendlyDeployment(state, squadType, originBaseId, target
   const missing = missingBundle(state, deploymentCost);
   return {
     ok: Object.keys(missing).length === 0,
+    reasonKey: Object.keys(missing).length ? 'reason.deployment.resourceShortage' : null,
     reason: Object.keys(missing).length ? '派兵に必要な資源が不足しています。' : null,
     origin,
     target: resolved.target,
@@ -457,7 +460,7 @@ function instantiateFriendlySquad(state, preview, squadType, originBaseId, targe
     : preview.missionType === FRIENDLY_SQUAD_MISSION.INTERCEPT
       ? '指定敵部隊の迎撃へ'
       : '';
-  events?.emit('message', { text: preview.reuseReadySquad ? `${preview.origin.name}から${definition.name}が${targetLabel || '再'}出撃しました。` : `${preview.origin.name}から${definition.name}が${targetLabel || ''}出撃しました。` });
+  events?.emit('message', { key: preview.reuseReadySquad ? 'friendly.notice.squadRedeployed' : 'friendly.notice.squadDeployed', params: { originName: preview.origin.name, squadName: definition.name, targetLabel: targetLabel || '', fallbackLabel: targetLabel || '再' }, text: preview.reuseReadySquad ? `${preview.origin.name}から${definition.name}が${targetLabel || '再'}出撃しました。` : `${preview.origin.name}から${definition.name}が${targetLabel || ''}出撃しました。` });
   return { squad, cost: preview.cost, routeDistance: preview.routeDistance, redeployed: preview.reuseReadySquad, replaced: preview.replaceReadySquad };
 }
 
@@ -476,7 +479,7 @@ export function dispatchFriendlySquad(state, squadType, originBaseId, targetId, 
 
   if (!consumeBundle(state, preview.cost)) {
     if (reservation) releaseRecoveryItem(state, targetId, squadId);
-    return { ok: false, reason: '派兵確定時に資源が不足しました。' };
+    return { ok: false, reasonKey: 'reason.deployment.shortageAtCommit', reason: '派兵確定時に資源が不足しました。' };
   }
   const result = instantiateFriendlySquad(state, preview, squadType, originBaseId, targetId, events);
   return { ok: true, ...result };
@@ -599,8 +602,8 @@ function previewCoordinatedFromOrigin(state, targetId, requested, origin, shared
   const assignments = [];
   for (const item of requested) {
     const preview = previewFriendlyDeployment(state, item.type, origin.id, targetId, planning, 'enemyBase', sharedRoute);
-    if (!preview.origin || !preview.path) return { ok: false, reason: preview.reason ?? `${item.definition.name}の共通経路を利用できません。`, assignments };
-    if (!preview.ok && Object.keys(preview.missing ?? {}).length === 0) return { ok: false, reason: preview.reason ?? `${item.definition.name}を出撃できません。`, assignments };
+    if (!preview.origin || !preview.path) return { ok: false, reasonKey: preview.reasonKey ?? 'reason.deployment.commonRouteUnavailableForSquad', reasonParams: preview.reasonParams ?? { squadName: item.definition.name }, reason: preview.reason ?? `${item.definition.name}の共通経路を利用できません。`, assignments };
+    if (!preview.ok && Object.keys(preview.missing ?? {}).length === 0) return { ok: false, reasonKey: preview.reasonKey ?? 'reason.deployment.squadCannotDeploy', reasonParams: preview.reasonParams ?? { squadName: item.definition.name }, reason: preview.reason ?? `${item.definition.name}を出撃できません。`, assignments };
     reservePlanningSlot(planning, preview);
     assignments.push({ ...preview, squadType: item.type, requestIndex: item.index });
   }
@@ -614,12 +617,12 @@ export function previewCoordinatedDeployment(state, targetId, squadTypes, option
     .slice(0, friendlyCoordinatedDeploymentLimit(state))
     .map((type, index) => ({ type, index, definition: FRIENDLY_SQUAD_DEFINITIONS[type] ? friendlySquadRuntimeDefinition(state, type) : null }))
     .filter(item => item.definition);
-  if (requested.length < 2) return { ok: false, reason: '連携出撃には2部隊以上を選択してください。', assignments: [], squadTypes: requested.map(item => item.type) };
+  if (requested.length < 2) return { ok: false, reasonKey: 'reason.deployment.coordinatedNeedsTwo', reason: '連携出撃には2部隊以上を選択してください。', assignments: [], squadTypes: requested.map(item => item.type) };
   for (const item of requested) {
-    if (!friendlySquadUnlocked(state, item.type)) return { ok: false, reason: `${item.definition.name}は文明Lv.${item.definition.unlockLevel}で解禁されます。`, assignments: [] };
+    if (!friendlySquadUnlocked(state, item.type)) return { ok: false, reasonKey: 'reason.squad.unlockLevel', reasonParams: { squadName: item.definition.name, level: item.definition.unlockLevel }, reason: `${item.definition.name}は文明Lv.${item.definition.unlockLevel}で解禁されます。`, assignments: [] };
   }
   const target = state.world.enemyBases.find(base => base.id === targetId && base.alive && base.hp > 0) ?? null;
-  if (!target) return { ok: false, reason: '攻撃可能な敵拠点ではありません。', assignments: [] };
+  if (!target) return { ok: false, reasonKey: 'reason.deployment.enemyBaseUnavailable', reason: '攻撃可能な敵拠点ではありません。', assignments: [] };
 
   const candidates = [];
   for (const origin of commonDeploymentBaseCandidates(state, requested)) {
@@ -639,8 +642,8 @@ export function previewCoordinatedDeployment(state, targetId, squadTypes, option
       || String(left.origin?.id ?? '').localeCompare(String(right.origin?.id ?? '')));
   const selected = viable[0] ?? null;
   if (!selected) {
-    const reason = candidates.find(candidate => candidate.reason)?.reason;
-    return { ok: false, reason: reason ?? '連携部隊が同じ拠点から共通ルートで出撃できません。部隊枠・解禁Lv・出撃元を確認してください。', assignments: [], target };
+    const failure = candidates.find(candidate => candidate.reason || candidate.reasonKey) ?? null;
+    return { ok: false, reasonKey: failure?.reasonKey ?? 'reason.deployment.coordinatedCommonRouteUnavailable', reasonParams: failure?.reasonParams ?? {}, reason: failure?.reason ?? '連携部隊が同じ拠点から共通ルートで出撃できません。部隊枠・解禁Lv・出撃元を確認してください。', assignments: [], target };
   }
 
   const assignments = [...selected.assignments].sort((left, right) => left.requestIndex - right.requestIndex);
@@ -652,6 +655,7 @@ export function previewCoordinatedDeployment(state, targetId, squadTypes, option
   const timing = applyCoordinatedTiming(assignments, normalizedOptions);
   return {
     ok: Object.keys(missing).length === 0,
+    reasonKey: Object.keys(missing).length ? 'reason.deployment.coordinatedResourceShortage' : null,
     reason: Object.keys(missing).length ? '連携出撃に必要な合計資源が不足しています。' : null,
     target,
     origin: selected.origin,
@@ -673,7 +677,7 @@ export function previewCoordinatedDeployment(state, targetId, squadTypes, option
 export function dispatchCoordinatedSquads(state, targetId, squadTypes, events = null, options = null) {
   const preview = previewCoordinatedDeployment(state, targetId, squadTypes, options);
   if (!preview.ok) return preview;
-  if (!consumeBundle(state, preview.cost)) return { ok: false, reason: '連携出撃確定時に合計資源が不足しました。', preview };
+  if (!consumeBundle(state, preview.cost)) return { ok: false, reasonKey: 'reason.deployment.coordinatedShortageAtCommit', reason: '連携出撃確定時に合計資源が不足しました。', preview };
   const worldTime = state.runtime?.worldTimeMs ?? Date.now();
   const formation = {
     id: stableId('friendly_formation', targetId, worldTime, state.combat.friendlySquads.length),
@@ -698,7 +702,7 @@ export function dispatchCoordinatedSquads(state, targetId, squadTypes, events = 
     }
   ).squad);
   events?.emit('friendly:formation-deployed', { formationId: formation.id, targetId, squadIds: squads.map(squad => squad.id), cost: preview.cost, timingMode: preview.timingMode, originBaseId: formation.originBaseId });
-  events?.emit('message', { text: `${squads.length}部隊が${preview.timingLabel}モードで連携出撃しました。同じ拠点から同じルートを進軍します。` });
+  events?.emit('message', { key: 'friendly.notice.formationDeployed', params: { count: squads.length, timingLabel: preview.timingLabel }, text: `${squads.length}部隊が${preview.timingLabel}モードで連携出撃しました。同じ拠点から同じルートを進軍します。` });
   return { ok: true, squads, formationId: formation.id, cost: preview.cost, estimatedArrivalSeconds: preview.estimatedArrivalSeconds, timingMode: preview.timingMode, originBaseId: formation.originBaseId };
 }
 
@@ -793,12 +797,12 @@ function findFriendlyPathFromBestCurrentEdgeExit(state, squad, destinationNodeId
 
 export function holdFriendlySquad(state, squadId, events = null) {
   const squad = friendlySquadById(state, squadId);
-  if (!squad) return { ok: false, reason: '部隊が見つかりません。' };
+  if (!squad) return { ok: false, reasonKey: 'reason.squad.notFound', reason: '部隊が見つかりません。' };
   if ([FRIENDLY_SQUAD_STATUS.RECOVERING, FRIENDLY_SQUAD_STATUS.READY].includes(squad.status)) {
-    return { ok: false, reason: '拠点で回復・待機中の部隊には移動命令を出せません。' };
+    return { ok: false, reasonKey: 'reason.order.squadAtBaseCannotMove', reason: '拠点で回復・待機中の部隊には移動命令を出せません。' };
   }
   if (squad.order === FRIENDLY_SQUAD_ORDER.WITHDRAW || squad.order === FRIENDLY_SQUAD_ORDER.RETURN) {
-    return { ok: false, reason: '帰還中の部隊は停止命令へ変更できません。' };
+    return { ok: false, reasonKey: 'reason.order.returningCannotHold', reason: '帰還中の部隊は停止命令へ変更できません。' };
   }
   if (squad.order !== FRIENDLY_SQUAD_ORDER.HOLD) {
     squad.heldOrder = squad.order;
@@ -807,41 +811,41 @@ export function holdFriendlySquad(state, squadId, events = null) {
   squad.order = FRIENDLY_SQUAD_ORDER.HOLD;
   if (squad.status !== FRIENDLY_SQUAD_STATUS.ENGAGED) squad.status = FRIENDLY_SQUAD_STATUS.HALTED;
   events?.emit('friendly:squad-order', { squadId, order: squad.order });
-  events?.emit('message', { text: '味方部隊へ停止命令を出しました。' });
+  events?.emit('message', { key: 'friendly.notice.holdOrderIssued', text: '味方部隊へ停止命令を出しました。' });
   return { ok: true, squad };
 }
 
 export function issueFriendlyRouteOrder(state, squadId, { order, path, destinationNodeId }, events = null) {
   const squad = friendlySquadById(state, squadId);
-  if (!squad) return { ok: false, reason: '部隊が見つかりません。' };
+  if (!squad) return { ok: false, reasonKey: 'reason.squad.notFound', reason: '部隊が見つかりません。' };
   if ([FRIENDLY_SQUAD_STATUS.RECOVERING, FRIENDLY_SQUAD_STATUS.READY].includes(squad.status)) {
-    return { ok: false, reason: '拠点で回復・待機中の部隊には経路命令を出せません。' };
+    return { ok: false, reasonKey: 'reason.order.squadAtBaseCannotRoute', reason: '拠点で回復・待機中の部隊には経路命令を出せません。' };
   }
   if (![FRIENDLY_SQUAD_ORDER.ADVANCE, FRIENDLY_SQUAD_ORDER.RETREAT, FRIENDLY_SQUAD_ORDER.WITHDRAW].includes(order)) {
-    return { ok: false, reason: '無効な部隊命令です。' };
+    return { ok: false, reasonKey: 'reason.order.invalidMode', reason: '無効な部隊命令です。' };
   }
   if ([FRIENDLY_SQUAD_ORDER.WITHDRAW, FRIENDLY_SQUAD_ORDER.RETURN].includes(squad.order)) {
-    return { ok: false, reason: '撤退・帰還を開始した部隊の任務は変更できません。' };
+    return { ok: false, reasonKey: 'reason.order.withdrawnCannotChange', reason: '撤退・帰還を開始した部隊の任務は変更できません。' };
   }
   let advanceTarget = null;
   if (order === FRIENDLY_SQUAD_ORDER.ADVANCE) {
     if (squad.missionType === FRIENDLY_SQUAD_MISSION.RECOVERY) {
       advanceTarget = (state.world?.recoveryItems ?? []).find(item => item.id === squad.targetRecoveryItemId && item.assignedSquadId === squad.id && [RECOVERY_ITEM_STATUS.RESERVED, RECOVERY_ITEM_STATUS.CARRIED].includes(item.status)) ?? null;
-      if (!advanceTarget) return { ok: false, reason: '回収目標が失われています。撤退してください。' };
+      if (!advanceTarget) return { ok: false, reasonKey: 'reason.order.recoveryTargetLost', reason: '回収目標が失われています。撤退してください。' };
     } else if (squad.missionType === FRIENDLY_SQUAD_MISSION.INTERCEPT) {
       advanceTarget = currentTargetEnemy(state, squad);
-      if (!advanceTarget) return { ok: false, reason: '迎撃対象は既に失われています。撤退してください。' };
+      if (!advanceTarget) return { ok: false, reasonKey: 'reason.order.interceptTargetLost', reason: '迎撃対象は既に失われています。撤退してください。' };
     } else {
       const targetId = squad.missionTargetBaseId ?? squad.targetBaseId;
       advanceTarget = state.world.enemyBases.find(base => base.id === targetId && base.alive && base.hp > 0) ?? null;
-      if (!advanceTarget) return { ok: false, reason: '元の攻撃目標は既に失われています。撤退してください。' };
+      if (!advanceTarget) return { ok: false, reasonKey: 'reason.order.attackTargetLost', reason: '元の攻撃目標は既に失われています。撤退してください。' };
     }
   }
   if (order === FRIENDLY_SQUAD_ORDER.WITHDRAW) {
     const origin = ownedBaseById(state, squad.originBaseId) ?? activePlayerBases(state)[0] ?? null;
-    if (!origin || origin.status !== 'ESTABLISHED' || origin.hp <= 0) return { ok: false, reason: '帰還可能な拠点がありません。' };
+    if (!origin || origin.status !== 'ESTABLISHED' || origin.hp <= 0) return { ok: false, reasonKey: 'reason.order.noReturnBase', reason: '帰還可能な拠点がありません。' };
   }
-  if (!assignPathAtCurrentPosition(state, squad, path, destinationNodeId ?? path?.targetId ?? null)) return { ok: false, reason: '現在位置から選択ルートへ接続できません。' };
+  if (!assignPathAtCurrentPosition(state, squad, path, destinationNodeId ?? path?.targetId ?? null)) return { ok: false, reasonKey: 'reason.order.routeNotConnected', reason: '現在位置から選択ルートへ接続できません。' };
   if (advanceTarget && squad.missionType === FRIENDLY_SQUAD_MISSION.ATTACK) squad.targetBaseId = advanceTarget.id;
   if (advanceTarget && squad.missionType === FRIENDLY_SQUAD_MISSION.INTERCEPT) squad.targetEnemyId = advanceTarget.id;
   if (order === FRIENDLY_SQUAD_ORDER.WITHDRAW) {
@@ -861,7 +865,7 @@ export function issueFriendlyRouteOrder(state, squadId, { order, path, destinati
   squad.engagedEnemyId = null;
   events?.emit('friendly:squad-order', { squadId, order, destinationNodeId: squad.commandDestinationNodeId });
   const label = order === FRIENDLY_SQUAD_ORDER.RETREAT ? '後退' : order === FRIENDLY_SQUAD_ORDER.WITHDRAW ? '撤退' : '進軍再開';
-  events?.emit('message', { text: `味方部隊へ${label}命令を出しました。` });
+  events?.emit('message', { key: 'friendly.notice.routeOrderIssued', params: { orderLabel: label }, text: `味方部隊へ${label}命令を出しました。` });
   return { ok: true, squad };
 }
 
@@ -918,7 +922,7 @@ function redirectRecoverySquadToMajorBase(state, squad, events = null) {
   squad.reorganizationRemaining = 0;
   squad.readyAt = null;
   events?.emit('friendly:squad-recovery-relocated', { squadId: squad.id, baseId: fallback.base.id });
-  events?.emit('message', { text: `療養中の拠点が失われたため、部隊は${fallback.base.name}へ退避します。` });
+  events?.emit('message', { key: 'friendly.notice.recoveryBaseLostFallback', params: { baseName: fallback.base.name }, text: `療養中の拠点が失われたため、部隊は${fallback.base.name}へ退避します。` });
   return true;
 }
 
@@ -1004,7 +1008,7 @@ function updateRecoveryCollection(state, squad, definition, deltaSeconds, events
   if (!pickedUp.ok) { releaseSquadRecoveryItem(state, squad); planReturn(state, squad); return; }
   squad.recoveryCollectionProgressSec = null;
   events?.emit('friendly:recovery-item-picked-up', { squadId: squad.id, itemId: item.id });
-  events?.emit('message', { text: `${recoveryItemPresentation(item).name}を確保しました。拠点へ帰還します。` });
+  events?.emit('message', { key: 'friendly.notice.recoveryItemSecuredReturn', params: { itemName: recoveryItemPresentation(item).name }, text: `${recoveryItemPresentation(item).name}を確保しました。拠点へ帰還します。` });
   planReturn(state, squad);
 }
 
@@ -1070,7 +1074,7 @@ function awardFriendlySquadExperience(state, squad, amount, events = null) {
   squad.maxHp = definition.hp;
   squad.hp = Math.max(1, Math.min(squad.maxHp, Math.round(squad.maxHp * previousRatio)));
   events?.emit('friendly:squad-leveled', { squadId: squad.id, type: squad.type, unitLevel: squad.unitLevel });
-  events?.emit('message', { text: `${friendlySquadDefinition(squad.type).name}がLv.${squad.unitLevel}になりました。` });
+  events?.emit('message', { key: 'friendly.notice.squadLevelUp', params: { squadName: friendlySquadDefinition(squad.type).name, level: squad.unitLevel }, text: `${friendlySquadDefinition(squad.type).name}がLv.${squad.unitLevel}になりました。` });
 }
 
 function awardFriendlyCombatExperience(state, squad, { damage = 0, seconds = 0, enemyType = null, killed = 0, baseDamage = 0 } = {}, events = null) {
@@ -1128,7 +1132,7 @@ function updateEngagement(state, squad, definition, deltaSeconds, spatial, event
     squad.engagedEnemyId = null;
     if (planReturn(state, squad)) {
       events?.emit('friendly:squad-auto-withdraw', { squadId: squad.id, enemyId: enemy.id });
-      events?.emit('message', { text: '遊撃部隊が不利な敵群から自動後退しました。' });
+      events?.emit('message', { key: 'friendly.notice.skirmisherAutoWithdraw', text: '遊撃部隊が不利な敵群から自動後退しました。' });
       return true;
     }
   }
@@ -1297,22 +1301,22 @@ function replanStranded(state, squad) {
 export function repairNearbyDefenseWithEngineer(state, squadId, events = null) {
   ensureFriendlyForceState(state);
   const squad = friendlySquadById(state, squadId);
-  if (!squad || squad.type !== 'engineer') return { ok: false, reason: '工兵部隊を選択してください。' };
-  if ([FRIENDLY_SQUAD_STATUS.RECOVERING, FRIENDLY_SQUAD_STATUS.READY].includes(squad.status)) return { ok: false, reason: '出撃中の工兵部隊だけが現地修復できます。' };
+  if (!squad || squad.type !== 'engineer') return { ok: false, reasonKey: 'reason.engineer.selectRequired', reason: '工兵部隊を選択してください。' };
+  if ([FRIENDLY_SQUAD_STATUS.RECOVERING, FRIENDLY_SQUAD_STATUS.READY].includes(squad.status)) return { ok: false, reasonKey: 'reason.engineer.activeOnly', reason: '出撃中の工兵部隊だけが現地修復できます。' };
   const definition = friendlySquadRuntimeDefinition(state, squad.type, squad);
   const point = friendlySquadPosition(state, squad);
   const target = (state.combat?.defenses ?? [])
     .filter(defense => defense.hp > 0 && defense.hp < defense.maxHp && distanceSquared(point, defense.position) <= definition.repairRange * definition.repairRange)
     .sort((left, right) => (left.hp / left.maxHp) - (right.hp / right.maxHp) || distanceSquared(point, left.position) - distanceSquared(point, right.position))[0] ?? null;
-  if (!target) return { ok: false, reason: `周囲${definition.repairRange}mに修復可能な設備がありません。` };
+  if (!target) return { ok: false, reasonKey: 'reason.engineer.noRepairTargetNearby', reasonParams: { range: definition.repairRange }, reason: `周囲${definition.repairRange}mに修復可能な設備がありません。` };
   const repairHp = Math.min(definition.repairAmount, target.maxHp - target.hp);
   const cost = repairCostForDefense(target, repairHp);
   const missing = missingBundle(state, cost);
-  if (Object.keys(missing).length) return { ok: false, reason: '現地修復に必要な資源が不足しています。', missing, cost, target };
-  if (!consumeBundle(state, cost)) return { ok: false, reason: '現地修復の確定時に資源が不足しました。' };
+  if (Object.keys(missing).length) return { ok: false, reasonKey: 'reason.engineer.repairShortage', reason: '現地修復に必要な資源が不足しています。', missing, cost, target };
+  if (!consumeBundle(state, cost)) return { ok: false, reasonKey: 'reason.engineer.repairShortageAtCommit', reason: '現地修復の確定時に資源が不足しました。' };
   target.hp = Math.min(target.maxHp, target.hp + repairHp);
   events?.emit('friendly:engineer-repair', { squadId, defenseId: target.id, repairHp, cost });
-  events?.emit('message', { text: `工兵部隊が${Math.round(repairHp)}HPを現地修復しました。` });
+  events?.emit('message', { key: 'friendly.notice.engineerFieldRepair', params: { hp: Math.round(repairHp) }, text: `工兵部隊が${Math.round(repairHp)}HPを現地修復しました。` });
   return { ok: true, target, repairHp, cost };
 }
 
@@ -1333,7 +1337,7 @@ function beginAnnihilationRecovery(state, squad, events = null) {
   const dropped = releaseSquadRecoveryItem(state, squad, true);
   if (dropped) {
     events?.emit('friendly:recovery-item-dropped', { squadId: squad.id, itemId: dropped.id, position: recoveryItemPoint(state, dropped) });
-    events?.emit('message', { text: '回収部隊が壊滅し、特殊アイテムが道路上へ残されました。' });
+    events?.emit('message', { key: 'friendly.notice.recoverySquadDroppedItem', text: '回収部隊が壊滅し、特殊アイテムが道路上へ残されました。' });
   }
   const baseId = squad.originBaseId ?? primaryRecoveryBaseId(state);
   squad.hp = 1;
@@ -1357,7 +1361,7 @@ function beginAnnihilationRecovery(state, squad, events = null) {
   }
   squad.reorganizationRemaining = Math.max(squad.reorganizationRemaining ?? 0, annihilationRecoverySeconds(squad));
   events?.emit('friendly:squad-annihilated', { squadId: squad.id, originBaseId: baseId, recoverySeconds: squad.reorganizationRemaining });
-  events?.emit('message', { text: `${friendlySquadDefinition(squad.type).name}が壊滅しました。部隊枠を占有したまま長時間の再編成に入ります。` });
+  events?.emit('message', { key: 'friendly.notice.squadAnnihilatedRecovery', params: { squadName: friendlySquadDefinition(squad.type).name }, text: `${friendlySquadDefinition(squad.type).name}が壊滅しました。部隊枠を占有したまま長時間の再編成に入ります。` });
   return { ok: true, squad, recovery };
 }
 
@@ -1369,38 +1373,38 @@ function canUseRoadsideSquadItem(squad, { allowTemporary = true } = {}) {
 }
 
 function applyEmergencyWithdraw(state, squad, events = null) {
-  if (!canUseRoadsideSquadItem(squad, { allowTemporary: false })) return { ok: false, reason: '撤退可能な通常味方部隊ではありません。' };
+  if (!canUseRoadsideSquadItem(squad, { allowTemporary: false })) return { ok: false, reasonKey: 'reason.item.noWithdrawableSquad', reason: '撤退可能な通常味方部隊ではありません。' };
   clearEnemyEngagements(state, squad.id);
   squad.engagedEnemyId = null;
-  if (!planReturn(state, squad)) return { ok: false, reason: '撤退経路を確保できません。' };
+  if (!planReturn(state, squad)) return { ok: false, reasonKey: 'reason.item.withdrawRouteUnavailable', reason: '撤退経路を確保できません。' };
   squad.order = FRIENDLY_SQUAD_ORDER.WITHDRAW;
   squad.status = FRIENDLY_SQUAD_STATUS.WITHDRAWING;
   events?.emit('friendly:squad-emergency-withdraw', { squadId: squad.id });
-  events?.emit('message', { text: `${friendlySquadDefinition(squad.type).name}を緊急撤退させました。壊滅再編成を回避します。` });
+  events?.emit('message', { key: 'friendly.notice.emergencyWithdraw', params: { squadName: friendlySquadDefinition(squad.type).name }, text: `${friendlySquadDefinition(squad.type).name}を緊急撤退させました。壊滅再編成を回避します。` });
   return { ok: true, squad };
 }
 
 function applySpeedBoostToSquads(state, targets, durationSeconds, multiplier = ROADSIDE_SPEED_BOOST_MULTIPLIER, events = null) {
   const activeTargets = targets.filter(squad => canUseRoadsideSquadItem(squad));
-  if (!activeTargets.length) return { ok: false, reason: '加速可能な味方部隊がありません。' };
+  if (!activeTargets.length) return { ok: false, reasonKey: 'reason.item.noBoostableSquad', reason: '加速可能な味方部隊がありません。' };
   const now = state.runtime?.worldTimeMs ?? Date.now();
   for (const squad of activeTargets) {
     squad.roadsideSpeedBoostUntil = Math.max(Number(squad.roadsideSpeedBoostUntil) || 0, now + Math.max(1, Number(durationSeconds) || 1) * 1000);
     squad.roadsideSpeedBoostMultiplier = Math.max(Number(squad.roadsideSpeedBoostMultiplier) || 0, Math.max(0, Number(multiplier) || 0));
   }
   events?.emit('friendly:squad-speed-boosted', { squadIds: activeTargets.map(squad => squad.id), durationSeconds, multiplier });
-  events?.emit('message', { text: `行軍加速旗で味方部隊${activeTargets.length}隊の移動速度を一時的に上げました。` });
+  events?.emit('message', { key: 'friendly.notice.speedBoosted', params: { count: activeTargets.length }, text: `行軍加速旗で味方部隊${activeTargets.length}隊の移動速度を一時的に上げました。` });
   return { ok: true, squads: activeTargets };
 }
 
 export function emergencyWithdrawFriendlySquadById(state, squadId, events = null) {
   const squad = (state.combat?.friendlySquads ?? []).find(item => item.id === squadId) ?? null;
-  if (!squad) return { ok: false, reason: '選択中の味方部隊が見つかりません。' };
+  if (!squad) return { ok: false, reasonKey: 'reason.item.selectedSquadMissing', reason: '選択中の味方部隊が見つかりません。' };
   return applyEmergencyWithdraw(state, squad, events);
 }
 
 export function emergencyWithdrawFriendlySquadNear(state, point, radiusMeters, events = null) {
-  if (!point || !Number.isFinite(Number(point.x)) || !Number.isFinite(Number(point.y))) return { ok: false, reason: '現在地を取得してください。' };
+  if (!point || !Number.isFinite(Number(point.x)) || !Number.isFinite(Number(point.y))) return { ok: false, reasonKey: 'reason.location.currentRequired', reason: '現在地を取得してください。' };
   const radius2 = Math.max(0, Number(radiusMeters) || 0) ** 2;
   const candidates = (state.combat?.friendlySquads ?? [])
     .filter(squad => canUseRoadsideSquadItem(squad, { allowTemporary: false }))
@@ -1412,18 +1416,18 @@ export function emergencyWithdrawFriendlySquadNear(state, point, radiusMeters, e
       return aPriority - bPriority || a.d2 - b.d2;
     });
   const squad = candidates[0]?.squad ?? null;
-  if (!squad) return { ok: false, reason: `半径${Math.round(radiusMeters)}m以内に撤退可能な味方部隊がありません。` };
+  if (!squad) return { ok: false, reasonKey: 'reason.item.noWithdrawableSquadNearby', reasonParams: { radius: Math.round(radiusMeters) }, reason: `半径${Math.round(radiusMeters)}m以内に撤退可能な味方部隊がありません。` };
   return applyEmergencyWithdraw(state, squad, events);
 }
 
 export function boostFriendlySquadById(state, squadId, durationSeconds, multiplier = ROADSIDE_SPEED_BOOST_MULTIPLIER, events = null) {
   const squad = (state.combat?.friendlySquads ?? []).find(item => item.id === squadId) ?? null;
-  if (!squad) return { ok: false, reason: '選択中の味方部隊が見つかりません。' };
+  if (!squad) return { ok: false, reasonKey: 'reason.item.selectedSquadMissing', reason: '選択中の味方部隊が見つかりません。' };
   return applySpeedBoostToSquads(state, [squad], durationSeconds, multiplier, events);
 }
 
 export function boostFriendlySquadsNear(state, point, radiusMeters, durationSeconds, multiplier = ROADSIDE_SPEED_BOOST_MULTIPLIER, events = null) {
-  if (!point || !Number.isFinite(Number(point.x)) || !Number.isFinite(Number(point.y))) return { ok: false, reason: '現在地を取得してください。' };
+  if (!point || !Number.isFinite(Number(point.x)) || !Number.isFinite(Number(point.y))) return { ok: false, reasonKey: 'reason.location.currentRequired', reason: '現在地を取得してください。' };
   const radius2 = Math.max(0, Number(radiusMeters) || 0) ** 2;
   const targets = (state.combat?.friendlySquads ?? [])
     .filter(squad => canUseRoadsideSquadItem(squad))
@@ -1432,7 +1436,7 @@ export function boostFriendlySquadsNear(state, point, radiusMeters, durationSeco
     .sort((a, b) => a.d2 - b.d2)
     .slice(0, 3)
     .map(entry => entry.squad);
-  if (!targets.length) return { ok: false, reason: `半径${Math.round(radiusMeters)}m以内に加速可能な味方部隊がありません。` };
+  if (!targets.length) return { ok: false, reasonKey: 'reason.item.noBoostableSquadNearby', reasonParams: { radius: Math.round(radiusMeters) }, reason: `半径${Math.round(radiusMeters)}m以内に加速可能な味方部隊がありません。` };
   return applySpeedBoostToSquads(state, targets, durationSeconds, multiplier, events);
 }
 
@@ -1477,10 +1481,10 @@ export class FriendlyForceSystem {
           const dropped = releaseSquadRecoveryItem(state, squad, true);
           if (dropped) {
             this.events?.emit('friendly:recovery-item-dropped', { squadId: squad.id, itemId: dropped.id, position: recoveryItemPoint(state, dropped) });
-            this.events?.emit('message', { text: '現地出撃部隊が壊滅し、特殊アイテムが道路上へ残されました。' });
+            this.events?.emit('message', { key: 'friendly.notice.temporarySquadDroppedItem', text: '現地出撃部隊が壊滅し、特殊アイテムが道路上へ残されました。' });
           }
           remove.add(squad.id);
-          this.events?.emit('message', { text: squad.temporaryDeployment ? `${friendlySquadDefinition(squad.type).name}は壊滅し、現地出撃任務を終了しました。` : `${friendlySquadDefinition(squad.type).name}が壊滅しました。` });
+          this.events?.emit('message', squad.temporaryDeployment ? { key: 'friendly.notice.temporarySquadDestroyed', params: { squadName: friendlySquadDefinition(squad.type).name }, text: `${friendlySquadDefinition(squad.type).name}は壊滅し、現地出撃任務を終了しました。` } : { key: 'friendly.notice.squadDestroyed', params: { squadName: friendlySquadDefinition(squad.type).name }, text: `${friendlySquadDefinition(squad.type).name}が壊滅しました。` });
         } else {
           beginAnnihilationRecovery(state, squad, this.events);
         }
@@ -1575,7 +1579,7 @@ export class FriendlyForceSystem {
               this.events?.emit('exploration:recovery-collected', delivered);
               const presentation = recoveryItemPresentation(item);
               const lootText = Object.keys(delivered.loot ?? {}).length ? ` 資源：${presentation.lootText}。` : '';
-              this.events?.emit('message', { text: `${presentation.name}を拠点へ持ち帰りました。${lootText}` });
+              this.events?.emit('message', { key: Object.keys(delivered.loot ?? {}).length ? 'friendly.notice.recoveryDeliveredWithLoot' : 'friendly.notice.recoveryDelivered', params: { itemName: presentation.name, resourceText: { __resourceBundle: true, bundle: delivered.loot ?? {} } }, text: `${presentation.name}を拠点へ持ち帰りました。${lootText}` });
             }
           } else releaseSquadRecoveryItem(state, squad);
           squad.targetRecoveryItemId = null;
@@ -1584,7 +1588,7 @@ export class FriendlyForceSystem {
         if (squad.temporaryDeployment) {
           remove.add(squad.id);
           this.events?.emit('friendly:squad-returned', { squadId: squad.id, originBaseId: recoveryBaseId, hp: squad.hp, temporary: true });
-          this.events?.emit('message', { text: `${friendlySquadDefinition(squad.type).name}は現地出撃任務を完了し、解散しました。` });
+          this.events?.emit('message', { key: 'friendly.notice.temporarySquadCompleted', params: { squadName: friendlySquadDefinition(squad.type).name }, text: `${friendlySquadDefinition(squad.type).name}は現地出撃任務を完了し、解散しました。` });
           continue;
         }
         const recovery = beginFriendlyRecovery(state, squad, recoveryBaseId);
@@ -1595,9 +1599,9 @@ export class FriendlyForceSystem {
           continue;
         }
         this.events?.emit('friendly:squad-returned', { squadId: squad.id, originBaseId: recoveryBaseId, hp: squad.hp, withdrawal: squad.order === FRIENDLY_SQUAD_ORDER.WITHDRAW });
-        this.events?.emit('message', { text: recovery.profile?.kind === 'MAJOR'
-          ? '部隊が主要拠点へ帰還し、補給・回復・再編成を開始しました。'
-          : '部隊が簡易拠点へ帰還し、再編成を開始しました。回復には回復施設の範囲内での待機が必要です。' });
+        this.events?.emit('message', recovery.profile?.kind === 'MAJOR'
+          ? { key: 'friendly.notice.returnedMajorRecovery', text: '部隊が主要拠点へ帰還し、補給・回復・再編成を開始しました。' }
+          : { key: 'friendly.notice.returnedFieldRecovery', text: '部隊が簡易拠点へ帰還し、再編成を開始しました。回復には回復施設の範囲内での待機が必要です。' });
       } else if (squad.order === FRIENDLY_SQUAD_ORDER.RETREAT) {
         squad.order = FRIENDLY_SQUAD_ORDER.HOLD;
         squad.heldOrder = FRIENDLY_SQUAD_ORDER.ADVANCE;
@@ -1610,7 +1614,7 @@ export class FriendlyForceSystem {
         squad.path = null;
         squad.edgeId = null;
         squad.edgeProgress = 0;
-        this.events?.emit('message', { text: '味方部隊が指定地点まで後退し、停止しました。' });
+        this.events?.emit('message', { key: 'friendly.notice.retreatPointReached', text: '味方部隊が指定地点まで後退し、停止しました。' });
       } else if (squad.missionType === FRIENDLY_SQUAD_MISSION.RECOVERY) {
         squad.path = null;
         squad.edgeId = null;

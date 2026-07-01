@@ -45,7 +45,11 @@ function next(values, current) {
   return values[(index + 1) % values.length];
 }
 
-const QUALITY_LABELS = Object.freeze({ full: '高精細', balanced: '標準', minimal: '省電力' });
+const QUALITY_MESSAGE_KEYS = Object.freeze({
+  full: 'radar.qualityFull',
+  balanced: 'radar.qualityBalanced',
+  minimal: 'radar.qualityMinimal'
+});
 
 export class RadarPreferences {
   constructor({ onChange = null, storage = undefined, documentRef = globalThis.document, environment = globalThis, i18n = null } = {}) {
@@ -81,8 +85,21 @@ export class RadarPreferences {
     this.apply();
   }
 
-  localize(text) {
-    return this.i18n?.copy?.(text) ?? String(text ?? '');
+  msg(key, params = {}, fallback = '') {
+    return this.i18n?.message?.(key, params, fallback) ?? String(fallback || key);
+  }
+
+  qualityLabel() {
+    const key = QUALITY_MESSAGE_KEYS[this.value.quality] ?? QUALITY_MESSAGE_KEYS.balanced;
+    return this.msg(key, {}, this.value.quality === 'full' ? 'High detail' : this.value.quality === 'minimal' ? 'Power saving' : 'Standard');
+  }
+
+  refreshLocalization() {
+    if (this.qualityButton) this.qualityButton.textContent = this.msg('radar.qualityButton', { quality: this.qualityLabel() }, 'Display quality: {quality}');
+    if (this.motionButton) {
+      this.motionButton.textContent = this.msg('radar.motionButton', { state: this.value.motion ? 'ON' : 'OFF' }, 'Animation: {state}');
+      this.motionButton.setAttribute('aria-pressed', String(this.value.motion));
+    }
   }
 
   apply() {
@@ -91,11 +108,7 @@ export class RadarPreferences {
       root.dataset.radarQuality = this.value.quality;
       root.dataset.radarMotion = this.value.motion ? 'on' : 'off';
     }
-    if (this.qualityButton) this.qualityButton.textContent = this.localize(`表示品質：${QUALITY_LABELS[this.value.quality]}`);
-    if (this.motionButton) {
-      this.motionButton.textContent = this.localize(`アニメーション：${this.value.motion ? 'ON' : 'OFF'}`);
-      this.motionButton.setAttribute('aria-pressed', String(this.value.motion));
-    }
+    this.refreshLocalization();
     this.onChange?.({ ...this.value });
   }
 

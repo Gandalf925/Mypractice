@@ -21,7 +21,7 @@ function canMutateTerminalState(reason) {
 }
 
 function terminalResult() {
-  return { ok: false, reason: '作戦は終了しています。戦況確認または新規開始のみ実行できます。' };
+  return { ok: false, reasonKey: 'reason.gameOver.locked', reason: '作戦は終了しています。戦況確認または新規開始のみ実行できます。' };
 }
 
 function stateError(errors) {

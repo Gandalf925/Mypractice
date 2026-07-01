@@ -44,10 +44,10 @@ export class MenuUi {
     });
     this.manualSave.addEventListener('click', () => {
       const saved = onSave();
-      notifications.show(saved ? this.t('menu.saved', '現在の状態を保存しました。') : this.t('menu.saveFailed', '保存できません。このタブを閉じると進行状況は失われます。'));
+      this.notify(saved ? 'menu.saved' : 'menu.saveFailed', {}, saved ? '現在の状態を保存しました。' : '保存できません。このタブを閉じると進行状況は失われます。');
     });
     queryRequired('#menuReset').addEventListener('click', () => {
-      const confirmed = this.confirmImpl ? this.confirmImpl(this.t('menu.resetConfirm', 'ゲームの進行状況を完全に初期化します。元に戻せません。続行しますか？')) : false;
+      const confirmed = this.confirmImpl ? this.confirmImpl(this.msg('menu.resetConfirm', {}, 'ゲームの進行状況を完全に初期化します。元に戻せません。続行しますか？')) : false;
       if (confirmed) onReset();
     });
     this.renderLocalizedContent();
@@ -57,16 +57,32 @@ export class MenuUi {
     return this.i18n?.t?.(key, fallback) ?? fallback;
   }
 
+  msg(key, params = {}, fallback = '') {
+    return this.i18n?.message?.(key, params, fallback) ?? this.t(key, fallback);
+  }
+
+  html(value) {
+    return escapeHtml(value);
+  }
+
+  htmlMsg(key, params = {}, fallback = '') {
+    return this.html(this.msg(key, params, fallback));
+  }
+
+  notify(key, params = {}, fallback = '') {
+    this.notifications?.show?.({ key, params, text: fallback });
+  }
+
   setLanguage(language) {
     this.i18n?.setLanguage?.(language);
     this.onLanguageChange?.(this.i18n?.language ?? language);
     this.renderLocalizedContent();
     this.setSaveAvailable(!this.manualSave.disabled);
-    this.notifications?.show?.(this.t('language.changed', '表示言語を変更しました。'));
+    this.notify('language.changed', {}, '表示言語を変更しました。');
   }
 
-  renderLocalizedContent() {
-    this.i18n?.apply?.(globalThis.document);
+  renderLocalizedContent({ applyDocument = false } = {}) {
+    if (applyDocument) this.i18n?.apply?.(globalThis.document);
     this.renderGuide();
     this.renderLanguageButtons();
   }
@@ -76,8 +92,8 @@ export class MenuUi {
     const entries = this.i18n?.guideEntries?.() ?? [];
     this.guidePanel.innerHTML = entries.map((entry, index) => `
       <details ${index === 0 ? 'open' : ''}>
-        <summary>${escapeHtml(entry.title)}</summary>
-        <p>${escapeHtml(entry.body)}</p>
+        <summary>${this.html(entry.title)}</summary>
+        <p>${this.html(entry.body)}</p>
       </details>
     `).join('');
   }
@@ -106,8 +122,8 @@ export class MenuUi {
   bootLanguageButtonMarkup() {
     const current = this.currentLanguage();
     const next = languageMeta(this.nextBootLanguage());
-    const label = this.t('language.toggleButtonLabel', '言語を切り替え');
-    const title = `${this.t('language.toggleButtonTitle', 'English / 中文 / 한국어 / Tiếng Việt / 日本語')} · ${current.nativeName} → ${next.nativeName}`;
+    const label = this.msg('language.toggleButtonLabel', {}, '言語を切り替え');
+    const title = `${this.msg('language.toggleButtonTitle', {}, 'English / 中文 / 한국어 / Tiếng Việt / 日本語')} · ${current.nativeName} → ${next.nativeName}`;
     return `<button type="button" data-language-toggle="next" data-current-language="${escapeHtml(current.code)}" data-next-language="${escapeHtml(next.code)}" aria-label="${escapeHtml(`${label}: ${current.nativeName}`)}" title="${escapeHtml(title)}" class="active">${escapeHtml(current.flag ?? current.label)}</button>`;
   }
 
@@ -149,7 +165,7 @@ export class MenuUi {
     const state = this.store.snapshot ? this.store.snapshot() : null;
     this.opsPanel.innerHTML = state
       ? operationGuidanceMarkup(buildOperationGuidance(state, this.i18n), this.i18n)
-      : `<p class="emptyText">${escapeHtml(this.t('menu.opsUnavailable', '作戦目標を取得できません。'))}</p>`;
+      : `<p class="emptyText">${this.htmlMsg('menu.opsUnavailable', {}, '作戦目標を取得できません。')}</p>`;
   }
 
   update() {
@@ -158,6 +174,6 @@ export class MenuUi {
 
   setSaveAvailable(available) {
     this.manualSave.disabled = !available;
-    this.manualSave.textContent = available ? this.t('menu.saveReady', '現在の状態を保存') : this.t('menu.saveUnavailable', '保存できません');
+    this.manualSave.textContent = available ? this.msg('menu.saveReady', {}, '現在の状態を保存') : this.msg('menu.saveUnavailable', {}, '保存できません');
   }
 }

@@ -107,8 +107,8 @@ export function recoveryItemPresentation(item) {
 
 export function reserveRecoveryItem(state, itemId, squadId) {
   const item = (state.world?.recoveryItems ?? []).find(value => value.id === itemId);
-  if (!item || item.status !== RECOVERY_ITEM_STATUS.AVAILABLE) return { ok: false, reason: 'この回収物は現在利用できません。' };
-  if (state.world.recoveryCollection?.itemId === itemId) return { ok: false, reason: 'プレイヤーが現地回収を開始しています。' };
+  if (!item || item.status !== RECOVERY_ITEM_STATUS.AVAILABLE) return { ok: false, reasonKey: 'reason.recovery.unavailable', reason: 'この回収物は現在利用できません。' };
+  if (state.world.recoveryCollection?.itemId === itemId) return { ok: false, reasonKey: 'reason.recovery.localInProgress', reason: 'プレイヤーが現地回収を開始しています。' };
   item.status = RECOVERY_ITEM_STATUS.RESERVED;
   item.assignedSquadId = squadId;
   return { ok: true, item };
@@ -116,7 +116,7 @@ export function reserveRecoveryItem(state, itemId, squadId) {
 
 export function markRecoveryItemCarried(state, itemId, squadId) {
   const item = (state.world?.recoveryItems ?? []).find(value => value.id === itemId);
-  if (!item || item.assignedSquadId !== squadId || item.status !== RECOVERY_ITEM_STATUS.RESERVED) return { ok: false, reason: '回収物の予約状態が失われています。' };
+  if (!item || item.assignedSquadId !== squadId || item.status !== RECOVERY_ITEM_STATUS.RESERVED) return { ok: false, reasonKey: 'reason.recovery.reservationLost', reason: '回収物の予約状態が失われています。' };
   item.status = RECOVERY_ITEM_STATUS.CARRIED;
   item.pickedUpAt = state.runtime?.worldTimeMs ?? Date.now();
   return { ok: true, item };
@@ -124,7 +124,7 @@ export function markRecoveryItemCarried(state, itemId, squadId) {
 
 export function releaseRecoveryItem(state, itemId, squadId, placement = null) {
   const item = (state.world?.recoveryItems ?? []).find(value => value.id === itemId);
-  if (!item || (item.assignedSquadId && item.assignedSquadId !== squadId)) return { ok: false, reason: '回収物を解放できません。' };
+  if (!item || (item.assignedSquadId && item.assignedSquadId !== squadId)) return { ok: false, reasonKey: 'reason.recovery.cannotRelease', reason: '回収物を解放できません。' };
   item.status = RECOVERY_ITEM_STATUS.AVAILABLE;
   item.assignedSquadId = null;
   if (placement) {
@@ -138,7 +138,7 @@ export function releaseRecoveryItem(state, itemId, squadId, placement = null) {
 
 function awardRecoveryItem(state, item) {
   const index = (state.world?.recoveryItems ?? []).findIndex(value => value.id === item.id);
-  if (index < 0) return { ok: false, reason: '回収物が見つかりません。' };
+  if (index < 0) return { ok: false, reasonKey: 'reason.recovery.notFound', reason: '回収物が見つかりません。' };
   state.world.recoveryItems.splice(index, 1);
   item.status = RECOVERY_ITEM_STATUS.COLLECTED;
   item.assignedSquadId = null;
@@ -153,21 +153,21 @@ function awardRecoveryItem(state, item) {
 
 export function deliverRecoveryItem(state, itemId, squadId) {
   const item = (state.world?.recoveryItems ?? []).find(value => value.id === itemId);
-  if (!item || item.status !== RECOVERY_ITEM_STATUS.CARRIED || item.assignedSquadId !== squadId) return { ok: false, reason: '部隊が回収物を所持していません。' };
+  if (!item || item.status !== RECOVERY_ITEM_STATUS.CARRIED || item.assignedSquadId !== squadId) return { ok: false, reasonKey: 'reason.recovery.squadNotCarrying', reason: '部隊が回収物を所持していません。' };
   return awardRecoveryItem(state, item);
 }
 
 export function recoveryEligibility(state, item, now = Date.now()) {
-  if (!item || item.status !== RECOVERY_ITEM_STATUS.AVAILABLE) return { ok: false, reason: 'この回収物は回収部隊が対応中、または取得済みです。' };
+  if (!item || item.status !== RECOVERY_ITEM_STATUS.AVAILABLE) return { ok: false, reasonKey: 'reason.recovery.reservedOrDone', reason: 'この回収物は回収部隊が対応中、または取得済みです。' };
   const player = state.player?.worldPosition;
-  if (!player) return { ok: false, reason: '最新の位置情報を取得してください。' };
+  if (!player) return { ok: false, reasonKey: 'reason.location.latestRequired', reason: '最新の位置情報を取得してください。' };
   const point = recoveryItemPoint(state, item);
   const gap = distance(player, point);
-  if (gap > RECOVERY_RANGE_METERS) return { ok: false, reason: `回収地点の${RECOVERY_RANGE_METERS}m以内へ移動してください。`, distance: gap };
+  if (gap > RECOVERY_RANGE_METERS) return { ok: false, reasonKey: 'reason.recovery.moveNearItem', reasonParams: { range: RECOVERY_RANGE_METERS }, reason: `回収地点の${RECOVERY_RANGE_METERS}m以内へ移動してください。`, distance: gap };
   const updatedAt = Number(state.player?.locationUpdatedAt) || 0;
-  if (!updatedAt || now - updatedAt > RECOVERY_LOCATION_MAX_AGE_MS) return { ok: false, reason: '位置情報が古いため回収できません。現在地を再取得してください。', distance: gap };
+  if (!updatedAt || now - updatedAt > RECOVERY_LOCATION_MAX_AGE_MS) return { ok: false, reasonKey: 'reason.location.recoveryStale', reason: '位置情報が古いため回収できません。現在地を再取得してください。', distance: gap };
   const accuracy = Number(state.player?.locationAccuracy);
-  if (Number.isFinite(accuracy) && accuracy > RECOVERY_MAX_ACCURACY_METERS) return { ok: false, reason: '位置情報の精度が不足しています。', distance: gap };
+  if (Number.isFinite(accuracy) && accuracy > RECOVERY_MAX_ACCURACY_METERS) return { ok: false, reasonKey: 'reason.location.accuracyLow', reason: '位置情報の精度が不足しています。', distance: gap };
   return { ok: true, distance: gap };
 }
 
@@ -179,16 +179,16 @@ export class RecoverySystem {
     const eligibility = recoveryEligibility(state, item, now);
     if (!eligibility.ok) return eligibility;
     if (state.world.recoveryCollection?.itemId === itemId) return { ok: true, active: true, item };
-    if (state.world.recoveryCollection) return { ok: false, reason: '別の回収作業を中断してから開始してください。' };
+    if (state.world.recoveryCollection) return { ok: false, reasonKey: 'reason.recovery.cancelOtherFirst', reason: '別の回収作業を中断してから開始してください。' };
     state.world.recoveryCollection = { itemId, progressSec: 0, startedAt: state.runtime?.worldTimeMs ?? now };
-    this.events?.emit('message', { text: `現地回収を開始しました。${RECOVERY_COLLECTION_DURATION_SECONDS}秒間その場を維持してください。` });
+    this.events?.emit('message', { key: 'recovery.notice.localStarted', params: { seconds: RECOVERY_COLLECTION_DURATION_SECONDS }, text: `現地回収を開始しました。${RECOVERY_COLLECTION_DURATION_SECONDS}秒間その場を維持してください。` });
     return { ok: true, active: true, item };
   }
 
   cancelCollection(state, reason = null) {
     if (!state.world.recoveryCollection) return false;
     state.world.recoveryCollection = null;
-    if (reason) this.events?.emit('message', { text: `現地回収を中断しました：${reason}` });
+    if (reason) this.events?.emit('message', { key: 'recovery.notice.localCancelled', params: { reason }, text: `現地回収を中断しました：${reason}` });
     return true;
   }
 
@@ -199,7 +199,7 @@ export class RecoverySystem {
     const presentation = recoveryItemPresentation(item);
     this.events?.emit('exploration:recovery-collected', result);
     const lootText = Object.keys(result.loot ?? {}).length ? ` 資源：${bundleText(result.loot)}。` : '';
-    this.events?.emit('message', { text: `${presentation.name}を現地回収しました。${lootText}` });
+    this.events?.emit('message', { key: Object.keys(result.loot ?? {}).length ? 'recovery.notice.localCompletedWithLoot' : 'recovery.notice.localCompleted', params: { itemName: presentation.name, resourceText: { __resourceBundle: true, bundle: result.loot ?? {} } }, text: `${presentation.name}を現地回収しました。${lootText}` });
     return result;
   }
 

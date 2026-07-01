@@ -30,7 +30,7 @@ function baseKind(state, baseId) {
 export function recoveryProfileForSquad(state, squad, baseId = squad.recoveryBaseId ?? squad.originBaseId) {
   const base = ownedBaseById(state, baseId, { includeDestroyed: true });
   if (!base || base.status !== 'ESTABLISHED' || base.hp <= 0) {
-    return { ok: false, reason: '再編成可能な拠点がありません。', base: null, kind: null };
+    return { ok: false, reasonKey: 'reason.recovery.noReorganizeBase', reason: '再編成可能な拠点がありません。', base: null, kind: null };
   }
 
   const kind = baseKind(state, base.id);
@@ -109,7 +109,7 @@ export function updateFriendlyRecovery(state, squad, deltaSeconds, events = null
   squad.reorganizationRemaining = 0;
   events?.emit('friendly:squad-ready', { squadId: squad.id, originBaseId: baseId, hp: squad.hp, maxHp: squad.maxHp });
   const completion = profile.healRatioPerSecond > 0 ? '補給・回復・再編成' : '再編成';
-  events?.emit('message', { text: `${profile.base.name}で部隊の${completion}が完了しました。` });
+  events?.emit('message', { key: profile.healRatioPerSecond > 0 ? 'friendly.notice.recoveryCompleteFull' : 'friendly.notice.recoveryCompleteReorg', params: { baseName: profile.base.name }, text: `${profile.base.name}で部隊の${completion}が完了しました。` });
   return { updated: true, ready: true, profile };
 }
 

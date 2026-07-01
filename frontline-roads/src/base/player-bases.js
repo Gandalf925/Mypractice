@@ -124,13 +124,13 @@ export function canPlaceAdditionalBase(state, point) {
   const bases = playerBasesView(state);
   const limit = baseLimitForCivilization(state.civilization?.level);
   if (Number.isFinite(limit) && bases.length >= limit) {
-    return { ok: false, reason: '文明レベルに対する拠点上限へ到達しています。' };
+    return { ok: false, reasonKey: 'reason.majorBase.limitReached', reason: '文明レベルに対する拠点上限へ到達しています。' };
   }
   const nearest = bases
     .map(base => ({ base, gap: distance(base, point) }))
     .sort((a, b) => a.gap - b.gap)[0] ?? null;
   if (nearest && nearest.gap < PLAYER_BASE_MINIMUM_SEPARATION_METERS) {
-    return { ok: false, reason: `既存拠点から${PLAYER_BASE_MINIMUM_SEPARATION_METERS}m以上離れてください。`, nearest };
+    return { ok: false, reasonKey: 'reason.base.separateFromExisting', reasonParams: { range: PLAYER_BASE_MINIMUM_SEPARATION_METERS }, reason: `既存拠点から${PLAYER_BASE_MINIMUM_SEPARATION_METERS}m以上離れてください。`, nearest };
   }
   return { ok: true, nearest };
 }

@@ -28,7 +28,7 @@ export class ExplorationSystem {
   reconcile(state) { return ensureExplorationState(state); }
   beginInteraction(state, _siteId) {
     ensureExplorationState(state);
-    return { ok: false, reason: '探索ミッションは廃止済みです。現在はITEMS画面の道端物資を利用してください。' };
+    return { ok: false, reasonKey: 'reason.exploration.deprecated', reason: '探索ミッションは廃止済みです。現在はITEMS画面の道端物資を利用してください。' };
   }
   update(state, _deltaSeconds = 0) {
     ensureExplorationState(state);

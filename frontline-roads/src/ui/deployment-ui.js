@@ -64,7 +64,16 @@ export class DeploymentUi {
 
   showMessage(key, params = {}, fallback = '') { this.notifications.show(this.msg(key, params, fallback)); }
 
-  showReason(reason, fallbackKey, fallbackText) { this.notifications.show(reason ? this.localize(reason) : this.msg(fallbackKey, {}, fallbackText)); }
+  reasonPayload(resultOrReason, fallbackKey, fallbackText) {
+    if (resultOrReason && typeof resultOrReason === 'object') {
+      if (resultOrReason.reasonKey) return { key: resultOrReason.reasonKey, params: resultOrReason.reasonParams ?? {}, text: resultOrReason.reason ?? fallbackText };
+      if (resultOrReason.key) return { key: resultOrReason.key, params: resultOrReason.params ?? {}, text: resultOrReason.text ?? resultOrReason.fallback ?? fallbackText };
+      if (resultOrReason.reason) return this.localize(resultOrReason.reason);
+    }
+    return resultOrReason ? this.localize(resultOrReason) : this.msg(fallbackKey, {}, fallbackText);
+  }
+
+  showReason(resultOrReason, fallbackKey, fallbackText) { this.notifications.show(this.reasonPayload(resultOrReason, fallbackKey, fallbackText)); }
 
   routeText(distance) {
     if (!Number.isFinite(distance)) return this.msg('deployment.routeNone', {}, '経路なし');
@@ -243,7 +252,7 @@ export class DeploymentUi {
       result = this.system.dispatch(state, this.originBaseId, this.targetId, this.squadType, this.targetKind, routeOverride);
     }, 'friendly:dispatch', { emit: true, validate: true });
     if (!result?.ok) {
-      this.showReason(result?.reason, 'deployment.dispatchFailed', '派兵できません。');
+      this.showReason(result, 'deployment.dispatchFailed', '派兵できません。');
       return result ?? { ok: false };
     }
     const unitName = this.localize(FRIENDLY_SQUAD_DEFINITIONS[this.squadType]?.name ?? '部隊');
@@ -286,9 +295,9 @@ export class DeploymentUi {
       const preview = this.originBaseId
         ? this.system.previewDeployment(state, this.originBaseId, this.targetId, this.squadType, this.targetKind, this.selectedRoutePlan?.route?.path ?? null)
         : { ok: false, reason: this.msg('deployment.selectOriginRequired', {}, '出撃元を選択してください。') };
-      const blockedByPreview = !preview.ok && !String(preview.reason ?? '').includes('選択した派兵経路');
+      const blockedByPreview = !preview.ok && preview.reasonKey !== 'reason.deployment.routeInvalidated' && !String(preview.reason ?? '').includes('選択した派兵経路');
       if (blockedByPreview) {
-        this.showReason(preview.reason, 'deployment.routePlanningBlocked', '派兵条件を満たしていないため、経路指定できません。');
+        this.showReason(preview, 'deployment.routePlanningBlocked', '派兵条件を満たしていないため、経路指定できません。');
       } else if (!origin || !target?.nodeId || typeof this.beginRoutePlanning !== 'function') {
         this.showMessage('deployment.routePlanningUnavailable', {}, '派兵経路を指定できません。出撃元と目標を確認してください。');
       } else {
@@ -347,7 +356,7 @@ export class DeploymentUi {
       if (squadTypes.length < 2) {
         this.showMessage('deployment.coordinatedNeedsTwo', {}, '連携出撃には2部隊以上を選択してください。');
       } else if (!origin || !target?.nodeId || typeof this.beginRoutePlanning !== 'function') {
-        this.showReason(fallbackPreview.reason, 'deployment.coordinatedRouteUnavailable', '連携出撃の共通経路を指定できません。');
+        this.showReason(fallbackPreview, 'deployment.coordinatedRouteUnavailable', '連携出撃の共通経路を指定できません。');
       } else {
         const targetLabel = ENEMY_BASE_DEFINITIONS[target.type]?.name ?? this.msg('deployment.enemyBaseFallback', {}, '敵拠点');
         const opened = this.beginRoutePlanning({
@@ -373,7 +382,7 @@ export class DeploymentUi {
       let result;
       const squadTypes = this.groupSquadTypes();
       this.store.transaction(state => { result = this.system.dispatchCoordinated(state, this.targetId, squadTypes, this.coordinatedOptions()); }, 'friendly:coordinated-dispatch', { emit: true, validate: true });
-      if (!result?.ok) this.showReason(result?.reason, 'deployment.coordinatedDispatchFailed', '連携出撃できません。');
+      if (!result?.ok) this.showReason(result, 'deployment.coordinatedDispatchFailed', '連携出撃できません。');
       else {
         this.showMessage('deployment.coordinatedDispatched', { count: result.squads.length }, `${result.squads.length}部隊が同じルートで連携出撃しました。`);
         this.persist?.();
@@ -454,7 +463,7 @@ export class DeploymentUi {
     const globalCommand = friendlyGlobalCommandStatus(state);
     const selectedRoute = this.selectedRoutePlan?.route ?? null;
     const fixedTarget = this.missionKind !== MISSION_KIND.INTERCEPT;
-    const routePlannerBlockedByPreview = !preview.ok && !String(preview.reason ?? '').includes('選択した派兵経路');
+    const routePlannerBlockedByPreview = !preview.ok && preview.reasonKey !== 'reason.deployment.routeInvalidated' && !String(preview.reason ?? '').includes('選択した派兵経路');
     const routePlannerAvailable = Boolean(origin && preview.path && fixedTarget && typeof this.beginRoutePlanning === 'function' && !routePlannerBlockedByPreview);
     const routeSummary = selectedRoute
       ? this.msg('deployment.selectedRouteSummary', { routeLabel: this.localize(selectedRoute.label), distance: this.routeText(selectedRoute.physicalDistance), risk: selectedRoute.risk, waypoints: this.selectedRoutePlan.waypointNodeIds.length }, '{routeLabel}・{distance}・危険度 {risk}・経由 {waypoints}/2')

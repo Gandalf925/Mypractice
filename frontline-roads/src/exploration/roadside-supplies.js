@@ -231,13 +231,13 @@ export function roadsideSupplyPresentation(item) {
 
 function locationEligibility(state, { strict = false } = {}) {
   const player = state.player?.worldPosition;
-  if (!finitePoint(player)) return { ok: false, reason: '現在地を取得してください。' };
+  if (!finitePoint(player)) return { ok: false, reasonKey: 'reason.location.currentRequired', reason: '現在地を取得してください。' };
   const updatedAt = Number(state.player?.locationUpdatedAt) || 0;
   const now = Date.now();
-  if (!updatedAt || now - updatedAt > ROADSIDE_SUPPLY_LOCATION_MAX_AGE_MS) return { ok: false, reason: '位置情報が古いため使用できません。現在地を再取得してください。' };
+  if (!updatedAt || now - updatedAt > ROADSIDE_SUPPLY_LOCATION_MAX_AGE_MS) return { ok: false, reasonKey: 'reason.location.useStale', reason: '位置情報が古いため使用できません。現在地を再取得してください。' };
   const accuracy = Number(state.player?.locationAccuracy);
   const maxAccuracy = strict ? 70 : ROADSIDE_SUPPLY_MAX_ACCURACY_METERS;
-  if (Number.isFinite(accuracy) && accuracy > maxAccuracy) return { ok: false, reason: '位置情報の精度が不足しています。' };
+  if (Number.isFinite(accuracy) && accuracy > maxAccuracy) return { ok: false, reasonKey: 'reason.location.accuracyLow', reason: '位置情報の精度が不足しています。' };
   return { ok: true, player };
 }
 
@@ -469,28 +469,28 @@ function rememberCollected(supplies, item) {
 
 export function collectRoadsideSupply(state, item, events = null) {
   const supplies = ensureRoadsideSupplyState(state);
-  if (!item || supplies.collectedIds.includes(String(item.id))) return { ok: false, reason: '既に回収済みです。' };
+  if (!item || supplies.collectedIds.includes(String(item.id))) return { ok: false, reasonKey: 'reason.roadside.alreadyCollected', reason: '既に回収済みです。' };
   rememberCollected(supplies, item);
   if (item.kind === 'resource') {
     const bundle = sanitizeBundle(item.bundle);
     addBundle(state, bundle);
     events?.emit('exploration:roadside-supply-collected', { item, bundle });
-    events?.emit('message', { text: `${item.name ?? '資源箱'}を回収しました。資源：${bundleText(bundle)}。` });
+    events?.emit('message', { key: 'roadside.notice.resourceCollected', params: { itemName: item.name ?? '資源箱', resourceText: { __resourceBundle: true, bundle } }, text: `${item.name ?? '資源箱'}を回収しました。資源：${bundleText(bundle)}。` });
     return { ok: true, item, bundle };
   }
   if (item.kind === 'material' && TACTICAL_MATERIAL_DEFINITIONS[item.materialKey]) {
     supplies.materials[item.materialKey] = (supplies.materials[item.materialKey] ?? 0) + 1;
     events?.emit('exploration:roadside-supply-collected', { item, materialKey: item.materialKey });
-    events?.emit('message', { text: `${item.name ?? TACTICAL_MATERIAL_DEFINITIONS[item.materialKey].name}を取得しました。戦術工房で使用できます。` });
+    events?.emit('message', { key: 'roadside.notice.materialCollected', params: { itemName: item.name ?? TACTICAL_MATERIAL_DEFINITIONS[item.materialKey].name }, text: `${item.name ?? TACTICAL_MATERIAL_DEFINITIONS[item.materialKey].name}を取得しました。戦術工房で使用できます。` });
     return { ok: true, item, materialKey: item.materialKey };
   }
   if (item.kind === 'tactical' && ROADSIDE_USE_DEFINITIONS[item.inventoryKey]) {
     supplies.inventory[item.inventoryKey] = (supplies.inventory[item.inventoryKey] ?? 0) + 1;
     events?.emit('exploration:roadside-supply-collected', { item, inventoryKey: item.inventoryKey });
-    events?.emit('message', { text: `${item.name ?? ROADSIDE_USE_DEFINITIONS[item.inventoryKey].name}を取得しました。ITEMSから使用できます。` });
+    events?.emit('message', { key: 'roadside.notice.tacticalCollected', params: { itemName: item.name ?? ROADSIDE_USE_DEFINITIONS[item.inventoryKey].name }, text: `${item.name ?? ROADSIDE_USE_DEFINITIONS[item.inventoryKey].name}を取得しました。ITEMSから使用できます。` });
     return { ok: true, item, inventoryKey: item.inventoryKey };
   }
-  return { ok: false, reason: '未対応の道端物資です。' };
+  return { ok: false, reasonKey: 'reason.roadside.unsupportedSupply', reason: '未対応の道端物資です。' };
 }
 
 export function collectNearbyRoadsideSupplies(state, events = null) {
@@ -546,13 +546,13 @@ function consumeMaterials(state, materials = {}) {
 
 export function tacticalRecipeStatus(state, recipeKey) {
   const recipe = TACTICAL_RECIPES[recipeKey];
-  if (!recipe) return { ok: false, reason: '不明な製作です。' };
-  if ((state.civilization?.level ?? 0) < recipe.level) return { ok: false, reason: `文明Lv.${recipe.level}で解禁されます。`, recipe };
-  if (!hasTacticalWorkshop(state)) return { ok: false, reason: '戦術工房が必要です。', recipe };
+  if (!recipe) return { ok: false, reasonKey: 'reason.roadside.unknownRecipe', reason: '不明な製作です。' };
+  if ((state.civilization?.level ?? 0) < recipe.level) return { ok: false, reasonKey: 'reason.civilization.unlockLevel', reasonParams: { level: recipe.level }, reason: `文明Lv.${recipe.level}で解禁されます。`, recipe };
+  if (!hasTacticalWorkshop(state)) return { ok: false, reasonKey: 'reason.roadside.workshopRequired', reason: '戦術工房が必要です。', recipe };
   const resourceMissing = missingBundle(state, recipe.resources);
   const materialMissing = missingMaterials(state, recipe.materials);
   if (Object.keys(resourceMissing).length || Object.keys(materialMissing).length) {
-    return { ok: false, reason: '製作素材が不足しています。', recipe, resourceMissing, materialMissing };
+    return { ok: false, reasonKey: 'reason.roadside.craftShortage', reason: '製作素材が不足しています。', recipe, resourceMissing, materialMissing };
   }
   return { ok: true, recipe, resourceMissing: {}, materialMissing: {} };
 }
@@ -561,18 +561,18 @@ export function craftTacticalItem(state, recipeKey, events = null) {
   const status = tacticalRecipeStatus(state, recipeKey);
   if (!status.ok) return status;
   const recipe = status.recipe;
-  if (!consumeBundle(state, recipe.resources) || !consumeMaterials(state, recipe.materials)) return { ok: false, reason: '製作素材が不足しています。', recipe };
+  if (!consumeBundle(state, recipe.resources) || !consumeMaterials(state, recipe.materials)) return { ok: false, reasonKey: 'reason.roadside.craftShortage', reason: '製作素材が不足しています。', recipe };
   const supplies = ensureRoadsideSupplyState(state);
   supplies.inventory[recipe.outputKey] = (supplies.inventory[recipe.outputKey] ?? 0) + 1;
   events?.emit('exploration:tactical-crafted', { recipeKey, itemKey: recipe.outputKey });
-  events?.emit('message', { text: `戦術工房で${recipe.name}を製作しました。` });
+  events?.emit('message', { key: 'roadside.notice.tacticalCrafted', params: { recipeName: recipe.name }, text: `戦術工房で${recipe.name}を製作しました。` });
   return { ok: true, recipe, itemKey: recipe.outputKey };
 }
 
 export function useSweepSignal(state, events = null) {
   const eligibility = locationEligibility(state, { strict: true });
   if (!eligibility.ok) return eligibility;
-  if (!consumeInventory(state, 'sweepSignal')) return { ok: false, reason: '掃討信号弾を所持していません。' };
+  if (!consumeInventory(state, 'sweepSignal')) return { ok: false, reasonKey: 'reason.roadside.noSweepSignal', reason: '掃討信号弾を所持していません。' };
   const radius = ROADSIDE_USE_DEFINITIONS.sweepSignal.radiusMeters;
   let killed = 0;
   for (const enemy of state.combat?.enemies ?? []) {
@@ -582,14 +582,14 @@ export function useSweepSignal(state, events = null) {
   }
   state.combat.enemies = (state.combat.enemies ?? []).filter(enemy => enemy.hp > 0);
   events?.emit('exploration:roadside-item-used', { itemKey: 'sweepSignal', killed });
-  events?.emit('message', { text: killed > 0 ? `掃討信号弾で周囲${radius}mの敵${killed}体を排除しました。` : `掃討信号弾を使用しましたが、周囲${radius}mに対象はいませんでした。` });
+  events?.emit('message', killed > 0 ? { key: 'roadside.notice.sweepSignalKilled', params: { radius, count: killed }, text: `掃討信号弾で周囲${radius}mの敵${killed}体を排除しました。` } : { key: 'roadside.notice.sweepSignalNoTarget', params: { radius }, text: `掃討信号弾を使用しましたが、周囲${radius}mに対象はいませんでした。` });
   return { ok: true, killed };
 }
 
 export function useBreachCharge(state, events = null) {
   const eligibility = locationEligibility(state, { strict: true });
   if (!eligibility.ok) return eligibility;
-  if (!consumeInventory(state, 'breachCharge')) return { ok: false, reason: '破城爆薬を所持していません。' };
+  if (!consumeInventory(state, 'breachCharge')) return { ok: false, reasonKey: 'reason.roadside.noBreachCharge', reason: '破城爆薬を所持していません。' };
   const radius = ROADSIDE_USE_DEFINITIONS.breachCharge.radiusMeters;
   const graph = state.world?.roadGraph;
   const candidates = (state.world?.enemyBases ?? [])
@@ -600,12 +600,12 @@ export function useBreachCharge(state, events = null) {
   const target = candidates[0]?.base ?? null;
   if (!target) {
     refundInventory(state, 'breachCharge');
-    return { ok: false, reason: `半径${radius}m以内に破壊可能な敵拠点がありません。` };
+    return { ok: false, reasonKey: 'reason.roadside.noDestroyableEnemyBaseNearby', reasonParams: { radius }, reason: `半径${radius}m以内に破壊可能な敵拠点がありません。` };
   }
   target.hp = 0;
   destroyEnemyBase(state, target, events, { roadsideItem: 'breachCharge' });
   events?.emit('exploration:roadside-item-used', { itemKey: 'breachCharge', baseId: target.id });
-  events?.emit('message', { text: `破城爆薬で${target.name ?? '敵拠点'}を破壊しました。` });
+  events?.emit('message', { key: 'roadside.notice.breachChargeDestroyed', params: { targetName: target.name ?? '敵拠点' }, text: `破城爆薬で${target.name ?? '敵拠点'}を破壊しました。` });
   return { ok: true, base: target };
 }
 
@@ -673,23 +673,23 @@ function temporaryActiveCount(state) {
 
 export function useLocalDeploymentCall(state, key, events = null, targetRequest = null) {
   const definition = ROADSIDE_USE_DEFINITIONS[key];
-  if (!definition?.squadType) return { ok: false, reason: 'このアイテムは現地出撃に対応していません。' };
+  if (!definition?.squadType) return { ok: false, reasonKey: 'reason.roadside.itemCannotDeploy', reason: 'このアイテムは現地出撃に対応していません。' };
   const eligibility = locationEligibility(state, { strict: true });
   if (!eligibility.ok) return eligibility;
-  if (temporaryActiveCount(state) >= 1) return { ok: false, reason: '現地出撃中の一時部隊が残っています。任務完了後に使用してください。' };
-  if (!friendlySquadUnlocked(state, definition.squadType)) return { ok: false, reason: `${definition.name}は現在の文明レベルでは使用できません。` };
+  if (temporaryActiveCount(state) >= 1) return { ok: false, reasonKey: 'reason.roadside.temporarySquadActive', reason: '現地出撃中の一時部隊が残っています。任務完了後に使用してください。' };
+  if (!friendlySquadUnlocked(state, definition.squadType)) return { ok: false, reasonKey: 'reason.roadside.itemLockedByCivilization', reasonParams: { itemName: definition.name }, reason: `${definition.name}は現在の文明レベルでは使用できません。` };
 
   const originNode = nearestNode(state, eligibility.player);
-  if (!originNode) return { ok: false, reason: '現在地周辺の道路ノードが見つかりません。' };
+  if (!originNode) return { ok: false, reasonKey: 'reason.roadside.noNearbyRoadNode', reason: '現在地周辺の道路ノードが見つかりません。' };
 
   const selected = resolveDeploymentTarget(state, key, targetRequest);
   if (!selected) {
-    return { ok: false, reason: `現在地から${definition.searchRangeMeters}m以内に出撃対象がありません。` };
+    return { ok: false, reasonKey: 'reason.roadside.noDeploymentTargetNearby', reasonParams: { range: definition.searchRangeMeters }, reason: `現在地から${definition.searchRangeMeters}m以内に出撃対象がありません。` };
   }
   if (!selected.available || !selected.route) {
-    return { ok: false, reason: `${selected.name ?? '指定対象'}へ接続する道路経路がありません。` };
+    return { ok: false, reasonKey: 'reason.roadside.noRouteToTarget', reasonParams: { targetName: selected.name ?? '指定対象' }, reason: `${selected.name ?? '指定対象'}へ接続する道路経路がありません。` };
   }
-  if (!consumeInventory(state, key)) return { ok: false, reason: `${definition.name}を所持していません。` };
+  if (!consumeInventory(state, key)) return { ok: false, reasonKey: 'reason.roadside.itemNotOwned', reasonParams: { itemName: definition.name }, reason: `${definition.name}を所持していません。` };
 
   const targetNodeId = selected.nodeId;
   const path = selected.route;
@@ -737,7 +737,7 @@ export function useLocalDeploymentCall(state, key, events = null, targetRequest 
   };
   state.combat.friendlySquads.push(squad);
   events?.emit('friendly:squad-deployed', { squad, origin: { nodeId: originNode.id, name: '現在地' }, target, cost: {}, temporary: true });
-  events?.emit('message', { text: `${definition.name}を使用し、${selected.name ?? '指定対象'}へ${runtime.name}を一時出撃させました。` });
+  events?.emit('message', { key: 'roadside.notice.temporarySquadDeployed', params: { itemName: definition.name, targetName: selected.name ?? '指定対象', squadName: runtime.name }, text: `${definition.name}を使用し、${selected.name ?? '指定対象'}へ${runtime.name}を一時出撃させました。` });
   return { ok: true, squad, target, selectedTarget: selected };
 }
 
@@ -788,7 +788,7 @@ export function updateRoadsideMines(state, events = null) {
     state.combat.enemies = (state.combat.enemies ?? []).filter(enemy => enemy.hp > 0);
     detonated += 1;
     events?.emit('exploration:roadside-mine-detonated', { mineId: mine.id, itemKey: mine.itemKey ?? 'roadMine', hits, guided });
-    events?.emit('message', { text: `${definition.name}が起爆し、敵${hits}体に損害を与えました。${guided ? '誘導中の敵を巻き込み、威力が上がりました。' : ''}` });
+    events?.emit('message', { key: guided ? 'roadside.notice.mineTriggeredGuided' : 'roadside.notice.mineTriggered', params: { itemName: definition.name, count: hits }, text: `${definition.name}が起爆し、敵${hits}体に損害を与えました。${guided ? '誘導中の敵を巻き込み、威力が上がりました。' : ''}` });
     return false;
   });
   return { detonated };
@@ -798,19 +798,19 @@ export function useMineItem(state, key = 'roadMine', events = null) {
   const definition = mineDefinition(key);
   const eligibility = locationEligibility(state, { strict: true });
   if (!eligibility.ok) return eligibility;
-  if (placedMineLimitReached(state, key)) return { ok: false, reason: `${definition.name}は同時に${mineLimitForState(state, key)}個までです。` };
-  if (!consumeInventory(state, key)) return { ok: false, reason: `${definition.name}を所持していません。` };
+  if (placedMineLimitReached(state, key)) return { ok: false, reasonKey: 'reason.roadside.mineLimitReached', reasonParams: { itemName: definition.name, limit: mineLimitForState(state, key) }, reason: `${definition.name}は同時に${mineLimitForState(state, key)}個までです。` };
+  if (!consumeInventory(state, key)) return { ok: false, reasonKey: 'reason.roadside.itemNotOwned', reasonParams: { itemName: definition.name }, reason: `${definition.name}を所持していません。` };
   const originNode = nearestNode(state, eligibility.player);
   if (!originNode || distanceSquared(originNode, eligibility.player) > 70 * 70) {
     refundInventory(state, key);
-    return { ok: false, reason: '道路上または道路付近で使用してください。' };
+    return { ok: false, reasonKey: 'reason.roadside.useNearRoad', reason: '道路上または道路付近で使用してください。' };
   }
   const supplies = ensureRoadsideSupplyState(state);
   const now = state.runtime?.worldTimeMs ?? Date.now();
   const mine = { id: stableId('roadside-mine', key, originNode.id, now, positiveHash('mine', key, now)), itemKey: key, mineType: key, name: definition.name, x: originNode.x, y: originNode.y, nodeId: originNode.id, placedAt: now };
   supplies.placedMines.push(mine);
   events?.emit('exploration:roadside-item-used', { itemKey: key, mineId: mine.id });
-  events?.emit('message', { text: `${definition.name}を道路に設置しました。発動するまで残ります。` });
+  events?.emit('message', { key: 'roadside.notice.minePlaced', params: { itemName: definition.name }, text: `${definition.name}を道路に設置しました。発動するまで残ります。` });
   return { ok: true, mine };
 }
 
@@ -819,10 +819,10 @@ export function useRoadMine(state, events = null) { return useMineItem(state, 'r
 export function removePlacedMine(state, mineId, events = null) {
   const supplies = ensureRoadsideSupplyState(state);
   const index = (supplies.placedMines ?? []).findIndex(mine => mine.id === mineId);
-  if (index < 0) return { ok: false, reason: '設置済み地雷が見つかりません。' };
+  if (index < 0) return { ok: false, reasonKey: 'reason.roadside.mineNotFound', reason: '設置済み地雷が見つかりません。' };
   const [mine] = supplies.placedMines.splice(index, 1);
   events?.emit('exploration:roadside-mine-removed', { mineId, itemKey: mine.itemKey ?? 'roadMine' });
-  events?.emit('message', { text: `${mine.name ?? mineDefinition(mine).name}を撤去しました。` });
+  events?.emit('message', { key: 'roadside.notice.mineRemoved', params: { itemName: mine.name ?? mineDefinition(mine).name }, text: `${mine.name ?? mineDefinition(mine).name}を撤去しました。` });
   return { ok: true, mine };
 }
 
@@ -889,7 +889,7 @@ function lureTargetByRequest(state, target = null) {
 function applyLureToTarget(state, target, events = null) {
   const definition = ROADSIDE_USE_DEFINITIONS.lureSignal;
   const node = state.world?.roadGraph?.nodeById?.get(target.nodeId);
-  if (!node) return { ok: false, reason: '誘導先の道路ノードが見つかりません。' };
+  if (!node) return { ok: false, reasonKey: 'reason.roadside.lureNodeNotFound', reason: '誘導先の道路ノードが見つかりません。' };
   const now = state.runtime?.worldTimeMs ?? Date.now();
   let affected = 0;
   for (const enemy of state.combat?.enemies ?? []) {
@@ -909,18 +909,18 @@ function applyLureToTarget(state, target, events = null) {
     affected += 1;
   }
   events?.emit('exploration:roadside-item-used', { itemKey: 'lureSignal', affected, target });
-  events?.emit('message', { text: affected ? `誘導信号弾で敵${affected}体を${target.name ?? '指定地点'}へ誘導しました。` : '誘導信号弾を使用しましたが、誘導先周辺に対象の敵はいませんでした。' });
+  events?.emit('message', affected ? { key: 'roadside.notice.lureTargeted', params: { count: affected, targetName: target.name ?? '指定地点' }, text: `誘導信号弾で敵${affected}体を${target.name ?? '指定地点'}へ誘導しました。` } : { key: 'roadside.notice.lureNoTarget', params: {}, text: '誘導信号弾を使用しましたが、誘導先周辺に対象の敵はいませんでした。' });
   return { ok: true, affected, target };
 }
 
 export function useLureSignal(state, events = null, target = null) {
-  if (!consumeInventory(state, 'lureSignal')) return { ok: false, reason: '誘導信号弾を所持していません。' };
+  if (!consumeInventory(state, 'lureSignal')) return { ok: false, reasonKey: 'reason.roadside.noLureSignal', reason: '誘導信号弾を所持していません。' };
   let selectedTarget = lureTargetByRequest(state, target);
   if (!selectedTarget) {
     const eligibility = locationEligibility(state, { strict: true });
     if (!eligibility.ok) { refundInventory(state, 'lureSignal'); return eligibility; }
     const node = nearestNode(state, eligibility.player);
-    if (!node) { refundInventory(state, 'lureSignal'); return { ok: false, reason: '現在地周辺の道路ノードが見つかりません。' }; }
+    if (!node) { refundInventory(state, 'lureSignal'); return { ok: false, reasonKey: 'reason.roadside.noNearbyRoadNode', reason: '現在地周辺の道路ノードが見つかりません。' }; }
     selectedTarget = { kind: 'node', id: node.id, nodeId: node.id, x: node.x, y: node.y, name: '現在地付近' };
   }
   const result = applyLureToTarget(state, selectedTarget, events);
@@ -957,10 +957,10 @@ function damageEnemyBaseByStrike(state, base, ratio, events, itemKey) {
 
 export function useStrategicStrike(state, key, target, events = null) {
   const definition = ROADSIDE_USE_DEFINITIONS[key];
-  if (!['remoteBarrage', 'airSupport', 'areaSuppression'].includes(key) || !definition) return { ok: false, reason: 'このアイテムは遠隔支援に対応していません。' };
-  if (!consumeInventory(state, key)) return { ok: false, reason: `${definition.name}を所持していません。` };
+  if (!['remoteBarrage', 'airSupport', 'areaSuppression'].includes(key) || !definition) return { ok: false, reasonKey: 'reason.roadside.remoteUnsupported', reason: 'このアイテムは遠隔支援に対応していません。' };
+  if (!consumeInventory(state, key)) return { ok: false, reasonKey: 'reason.roadside.itemNotOwned', reasonParams: { itemName: definition.name }, reason: `${definition.name}を所持していません。` };
   const targetInfo = strikeTargetPoint(state, target);
-  if (!targetInfo?.point) { refundInventory(state, key); return { ok: false, reason: '攻撃対象を選択してください。' }; }
+  if (!targetInfo?.point) { refundInventory(state, key); return { ok: false, reasonKey: 'reason.roadside.selectAttackTarget', reason: '攻撃対象を選択してください。' }; }
   const radius = definition.radiusMeters;
   let enemyHits = 0;
   for (const enemy of state.combat?.enemies ?? []) {
@@ -978,13 +978,13 @@ export function useStrategicStrike(state, key, target, events = null) {
     if (damageEnemyBaseByStrike(state, base, definition.baseDamageRatio, events, key)) baseHits += 1;
   }
   events?.emit('exploration:strategic-strike-used', { itemKey: key, target, enemyHits, baseHits });
-  events?.emit('message', { text: `${definition.name}を${targetInfo.label}周辺へ実行しました。敵${enemyHits}体・敵拠点${baseHits}箇所に損害。` });
+  events?.emit('message', { key: 'roadside.notice.strategicStrikeExecuted', params: { itemName: definition.name, targetName: targetInfo.label, enemyCount: enemyHits, baseCount: baseHits }, text: `${definition.name}を${targetInfo.label}周辺へ実行しました。敵${enemyHits}体・敵拠点${baseHits}箇所に損害。` });
   return { ok: true, enemyHits, baseHits, target };
 }
 
 
 export function useMarchBannerOnSquad(state, squadId, events = null) {
-  if (!consumeInventory(state, 'marchBanner')) return { ok: false, reason: '行軍加速旗を所持していません。' };
+  if (!consumeInventory(state, 'marchBanner')) return { ok: false, reasonKey: 'reason.roadside.noMarchBanner', reason: '行軍加速旗を所持していません。' };
   const definition = ROADSIDE_USE_DEFINITIONS.marchBanner;
   const result = boostFriendlySquadById(state, squadId, definition.durationSeconds, definition.speedMultiplier, events);
   if (!result.ok) refundInventory(state, 'marchBanner');
@@ -992,7 +992,7 @@ export function useMarchBannerOnSquad(state, squadId, events = null) {
 }
 
 export function useSmokeScreenOnSquad(state, squadId, events = null) {
-  if (!consumeInventory(state, 'smokeScreen')) return { ok: false, reason: '緊急撤退煙幕を所持していません。' };
+  if (!consumeInventory(state, 'smokeScreen')) return { ok: false, reasonKey: 'reason.roadside.noSmokeScreen', reason: '緊急撤退煙幕を所持していません。' };
   const result = emergencyWithdrawFriendlySquadById(state, squadId, events);
   if (!result.ok) refundInventory(state, 'smokeScreen');
   return result;
@@ -1001,7 +1001,7 @@ export function useSmokeScreenOnSquad(state, squadId, events = null) {
 export function useMarchBanner(state, events = null) {
   const eligibility = locationEligibility(state, { strict: true });
   if (!eligibility.ok) return eligibility;
-  if (!consumeInventory(state, 'marchBanner')) return { ok: false, reason: '行軍加速旗を所持していません。' };
+  if (!consumeInventory(state, 'marchBanner')) return { ok: false, reasonKey: 'reason.roadside.noMarchBanner', reason: '行軍加速旗を所持していません。' };
   const definition = ROADSIDE_USE_DEFINITIONS.marchBanner;
   const result = boostFriendlySquadsNear(state, eligibility.player, definition.radiusMeters, definition.durationSeconds, definition.speedMultiplier, events);
   if (!result.ok) refundInventory(state, 'marchBanner');
@@ -1011,7 +1011,7 @@ export function useMarchBanner(state, events = null) {
 export function useSmokeScreen(state, events = null) {
   const eligibility = locationEligibility(state, { strict: true });
   if (!eligibility.ok) return eligibility;
-  if (!consumeInventory(state, 'smokeScreen')) return { ok: false, reason: '緊急撤退煙幕を所持していません。' };
+  if (!consumeInventory(state, 'smokeScreen')) return { ok: false, reasonKey: 'reason.roadside.noSmokeScreen', reason: '緊急撤退煙幕を所持していません。' };
   const definition = ROADSIDE_USE_DEFINITIONS.smokeScreen;
   const result = emergencyWithdrawFriendlySquadNear(state, eligibility.player, definition.radiusMeters, events);
   if (!result.ok) refundInventory(state, 'smokeScreen');
@@ -1059,6 +1059,6 @@ export class RoadsideSupplySystem {
   useOnSquad(state, key, squadId) {
     if (key === 'marchBanner') return useMarchBannerOnSquad(state, squadId, this.events);
     if (key === 'smokeScreen') return useSmokeScreenOnSquad(state, squadId, this.events);
-    return { ok: false, reason: 'このアイテムは選択部隊への使用に対応していません。' };
+    return { ok: false, reasonKey: 'reason.roadside.squadItemUnsupported', reason: 'このアイテムは選択部隊への使用に対応していません。' };
   }
 }

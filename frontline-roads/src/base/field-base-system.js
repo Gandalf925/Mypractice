@@ -32,14 +32,14 @@ function markEnemyBaseNetworkDirty(state) {
 
 function validateLocation(state, now) {
   const player = state.player?.worldPosition;
-  if (!player) return { ok: false, reason: '現在地を取得してください。' };
+  if (!player) return { ok: false, reasonKey: 'reason.location.currentRequired', reason: '現在地を取得してください。' };
   const updatedAt = Number(state.player?.locationUpdatedAt) || 0;
   if (!updatedAt || now - updatedAt > PLAYER_BASE_LOCATION_MAX_AGE_MS) {
-    return { ok: false, reason: '位置情報が古いため簡易拠点を設置できません。現在地を再取得してください。' };
+    return { ok: false, reasonKey: 'reason.location.fieldBaseStale', reason: '位置情報が古いため簡易拠点を設置できません。現在地を再取得してください。' };
   }
   const accuracy = Number(state.player?.locationAccuracy);
   if (Number.isFinite(accuracy) && accuracy > PLAYER_BASE_MAX_ACCURACY_METERS) {
-    return { ok: false, reason: '位置情報の精度が不足しています。' };
+    return { ok: false, reasonKey: 'reason.location.accuracyLow', reason: '位置情報の精度が不足しています。' };
   }
   return { ok: true, player };
 }
@@ -70,29 +70,29 @@ export function previewFieldBasePlacement(state, now = Date.now()) {
   const limit = fieldBaseLimitForCivilization(state.civilization?.level);
   const used = fieldBaseSlotsUsed(state);
   const cost = fieldBasePlacementCost(state);
-  if (limit <= 0) return { ok: false, reason: '文明Lv.1で簡易拠点が解禁されます。', current: used, limit, cost };
-  if (Number.isFinite(limit) && used >= limit) return { ok: false, reason: `現在の文明レベルでは簡易拠点を${limit}個まで設置できます。`, current: used, limit, cost };
+  if (limit <= 0) return { ok: false, reasonKey: 'reason.fieldBase.unlockLv1', reason: '文明Lv.1で簡易拠点が解禁されます。', current: used, limit, cost };
+  if (Number.isFinite(limit) && used >= limit) return { ok: false, reasonKey: 'reason.fieldBase.limitByCivilization', reasonParams: { limit }, reason: `現在の文明レベルでは簡易拠点を${limit}個まで設置できます。`, current: used, limit, cost };
 
   const location = validateLocation(state, now);
   if (!location.ok) return { ...location, current: used, limit, cost };
   const road = nearestRoadNode(state, location.player);
   if (!road) {
-    return { ok: false, reason: `取得済み道路の交差点から${FIELD_BASE_PLACEMENT_RANGE_METERS}m以内へ移動してください。`, current: used, limit, cost };
+    return { ok: false, reasonKey: 'reason.fieldBase.moveNearRoad', reasonParams: { range: FIELD_BASE_PLACEMENT_RANGE_METERS }, reason: `取得済み道路の交差点から${FIELD_BASE_PLACEMENT_RANGE_METERS}m以内へ移動してください。`, current: used, limit, cost };
   }
 
   const nearest = nearestOwnedBase(state, road.node, { includeDestroyed: true });
   if (nearest && nearest.gap < FIELD_BASE_MINIMUM_SEPARATION_METERS) {
-    return { ok: false, reason: `既存拠点から${FIELD_BASE_MINIMUM_SEPARATION_METERS}m以上離れてください。`, current: used, limit, nearest, cost };
+    return { ok: false, reasonKey: 'reason.base.separateFromExisting', reasonParams: { range: FIELD_BASE_MINIMUM_SEPARATION_METERS }, reason: `既存拠点から${FIELD_BASE_MINIMUM_SEPARATION_METERS}m以上離れてください。`, current: used, limit, nearest, cost };
   }
 
   const hostile = nearestAliveEnemyBase(state, road.node);
   if (hostile && hostile.gap < FIELD_BASE_ENEMY_EXCLUSION_METERS) {
-    return { ok: false, reason: `敵拠点から${FIELD_BASE_ENEMY_EXCLUSION_METERS}m以上離れてください。`, current: used, limit, hostile, cost };
+    return { ok: false, reasonKey: 'reason.fieldBase.separateFromEnemy', reasonParams: { range: FIELD_BASE_ENEMY_EXCLUSION_METERS }, reason: `敵拠点から${FIELD_BASE_ENEMY_EXCLUSION_METERS}m以上離れてください。`, current: used, limit, hostile, cost };
   }
 
   const missing = missingBundle(state, cost);
   if (Object.keys(missing).length > 0) {
-    return { ok: false, reason: '簡易拠点の設置資源が不足しています。', missing, cost, current: used, limit, node: road.node };
+    return { ok: false, reasonKey: 'reason.fieldBase.buildShortage', reason: '簡易拠点の設置資源が不足しています。', missing, cost, current: used, limit, node: road.node };
   }
   return {
     ok: true,
@@ -185,18 +185,18 @@ export function diagnoseFieldBaseNetwork(state, required = fieldBaseLimitForCivi
 export function previewFieldBaseRebuild(state, baseId, now = Date.now()) {
   const cost = { ...FIELD_BASE_REBUILD_COST };
   const base = fieldBaseById(state, baseId, { includeDestroyed: true });
-  if (!base) return { ok: false, reason: '簡易拠点が見つかりません。', cost };
-  if (base.status !== 'DESTROYED' && base.hp > 0) return { ok: false, reason: 'この簡易拠点は稼働中です。', cost };
+  if (!base) return { ok: false, reasonKey: 'reason.fieldBase.notFound', reason: '簡易拠点が見つかりません。', cost };
+  if (base.status !== 'DESTROYED' && base.hp > 0) return { ok: false, reasonKey: 'reason.fieldBase.operating', reason: 'この簡易拠点は稼働中です。', cost };
   const location = validateLocation(state, now);
   if (!location.ok) return { ...location, cost };
   const gap = distance(location.player, base);
   if (gap > FIELD_BASE_BUILD_RANGE_METERS) {
-    return { ok: false, reason: `破壊された簡易拠点から${FIELD_BASE_BUILD_RANGE_METERS}m以内へ移動してください。`, distance: gap, base, cost };
+    return { ok: false, reasonKey: 'reason.fieldBase.moveNearDestroyed', reasonParams: { range: FIELD_BASE_BUILD_RANGE_METERS }, reason: `破壊された簡易拠点から${FIELD_BASE_BUILD_RANGE_METERS}m以内へ移動してください。`, distance: gap, base, cost };
   }
   const node = state.world.roadGraph?.nodeById?.get(base.nodeId);
-  if (!node) return { ok: false, reason: '簡易拠点が接続していた道路を利用できません。', base, cost };
+  if (!node) return { ok: false, reasonKey: 'reason.fieldBase.roadUnavailable', reason: '簡易拠点が接続していた道路を利用できません。', base, cost };
   const missing = missingBundle(state, cost);
-  if (Object.keys(missing).length > 0) return { ok: false, reason: '簡易拠点の再建資源が不足しています。', missing, base, node, distance: gap, cost };
+  if (Object.keys(missing).length > 0) return { ok: false, reasonKey: 'reason.fieldBase.rebuildShortage', reason: '簡易拠点の再建資源が不足しています。', missing, base, node, distance: gap, cost };
   return { ok: true, base, node, distance: gap, cost };
 }
 
@@ -220,7 +220,7 @@ export function destroyFieldBase(state, base, events = null, { enemyId = null } 
 
 export function previewFieldBaseDismantle(state, baseId) {
   const base = fieldBaseById(state, baseId, { includeDestroyed: true });
-  if (!base) return { ok: false, reason: '撤去する簡易拠点が見つかりません。' };
+  if (!base) return { ok: false, reasonKey: 'reason.fieldBase.dismantleNotFound', reason: '撤去する簡易拠点が見つかりません。' };
   return { ok: true, base };
 }
 
@@ -229,7 +229,7 @@ export function dismantleFieldBase(state, baseId, events = null) {
   if (!preview.ok) return preview;
   const base = preview.base;
   const index = (state.world?.fieldBases ?? []).findIndex(item => item.id === base.id);
-  if (index < 0) return { ok: false, reason: '撤去する簡易拠点が見つかりません。' };
+  if (index < 0) return { ok: false, reasonKey: 'reason.fieldBase.dismantleNotFound', reason: '撤去する簡易拠点が見つかりません。' };
   state.world.fieldBases.splice(index, 1);
   clearOwnedBaseReferences(state, base.id);
   events?.emit('base:field-dismantled', { baseId: base.id, position: { x: base.x, y: base.y } });
@@ -249,7 +249,7 @@ export class FieldBaseSystem {
   establishAtCurrentLocation(state, now = Date.now()) {
     const preview = this.previewCurrentLocation(state, now);
     if (!preview.ok) return preview;
-    if (!consumeBundle(state, preview.cost)) return { ok: false, reason: '簡易拠点の設置直前に資源が不足しました。', missing: missingBundle(state, preview.cost), cost: preview.cost };
+    if (!consumeBundle(state, preview.cost)) return { ok: false, reasonKey: 'reason.fieldBase.buildShortageAtCommit', reason: '簡易拠点の設置直前に資源が不足しました。', missing: missingBundle(state, preview.cost), cost: preview.cost };
     const establishedAt = state.runtime?.worldTimeMs ?? now;
     const sequence = (state.world?.fieldBases?.length ?? 0) + 1;
     const base = {
@@ -279,7 +279,7 @@ export class FieldBaseSystem {
   rebuild(state, baseId, now = Date.now()) {
     const preview = this.previewRebuild(state, baseId, now);
     if (!preview.ok) return preview;
-    if (!consumeBundle(state, preview.cost)) return { ok: false, reason: '簡易拠点の再建直前に資源が不足しました。', missing: missingBundle(state, preview.cost), cost: preview.cost };
+    if (!consumeBundle(state, preview.cost)) return { ok: false, reasonKey: 'reason.fieldBase.rebuildShortageAtCommit', reason: '簡易拠点の再建直前に資源が不足しました。', missing: missingBundle(state, preview.cost), cost: preview.cost };
     const base = preview.base;
     base.status = 'ESTABLISHED';
     base.hp = base.maxHp = fieldBaseMaxHpForCivilization(state.civilization?.level);

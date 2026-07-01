@@ -262,9 +262,9 @@ export function orderDestinationNodeId(state, squad, mode) {
 
 export function validateRetreatDestination(state, squad, nodeId) {
   const node = state.world.roadGraph.nodeById.get(nodeId);
-  if (!node) return { ok: false, reason: '道路上の地点を選択してください。' };
+  if (!node) return { ok: false, reasonKey: 'combat.order.selectRoadPoint', reason: '道路上の地点を選択してください。' };
   const startId = commandStartNodeId(state, squad);
-  if (nodeId === startId) return { ok: false, reason: '現在の進路先とは別の地点を選択してください。' };
+  if (nodeId === startId) return { ok: false, reasonKey: 'combat.order.selectDifferentRetreatPoint', reason: '現在の進路先とは別の地点を選択してください。' };
   const missionId = squad.missionTargetBaseId ?? squad.targetBaseId;
   const targetBase = state.world.enemyBases.find(base => base.id === missionId && base.alive && base.hp > 0);
   const targetEnemy = squad.missionType === 'INTERCEPT'
@@ -276,7 +276,7 @@ export function validateRetreatDestination(state, squad, nodeId) {
     const start = state.world.roadGraph.nodeById.get(startId) ?? friendlySquadPosition(state, squad);
     const isOwnedBase = activeOwnedBases(state).some(base => base.nodeId === nodeId);
     if (!isOwnedBase && targetNode && distance(node, targetNode) + 5 < distance(start, targetNode)) {
-      return { ok: false, reason: '後退地点は現在より敵基地から遠い道路上を選択してください。' };
+      return { ok: false, reasonKey: 'combat.order.retreatAwayFromEnemyBase', reason: '後退地点は現在より敵基地から遠い道路上を選択してください。' };
     }
   }
   return { ok: true, node };

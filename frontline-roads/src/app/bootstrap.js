@@ -120,7 +120,7 @@ class FrontlineRoadsApp {
         }, 'world:graph-expanded');
         this.combatUi.refreshBuildPlacement(true);
         this.combatUi.update();
-        this.applyLocalization();
+        this.applyLocalization({ fullDocument: false });
         if (this.store.read(state => state.lifecycle) === LifecycleState.PLAYING) this.persist({ notify: false });
       },
       onStatus: status => {
@@ -182,7 +182,7 @@ class FrontlineRoadsApp {
         this.civilizationUi.update(view);
         this.roadsideSuppliesUi.update(view);
         this.menuUi.update(view);
-        this.applyLocalization();
+        this.applyLocalization({ fullDocument: false });
         this.roadWorld.considerSurveyFacilities();
       },
       onError: error => this.notifications.show(error?.message ?? this.i18n.message('app.saveFailed')),
@@ -234,7 +234,7 @@ class FrontlineRoadsApp {
   }
 
   showNotificationMessage(key, params = {}, fallback = '', duration = 2600) {
-    this.notifications.show(this.message(key, params, fallback), duration, { localized: true });
+    this.notifications.show(this.messagePayload(key, params, fallback), duration);
   }
 
   showBaseLoadingMessage(key, params = {}, fallback = '') {
@@ -259,14 +259,14 @@ class FrontlineRoadsApp {
     queryRequired('#offlineText').textContent = this.localizePayload(this.offlineTextSource);
   }
 
-  applyLocalization() {
+  applyLocalization({ fullDocument = false } = {}) {
     if (this.baseSummarySource) queryRequired('#baseSummary').textContent = this.localizePayload(this.baseSummarySource, { status: true });
     if (this.offlineTextSource) queryRequired('#offlineText').textContent = this.localizePayload(this.offlineTextSource);
     if (this.gameOverDetailsSource) queryRequired('#gameOverDetails').textContent = this.localizePayload(this.gameOverDetailsSource);
-    this.radarPreferences?.apply();
+    this.radarPreferences?.refreshLocalization?.();
     this.baseScreen?.refreshLocalization?.();
     this.notifications?.refreshLocalization?.();
-    this.i18n.apply(globalThis.document);
+    if (fullDocument) this.i18n.apply(globalThis.document);
   }
 
 
@@ -299,7 +299,7 @@ class FrontlineRoadsApp {
     this.civilizationUi.update(snapshot);
     this.roadsideSuppliesUi.update(snapshot);
     this.menuUi.update(snapshot);
-    this.applyLocalization();
+    this.applyLocalization({ fullDocument: true });
   }
 
   updateStorageUi() {
@@ -367,22 +367,22 @@ class FrontlineRoadsApp {
   showGameOverReviewBanner(visible = true) {
     const banner = queryRequired('#gameOverReviewBanner');
     setVisible(banner, Boolean(visible) && isGameOverState(this.store.renderView()));
-    this.applyLocalization();
+    this.applyLocalization({ fullDocument: false });
   }
 
   bindEvents() {
     this.events.on('message', payload => {
-      const localized = Boolean(payload?.key);
-      const message = localized
-        ? this.i18n.message(payload.key, payload.params ?? {}, payload.text ?? '')
-        : payload?.text;
-      this.notifications.show(message, 2600, { localized });
+      if (payload?.key) {
+        this.notifications.show({ key: payload.key, params: payload.params ?? {}, text: payload.text ?? payload.fallback ?? '' }, 2600);
+        return;
+      }
+      this.notifications.show(payload?.text, 2600);
     });
     this.events.on('lifecycle:changed', ({ current }) => {
       document.documentElement.dataset.lifecycle = current;
       queryRequired('#lifecycleText').textContent = current;
     });
-    this.events.on('civilization:level-up', () => { this.civilizationUi.render(); this.baseCommandUi.render(); this.applyLocalization(); });
+    this.events.on('civilization:level-up', () => { this.civilizationUi.render(); this.baseCommandUi.render(); this.applyLocalization({ fullDocument: false }); });
     this.events.on('combat:defense-destroyed', () => this.queueCriticalSave());
     this.events.on('civilization:building-destroyed', () => this.queueCriticalSave());
     this.events.on('game:home-base-destroyed', payload => this.handleHomeBaseDestroyed(payload));
@@ -420,7 +420,7 @@ class FrontlineRoadsApp {
   }
 
   resetAfterInvalidSave() {
-    this.saveRepository.quarantineCurrent(this.message('app.invalidSaveQuarantinedWithBackup', {}, '保存データを復元できなかったため、新しいゲームとして開始します。破損データは無効化しました。'));
+    this.saveRepository.quarantineCurrent(this.messagePayload('app.invalidSaveQuarantinedWithBackup', {}, '保存データを復元できなかったため、新しいゲームとして開始します。破損データは無効化しました。'));
     this.store.replace(createInitialState(), 'save:recovery-reset');
     this.lifecycle = new LifecycleController(this.store);
     this.lifecycle.boot();
@@ -606,10 +606,14 @@ class FrontlineRoadsApp {
       if (generation !== this.startupGeneration || error?.name === 'AbortError') return;
       this.initialRoadExpansionPending = false;
       this.store.setError(error);
+      const errorMessage = error?.message ?? this.message('app.initializationFailed', {}, 'Initialization failed.');
+      const fallbackMessage = error?.details
+        ? this.message('app.initializationFailedWithDetails', { errorMessage, details: error.details }, `${errorMessage}\nDetails: ${error.details}`)
+        : errorMessage;
       this.showBaseErrorMessage(
         error?.details ? 'app.initializationFailedWithDetails' : 'app.initializationFailedWithMessage',
-        { errorMessage: error?.message ?? this.message('app.initializationFailed', {}, '初期化に失敗しました。'), details: error?.details ?? '' },
-        [error?.message ?? '初期化に失敗しました。', error?.details ? `詳細: ${error.details}` : null].filter(Boolean).join('\n')
+        { errorMessage, details: error?.details ?? '' },
+        fallbackMessage
       );
     }
   }
@@ -695,7 +699,7 @@ class FrontlineRoadsApp {
       this.baseCommandUi.update();
       this.civilizationUi.updateSummary();
       this.roadsideSuppliesUi.update();
-      this.applyLocalization();
+      this.applyLocalization({ fullDocument: false });
       this.startRuntime();
       this.notifications.show(this.i18n.message('app.basePlacedOpening'), 7000);
     } catch (error) {
@@ -725,7 +729,7 @@ class FrontlineRoadsApp {
     this.baseCommandUi.update();
     this.civilizationUi.updateSummary();
     this.roadsideSuppliesUi.update();
-    this.applyLocalization();
+    this.applyLocalization({ fullDocument: false });
     this.renderer.render();
     return true;
   }
@@ -810,7 +814,7 @@ class FrontlineRoadsApp {
     setVisible(queryRequired('#offlineSummary'), false);
     setVisible(queryRequired('#gameOverReviewBanner'), false);
     setVisible(overlay, true);
-    this.applyLocalization();
+    this.applyLocalization({ fullDocument: false });
   }
 
   handleHomeBaseDestroyed(payload = {}) {
@@ -846,7 +850,7 @@ class FrontlineRoadsApp {
     if (summary.capped) parts.push(this.message('app.offlineCapped', {}, '長時間分は上限適用'));
     this.setOfflineText(parts.join(this.message('app.inlineSeparator', {}, '・')));
     setVisible(element, true);
-    this.applyLocalization();
+    this.applyLocalization({ fullDocument: false });
   }
 
   persist({ notify = true } = {}) {
