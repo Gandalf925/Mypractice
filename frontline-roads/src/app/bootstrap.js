@@ -1,10 +1,11 @@
 import { APP_VERSION, LifecycleState, ROAD_CONFIG } from '../core/constants.js';
+
 import { EventBus } from '../core/event-bus.js';
 import { createInitialState } from '../core/state-schema.js';
 import { StateStore } from '../core/state-store.js';
 import { cloneRuntimeState } from '../core/runtime-state.js';
 import { LifecycleController } from './lifecycle.js';
-import { GeolocationService } from '../location/geolocation-service.js';
+import { GeolocationService, AdaptiveLocationWatcher } from '../location/geolocation-service.js';
 import { latLonToXY } from '../location/location-privacy.js';
 import { OverpassClient } from '../roads/overpass-client.js';
 import { RoadService } from '../roads/road-service.js';
@@ -40,6 +41,20 @@ import { TabCoordinator } from '../persistence/tab-coordinator.js';
 import { registerPwa } from './pwa.js';
 import { I18nController } from '../i18n/catalog.js';
 import { GAME_OVER_SOURCE, isGameOverState, markHomeBaseDestroyed } from '../core/home-base-destruction.js';
+
+const LIFECYCLE_LABEL_KEYS = Object.freeze({
+  [LifecycleState.BOOT]: 'static.lifecycleBoot',
+  [LifecycleState.LOAD_SAVE]: 'static.lifecycleLoadSave',
+  [LifecycleState.MIGRATION]: 'static.lifecycleMigration',
+  [LifecycleState.LOCATION_REQUIRED]: 'static.lifecycleLocationRequired',
+  [LifecycleState.ROAD_LOADING]: 'static.lifecycleRoadLoading',
+  [LifecycleState.BASE_SELECTION]: 'static.lifecycleBaseSelection',
+  [LifecycleState.INITIALIZING]: 'static.lifecycleInitializing',
+  [LifecycleState.PLAYING]: 'static.lifecyclePlaying',
+  [LifecycleState.PAUSED]: 'static.lifecyclePaused',
+  [LifecycleState.ERROR]: 'static.lifecycleError',
+  [LifecycleState.DESTROYED]: 'static.lifecycleDestroyed'
+});
 
 
 async function clearFrontlineRoadsCaches() {
@@ -262,6 +277,13 @@ class FrontlineRoadsApp {
     queryRequired('#offlineText').textContent = this.localizePayload(this.offlineTextSource);
   }
 
+
+  setLifecycleText(lifecycle = this.store?.read?.(state => state.lifecycle) ?? LifecycleState.BOOT) {
+    const key = LIFECYCLE_LABEL_KEYS[lifecycle];
+    const label = key ? this.i18n.t(key, lifecycle) : String(lifecycle ?? '');
+    queryRequired('#lifecycleText').textContent = label;
+  }
+
   applyLocalization({ fullDocument = false } = {}) {
     if (this.baseSummarySource) queryRequired('#baseSummary').textContent = this.localizePayload(this.baseSummarySource, { status: true });
     if (this.offlineTextSource) queryRequired('#offlineText').textContent = this.localizePayload(this.offlineTextSource);
@@ -270,6 +292,7 @@ class FrontlineRoadsApp {
     this.baseScreen?.refreshLocalization?.();
     this.notifications?.refreshLocalization?.();
     if (fullDocument) this.i18n.apply(globalThis.document);
+    this.setLifecycleText();
   }
 
 
@@ -321,7 +344,7 @@ class FrontlineRoadsApp {
         ? this.messagePayload('app.bootFailedWithError', { errorMessage: error.message }, `起動に失敗しました：${error.message}`)
         : this.messagePayload('app.bootFailedGeneric', {}, '起動に失敗しました。ページを再読み込みしてください。');
       this.baseScreen.showError(message);
-      queryRequired('#lifecycleText').textContent = 'ERROR';
+      this.setLifecycleText(LifecycleState.ERROR);
     } catch {
       document.body.textContent = this.i18n.message('app.bootFailed');
     }
@@ -383,7 +406,7 @@ class FrontlineRoadsApp {
     });
     this.events.on('lifecycle:changed', ({ current }) => {
       document.documentElement.dataset.lifecycle = current;
-      queryRequired('#lifecycleText').textContent = current;
+      this.setLifecycleText(current);
     });
     this.events.on('civilization:level-up', () => { this.civilizationUi.render(); this.baseCommandUi.render(); this.applyLocalization({ fullDocument: false }); });
     this.events.on('combat:defense-destroyed', () => this.queueCriticalSave());
@@ -757,7 +780,8 @@ class FrontlineRoadsApp {
 
   startLocationTracking() {
     this.stopLocationWatch?.();
-    this.stopLocationWatch = this.geolocation.watchPosition(locationValue => {
+    this.locationWatcher ??= new AdaptiveLocationWatcher(this.geolocation);
+    this.stopLocationWatch = this.locationWatcher.start(locationValue => {
       if (isGameOverState(this.store.renderView())) return;
       const state = this.store.renderView();
       const worldPoint = latLonToXY(locationValue.lat, locationValue.lon, state.world.roadGraph.center);
@@ -816,7 +840,7 @@ class FrontlineRoadsApp {
     setVisible(details, Boolean(this.gameOverDetailsSource));
     stats.innerHTML = this.gameOverStatRows(gameOver).map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join('');
     document.documentElement.dataset.lifecycle = LifecycleState.DESTROYED;
-    queryRequired('#lifecycleText').textContent = LifecycleState.DESTROYED;
+    this.setLifecycleText(LifecycleState.DESTROYED);
     setVisible(queryRequired('#offlineSummary'), false);
     setVisible(queryRequired('#gameOverReviewBanner'), false);
     setVisible(overlay, true);

@@ -31,8 +31,13 @@ import { frontierPresentation } from '../exploration/frontier-system.js';
 import { RECOVERY_COLLECTION_DURATION_SECONDS, RECOVERY_ITEM_STATUS, RECOVERY_RANGE_METERS, isRecoveryItemVisible, recoveryEligibility, recoveryItemPoint, recoveryItemPresentation, recoveryItemStatusPresentation } from '../exploration/recovery-system.js';
 import { RESOURCE_LABELS } from '../civilization/data.js';
 import { defenseUpgradeStatus } from '../civilization/defense-upgrade.js';
-import { queryRequired, setVisible } from './dom.js';
+import { queryRequired, setVisible, uiViewState } from './dom.js';
 import { ensureRoadsideSupplyState, ROADSIDE_USE_DEFINITIONS } from '../exploration/roadside-supplies.js';
+
+
+const UI_CHROME_MESSAGE_KEYS = Object.freeze({
+  'ROUTES': 'ui.chrome.routes', 'SELECT': 'ui.chrome.select', 'DIST': 'ui.chrome.dist', 'ETA': 'ui.chrome.eta', 'RISK': 'ui.chrome.risk', 'CONTACT': 'ui.chrome.contact', 'VIA': 'ui.chrome.via', 'STATUS': 'ui.chrome.status', 'READY': 'ui.chrome.ready', 'SITES': 'ui.chrome.sites', 'SOURCE': 'ui.chrome.source', 'TYPE': 'ui.chrome.type', 'RADIUS': 'ui.chrome.radius', 'TRIGGER': 'ui.chrome.trigger', 'NODE': 'ui.chrome.node', 'ENTRY': 'ui.chrome.entry', 'TIME': 'ui.chrome.time', 'LOOT': 'ui.chrome.loot', 'RECOVERY': 'ui.chrome.recovery', 'BASE': 'ui.chrome.base', 'HEAL': 'ui.chrome.heal', 'HP': 'ui.chrome.hp', 'LV': 'ui.chrome.lv', 'XP': 'ui.chrome.xp', 'NEXT': 'ui.chrome.next', 'MEN': 'ui.chrome.men', 'ROLE': 'ui.chrome.role', 'ORDER': 'ui.chrome.order', 'SPEED': 'ui.chrome.speed', 'ENEMY DPS': 'ui.chrome.enemyDps', 'BASE DPS': 'ui.chrome.baseDps', 'RANGE': 'ui.chrome.range', 'ORIGIN': 'ui.chrome.origin', 'TARGET': 'ui.chrome.target', 'LEVEL': 'ui.chrome.level', 'PERSONA': 'ui.chrome.persona', 'TACTIC': 'ui.chrome.tactic', 'ROUTE': 'ui.chrome.route', 'DETOUR': 'ui.chrome.detour', 'DAMAGE': 'ui.chrome.damage', 'OBJECTIVE': 'ui.chrome.objective', 'SIGNAL': 'ui.chrome.signal', 'THREAT': 'ui.chrome.threat', 'YOU': 'ui.chrome.you', 'WAVES': 'ui.chrome.waves', 'ATTACKERS': 'ui.chrome.attackers', 'PRESSURE': 'ui.chrome.pressure', 'EXPANDED': 'ui.chrome.expanded', 'REMAIN': 'ui.chrome.remain', 'COMM': 'ui.chrome.comm', 'LINK': 'ui.chrome.link', 'RESPONSE': 'ui.chrome.response', 'ROADS': 'ui.chrome.roads', 'RETRY': 'ui.chrome.retry', 'TIER': 'ui.chrome.tier', 'CIV': 'ui.chrome.civ', 'KILLS': 'ui.chrome.kills', 'COST': 'ui.chrome.cost', 'FROM': 'ui.chrome.from', 'UNIT': 'ui.chrome.unit', 'SLOT': 'ui.chrome.slot', 'TIMING': 'ui.chrome.timing', 'ARRIVAL': 'ui.chrome.arrival', 'NO GPS': 'ui.chrome.noGps', 'RECALC': 'ui.chrome.recalc', 'UNDER ATTACK': 'ui.chrome.underAttack', 'HOSTILE': 'ui.chrome.hostile', 'NONE': 'ui.chrome.none', 'AUTO': 'ui.chrome.auto', 'MAX': 'ui.chrome.max', 'DONE': 'ui.chrome.done', 'CARRIED': 'ui.chrome.carried', 'EN ROUTE': 'ui.chrome.enRoute', 'COLLECTED': 'ui.chrome.collected', 'COMMON': 'ui.chrome.common', 'RARE': 'ui.chrome.rare', 'EPIC': 'ui.chrome.epic', 'LEGENDARY': 'ui.chrome.legendary'
+});
 
 
 function unitProgressText(squad) {
@@ -143,7 +148,14 @@ export class CombatUi {
     if (value && typeof value === 'object' && typeof value.key === 'string') {
       return this.msg(value.key, value.params ?? {}, value.fallback ?? value.key);
     }
-    return this.localize(String(value ?? ''));
+    const raw = String(value ?? '');
+    const chromeKey = UI_CHROME_MESSAGE_KEYS[raw.trim().toUpperCase()];
+    if (chromeKey) return this.msg(chromeKey, {}, raw);
+    return this.localize(raw);
+  }
+
+  chromeText(text = '') {
+    return this.textValue(String(text ?? ''));
   }
 
   defenseText(presentation, field) {
@@ -233,7 +245,7 @@ export class CombatUi {
 
   handleOwnedBaseRemoved({ cleanup = null } = {}) {
     if (!cleanup || !Number(cleanup.demobilizedSquads)) return;
-    const state = this.store.snapshot();
+    const state = uiViewState(this.store);
     if (this.selectedObject?.kind === 'friendlySquad' && !(state.combat?.friendlySquads ?? []).some(squad => squad.id === this.selectedObject.id && squad.hp > 0)) {
       this.clearObjectSelection();
       return;
@@ -256,7 +268,7 @@ export class CombatUi {
       .join('|');
   }
 
-  renderTools(state = this.store.snapshot()) {
+  renderTools(state = uiViewState(this.store)) {
     this.toolAffordabilitySignature = this.affordabilitySignature(state);
     this.toolLanguageSignature = this.i18n?.language ?? 'ja';
     this.tools.textContent = '';
@@ -323,7 +335,7 @@ export class CombatUi {
     ].join('|');
   }
 
-  refreshBuildPlacement(force = false, state = this.store.snapshot()) {
+  refreshBuildPlacement(force = false, state = uiViewState(this.store)) {
     if (this.selectedTool === 'select') {
       this.renderer.setBuildPlacement(null);
       return;
@@ -402,7 +414,7 @@ export class CombatUi {
     return nearby[0] ?? null;
   }
 
-  selectedFriendlySquad(state = this.store.snapshot()) {
+  selectedFriendlySquad(state = uiViewState(this.store)) {
     if (this.selectedObject?.kind !== 'friendlySquad') return null;
     return (state.combat.friendlySquads ?? []).find(squad => squad.id === this.selectedObject.id && squad.hp > 0) ?? null;
   }
@@ -420,7 +432,7 @@ export class CombatUi {
     } : null);
   }
 
-  planningSubject(state = this.store.snapshot()) {
+  planningSubject(state = uiViewState(this.store)) {
     if (!this.orderPlanning) return null;
     if (this.orderPlanning.mode === FRIENDLY_ORDER_MODE.DEPLOYMENT) {
       const originNodeId = this.orderPlanning.originNodeId;
@@ -431,7 +443,7 @@ export class CombatUi {
     return (state.combat.friendlySquads ?? []).find(item => item.id === this.orderPlanning.squadId && item.hp > 0) ?? null;
   }
 
-  rebuildOrderRoutes(state = this.store.snapshot()) {
+  rebuildOrderRoutes(state = uiViewState(this.store)) {
     if (!this.orderPlanning) return;
     const subject = this.planningSubject(state);
     if (!subject) { this.cancelOrderPlanning(); return; }
@@ -452,7 +464,7 @@ export class CombatUi {
   }
 
   beginDeploymentRoutePlanning({ originNodeId, squadType, destinationNodeId, targetLabel = '敵拠点', confirmLabel = null, onConfirm = null, onCancel = null }) {
-    const state = this.store.snapshot();
+    const state = uiViewState(this.store);
     if (!state.world.roadGraph.nodeById.has(originNodeId) || !state.world.roadGraph.nodeById.has(destinationNodeId)) {
       this.showMessage('combat.routeEndpointsMissing', {}, '派兵経路の始点または目的地が道路上にありません。');
       return false;
@@ -486,7 +498,7 @@ export class CombatUi {
   }
 
   beginOrderPlanning(mode) {
-    const state = this.store.snapshot();
+    const state = uiViewState(this.store);
     const squad = this.selectedFriendlySquad(state);
     if (!squad) return;
     const destinationNodeId = orderDestinationNodeId(state, squad, mode);
@@ -517,7 +529,7 @@ export class CombatUi {
   }
 
   handleOrderPlanningTap(worldPoint) {
-    const state = this.store.snapshot();
+    const state = uiViewState(this.store);
     const squad = this.planningSubject(state);
     if (!this.orderPlanning || !squad) return;
     if (this.orderPlanning.destinationNodeId && this.orderPlanning.routes.length) {
@@ -617,7 +629,7 @@ export class CombatUi {
       this.renderContext();
       return;
     }
-    const currentState = this.store.snapshot();
+    const currentState = uiViewState(this.store);
     const currentSquad = (currentState.combat.friendlySquads ?? []).find(item => item.id === this.orderPlanning.squadId);
     const order = this.orderPlanning.mode === FRIENDLY_ORDER_MODE.RETREAT
       ? FRIENDLY_SQUAD_ORDER.RETREAT
@@ -796,7 +808,7 @@ export class CombatUi {
       return;
     }
     if (this.selectedTool === 'select') {
-      const state = this.store.snapshot();
+      const state = uiViewState(this.store);
       const nextObject = this.nearestObject(state, worldPoint, 24 / this.camera.scale, this.selectedObject);
       const sameObject = nextObject
         && this.selectedObject
@@ -815,7 +827,7 @@ export class CombatUi {
       return;
     }
 
-    const state = this.store.snapshot();
+    const state = uiViewState(this.store);
     const result = this.buildSystem.previewAt(state, this.selectedTool, worldPoint, 24 / this.camera.scale);
     if (!result.ok) {
       this.buildCandidate = null;
@@ -832,7 +844,7 @@ export class CombatUi {
 
   confirmBuildCandidate() {
     if (!this.buildCandidate || this.selectedTool === 'select') return;
-    const state = this.store.snapshot();
+    const state = uiViewState(this.store);
     const validation = this.buildSystem.validateCandidate(state, this.buildCandidate, { checkResources: true });
     if (!validation.ok) {
       this.notifications.show(this.reasonPayload(validation, 'combat.panel.buildFailed', '建設できません。'));
@@ -1009,7 +1021,7 @@ export class CombatUi {
       const item = document.createElement('span');
       const key = document.createElement('small');
       const value = document.createElement('b');
-      key.textContent = this.localize(keyText);
+      key.textContent = this.textValue(keyText);
       value.textContent = this.localize(valueText);
       item.append(key, value);
       grid.appendChild(item);
@@ -1111,7 +1123,7 @@ export class CombatUi {
     ].join('|');
   }
 
-  renderBuildContext(state = this.store.snapshot()) {
+  renderBuildContext(state = uiViewState(this.store)) {
     const definition = DEFENSE_DEFINITIONS[this.selectedTool];
     const presentation = defensePresentation(this.selectedTool, definition);
     if (!definition || !presentation) {
@@ -1162,7 +1174,7 @@ export class CombatUi {
     setVisible(this.context, true);
   }
 
-  renderContext(state = this.store.snapshot()) {
+  renderContext(state = uiViewState(this.store)) {
     if (this.selectedTool !== 'select') {
       this.renderBuildContext(state);
       return;
@@ -1528,7 +1540,7 @@ export class CombatUi {
     setVisible(this.context, true);
   }
 
-  update(state = this.store.snapshot()) {
+  update(state = uiViewState(this.store)) {
     this.cityHp.textContent = `${Math.ceil(state.world.city?.hp ?? 0)}/${Math.ceil(state.world.city?.maxHp ?? 0)}`;
     this.enemyCount.textContent = enemyTotalPopulation(state);
     this.civilizationLevel.textContent = state.civilization.level;

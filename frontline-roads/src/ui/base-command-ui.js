@@ -7,7 +7,7 @@ import {
 } from '../base/field-bases.js';
 import { enemyPosition } from '../combat/enemy-system.js';
 import { defenseWorldPosition } from '../combat/combat-geometry.js';
-import { bindDismissibleModal, escapeHtml, queryRequired, setVisible } from './dom.js';
+import { bindDismissibleModal, escapeHtml, queryRequired, setVisible, uiViewState } from './dom.js';
 import { bundleText } from '../civilization/inventory-system.js';
 import { diagnoseFieldBaseNetwork } from '../base/field-base-system.js';
 import { friendlySquadCapacityForBase } from '../combat/friendly-force-system.js';
@@ -250,7 +250,7 @@ export class BaseCommandUi {
   }
 
   open() {
-    const state = this.store.snapshot();
+    const state = uiViewState(this.store);
     const bases = this.availableBases(state);
     if (!bases.some(base => base.id === this.focusedBaseId)) {
       this.focusedBaseId = bases[0]?.id ?? null;
@@ -262,12 +262,12 @@ export class BaseCommandUi {
 
   close() { setVisible(this.panel, false); }
 
-  selectedBase(state = this.store.snapshot()) {
+  selectedBase(state = uiViewState(this.store)) {
     const bases = this.availableBases(state);
     return bases.find(base => base.id === this.focusedBaseId) ?? bases[0] ?? null;
   }
 
-  focusCurrentBase(state = this.store.snapshot()) {
+  focusCurrentBase(state = uiViewState(this.store)) {
     const base = this.selectedBase(state);
     if (!base) return false;
     this.focusedBaseId = base.id;
@@ -277,12 +277,12 @@ export class BaseCommandUi {
     return true;
   }
 
-  update(state = this.store.snapshot()) {
+  update(state = uiViewState(this.store)) {
     this.updateSummary(state);
     if (!this.panel.hidden && Date.now() - this.lastRenderAt >= 1000) this.render(state);
   }
 
-  updateSummary(state = this.store.snapshot()) {
+  updateSummary(state = uiViewState(this.store)) {
     const major = activePlayerBases(state);
     const majorSlots = playerBaseSlotsUsed(state);
     const field = state.world?.fieldBases ?? [];
@@ -315,7 +315,7 @@ export class BaseCommandUi {
     if (!button) return;
     const { action, baseId, baseKind } = button.dataset;
     if (action === 'focus-base') {
-      const state = this.store.snapshot();
+      const state = uiViewState(this.store);
       const pool = baseKind === 'field' ? (state.world?.fieldBases ?? []) : (state.world?.playerBases ?? []);
       const base = pool.find(value => value.id === baseId);
       if (!base) return;
@@ -388,7 +388,7 @@ export class BaseCommandUi {
       this.store.transaction(state => { result = this.system.dismantle(state, baseId); }, 'base:player-dismantled', { emit: true, validate: true });
       if (!result?.ok) this.notifyFailure(result, 'baseCommand.dismantleMajorFailed', '主要拠点を撤去できません。');
       else {
-        const state = this.store.snapshot();
+        const state = uiViewState(this.store);
         this.focusedBaseId = (state.world?.playerBases ?? [])[0]?.id ?? (state.world?.fieldBases ?? [])[0]?.id ?? null;
         this.focusedBaseKind = 'major';
         this.renderer.invalidateStatic();
@@ -405,7 +405,7 @@ export class BaseCommandUi {
       this.store.transaction(state => { result = this.fieldSystem.dismantle(state, baseId); }, 'base:field-dismantled', { emit: true, validate: true });
       if (!result?.ok) this.notifyFailure(result, 'baseCommand.dismantleFieldFailed', '簡易拠点を撤去できません。');
       else {
-        const state = this.store.snapshot();
+        const state = uiViewState(this.store);
         this.focusedBaseId = (state.world?.playerBases ?? [])[0]?.id ?? (state.world?.fieldBases ?? [])[0]?.id ?? null;
         this.focusedBaseKind = 'major';
         this.renderer.invalidateStatic();
@@ -417,7 +417,7 @@ export class BaseCommandUi {
     }
   }
 
-  render(state = this.store.snapshot()) {
+  render(state = uiViewState(this.store)) {
     this.lastRenderAt = Date.now();
     const h = (key, params = {}, fallback = '') => this.htmlMsg(key, params, fallback);
     const majorBases = state.world?.playerBases ?? [];

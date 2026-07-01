@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.38.46-multilingual-payload-completion';
+export const APP_VERSION = '0.38.52-i18n-flatten-performance-hardening';
 export const SAVE_KEY = 'frontline_roads_refactor_v2';
 export const SCHEMA_VERSION = 2;
 

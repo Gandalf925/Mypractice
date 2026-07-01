@@ -4,7 +4,7 @@ import {
 } from '../civilization/data.js';
 import { bundleText, currentCivilization, hasBundle } from '../civilization/inventory-system.js';
 import { evaluateProject, projectContributionReserve, safeProjectContributionAmount } from '../civilization/progression-system.js';
-import { bindDismissibleModal, escapeHtml, queryRequired, setVisible } from './dom.js';
+import { bindDismissibleModal, escapeHtml, queryRequired, setVisible, uiViewState } from './dom.js';
 import { usedSettlementSlots, settlementSlotLimit, isStorageBuildingType } from '../civilization/settlement-system.js';
 import { baseLimitForCivilization } from '../base/player-bases.js';
 import { fieldBaseLimitForCivilization, fieldBaseSlotsUsed } from '../base/field-bases.js';
@@ -321,6 +321,7 @@ const CHECK_LABEL_KEYS = Object.freeze({
 });
 
 function checkLabel(check, i18n = null) {
+  if (SETTLEMENT_BUILDINGS[check.key]) return buildingName(i18n, SETTLEMENT_BUILDINGS[check.key]);
   const [key, fallback] = CHECK_LABEL_KEYS[check.key] ?? [null, check.key];
   return key ? messageValue(i18n, key, {}, fallback) : String(check.key);
 }
@@ -506,12 +507,12 @@ export class CivilizationUi {
     }
   }
 
-  update(state = this.store.snapshot()) {
+  update(state = uiViewState(this.store)) {
     this.updateSummary(state);
     if (!this.panel.hidden && Date.now() - this.lastPanelRenderAt >= 1000) this.render(state);
   }
 
-  updateSummary(state = this.store.snapshot()) {
+  updateSummary(state = uiViewState(this.store)) {
     const visibleResources = RESOURCE_KEYS.filter(key =>
       (state.inventory.resources[key] ?? 0) > 0
       || ['wood', 'stone', 'fiber'].includes(key)
@@ -531,7 +532,7 @@ export class CivilizationUi {
     );
   }
 
-  render(state = this.store.snapshot()) {
+  render(state = uiViewState(this.store)) {
     this.updateSummary(state);
     this.lastPanelRenderAt = Date.now();
     const civilization = currentCivilization(state);

@@ -87,7 +87,7 @@ function drawEnemyBase(context, point, timeMs, quality) {
   context.font = '700 8px ui-monospace, monospace';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
-  context.fillText('HOST', point.x, point.y + 0.5);
+  context.fillText('◆', point.x, point.y + 0.5);
   context.restore();
 }
 
@@ -220,7 +220,7 @@ function drawFriendlySquad(context, point, status, type, timeMs, quality) {
   context.font = '800 7px ui-monospace, monospace';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
-  context.fillText(definition.shortLabel, point.x, point.y + 0.5);
+  context.fillText(({ assault: '◆', skirmisher: '△', siege: '⬟', heavy: '⬢', expedition: '◇', retrieval: '◎', engineer: '✚', artillery: '✦', command: '★' })[definition.type] ?? '◆', point.x, point.y + 0.5);
   context.restore();
 }
 
@@ -236,7 +236,7 @@ function drawCity(context, point, timeMs, quality) {
   context.font = '800 8px ui-monospace, monospace';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
-  context.fillText('HQ', point.x, point.y + 0.4);
+  context.fillText('◎', point.x, point.y + 0.4);
   context.restore();
 }
 
@@ -252,7 +252,7 @@ function drawFieldBase(context, point, active, timeMs, quality) {
   context.font = '800 7px ui-monospace, monospace';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
-  context.fillText(active ? 'FIELD' : 'RUIN', point.x, point.y + 0.4);
+  context.fillText(active ? '□' : '×', point.x, point.y + 0.4);
   context.restore();
 }
 
@@ -266,7 +266,7 @@ function drawPlayerBase(context, point, timeMs, quality) {
   context.font = '800 7px ui-monospace, monospace';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
-  context.fillText('BASE', point.x, point.y + 0.4);
+  context.fillText('⬢', point.x, point.y + 0.4);
   context.restore();
 }
 
@@ -373,17 +373,17 @@ function drawRoadsideSupply(context, point, item, timeMs, quality) {
   context.font = '800 7px ui-monospace, monospace';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
-  context.fillText(item?.kind === 'resource' ? 'RES' : 'ITM', point.x, point.y + 0.5);
+  context.fillText(item?.kind === 'resource' ? '◇' : '◈', point.x, point.y + 0.5);
   context.restore();
 }
 
 function drawRecoveryItem(context, point, timeMs, quality, status = RECOVERY_ITEM_STATUS.AVAILABLE) {
   const pulse = 11 + Math.sin(timeMs * 0.005) * 1.5;
   const palette = status === RECOVERY_ITEM_STATUS.RESERVED
-    ? { color: '#6ee7ff', fill: 'rgba(110,231,255,0.18)', text: 'WAIT', glow: 12, dashed: true }
+    ? { color: '#6ee7ff', fill: 'rgba(110,231,255,0.18)', text: '…', glow: 12, dashed: true }
     : status === RECOVERY_ITEM_STATUS.CARRIED
-      ? { color: '#65ffd0', fill: 'rgba(101,255,208,0.18)', text: 'LOAD', glow: 10, dashed: false }
-      : { color: '#ffd166', fill: 'rgba(255,209,102,0.2)', text: 'ITEM', glow: 16, dashed: true };
+      ? { color: '#65ffd0', fill: 'rgba(101,255,208,0.18)', text: '→', glow: 10, dashed: false }
+      : { color: '#ffd166', fill: 'rgba(255,209,102,0.2)', text: '◇', glow: 16, dashed: true };
   context.save();
   glow(context, palette.color, palette.glow, quality);
   polygon(context, point, 6, 4, Math.PI / 4, palette.fill, palette.color, 1.5);

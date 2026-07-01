@@ -1,7 +1,7 @@
 'use strict';
 const CACHE_PREFIX = 'frontline-roads-';
-const RELEASE_VERSION = '0.38.46';
-const CACHE_NAME = `${CACHE_PREFIX}v0-38-46-multilingual-payload-completion`;
+const RELEASE_VERSION = '0.38.52';
+const CACHE_NAME = `${CACHE_PREFIX}v0-38-52-i18n-flatten-performance-hardening`;
 const APP_SHELL = [
   './',
   './index.html',
@@ -69,6 +69,7 @@ const APP_SHELL = [
   './src/core/state-normalizer.js',
   './src/core/utilities.js',
   './src/i18n/catalog.js',
+  './src/i18n/runtime-messages.generated.js',
   './src/exploration/frontier-system.js',
   './src/exploration/exploration-system.js',
   './src/exploration/recovery-system.js',
@@ -140,15 +141,6 @@ async function cacheResponse(request, response) {
   return response;
 }
 
-async function refreshAsset(request) {
-  try {
-    const response = await fetchWithTimeout(request);
-    await cacheResponse(request, response);
-  } catch {
-    // Cached application assets remain usable while the network is suspended.
-  }
-}
-
 function canonicalRequest(request) {
   const url = new URL(request.url);
   const requestedVersion = url.searchParams.get('v');
@@ -157,15 +149,16 @@ function canonicalRequest(request) {
   return new Request(url.href, { method: 'GET', headers: request.headers, mode: request.mode, credentials: request.credentials, redirect: request.redirect });
 }
 
-async function serveApplicationAsset(request, event) {
+async function serveApplicationAsset(request) {
+  // Cache-first without background revalidation: application assets are
+  // immutable within a release (the cache name embeds the release version and
+  // install pre-caches the full shell), so re-fetching on every hit only
+  // wasted bandwidth. Updates arrive through a new release cache.
   const cache = await caches.open(CACHE_NAME);
   const direct = await cache.match(request);
   const canonical = direct ? null : canonicalRequest(request);
   const cached = direct ?? (canonical ? await cache.match(canonical) : null);
-  if (cached) {
-    event.waitUntil(refreshAsset(request));
-    return cached;
-  }
+  if (cached) return cached;
   try {
     return await cacheResponse(request, await fetchWithTimeout(request));
   } catch {
@@ -199,5 +192,5 @@ self.addEventListener('fetch', event => {
     event.respondWith(serveNavigation(event.request));
     return;
   }
-  event.respondWith(serveApplicationAsset(event.request, event));
+  event.respondWith(serveApplicationAsset(event.request));
 });

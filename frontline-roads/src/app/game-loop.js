@@ -74,6 +74,12 @@ export class GameLoop {
     const steps = Math.min(profile.maxCatchUpSteps, Math.floor(this.simulationAccumulator / simulationStep));
     if (steps <= 0) return false;
     this.simulationAccumulator -= steps * simulationStep;
+    // Clamp the residual accumulator: after a long requestAnimationFrame gap
+    // (tab throttling that never fired visibilitychange, severe jank) the
+    // remainder would otherwise force max catch-up steps every frame and the
+    // game would fast-forward for a long stretch. Large real-time gaps are the
+    // offline simulator's job, not the frame loop's.
+    if (this.simulationAccumulator > simulationStep) this.simulationAccumulator = simulationStep;
 
     this.store.advance(state => {
       for (let index = 0; index < steps; index += 1) {

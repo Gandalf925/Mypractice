@@ -1,4 +1,4 @@
-import { SAVE_KEY } from '../core/constants.js';
+import { SAVE_KEY, SCHEMA_VERSION } from '../core/constants.js';
 import { AppError, ErrorCode } from '../core/errors.js';
 import { deepClone } from '../core/utilities.js';
 import { validateState } from '../core/state-schema.js';
@@ -29,7 +29,8 @@ const SAVE_WARNING = Object.freeze({
   resetMarkerDetected: messageSource('save.resetMarkerDetected', '初期化前の保存データを検出したため、新しいゲームとして開始します。'),
   corruptSaveQuarantined: messageSource('save.corruptSaveQuarantined', '保存データが破損していたため、新しいゲームとして開始します。破損データは無効化しました。'),
   loadFailed: messageSource('save.loadFailed', '保存データを読み込めなかったため、新しいゲームとして開始します。'),
-  saveFailedProgressLost: messageSource('save.saveFailedProgressLost', '保存に失敗しました。このタブを閉じると、以後の進行状況は失われます。')
+  saveFailedProgressLost: messageSource('save.saveFailedProgressLost', '保存に失敗しました。このタブを閉じると、以後の進行状況は失われます。'),
+  newerSchemaReadOnly: messageSource('save.newerSchemaReadOnly', 'このセーブデータは新しいバージョンで作成されています。データ保護のため、このバージョンでは保存を無効化して新規セッションを開始します。最新バージョンのURLからアクセスしてください。')
 });
 
 function sanitizeGraph(graph) {
@@ -162,6 +163,15 @@ export class SaveRepository {
       }
       if (!raw) return null;
       let state = restoreEncodedGraph(JSON.parse(raw));
+      const savedSchemaVersion = Number(state?.schemaVersion);
+      if (Number.isFinite(savedSchemaVersion) && savedSchemaVersion > SCHEMA_VERSION) {
+        // The save was written by a newer application version (immutable old
+        // releases can outlive new ones on shared-origin hosting). Never
+        // migrate, quarantine, or overwrite it: disable persistence for this
+        // session so the newer save survives untouched.
+        this.markUnavailable(SAVE_WARNING.newerSchemaReadOnly);
+        return null;
+      }
       if (isLegacySave(state)) {
         state = migrateLegacySave(state);
         const { copy: sanitizedLegacy } = sanitizeState(state);

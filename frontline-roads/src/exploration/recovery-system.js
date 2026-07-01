@@ -39,13 +39,13 @@ export function isRecoveryItemVisible(item) {
 export function recoveryItemStatusPresentation(item) {
   switch (item?.status) {
     case RECOVERY_ITEM_STATUS.RESERVED:
-      return { label: '回収部隊移動中', shortLabel: 'EN ROUTE', detail: '回収部隊が到着するまで、破壊地点に残っています。' };
+      return { label: '回収部隊移動中', shortLabel: '移動中', detail: '回収部隊が到着するまで、破壊地点に残っています。' };
     case RECOVERY_ITEM_STATUS.CARRIED:
-      return { label: '搬送中', shortLabel: 'CARRIED', detail: '回収部隊が回収物を持ち帰っています。拠点到着後に資源と実績へ反映されます。' };
+      return { label: '搬送中', shortLabel: '搬送中', detail: '回収部隊が回収物を持ち帰っています。拠点到着後に資源と実績へ反映されます。' };
     case RECOVERY_ITEM_STATUS.AVAILABLE:
-      return { label: '未回収', shortLabel: 'READY', detail: '現地回収または回収部隊の派遣が可能です。' };
+      return { label: '未回収', shortLabel: '未回収', detail: '現地回収または回収部隊の派遣が可能です。' };
     default:
-      return { label: '回収済み', shortLabel: 'DONE', detail: 'この回収物は既に処理されています。' };
+      return { label: '回収済み', shortLabel: '回収済み', detail: 'この回収物は既に処理されています。' };
   }
 }
 

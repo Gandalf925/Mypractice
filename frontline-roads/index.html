@@ -19,7 +19,7 @@
     #assetRecovery button { width: 100%; margin-top: 16px; padding: 12px 14px; border: 1px solid rgba(101,255,208,.72); background: #062019; color: #dffdf4; font: inherit; font-weight: 700; }
   </style>
   <script>
-    globalThis.__FRONTLINE_RELEASE__ = Object.freeze({ version: '0.38.46', directory: 'frontline-roads' });
+    globalThis.__FRONTLINE_RELEASE__ = Object.freeze({ version: '0.38.52', directory: 'frontline-roads' });
     (() => {
       const release = globalThis.__FRONTLINE_RELEASE__;
       const navigatorRef = globalThis.navigator;
@@ -129,12 +129,36 @@
       recovery.removeAttribute('hidden');
       recovery.querySelector('button')?.addEventListener('click', () => location.reload(), { once: true });
     };
+    globalThis.__FRONTLINE_BOOT_DONE__ = false;
+    const bootRecoveryMessages = {
+      en: 'Resume loading did not finish. Reload to return from the saved game.',
+      ja: '復帰時の読み込みが完了しませんでした。再読み込みすると保存済みのゲームから復帰します。',
+      zh: '恢复加载未完成。重新加载后可从已保存的游戏继续。',
+      'zh-TW': '復原載入未完成。重新載入後可從已儲存的遊戲繼續。',
+      ko: '복귀 로딩이 완료되지 않았습니다. 다시 불러오면 저장된 게임에서 복귀합니다.',
+      vi: 'Quá trình tải khôi phục chưa hoàn tất. Tải lại để quay lại từ bản lưu.',
+      'pt-BR': 'O carregamento de retomada não foi concluído. Recarregue para voltar ao jogo salvo.',
+      tr: 'Devam yüklemesi tamamlanmadı. Kaydedilmiş oyuna dönmek için yeniden yükleyin.',
+      id: 'Pemuatan pemulihan belum selesai. Muat ulang untuk kembali dari game tersimpan.',
+      ru: 'Загрузка восстановления не завершилась. Перезагрузите страницу, чтобы вернуться к сохранённой игре.',
+      'es-419': 'La carga de reanudación no terminó. Recarga para volver desde la partida guardada.'
+    };
+    const bootRecoveryLanguage = () => {
+      try { return localStorage.getItem('frontline-roads.language') || navigator.language || 'en'; } catch { return navigator.language || 'en'; }
+    };
+    const bootRecoveryText = () => {
+      const raw = bootRecoveryLanguage();
+      const code = raw === 'zh-TW' || raw?.toLowerCase?.().startsWith('zh-tw') ? 'zh-TW'
+        : raw === 'pt-BR' || raw?.toLowerCase?.().startsWith('pt-br') ? 'pt-BR'
+          : raw === 'es-419' || raw?.toLowerCase?.().startsWith('es') ? 'es-419'
+            : String(raw || 'en').slice(0, 2);
+      return bootRecoveryMessages[code] || bootRecoveryMessages.en;
+    };
     globalThis.__FRONTLINE_BOOT_TIMER__ = setTimeout(() => {
-      if (document.querySelector('#lifecycleText')?.textContent === 'BOOT') {
-        globalThis.__FRONTLINE_SHOW_BOOT_RECOVERY__('復帰時の読み込みが完了しませんでした。再読み込みすると保存済みのゲームから復帰します。');
-      }
+      if (!globalThis.__FRONTLINE_BOOT_DONE__) globalThis.__FRONTLINE_SHOW_BOOT_RECOVERY__(bootRecoveryText());
     }, 12000);
     globalThis.__FRONTLINE_BOOT_COMPLETE__ = () => {
+      globalThis.__FRONTLINE_BOOT_DONE__ = true;
       clearTimeout(globalThis.__FRONTLINE_BOOT_TIMER__);
       globalThis.__FRONTLINE_BOOT_TIMER__ = null;
     };
@@ -146,12 +170,12 @@
 
     <header id="statusBar">
       <span>FRONTLINE ROADS</span>
-      <span id="lifecycleText">BOOT</span>
+      <span id="lifecycleText" data-i18n="static.lifecycleBoot">BOOT</span>
     </header>
 
     <section id="basePlacementOverlay" class="overlay">
       <div class="panel">
-        <div id="bootLanguageButtons" class="bootLanguageButtons" role="group" aria-label="Language"></div>
+        <div id="bootLanguageButtons" class="bootLanguageButtons" role="group" aria-label="Language" data-i18n-aria-label="language.title"></div>
         <div class="panelHeader">
           <p class="eyebrow" data-i18n="static.basePlacementEyebrow">RADAR INITIALIZATION // 初回拠点設置</p>
           <h1 data-i18n="static.basePlacementTitle">1km以内の道路を直接選択</h1>
@@ -191,10 +215,10 @@
         <div id="resourceSummary" class="resourceSummary" role="group" aria-label="保有資材" data-i18n-aria-label="aria.resourceSummary"></div>
         <div id="baseSummary" class="baseSummary">拠点設置済み</div>
         <div id="gameMapControls" class="gameMapControls" aria-label="戦術地図操作" data-i18n-aria-label="aria.tacticalMapControls">
-          <button id="gameZoomIn" type="button" aria-label="地図を拡大" title="地図を拡大">＋</button>
-          <button id="gameZoomOut" type="button" aria-label="地図を縮小" title="地図を縮小">−</button>
-          <button id="focusSelectedBase" type="button" aria-label="選択中の拠点へ移動" title="選択中の拠点へ移動" data-i18n="static.focusBaseShort">拠</button>
-          <button id="focusPlayer" type="button" aria-label="現在地へ移動" title="現在地へ移動" data-i18n="static.focusPlayerShort">現</button>
+          <button id="gameZoomIn" type="button" aria-label="拡大" title="拡大" data-i18n-aria-label="aria.zoomIn" data-i18n-title="aria.zoomIn">＋</button>
+          <button id="gameZoomOut" type="button" aria-label="縮小" title="縮小" data-i18n-aria-label="aria.zoomOut" data-i18n-title="aria.zoomOut">−</button>
+          <button id="focusSelectedBase" type="button" aria-label="選択中の拠点へ移動" title="選択中の拠点へ移動" data-i18n="static.focusBaseShort" data-i18n-aria-label="aria.focusSelectedBase" data-i18n-title="aria.focusSelectedBase">拠</button>
+          <button id="focusPlayer" type="button" aria-label="現在地へ移動" title="現在地へ移動" data-i18n="static.focusPlayerShort" data-i18n-aria-label="aria.focusPlayer" data-i18n-title="aria.focusPlayer">現</button>
         </div>
         <div id="storageWarning" class="storageWarning" hidden></div>
       </div>
@@ -245,35 +269,35 @@
 
     <section id="baseCommandPanel" class="modalOverlay" hidden aria-label="拠点司令部" data-i18n-aria-label="static.baseCommandLabel">
       <div class="modalCard baseCommandModalCard">
-        <header class="modalHeader"><div><span class="eyebrow">BASE COMMAND</span><h1 data-i18n="static.baseCommandTitle">拠点司令部</h1></div><button id="closeBaseCommand" type="button">×</button></header>
+        <header class="modalHeader"><div><span class="eyebrow" data-i18n="static.baseCommandEyebrow">BASE COMMAND</span><h1 data-i18n="static.baseCommandTitle">拠点司令部</h1></div><button id="closeBaseCommand" type="button">×</button></header>
         <div id="baseCommandBody" class="modalBody"></div>
       </div>
     </section>
 
     <section id="deploymentPanel" class="modalOverlay deploymentOverlay" hidden aria-label="選択目標への派兵" data-i18n-aria-label="static.deploymentLabel">
       <div class="modalCard deploymentModalCard">
-        <header class="modalHeader"><div><span class="eyebrow">FIELD OPERATIONS</span><h1 id="deploymentTitle">選択目標への派兵</h1></div><button id="closeDeployment" type="button">×</button></header>
+        <header class="modalHeader"><div><span class="eyebrow" data-i18n="static.deploymentEyebrow">FIELD OPERATIONS</span><h1 id="deploymentTitle">選択目標への派兵</h1></div><button id="closeDeployment" type="button">×</button></header>
         <div id="deploymentBody" class="modalBody"></div>
       </div>
     </section>
 
     <section id="civilizationPanel" class="modalOverlay" hidden aria-label="文明と生産" data-i18n-aria-label="static.civilizationLabel">
       <div class="modalCard civilizationCard">
-        <header class="modalHeader"><div><span class="eyebrow">CIVILIZATION CONTROL</span><h1 data-i18n="static.civilizationTitle">文明・資源・生産</h1></div><button id="closeCivilization" type="button">×</button></header>
+        <header class="modalHeader"><div><span class="eyebrow" data-i18n="static.civilizationEyebrow">CIVILIZATION CONTROL</span><h1 data-i18n="static.civilizationTitle">文明・資源・生産</h1></div><button id="closeCivilization" type="button">×</button></header>
         <div id="civilizationBody" class="modalBody"></div>
       </div>
     </section>
 
     <section id="suppliesPanel" class="modalOverlay" hidden aria-label="道端物資とインベントリ" data-i18n-aria-label="static.suppliesLabel">
       <div class="modalCard suppliesCard">
-        <header class="modalHeader"><div><span class="eyebrow">ROADSIDE SUPPLIES</span><h1 data-i18n="static.suppliesTitle">道端物資・消耗品</h1></div><button id="closeSupplies" type="button">×</button></header>
+        <header class="modalHeader"><div><span class="eyebrow" data-i18n="static.suppliesEyebrow">ROADSIDE SUPPLIES</span><h1 data-i18n="static.suppliesTitle">道端物資・消耗品</h1></div><button id="closeSupplies" type="button">×</button></header>
         <div id="suppliesBody" class="modalBody"></div>
       </div>
     </section>
 
     <section id="menuPanel" class="modalOverlay" hidden aria-label="メニュー" data-i18n-aria-label="menu.title">
       <div class="modalCard menuCard">
-        <header class="modalHeader"><div><span class="eyebrow">SYSTEM MENU</span><h1 data-i18n="menu.title">メニュー</h1></div><button id="closeMenu" type="button">×</button></header>
+        <header class="modalHeader"><div><span class="eyebrow" data-i18n="static.menuEyebrow">SYSTEM MENU</span><h1 data-i18n="menu.title">メニュー</h1></div><button id="closeMenu" type="button">×</button></header>
         <div class="modalBody menuBody">
           <div class="uiTabBar" role="tablist" aria-label="メニュー表示切替" data-i18n-aria-label="aria.menuSwitch">
             <button type="button" class="active" data-menu-tab="ops" data-i18n="menu.tabOps">作戦</button>
@@ -298,7 +322,7 @@
             <div class="languageSettings">
               <h3 data-i18n="language.title">言語</h3>
               <p id="languageDescription" class="sectionNote" data-i18n="language.description">画面表示に使う言語を切り替えます。ゲーム進行やセーブ内容には影響しません。</p>
-              <div id="languageButtons" class="radarSettingButtons" role="group" aria-label="Language"></div>
+              <div id="languageButtons" class="radarSettingButtons" role="group" aria-label="Language" data-i18n-aria-label="language.title"></div>
             </div>
           </section>
           <section class="uiTabPanel" data-menu-panel="system">

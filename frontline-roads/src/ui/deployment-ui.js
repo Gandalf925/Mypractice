@@ -7,7 +7,7 @@ import {
 import { bundleText } from '../civilization/inventory-system.js';
 import { RECOVERY_ITEM_STATUS, recoveryItemPresentation } from '../exploration/recovery-system.js';
 import { friendlySquadXpForNextLevel } from '../combat/friendly-force-definitions.js';
-import { bindDismissibleModal, escapeHtml, queryRequired, setVisible } from './dom.js';
+import { bindDismissibleModal, escapeHtml, queryRequired, setVisible, uiViewState } from './dom.js';
 
 const MISSION_KIND = Object.freeze({ ATTACK: 'ATTACK', INTERCEPT: 'INTERCEPT', RECOVERY: 'RECOVERY' });
 const DEPLOYMENT_MODE = Object.freeze({ SINGLE: 'SINGLE', COORDINATED: 'COORDINATED' });
@@ -61,6 +61,10 @@ export class DeploymentUi {
   html(text = '') { return escapeHtml(text); }
 
   htmlMsg(key, params = {}, fallback = '') { return this.html(this.msg(key, params, fallback)); }
+
+  chromeMsg(key, fallback = '') { return this.msg(`ui.chrome.${key}`, {}, fallback); }
+
+  htmlChrome(key, fallback = '') { return this.html(this.chromeMsg(key, fallback)); }
 
   bundleText(bundle = {}) { return this.i18n?.compactBundleText?.(bundle) ?? bundleText(bundle); }
 
@@ -159,7 +163,7 @@ export class DeploymentUi {
     this.targetId = targetId;
     this.selectedRoutePlan = null;
     this.originBaseId = null;
-    const state = this.store.snapshot();
+    const state = uiViewState(this.store);
     this.normalizeSelection(state);
     if (!this.currentTarget(state)) {
       const key = this.missionKind === MISSION_KIND.RECOVERY
@@ -184,7 +188,7 @@ export class DeploymentUi {
     setVisible(this.panel, false);
   }
 
-  update(state = this.store.snapshot()) {
+  update(state = uiViewState(this.store)) {
     if (!this.panel.hidden && Date.now() - this.lastRenderAt >= 1000) {
       if (!this.currentTarget(state)) {
         this.close();
@@ -198,11 +202,11 @@ export class DeploymentUi {
     return FRIENDLY_SQUAD_TYPES.filter(type => this.missionKind === MISSION_KIND.RECOVERY ? isRecoveryType(type) : !isRecoveryType(type));
   }
 
-  unlockedAttackTypes(state = this.store.snapshot()) {
+  unlockedAttackTypes(state = uiViewState(this.store)) {
     return this.availableTypes().filter(type => (state.civilization?.level ?? 0) >= FRIENDLY_SQUAD_DEFINITIONS[type].unlockLevel);
   }
 
-  currentTarget(state = this.store.snapshot()) {
+  currentTarget(state = uiViewState(this.store)) {
     if (this.missionKind === MISSION_KIND.RECOVERY) {
       return (state.world.recoveryItems ?? []).find(item => item.id === this.targetId && item.status === RECOVERY_ITEM_STATUS.AVAILABLE) ?? null;
     }
@@ -213,7 +217,7 @@ export class DeploymentUi {
   }
 
   resetGroupSelection() {
-    const state = this.store.snapshot();
+    const state = uiViewState(this.store);
     const types = this.unlockedAttackTypes(state);
     this.groupCounts = Object.create(null);
     const first = types.includes('assault') ? 'assault' : types[0];
@@ -232,7 +236,7 @@ export class DeploymentUi {
     return Math.max(0, Math.min(180, Math.floor(Number(this.coordinatedManualDelays[type]) || 0)));
   }
 
-  normalizeSelection(state = this.store.snapshot()) {
+  normalizeSelection(state = uiViewState(this.store)) {
     const previousType = this.squadType;
     const previousOriginBaseId = this.originBaseId;
     const availableTypes = this.availableTypes();
@@ -274,7 +278,7 @@ export class DeploymentUi {
       if (this.mode === DEPLOYMENT_MODE.COORDINATED && this.groupSquadTypes().length === 0) this.resetGroupSelection();
     }
     if (action === 'select-unit' && squadType) {
-      const state = this.store.snapshot();
+      const state = uiViewState(this.store);
       const definition = FRIENDLY_SQUAD_DEFINITIONS[squadType];
       if (!definition || !this.availableTypes().includes(squadType) || (state.civilization?.level ?? 0) < definition.unlockLevel) return;
       this.squadType = squadType;
@@ -283,7 +287,7 @@ export class DeploymentUi {
     }
     if (action === 'group-add' && squadType) {
       const total = this.groupSquadTypes().length;
-      const maximum = friendlyCoordinatedDeploymentLimit(this.store.snapshot());
+      const maximum = friendlyCoordinatedDeploymentLimit(uiViewState(this.store));
       if (total < maximum) this.groupCounts[squadType] = (this.groupCounts[squadType] ?? 0) + 1;
     }
     if (action === 'group-remove' && squadType) {
@@ -291,7 +295,7 @@ export class DeploymentUi {
     }
     if (action === 'select-origin') { this.originBaseId = baseId; this.selectedRoutePlan = null; }
     if (action === 'plan-route') {
-      const state = this.store.snapshot();
+      const state = uiViewState(this.store);
       const origin = ownedBaseById(state, this.originBaseId);
       const target = this.currentTarget(state);
       const preview = this.originBaseId
@@ -349,7 +353,7 @@ export class DeploymentUi {
       this.coordinatedManualDelays[squadType] = Math.min(180, this.manualDelayFor(squadType) + 5);
     }
     if (action === 'plan-coordinated-route') {
-      const state = this.store.snapshot();
+      const state = uiViewState(this.store);
       const squadTypes = this.groupSquadTypes();
       const target = this.currentTarget(state);
       const preview = this.system.previewCoordinatedDeployment(state, this.targetId, squadTypes, this.coordinatedOptions());
@@ -399,14 +403,14 @@ export class DeploymentUi {
   targetMarkup(target) {
     if (this.missionKind === MISSION_KIND.RECOVERY) {
       const presentation = recoveryItemPresentation(target);
-      return `<div class="deploymentTargetSummary recoveryTarget"><span>RECOVERY TARGET</span><strong>${this.html(this.localize(presentation.name))}</strong><small>${this.htmlMsg('deployment.recoveryTargetNote', { sourceName: this.localize(presentation.sourceName) }, '{sourceName}跡地・確保後は拠点への帰還が必要')}</small></div>`;
+      return `<div class="deploymentTargetSummary recoveryTarget"><span>${this.htmlChrome('recoveryTarget', 'RECOVERY TARGET')}</span><strong>${this.html(this.localize(presentation.name))}</strong><small>${this.htmlMsg('deployment.recoveryTargetNote', { sourceName: this.localize(presentation.sourceName) }, '{sourceName}跡地・確保後は拠点への帰還が必要')}</small></div>`;
     }
     if (this.missionKind === MISSION_KIND.INTERCEPT) {
       const definition = ENEMY_DEFINITIONS[target.type];
-      return `<div class="deploymentTargetSummary hostile"><span>INTERCEPT TARGET</span><strong>${this.html(this.localize(definition?.name ?? '敵部隊'))}</strong><small>${this.htmlMsg('deployment.interceptTargetNote', { hp: Math.ceil(target.hp), maxHp: target.maxHp, level: target.level ?? 1 }, 'HP {hp}/{maxHp}・Lv.{level}・移動目標を追跡')}</small></div>`;
+      return `<div class="deploymentTargetSummary hostile"><span>${this.htmlChrome('interceptTarget', 'INTERCEPT TARGET')}</span><strong>${this.html(this.localize(definition?.name ?? '敵部隊'))}</strong><small>${this.htmlMsg('deployment.interceptTargetNote', { hp: Math.ceil(target.hp), maxHp: target.maxHp, level: target.level ?? 1 }, 'HP {hp}/{maxHp}・Lv.{level}・移動目標を追跡')}</small></div>`;
     }
     const definition = ENEMY_BASE_DEFINITIONS[target.type];
-    return `<div class="deploymentTargetSummary hostile"><span>ATTACK TARGET</span><strong>${this.html(this.localize(definition?.name ?? '敵拠点'))}</strong><small>${this.htmlMsg('deployment.attackTargetNote', { hp: Math.ceil(target.hp), maxHp: target.maxHp, level: target.level ?? 1 }, 'HP {hp}/{maxHp}・Lv.{level}')}</small></div>`;
+    return `<div class="deploymentTargetSummary hostile"><span>${this.htmlChrome('attackTarget', 'ATTACK TARGET')}</span><strong>${this.html(this.localize(definition?.name ?? '敵拠点'))}</strong><small>${this.htmlMsg('deployment.attackTargetNote', { hp: Math.ceil(target.hp), maxHp: target.maxHp, level: target.level ?? 1 }, 'HP {hp}/{maxHp}・Lv.{level}')}</small></div>`;
   }
 
   modeMarkup() {
@@ -489,7 +493,7 @@ export class DeploymentUi {
     return `<section><h2>${this.htmlMsg('deployment.unitTypeHeading', {}, '部隊種類')} <small>${this.htmlMsg('deployment.globalCommandSmall', { assigned: globalCommand.assigned, capacity: globalCommand.capacity }, '全体指揮 {assigned}/{capacity}')}</small></h2><div class="deploymentGrid deploymentUnitGrid">${this.unitCardsMarkup(state)}</div></section>
       <section><h2>${this.htmlMsg('deployment.originHeading', {}, '出撃元')}</h2><div class="deploymentGrid">${originCards}</div></section>
       <section class="deploymentOrder"><h2>${this.htmlMsg('deployment.confirmHeading', {}, '派兵確認')}</h2>
-        <div class="contextMetricGrid"><span><small>FROM</small><strong>${this.html(origin?.name ?? this.msg('deployment.unselected', {}, '未選択'))}</strong></span><span><small>UNIT</small><strong>${this.html(this.localize(definition.name))}</strong></span><span><small>ROUTE</small><strong>${this.html(selectedRoute?.label ? this.localize(selectedRoute.label) : 'AUTO')} ${this.html(this.routeText(preview.routeDistance))}</strong></span><span><small>SLOT</small><strong>${preview.capacity ? `${preview.assignedSquads ?? 0}/${preview.capacity}` : '—'}</strong></span><span><small>COST</small><strong>${this.html(preview.reuseReadySquad ? this.msg('deployment.costNone', {}, '不要') : this.bundleText(definition.cost))}</strong></span></div>
+        <div class="contextMetricGrid"><span><small>${this.htmlChrome('from', 'FROM')}</small><strong>${this.html(origin?.name ?? this.msg('deployment.unselected', {}, '未選択'))}</strong></span><span><small>${this.htmlChrome('unit', 'UNIT')}</small><strong>${this.html(this.localize(definition.name))}</strong></span><span><small>${this.htmlChrome('route', 'ROUTE')}</small><strong>${this.html(selectedRoute?.label ? this.localize(selectedRoute.label) : this.chromeMsg('auto', 'AUTO'))} ${this.html(this.routeText(preview.routeDistance))}</strong></span><span><small>${this.htmlChrome('slot', 'SLOT')}</small><strong>${preview.capacity ? `${preview.assignedSquads ?? 0}/${preview.capacity}` : '—'}</strong></span><span><small>${this.htmlChrome('cost', 'COST')}</small><strong>${this.html(preview.reuseReadySquad ? this.msg('deployment.costNone', {}, '不要') : this.bundleText(definition.cost))}</strong></span></div>
         <p class="sectionNote">${this.html(routeSummary)}</p>
         <button class="wideButton" data-action="plan-route" ${routePlannerAvailable ? '' : 'disabled'}>${this.htmlMsg(selectedRoute ? 'deployment.buttonChangeRoute' : 'deployment.buttonPlanRoute', {}, selectedRoute ? '派兵経路を変更' : '地図で派兵経路を指定')}</button>
         <p class="sectionNote">${this.html(previewNote)}</p>
@@ -532,18 +536,18 @@ export class DeploymentUi {
       : this.localize(preview.reason);
     return `<section><h2>${this.htmlMsg('deployment.coordinatedFormationHeading', {}, '連携編成')} <small>${this.htmlMsg('deployment.coordinatedCountSmall', { count: squadTypes.length, maximum, assigned: globalCommand.assigned, capacity: globalCommand.capacity }, '{count}/{maximum}部隊・全体指揮 {assigned}/{capacity}')}</small></h2><p class="sectionNote">${this.htmlMsg('deployment.coordinatedIntro', {}, '連携出撃は、同じ拠点から同じルートで進軍します。出撃前にMAP上で共通経路を指定できます。')}</p><div class="deploymentGrid coordinatedUnitGrid">${this.groupCardsMarkup(state)}</div></section>
       <section class="deploymentOrder coordinatedOrder"><h2>${this.htmlMsg('deployment.marchMethodHeading', {}, '進軍方式')}</h2>
-        <div class="contextMetricGrid"><span><small>ROUTE</small><strong>${this.html(routeLabel)}</strong></span><span><small>ORIGIN</small><strong>${this.html(preview.origin?.name ?? '—')}</strong></span><span><small>TIMING</small><strong>${this.html(this.localize(preview.timingLabel ?? this.msg('deployment.timingLead', {}, '先導')))}</strong></span><span><small>ARRIVAL</small><strong>${this.html(this.durationText(preview.estimatedArrivalSeconds))}</strong></span></div>
+        <div class="contextMetricGrid"><span><small>${this.htmlChrome('route', 'ROUTE')}</small><strong>${this.html(routeLabel)}</strong></span><span><small>${this.htmlChrome('origin', 'ORIGIN')}</small><strong>${this.html(preview.origin?.name ?? '—')}</strong></span><span><small>${this.htmlChrome('timing', 'TIMING')}</small><strong>${this.html(this.localize(preview.timingLabel ?? this.msg('deployment.timingLead', {}, '先導')))}</strong></span><span><small>${this.htmlChrome('arrival', 'ARRIVAL')}</small><strong>${this.html(this.durationText(preview.estimatedArrivalSeconds))}</strong></span></div>
         <button class="wideButton" data-action="plan-coordinated-route" ${routePlannerAvailable ? '' : 'disabled'}>${this.htmlMsg(selectedRoute ? 'deployment.buttonChangeCoordinatedRoute' : 'deployment.buttonPlanCoordinatedRoute', {}, selectedRoute ? '連携経路を変更' : 'MAPで連携経路を指定')}</button>
         ${this.timingControlsMarkup()}
         ${this.manualDelayControlsMarkup()}
         ${assignments ? `<ol class="formationAssignments">${assignments}</ol>` : ''}
         <p class="sectionNote">${this.html(previewNote)}</p>
-        <div class="contextMetricGrid"><span><small>SQUADS</small><strong>${squadTypes.length}</strong></span><span><small>COST</small><strong>${this.html(this.bundleText(preview.cost ?? {}))}</strong></span></div>
+        <div class="contextMetricGrid"><span><small>${this.htmlChrome('unit', 'SQUADS')}</small><strong>${squadTypes.length}</strong></span><span><small>${this.htmlChrome('cost', 'COST')}</small><strong>${this.html(this.bundleText(preview.cost ?? {}))}</strong></span></div>
         <button class="primary wideButton" data-action="dispatch-group" ${preview.ok ? '' : 'disabled'}>${this.htmlMsg('deployment.buttonCoordinatedDispatch', { count: squadTypes.length }, '{count}部隊で連携出撃')}</button>
       </section>`;
   }
 
-  render(state = this.store.snapshot()) {
+  render(state = uiViewState(this.store)) {
     this.lastRenderAt = Date.now();
     this.normalizeSelection(state);
     const target = this.currentTarget(state);

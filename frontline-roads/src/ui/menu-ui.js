@@ -1,4 +1,4 @@
-import { bindDismissibleModal, queryRequired, setVisible } from './dom.js';
+import { bindDismissibleModal, queryRequired, setVisible, uiViewState } from './dom.js';
 import { buildOperationGuidance, operationGuidanceMarkup } from './operation-guidance.js';
 import { SUPPORTED_LANGUAGES, languageMeta, nextLanguageCode } from '../i18n/catalog.js';
 
@@ -162,7 +162,7 @@ export class MenuUi {
     const now = Date.now();
     if (!force && this.lastOpsRefreshAt && now - this.lastOpsRefreshAt < 1200) return;
     this.lastOpsRefreshAt = now;
-    const state = this.store.snapshot ? this.store.snapshot() : null;
+    const state = uiViewState(this.store);
     this.opsPanel.innerHTML = state
       ? operationGuidanceMarkup(buildOperationGuidance(state, this.i18n), this.i18n)
       : `<p class="emptyText">${this.htmlMsg('menu.opsUnavailable', {}, '作戦目標を取得できません。')}</p>`;

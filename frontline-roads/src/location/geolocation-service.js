@@ -50,3 +50,87 @@ export class GeolocationService {
     return () => this.geolocation.clearWatch(watchId);
   }
 }
+
+const EARTH_RADIUS_METERS = 6371000;
+
+function haversineMeters(a, b) {
+  const toRadians = degrees => degrees * Math.PI / 180;
+  const dLat = toRadians(b.lat - a.lat);
+  const dLon = toRadians(b.lon - a.lon);
+  const sinLat = Math.sin(dLat / 2);
+  const sinLon = Math.sin(dLon / 2);
+  const h = sinLat * sinLat + Math.cos(toRadians(a.lat)) * Math.cos(toRadians(b.lat)) * sinLon * sinLon;
+  return 2 * EARTH_RADIUS_METERS * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+export const ADAPTIVE_WATCH_DEFAULTS = Object.freeze({
+  idleAfterMs: 120000,
+  movementThresholdMeters: 15,
+  highAccuracyOptions: Object.freeze({ enableHighAccuracy: true, timeout: 25000, maximumAge: 10000 }),
+  lowAccuracyOptions: Object.freeze({ enableHighAccuracy: false, timeout: 30000, maximumAge: 30000 })
+});
+
+export class AdaptiveLocationWatcher {
+  // Battery-aware wrapper around GeolocationService.watchPosition(). While the
+  // player keeps moving, the GPS runs at high accuracy. After idleAfterMs
+  // without significant movement the watch restarts at low accuracy with a
+  // longer maximumAge; the first fix that shows movement again switches the
+  // watch back to high accuracy.
+  constructor(service, { now = () => Date.now(), ...options } = {}) {
+    this.service = service;
+    this.now = now;
+    this.options = { ...ADAPTIVE_WATCH_DEFAULTS, ...options };
+    this.stopCurrent = null;
+    this.mode = 'high';
+    this.lastPosition = null;
+    this.lastMovementAt = null;
+    this.active = false;
+  }
+
+  start(onPosition, onError = null) {
+    this.stop();
+    this.active = true;
+    this.lastPosition = null;
+    this.lastMovementAt = this.now();
+    this.onPosition = onPosition;
+    this.onError = onError;
+    this.beginWatch('high');
+    return () => this.stop();
+  }
+
+  beginWatch(mode) {
+    if (!this.active) return;
+    this.stopCurrent?.();
+    this.mode = mode;
+    const options = mode === 'high' ? this.options.highAccuracyOptions : this.options.lowAccuracyOptions;
+    this.stopCurrent = this.service.watchPosition(
+      position => this.handlePosition(position),
+      error => this.onError?.(error),
+      options
+    );
+  }
+
+  handlePosition(position) {
+    if (!this.active) return;
+    const timestamp = this.now();
+    const moved = this.lastPosition
+      ? haversineMeters(this.lastPosition, position) >= this.options.movementThresholdMeters
+      : false;
+    if (moved || !this.lastPosition) {
+      this.lastMovementAt = timestamp;
+      this.lastPosition = { lat: position.lat, lon: position.lon };
+    }
+    if (this.mode === 'high' && !moved && timestamp - this.lastMovementAt >= this.options.idleAfterMs) {
+      this.beginWatch('low');
+    } else if (this.mode === 'low' && moved) {
+      this.beginWatch('high');
+    }
+    this.onPosition?.(position);
+  }
+
+  stop() {
+    this.active = false;
+    this.stopCurrent?.();
+    this.stopCurrent = null;
+  }
+}
