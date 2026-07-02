@@ -11,7 +11,7 @@ import { activePlayerBases } from '../base/player-bases.js';
 import { defenseWorldPosition } from '../combat/combat-geometry.js';
 
 export const ROADSIDE_SUPPLY_VERSION = 2;
-export const ROADSIDE_SUPPLY_COLLECT_RANGE_METERS = 28;
+export const ROADSIDE_SUPPLY_COLLECT_RANGE_METERS = 35;
 export const ROADSIDE_SUPPLY_LOCATION_MAX_AGE_MS = 60_000;
 export const ROADSIDE_SUPPLY_MAX_ACCURACY_METERS = 100;
 export const ROADSIDE_SUPPLY_REFRESH_SECONDS = 10;
@@ -54,24 +54,24 @@ export const ROADSIDE_USE_DEFINITIONS = Object.freeze({
   areaSuppression: Object.freeze({ name: '広域制圧支援', radiusMeters: 190, baseDamageRatio: 0.20 })
 });
 
-const RESOURCE_TIERS = Object.freeze([
+export const RESOURCE_TIERS = Object.freeze([
   Object.freeze({ minLevel: 0, rarity: 'common', supplies: [
-    Object.freeze({ type: 'wood_crate', name: '木材箱', bundle: { wood: 18 } }),
-    Object.freeze({ type: 'stone_sack', name: '石材袋', bundle: { stone: 14 } }),
-    Object.freeze({ type: 'fiber_bundle', name: '繊維束', bundle: { fiber: 14 } })
+    Object.freeze({ type: 'wood_crate', name: '木材箱', bundle: { wood: 28 } }),
+    Object.freeze({ type: 'stone_sack', name: '石材袋', bundle: { stone: 24 } }),
+    Object.freeze({ type: 'fiber_bundle', name: '繊維束', bundle: { fiber: 22 } })
   ] }),
   Object.freeze({ minLevel: 1, rarity: 'uncommon', supplies: [
-    Object.freeze({ type: 'timber_box', name: '加工木材箱', bundle: { timber: 2 } }),
-    Object.freeze({ type: 'rope_bundle', name: '縄束', bundle: { rope: 2 } }),
-    Object.freeze({ type: 'cutstone_box', name: '切石箱', bundle: { cutStone: 2 } }),
-    Object.freeze({ type: 'charcoal_bag', name: '木炭袋', bundle: { charcoal: 4 } })
+    Object.freeze({ type: 'timber_box', name: '加工木材箱', bundle: { timber: 3 } }),
+    Object.freeze({ type: 'rope_bundle', name: '縄束', bundle: { rope: 3 } }),
+    Object.freeze({ type: 'cutstone_box', name: '切石箱', bundle: { cutStone: 3 } }),
+    Object.freeze({ type: 'charcoal_bag', name: '木炭袋', bundle: { charcoal: 6 } })
   ] }),
   Object.freeze({ minLevel: 2, rarity: 'rare', supplies: [
-    Object.freeze({ type: 'copper_ore_box', name: '銅鉱石箱', bundle: { copperOre: 3 } }),
-    Object.freeze({ type: 'tin_ore_box', name: '錫鉱石箱', bundle: { tinOre: 2 } })
+    Object.freeze({ type: 'copper_ore_box', name: '銅鉱石箱', bundle: { copperOre: 4 } }),
+    Object.freeze({ type: 'tin_ore_box', name: '錫鉱石箱', bundle: { tinOre: 3 } })
   ] }),
   Object.freeze({ minLevel: 3, rarity: 'rare', supplies: [
-    Object.freeze({ type: 'iron_ore_box', name: '鉄鉱石箱', bundle: { ironOre: 2 } }),
+    Object.freeze({ type: 'iron_ore_box', name: '鉄鉱石箱', bundle: { ironOre: 3 } }),
     Object.freeze({ type: 'bronze_box', name: '青銅塊箱', bundle: { bronzeIngot: 1 } })
   ] }),
   Object.freeze({ minLevel: 4, rarity: 'epic', supplies: [Object.freeze({ type: 'wrought_iron_box', name: '鍛鉄箱', bundle: { wroughtIron: 1 } })] }),

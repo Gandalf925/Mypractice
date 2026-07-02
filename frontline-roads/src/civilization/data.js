@@ -40,10 +40,10 @@ export const CIVILIZATION_PROJECTS = Object.freeze({
 });
 
 export const PRODUCTION_RECIPES = Object.freeze({
-  timber: { name: '加工木材', building: 'carpentry', input: { wood: 10 }, output: { timber: 1 }, seconds: 60, level: 1 },
-  rope: { name: '縄', building: 'ropeworks', input: { fiber: 8 }, output: { rope: 1 }, seconds: 60, level: 1 },
-  cutStone: { name: '切石', building: 'stonecutter', input: { stone: 12 }, output: { cutStone: 1 }, seconds: 90, level: 1 },
-  charcoal: { name: '木炭', building: 'charcoalKiln', input: { wood: 8 }, output: { charcoal: 1 }, seconds: 120, level: 2 },
+  timber: { name: '加工木材', building: 'carpentry', input: { wood: 10 }, output: { timber: 1 }, seconds: 45, level: 1 },
+  rope: { name: '縄', building: 'ropeworks', input: { fiber: 8 }, output: { rope: 1 }, seconds: 45, level: 1 },
+  cutStone: { name: '切石', building: 'stonecutter', input: { stone: 12 }, output: { cutStone: 1 }, seconds: 60, level: 1 },
+  charcoal: { name: '木炭', building: 'charcoalKiln', input: { wood: 8 }, output: { charcoal: 1 }, seconds: 90, level: 2 },
   copperIngot: { name: '銅塊', building: 'copperFurnace', input: { copperOre: 6, charcoal: 2 }, output: { copperIngot: 1 }, seconds: 180, level: 2 },
   tinIngot: { name: '錫塊', building: 'tinFurnace', input: { tinOre: 4, charcoal: 2 }, output: { tinIngot: 1 }, seconds: 180, level: 2 },
   trialBronze: { name: '試験青銅', building: 'trialBronzeFurnace', input: { copperIngot: 3, tinIngot: 1, charcoal: 2 }, output: { bronzeIngot: 4 }, seconds: 420, level: 2, projectDelivery: true },

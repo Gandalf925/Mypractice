@@ -24,6 +24,8 @@ const KIND_DEFAULTS = Object.freeze({
   FIELD: Object.freeze({ control: 0.12, enemyPressure: 0.20, baseYieldPerHour: 14, logisticsBase: 0.65 })
 });
 
+const PRIMARY_BASELINE_YIELD_BY_LEVEL = Object.freeze([12, 18, 24, 30]);
+
 function clamp(value, min, max) { return Math.max(min, Math.min(max, Number(value) || 0)); }
 function clamp01(value) { return clamp(value, 0, 1); }
 function finitePoint(point) { return point && Number.isFinite(Number(point.x)) && Number.isFinite(Number(point.y)); }
@@ -270,6 +272,17 @@ function regionalYieldScaleForState(state) {
   return clamp(scaled, 0.45, 1);
 }
 
+function primaryBaselineYieldPerHour(state, profile) {
+  if (profile.kind !== 'PRIMARY') return 0;
+  if (state?.lifecycle === 'DESTROYED' || state?.runtime?.gameOver) return 0;
+  const level = civilizationLevel(state);
+  const baseline = PRIMARY_BASELINE_YIELD_BY_LEVEL[Math.min(level, PRIMARY_BASELINE_YIELD_BY_LEVEL.length - 1)] ?? 0;
+  if (baseline <= 0) return 0;
+  const pressurePenalty = clamp(1 - Math.max(0, profile.enemyPressure - 0.55) * 1.25, 0.35, 1);
+  const modePenalty = profile.simulationMode === REGION_SIMULATION_MODE.ACTIVE ? 1 : 0.94;
+  return baseline * pressurePenalty * modePenalty;
+}
+
 function yieldPerHourForProfile(state, profile) {
   const level = civilizationLevel(state);
   const kindDefaults = KIND_DEFAULTS[profile.kind] ?? KIND_DEFAULTS.MAJOR;
@@ -283,7 +296,9 @@ function yieldPerHourForProfile(state, profile) {
       ? 0.98
       : 0.92;
   const globalScale = regionalYieldScaleForState(state);
-  return Math.max(0, kindDefaults.baseYieldPerHour * controlFactor * pressureFactor * logisticsFactor * levelFactor * modeFactor * globalScale);
+  const formulaYield = kindDefaults.baseYieldPerHour * controlFactor * pressureFactor * logisticsFactor * levelFactor * modeFactor * globalScale;
+  const baselineYield = primaryBaselineYieldPerHour(state, profile);
+  return Math.max(0, formulaYield, baselineYield);
 }
 
 function normalizeWeights(weights) {
